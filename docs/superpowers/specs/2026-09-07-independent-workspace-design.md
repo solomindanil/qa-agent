@@ -46,6 +46,8 @@ Each product has one declared execution/knowledge owner for a campaign.
 
 Retain graph gap-wave86e833, I1 coveragea4df0c5, Universal-QAH/PayDemo58a8182 and
 Nuanu-app7be0e9b as selective reference/eval donors, not alternative active engines.
+Preserve the distinct Kernel observation-report branch10d398d as a non-active
+reference after auditing its additional history; it does not replace Kernel393.
 Reviewed but uncommitted G0 changes require their exact-file hash inventory and
 review companions; they must not be represented as their old repository HEAD.
 Unqualified dirty work is preserved separately and is not enabled by assembly.
@@ -70,6 +72,9 @@ campaign/outbox state, screenshots/traces and broad private directories outside
 the distributable. Preserve useful private project knowledge in its own scope
 only after review. Do not manually relocate registered managed state or rewrite
 historical receipts to make a new workspace appear accepted.
+Committed synthetic visual-test baselines are source fixtures, not private
+runtime screenshots; include them only after content review, without relabeling
+them as evidence of a real product run.
 
 ## Minimal bootstrap boundary
 
