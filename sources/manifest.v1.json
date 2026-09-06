@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "components": [
+    {
+      "id": "kernel",
+      "path": "components/kernel",
+      "commit": "393af209a7629d075258fd1050224db071817a47",
+      "tree": "bbebc132e8d5c678ea4210f04937caf835311ddc",
+      "bundle": "sources/kernel.bundle",
+      "sha256": "7327ddea2eb63a1eb9b3d3be455bc5f50b1c308108e77cee93d7e8141e78035a",
+      "runtimeAuthority": true,
+      "qualification": "source-reviewed; assembled-runtime-not-qualified"
+    },
+    {
+      "id": "console",
+      "path": "components/console",
+      "commit": "43262b2202532d9ea5648e27dafe0fc5177689fe",
+      "tree": "131a20f8b2fc206ca370ed91aa686739ca707485",
+      "bundle": "sources/console.bundle",
+      "sha256": "d8655c266813d34e6f6d1cd408555e90cc94e2ee9c393d53962443629b63e9bf",
+      "runtimeAuthority": true,
+      "qualification": "source-reviewed; assembled-runtime-not-qualified"
+    },
+    {
+      "id": "freeland",
+      "path": "components/freeland",
+      "commit": "3d0088ec86b16a2802aa09cca975ca65cc2ede32",
+      "tree": "87dcf4cfe7695257cb8d80b520ff021fe3644bf8",
+      "bundle": "sources/freeland.bundle",
+      "sha256": "bf20d0487ccefbc94b1b6375cbeb70f1bf2f56d1252e7b216888d449741d061d",
+      "runtimeAuthority": true,
+      "qualification": "source-reviewed; assembled-runtime-not-qualified"
+    },
+    {
+      "id": "kernel-reporting-reference",
+      "path": "components/kernel-reporting-reference",
+      "commit": "10d398d8a077068c2184f33958e9b654a2f2947c",
+      "tree": "f9edc6f43166b69781973fd0568de624a6b11f82",
+      "bundle": "sources/kernel-reporting-reference.bundle",
+      "sha256": "b641548168c9bc03a36a6a9343063ab6069a6b450cffaf0938393be3d3a2ec37",
+      "runtimeAuthority": false,
+      "qualification": "source-reviewed; assembled-runtime-not-qualified"
+    }
+  ]
+}

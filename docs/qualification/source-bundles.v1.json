@@ -1,0 +1,82 @@
+{
+  "date": "2026-09-07",
+  "scope": "Bundle and source restoration only; component qualification is reported separately",
+  "components": [
+    {
+      "id": "kernel",
+      "commit": "393af209a7629d075258fd1050224db071817a47",
+      "tree": "bbebc132e8d5c678ea4210f04937caf835311ddc",
+      "bundle": "sources/kernel.bundle",
+      "bytes": 934733,
+      "sha256": "7327ddea2eb63a1eb9b3d3be455bc5f50b1c308108e77cee93d7e8141e78035a",
+      "objectCount": 1323,
+      "allObjectSetMatchesAuditedDonor": true,
+      "workingFilesVerified": 129,
+      "lockfileSha256": "66287d70aeaa9ac0faf9fedaa0d6235f6b4e46aec9a189e078827d1b33b65871",
+      "clean": true,
+      "alternates": false,
+      "completeHistory": true,
+      "gitStorage": "Independent .git inside fresh verification child"
+    },
+    {
+      "id": "console",
+      "commit": "43262b2202532d9ea5648e27dafe0fc5177689fe",
+      "tree": "131a20f8b2fc206ca370ed91aa686739ca707485",
+      "bundle": "sources/console.bundle",
+      "bytes": 4092520,
+      "sha256": "d8655c266813d34e6f6d1cd408555e90cc94e2ee9c393d53962443629b63e9bf",
+      "objectCount": 1501,
+      "allObjectSetMatchesAuditedDonor": true,
+      "workingFilesVerified": 151,
+      "lockfileSha256": "cae849c1b392666de92efe7f2b2f1536b07a0a35d6d21bd803c822a3e359a88b",
+      "clean": true,
+      "alternates": false,
+      "completeHistory": true,
+      "gitStorage": "Independent .git inside fresh verification child"
+    },
+    {
+      "id": "freeland",
+      "commit": "3d0088ec86b16a2802aa09cca975ca65cc2ede32",
+      "tree": "87dcf4cfe7695257cb8d80b520ff021fe3644bf8",
+      "bundle": "sources/freeland.bundle",
+      "bytes": 3525136,
+      "sha256": "bf20d0487ccefbc94b1b6375cbeb70f1bf2f56d1252e7b216888d449741d061d",
+      "objectCount": 2186,
+      "allObjectSetMatchesAuditedDonor": true,
+      "workingFilesVerified": 540,
+      "lockfileSha256": "704a0b43e1cd9d4e9c9e6c3cd4417f649b8550ad864c29f63a665f95992e9a45",
+      "clean": true,
+      "alternates": false,
+      "completeHistory": true,
+      "gitStorage": "Independent .git inside fresh verification child"
+    },
+    {
+      "id": "kernel-reporting-reference",
+      "commit": "10d398d8a077068c2184f33958e9b654a2f2947c",
+      "tree": "f9edc6f43166b69781973fd0568de624a6b11f82",
+      "bundle": "sources/kernel-reporting-reference.bundle",
+      "bytes": 959577,
+      "sha256": "b641548168c9bc03a36a6a9343063ab6069a6b450cffaf0938393be3d3a2ec37",
+      "objectCount": 1338,
+      "allObjectSetMatchesAuditedDonor": true,
+      "workingFilesVerified": 134,
+      "lockfileSha256": "66287d70aeaa9ac0faf9fedaa0d6235f6b4e46aec9a189e078827d1b33b65871",
+      "clean": true,
+      "alternates": false,
+      "completeHistory": true,
+      "gitStorage": "Independent .git inside fresh verification child"
+    }
+  ],
+  "qualification": "source-bundles-verified",
+  "bootstrapRuntime": "restore_and_verify_passed",
+  "coldRestore": {
+    "trackedTree": "7291565aa42771d26be182d38b943fe8e516ee33",
+    "ownEntrypoint": true,
+    "emptyRootGitObjects": true,
+    "dependencyDirectoriesAbsent": true,
+    "restoreExit": 0,
+    "verifyExits": [0, 0],
+    "allFourFsckAndTrackedBytesVerified": true,
+    "extraObjects": 0
+  }
+}
