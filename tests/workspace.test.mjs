@@ -164,6 +164,18 @@ for (const dirty of ['tracked', 'untracked']) {
     await refusesUnchanged(f, 'SOURCE_DIRTY', 'verify');
   });
 }
+for (const [name, flag] of [
+  ['assume-unchanged', '--assume-unchanged'],
+  ['skip-worktree', '--skip-worktree'],
+]) {
+  test(`tracked tamper hidden by ${name} is preserved and refused by restore and verify`, async () => {
+    const f = await fixture(); succeeds(f);
+    git(f.child, 'update-index', flag, 'example.txt');
+    await writeFile(join(f.child, 'example.txt'), 'tampered bytes!!\n');
+    await refusesUnchanged(f, 'SOURCE_DIRTY');
+    await refusesUnchanged(f, 'SOURCE_DIRTY', 'verify');
+  });
+}
 test('normal ignored files are permitted and preserved', async () => {
   const f = await fixture(); succeeds(f);
   await mkdir(join(f.child, '.git', 'info'));

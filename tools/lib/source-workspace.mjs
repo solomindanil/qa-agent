@@ -126,6 +126,10 @@ async function verifyChild(root, entry) {
   await verifyRepository(child);
   if (git(child, ['rev-parse', '--verify', 'HEAD']).trim() !== entry.commit) fail('SOURCE_HEAD', `HEAD mismatch: ${entry.id}`);
   if (git(child, ['rev-parse', '--verify', 'HEAD^{tree}']).trim() !== entry.tree) fail('SOURCE_TREE', `Tree mismatch: ${entry.id}`);
+  const indexEntries = git(child, ['ls-files', '-v', '-z']).split('\0').filter(Boolean);
+  if (indexEntries.some(record => record.startsWith('S ') || /^[a-z] /.test(record))) {
+    fail('SOURCE_DIRTY', `Index flags can hide tracked changes in ${entry.id}`);
+  }
   if (git(child, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignore-submodules=none']).length) {
     fail('SOURCE_DIRTY', `Tracked or untracked changes in ${entry.id}`);
   }
