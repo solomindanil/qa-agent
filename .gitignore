@@ -1,0 +1,13 @@
+# Generated component checkouts; distributable source bundles are reviewed separately.
+/components/
+/.local/
+/.worktrees/
+node_modules/
+dist/
+test-results/
+playwright-report/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
