@@ -77,6 +77,9 @@ A small local bootstrap consumes a versioned JSON inventory of component IDs,
 relative destinations, exact commit/tree, bundle digest and qualification state.
 It verifies bundle integrity and closure, materializes independent Git checkouts
 without hardlinks/alternates to old sources, then reads back HEAD/tree/root.
+Require a normal child-local `.git` directory: canonical Git dir, common dir
+and object storage must belong to that child. An external worktree gitdir
+pointer is not independent even when HEAD/top-level match and no alternates exist.
 
 Existing matching checkouts are verified and left unchanged. Wrong, dirty,
 symlinked or conflicting destinations are rejected without deletion or overwrite.
@@ -94,9 +97,10 @@ No scheduler or new generic execution API is part of this slice.
 
 1. Restore audited components into an empty canonical directory using only the
    delivered bundles, with no inherited Git object overrides or old donor access.
-   Read back exact source/lockfile hashes, Git root and absence of alternates.
+   Read back exact source/lockfile hashes, Git root, child-local Git/common/object
+   directories and absence of alternates. Reject matching external-gitdir worktrees.
 2. Test valid restore/repeat and wrong SHA/digest, missing bundle, dirty source,
-   conflicting existing destination and symlink/path escape refusals. A failed
+   conflicting existing destination, external Git storage and symlink/path escape refusals. A failed
    check must leave pre-existing user bytes unchanged.
 3. Resolve dependencies with existing separate lockfiles and record runtime
    versions. Installation/build is a deliberate qualification step, not an
