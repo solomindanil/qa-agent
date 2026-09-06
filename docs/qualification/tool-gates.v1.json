@@ -1,0 +1,358 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-07",
+  "scope": "Selected local source/tool qualification; not product or full runtime acceptance",
+  "node": "v22.23.1",
+  "npm": "10.9.8",
+  "commands": [
+    {
+      "id": "kernel",
+      "step": "kernel-install",
+      "argv": [
+        "npm",
+        "ci",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund"
+      ],
+      "cwd": "components/kernel",
+      "exit": 0,
+      "signal": null,
+      "error": null,
+      "durationMs": 6774,
+      "outputSha256": "b9cd530f9631492ac7ac5c56e6e007433ea8c63dd637f813211ec20568157933"
+    },
+    {
+      "id": "console",
+      "step": "console-install",
+      "argv": [
+        "npm",
+        "ci",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund"
+      ],
+      "cwd": "components/console",
+      "exit": 0,
+      "signal": null,
+      "error": null,
+      "durationMs": 4671,
+      "outputSha256": "d59431b97b2ac790644bb1d85264785872f9dbbbfa7d7827de7b0ff474309237"
+    },
+    {
+      "id": "freeland",
+      "step": "freeland-install",
+      "argv": [
+        "npm",
+        "ci",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund"
+      ],
+      "cwd": "components/freeland",
+      "exit": 0,
+      "signal": null,
+      "error": null,
+      "durationMs": 4107,
+      "outputSha256": "58f706644e4f7cfc655179bbd8bd83e7d05e99b1de2e156c679ada4fe438fb00"
+    },
+    {
+      "id": "root",
+      "step": "root-tests",
+      "argv": [
+        "npm",
+        "test"
+      ],
+      "cwd": ".",
+      "exit": 0,
+      "signal": null,
+      "error": null,
+      "durationMs": 40195,
+      "outputSha256": "26678e6353fb149f7bf1a01fc56769551fb01b13bbf0601020e722bddba55297"
+    },
+    {
+      "id": "kernel",
+      "step": "kernel-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "components/kernel",
+      "exit": 0,
+      "signal": null,
+      "error": null,
+      "durationMs": 10974,
+      "outputSha256": "8162ba8a6b03726255c46783431ea84c680a64ebdaa782eea45d8054f3cf76be"
+    },
+    {
+      "id": "kernel",
+      "step": "kernel-build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "cwd": "components/kernel",
+      "exit": 0,
+      "signal": null,
+      "error": null,
+      "durationMs": 6372,
+      "outputSha256": "0f2d9eeb6484ef8b78bf32dcc7e3a6ed7836504f0ead975edbe4cbad1f4d0955"
+    },
+    {
+      "id": "kernel",
+      "step": "kernel-contracts",
+      "argv": [
+        "npm",
+        "test",
+        "--",
+        "tests/contracts/canonical-json.test.ts",
+        "tests/contracts/json-preflight.test.ts"
+      ],
+      "cwd": "components/kernel",
+      "exit": 0,
+      "signal": null,
+      "error": null,
+      "durationMs": 5124,
+      "outputSha256": "b4a4e5912346645b0177414394f125db784e4ae55390c68657324338d88e1b82"
+    },
+    {
+      "id": "freeland",
+      "step": "freeland-provenance",
+      "argv": [
+        "npm",
+        "run",
+        "provenance:verify"
+      ],
+      "cwd": "components/freeland",
+      "exit": 0,
+      "signal": null,
+      "error": null,
+      "durationMs": 638,
+      "outputSha256": "2916bf513790c847f48d68747014473dc4cdb81eb2813a4dd7df966c0cd8aa4d"
+    },
+    {
+      "id": "freeland",
+      "step": "freeland-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "components/freeland",
+      "exit": 0,
+      "signal": null,
+      "error": null,
+      "durationMs": 2588,
+      "outputSha256": "594f6f877e222615cef9b660c4eb578552a9ccd57ecef7f2ec2f8ac0775d1aa1"
+    },
+    {
+      "id": "freeland",
+      "step": "freeland-main",
+      "argv": [
+        "npm",
+        "run",
+        "test:freeland-main"
+      ],
+      "cwd": "components/freeland",
+      "exit": 0,
+      "signal": null,
+      "error": null,
+      "durationMs": 13251,
+      "outputSha256": "5b45e3b6a35ca69b8926d324a58b2578ec12afbba34de2c28f7bf8e6d408974b"
+    },
+    {
+      "id": "freeland",
+      "step": "freeland-private-preflight",
+      "argv": [
+        "npm",
+        "run",
+        "test:freeland-private-preflight"
+      ],
+      "cwd": "components/freeland",
+      "exit": 0,
+      "signal": null,
+      "error": null,
+      "durationMs": 543,
+      "outputSha256": "5a22df56136810da3e1247667db4e369b981ff101590878894115204e4464a06"
+    },
+    {
+      "id": "console",
+      "step": "console-01-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "components/console",
+      "exit": 0,
+      "durationMs": 5434,
+      "tap": {},
+      "sourceFilter": null,
+      "stdoutSha256": "b060774adbd2994c21dc512d4ed3c2c8b0a5cc68265a31122c7f9dad37f04153",
+      "stderrSha256": "ea1459f5efae90125f581fb4ad7a08d389754aa1861589940e246843f777cae8"
+    },
+    {
+      "id": "console",
+      "step": "console-02-build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "cwd": "components/console",
+      "exit": 0,
+      "durationMs": 7529,
+      "tap": {},
+      "sourceFilter": null,
+      "stdoutSha256": "b72025a1e00e7d4bc7cd5143871322596608e532d2f5976d84d55e2d967f0fac",
+      "stderrSha256": "ccb6bf354a0674eeb1e49df9a880a000b75240079fdb849282bb899d81eeb58c"
+    },
+    {
+      "id": "console",
+      "step": "console-03-packaging",
+      "argv": [
+        "env",
+        "-u",
+        "NODE_OPTIONS",
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "--test-reporter=tap",
+        "tests/unit/qa-product-skill.test.ts"
+      ],
+      "cwd": "components/console",
+      "exit": 0,
+      "durationMs": 229,
+      "tap": {
+        "tests": 2,
+        "suites": 0,
+        "pass": 2,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 143.067667
+      },
+      "sourceFilter": null,
+      "stdoutSha256": "ab81ac8b38edbcdb6c3c317906ba5880bb5a762c613c59d8ab8995d4155e9fbd",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "console",
+      "step": "console-04-parser",
+      "argv": [
+        "env",
+        "-u",
+        "NODE_OPTIONS",
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=^(validate rejects unknown --dry-run before requiring a workspace|campaign parser )",
+        "tests/unit/qa-campaign-cli.test.ts"
+      ],
+      "cwd": "components/console",
+      "exit": 0,
+      "durationMs": 10366,
+      "tap": {
+        "tests": 18,
+        "suites": 0,
+        "pass": 18,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 10283.273083
+      },
+      "sourceFilter": {
+        "basis": "static top-level named test declarations; not an executed-test denominator",
+        "declared": 37,
+        "matched": 4,
+        "excluded": 33,
+        "matched_names": [
+          "validate rejects unknown --dry-run before requiring a workspace",
+          "campaign parser preserves supported options before workspace requirements",
+          "campaign parser rejects options belonging to another verb before workspace requirements",
+          "campaign parser preserves duplicate and missing-value errors"
+        ]
+      },
+      "stdoutSha256": "f9c54bc8d0e730ddba96b96c6ec09d4cc8314ca2d99b6ac1b0c31b832077397f",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "console",
+      "step": "console-05-fixture-authority",
+      "argv": [
+        "env",
+        "-u",
+        "NODE_OPTIONS",
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "--test-reporter=tap",
+        "tests/unit/kernel-fixture-authority.test.ts"
+      ],
+      "cwd": "components/console",
+      "exit": 0,
+      "durationMs": 20427,
+      "tap": {
+        "tests": 11,
+        "suites": 0,
+        "pass": 11,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 20353.259667
+      },
+      "sourceFilter": null,
+      "stdoutSha256": "4a393327585a0ad1f275d6dbe9b423e9d8acd9722c203ded199c7dae069abd4a",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "id": "console",
+      "step": "console-06-zero-executable",
+      "argv": [
+        "env",
+        "-u",
+        "NODE_OPTIONS",
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "--test-reporter=tap",
+        "--test-name-pattern=^zero executable checks and unauthorized side effects fail before filesystem or adapter effects$",
+        "tests/unit/qa-campaign-runner.test.ts"
+      ],
+      "cwd": "components/console",
+      "exit": 0,
+      "durationMs": 945,
+      "tap": {
+        "tests": 1,
+        "suites": 0,
+        "pass": 1,
+        "fail": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "duration_ms": 852.837709
+      },
+      "sourceFilter": {
+        "basis": "static top-level named test declarations; not an executed-test denominator",
+        "declared": 28,
+        "matched": 1,
+        "excluded": 27,
+        "matched_names": [
+          "zero executable checks and unauthorized side effects fail before filesystem or adapter effects"
+        ]
+      },
+      "stdoutSha256": "fe6e379aaec43834e5e565c7a9ab623dff04a760d1fd04b522d1126ca67c92da",
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}
