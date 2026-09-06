@@ -14,7 +14,7 @@ The north star is agent-first QA that can test products through dialogue first a
 
 ## Next bounded work
 
-1. Finish this assembly's root negative controls, cold restore, selected tool checks and independent Lead AQA/fresh-context review. See [assembly plan](../superpowers/plans/2026-09-07-independent-workspace-assembly.md).
+1. Assembly source/tool gates and independent Lead AQA/fresh-context reviews are complete. Preserve the accepted pins and qualification evidence; publish only to the authorized private repository with exact remote-SHA readback. See [qualification](../qualification/assembly.md) and [assembly plan](../superpowers/plans/2026-09-07-independent-workspace-assembly.md).
 2. Resume the preserved authored Starter fixture repair. First measure its real critical path; keep assertions, accepted Kernel pin, durability and180s deadline. The previous `fsync≈145s` explanation was not measured and is not a verified cause.
 3. Coordinate one safe real second-product G1 campaign; do not overwrite the current product owner's workspace/session. Preserve Freeland-specific gaps separately rather than waiting for every Freeland gap before portability work.
 4. Extend only the capability or graph seam shown missing by that run; retain G2–G6 tests and coverage/quality metrics. No unconditional new orchestrator, report engine or skill per testcase.

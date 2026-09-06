@@ -1,6 +1,6 @@
 # Assembly qualification — selected gates passed
 
-Date: 2026-09-07. Selected source identities are pinned in [manifest](../../sources/manifest.v1.json). Source restoration and the deliberately selected local tool checks below passed. Whole-delivery independent review/publication is the final pending step; this is not a product release verdict.
+Date: 2026-09-07. Selected source identities are pinned in [manifest](../../sources/manifest.v1.json). Source restoration, the deliberately selected local tool checks below, and whole-delivery independent review passed. The scoped delivery is approved for the authorized private repository; this is not a product release verdict.
 
 ## Executed and read back
 
@@ -27,6 +27,10 @@ All17 command records (including3 installs) and raw-output hashes are in [tool-g
 - Generated cache SHA-256: `db0975c42145f73e8d4b12fedaddc948044ad1533ce74b93b6bbe46d5d11ce25`; restored exact baseline: `47512f3084eab3b71cd21523997c62768d6f0885c7ae0fc24dc86bdeaa8e9c7b`. Future cache-tracking maintenance is documented in the roadmap.
 
 ## Review and evidence
+
+Whole-delivery independent Lead AQA / architecture review: **GO**, Critical0 / Important0 / Minor1 (unused import, deferred to ordinary maintenance). Reviewed range: `418b9ec6c6dcad506c110f6505d24809a45728b1..9becac3ba5ee74d83c42250a27a8873ce50665af`. Report retained at `.local/source-audits/final-review/REPORT.md`, SHA-256 `56542407dcd096f0036ad3e6c0f8f5a544c76799cc53f521211ef9b462e86d91`. This acceptance record changes documentation only, not the reviewed source/bundle/test bytes.
+
+A final whole-repository `git clone --no-local` at reviewed commit `9becac3ba5ee74d83c42250a27a8873ce50665af` independently restored/verified all four components and ran its own root tests:47/47,0fail/skip. Child dependencies were absent; root and children remained clean with independent local Git stores. Repeat log: `.local/qualification/assembly.Zf9Fo0/root-final-tests.log`, SHA-256 `00c62ca22ab3d0c2f63528709c0927c6805fad374fa56ecf559a6ff9fe0e2791`. This additional cold-clone repeat is separate from the17 selected command records above.
 
 Private raw logs, generated cache, original after-build snapshot and per-command metadata remain under `.local/qualification/assembly.Zf9Fo0/`. Root verified every published output hash against those bytes. Before/after snapshots are retained unchanged; cache restoration is a separate step, not a rewritten after-build result.
 
