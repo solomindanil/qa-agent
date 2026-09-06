@@ -1,5 +1,7 @@
 # Source bundle qualification — 2026-09-07
 
+This records the initial assembly. The active Console has since advanced to b38a8b4; its complete replacement bundle and scoped gate are recorded in [authored-fixture qualification](authored-fixture.md). Initial object counts, scan reports and open boundaries below are preserved as history.
+
 **Verified:** four complete selected-tip bundles restore independently into fresh local repositories. This is source delivery, not a new product QA run or full tool qualification.
 
 | Component | Selected tip | Reachable Git objects | Working files verified |

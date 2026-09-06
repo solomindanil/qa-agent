@@ -4,7 +4,7 @@
 | --- | --- | --- |
 | Freeland | `components/freeland`, its own product graph, campaign and Release Verdict | Read its full release skill and `docs/local/freeland/AGENT-RUNBOOK.md`; bind a fresh exact candidate. Copied historical current/receipts are not live evidence |
 | New product / Starter-managed product | `components/console` using pinned `components/kernel` | Read qa-init or qa-product-v0; reuse the existing registered workspace when present. Build a separate product map, graph, rules and data |
-| Nuanu / public-auth fixture | Synthetic Console fixture only | Local harness regression material, **not** an accepted live product pack; positive fixture timeout remains open |
+| Nuanu / public-auth fixture | Synthetic Console fixture only | Local harness regression material, **not** an accepted live product pack; selected22-record qualification passed at Consoleb38a8b4 |
 
 Use distinct private paths, for example `.local/products/<slug>/workspace`, with an oracle store as a sibling outside that workspace. These are suggestions for **new** state, not permission to move existing managed registrations. Explicit Console state/store/registry variables are required; see [command qualification](../docs/qualification/commands.md).
 

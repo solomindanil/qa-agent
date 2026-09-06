@@ -3,7 +3,7 @@
 This directory contains self-contained Git bundles, not build outputs or installed environments. `manifest.v1.json` selects exact commits and SHA-256 digests. Restore them with the root bootstrap; do not replace a child with a directory copied from an old worktree.
 
 - `kernel` is the selected reusable Starter Kernel.
-- `console` is the existing Starter interface/adapters and integrated skills. Its pending authored-fixture repair is not included.
+- `console` is the existing Starter interface/adapters and integrated skills. The authored-fixture repair is included at b38a8b4; its selected22-record local gate passed. See [qualification](../docs/qualification/authored-fixture.md); this is not live-product acceptance.
 - `freeland` is the existing Freeland-specific QA harness, graph, tests, skills, provenance and scoped knowledge. It is not the Freeland product repository.
 - `kernel-reporting-reference` preserves useful observation/report work from a sibling branch. It is **not** the active Kernel and does not include Kernel393's reviewed journey/invariant admission.
 

@@ -11,7 +11,7 @@ Delivered active sources are listed in [manifest.v1.json](../sources/manifest.v1
 | Universal-QAH / PayDemo58a8182 | External retained reference/eval donor; not yet selectively imported |
 | Nuanu-app7be0e9b and dirty work | External retained source; no dirty checkout or credentials copied |
 | Reviewed uncommitted G0 work | External retained exact-file/review evidence; old HEAD alone must not stand in for these bytes |
-| Pending Console fixture repair | Original patch/evidence preserved outside active432. It is not part of the delivered source pin |
+| Console fixture repair | Reviewed at b38a8b4 and included in the active source pin; selected22-record local gate passed. Original failed runs remain preserved |
 | Tect | Reference only, unvendored; UNLICENSED code and its push policy are not inherited |
 
 This is an honest selective delivery, not a claim that every old file was imported. Continue audited reuse when a roadmap slice needs it; first resolve exact bytes, review licensing/private content, record hashes and qualify dependencies. Original repositories remain intact.

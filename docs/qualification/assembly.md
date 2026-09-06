@@ -1,5 +1,7 @@
 # Assembly qualification — selected gates passed
 
+Current Console follow-up: [authored-fixture qualification](authored-fixture.md) records b38a8b4 and the additional22-record local gate. The initial432 assembly results and open-boundary statements below remain historical evidence, not current claims or results reattributed to the new commit. The old fixture timeout is superseded only for this scoped qualification, not full-suite repeatability or optimized performance.
+
 Date: 2026-09-07. Selected source identities are pinned in [manifest](../../sources/manifest.v1.json). Source restoration, the deliberately selected local tool checks below, and whole-delivery independent review passed. The scoped delivery is approved for the authorized private repository; this is not a product release verdict.
 
 ## Executed and read back

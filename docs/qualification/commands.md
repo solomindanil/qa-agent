@@ -2,6 +2,8 @@
 
 Read against Kernel393 / Console432 / Freeland3d, 2026-09-07. Commands below are candidates, not an execution record; actual results live in [assembly.md](assembly.md).
 
+Consoleb38a8b4 changes only the authored fixtures/tests. Its additional executed four-file gate is recorded in [authored-fixture.md](authored-fixture.md); no broader command is implicitly authorized by that result.
+
 ## Separate dependencies
 
 Each active child has a separate package-lock. Root has no runtime dependencies. All resolved dependency tarballs in the three root lockfiles use registry.npmjs.org with integrity fields. No root install hook is defined. Transitive esbuild/fsevents packages do define install hooks: initial qualification deliberately uses `npm ci --ignore-scripts --no-audit --no-fund` with a separate cache and no copied owner npm config. This contacts the registry and writes dependencies; it is an explicit assembly step, never bootstrap behavior. Browser downloads are separate and not needed for the selected checks below.

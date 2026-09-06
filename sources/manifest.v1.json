@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "43262b2202532d9ea5648e27dafe0fc5177689fe",
-      "tree": "131a20f8b2fc206ca370ed91aa686739ca707485",
+      "commit": "b38a8b48cf7dd1646998b3d98427efd99a59d14f",
+      "tree": "d17154893d31261996176afd758d7df84de1e8af",
       "bundle": "sources/console.bundle",
-      "sha256": "d8655c266813d34e6f6d1cd408555e90cc94e2ee9c393d53962443629b63e9bf",
+      "sha256": "0825694054424ad7300b105e7e3959b12eb26834659644980acb6675c47357c7",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed; assembled-runtime-not-qualified"
+      "qualification": "source-reviewed; authored-fixture gate 22/22; not full-suite or live-product qualification"
     },
     {
       "id": "freeland",
