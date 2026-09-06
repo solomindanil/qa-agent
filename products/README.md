@@ -3,6 +3,7 @@
 | Product | Execution / knowledge owner | Initial action |
 | --- | --- | --- |
 | Freeland | `components/freeland`, its own product graph, campaign and Release Verdict | Read its full release skill and `docs/local/freeland/AGENT-RUNBOOK.md`; bind a fresh exact candidate. Copied historical current/receipts are not live evidence |
+| MagicCard / MagicPay existing pilot | External registered pack; sole live owner task `01a0720c-a6b5-7dc0-b1e0-86527a8f5856` | Read the [second-product checkpoint](../docs/qualification/second-product.md), then resolve current paths/pins/authority from the owner's actual checkpoint. Do not move, re-register, or launch a competing campaign |
 | New product / Starter-managed product | `components/console` using pinned `components/kernel` | Read qa-init or qa-product-v0; reuse the existing registered workspace when present. Build a separate product map, graph, rules and data |
 | Nuanu / public-auth fixture | Synthetic Console fixture only | Local harness regression material, **not** an accepted live product pack; selected22-record qualification passed at Consoleb38a8b4 |
 
