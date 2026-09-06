@@ -2,7 +2,7 @@
 
 Read against Kernel393 / Console432 / Freeland3d, 2026-09-07. Commands below are candidates, not an execution record; actual results live in [assembly.md](assembly.md).
 
-Consoleb38a8b4 changes only the authored fixtures/tests. Its additional executed four-file gate is recorded in [authored-fixture.md](authored-fixture.md); no broader command is implicitly authorized by that result.
+Consoleb38a8b4 and76d00b1 change only fixtures/tests. Their executed gates are recorded in [authored-fixture.md](authored-fixture.md) and [learning-portability.md](learning-portability.md). The latter six-file gate was reviewed and executed in isolation; no broader command or live workflow is implicitly authorized by those results.
 
 ## Separate dependencies
 

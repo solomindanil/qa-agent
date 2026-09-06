@@ -28,6 +28,36 @@ Read-only staging identity returned HTTP 200 and `releaseSha=2981985e6eaebddbdb1
 
 The saved graph was older than that deployment and did not express all notification/referral/cache-recovery acceptance branches. The agent retained those gaps instead of inferring coverage from nearby checks. The next step is owner-coordinated fresh candidate/generation and the original reproduction paths; a successful tracker read alone cannot close G2.
 
+## Fresh graph and execution preflight
+
+The coordinator subsequently used an isolated QA checkout at Freeland source `3d0088ec86b16a2802aa09cca975ca65cc2ede32` and a clean, read-only product worktree at candidate `2981985e6eaebddbdb1b6691a261bc7e9369bcaa`. The existing machine-wide staging admission lock covered the graph/preflight/plan operations and was released after each; the assembled component's private current was not overwritten.
+
+The existing preflight collected the environment, manifest, live and ready channels. At `2026-09-06T21:22:07.154Z` the staging observation was sealed for that candidate; the production observation at `21:22:03.461Z` reported baseline `5b75d6bbc4a390434d660a95324510f1bff13148`. These are timestamped identity/health observations, not a product regression result or an indefinitely fresh deployment claim.
+
+Graph build and ordinary structural validation passed. Strict coverage validation did not: 180 diagnostics comprise 37 requirements without a test owner, 36 excluded requirements without automation, one requirement coverage gap, 89 unresolved code locators and 17 orphan semantic nodes. These categories can overlap and must not be added into a count of distinct uncovered requirements.
+
+The full plan retained 142 changed files, including 106 unmapped files, 266 desktop checks, 10 mobile checks, 89 pending manual cases and an 18-entry replacement catalog. Those are separate inventories; replacements do not automatically close the manual cases. The graph has 95 mapped automated-test nodes, which is not the full 266-check execution catalog. The graph's product-map reference remains historical, even though this build and diff target the fresh candidate.
+
+The existing dry-run succeeded after supplying the already configured staging capability. Before that, missing baseline attestation and then missing credential inputs correctly stopped the corresponding steps. No `--execute` campaign or full release generation resulted. The coordinator observed the isolated checkout's full existing `npm run qa:verify` complete with exit0, including private-preflight validation of eight qualified bindings and the unchanged corpus digest. Its final output is in the coordinator's tool history; a separate complete log was not retained for independent replay. That is an offline harness gate, not product QA. Full execution still needs scoped review of existing tests that provision deposit addresses or send mutation-method negative probes; a read-only label is not enough to authorize those effects.
+
+| Saved artifact | Byte SHA-256 |
+| --- | --- |
+| Rebuilt graph | `e2619f71c4e75a5c60acc002480aa8bc6fc918b1ed808ae52303b398e586345c` |
+| Full test plan | `768fecef831ee5804952a11ecf5a604192cc46a4042452972c9ae75b69f43f9e` |
+| Impact | `387a3944b79dfaf87264e4669253c784f55d854d2ec0b692448dde2849b92e49` |
+| Runtime identity preflight | `e2dec894b1501f33ded0d278ef9f5ca10cc3f9fe1286492b700c67b248719d32` |
+| Production baseline attestation | `1f9c7fd0972b5bec8bc0f78e1906be48aab7360a1ee5067b85e68cfdfbc325c6` |
+
+These files are retained under the isolated checkout's private graph root, `/private/tmp/qa-g2-freeland-graph.QHlNSW/checkout/docs/local/freeland/product-graph/current/`. Byte hashes above are not semantic digests. The graph semantic digest is `sha256:cdb70c3252f1f24a5cacea16bc732fea0a4569dfe70b4cdac7683c180d7739ba`; QA corpus digest is `sha256:ee014ab31fd819220c624a1a90bdcb67df7a5719cafef27778e92a9b1301dbb0`.
+
+## Bounded live safety diagnostic
+
+After that offline gate, the existing staging launcher executed exactly five existing safety-policy checks plus its one login setup. Discovery enforced that six-row scope before opening a browser. Results: **6 expected,0 unexpected/flaky/skipped, exit0**, with retries0. Checks covered anonymous rejection from private APIs, login controls, authenticated session after reload, exact payment-capability schema and Card/SBP availability. No checkout, payment or mobile test was selected.
+
+The existing collector checked all eight deployment-identity fields before/after against candidate `2981985e6eaebddbdb1b6691a261bc7e9369bcaa`; readiness was `ok` on both sides, final observation `2026-09-06T21:56:33.888Z`. The global admission lock was released. JSON/results were isolated; the standard HTML report was not used. Runtime took23.856s. The run remains a **bounded diagnostic**, not the selected full suite, a sealed release generation, or proof that FREEL-398/FREEL-426 is fixed. Those tickets remain unassessed on their original paths.
+
+Private root: `/private/tmp/qa-g2-readonly-spine.6u2VM9/`. Summary SHA-256 `26197798244f52545aab845f33ab8b76dfe38aaf872c6e2ec481be94c1b4e35e`; runtime report `d9a0736b3c71c3efd073dd0f0db827f4f8da4ce4eafd33f1fa8e1ddced142198`; admission release `e9f709e81a6d0941c5dcf1eb6aef37e6d39789587967da9f5dd8e0fa398c1a47`. The private diagnostic driver reused existing lock, launcher and collector APIs; it did not introduce another release runner.
+
 ## Evidence
 
 | Artifact | SHA-256 |
