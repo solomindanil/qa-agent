@@ -18,8 +18,8 @@
 
 ## Component and environment boundaries
 
-- `components/kernel`393 and `components/console`76d00b1 are the active Starter source pair. Console's embedded authority is authoritative; its historical README contains an older example pin. Never switch to `components/kernel-reporting-reference`10d to make an API available.
-- `components/freeland`3d is the selected FreelandQAmain descendant. Its embedded legacy Console is not the active universal Starter Console. Product Freeland is read-only: no push, deployment or migration.
+- `components/kernel`393 and `components/console`f4b0d56 are the active Starter source pair. Console's embedded authority is authoritative; its historical README contains an older example pin. Never switch to `components/kernel-reporting-reference`10d to make an API available.
+- `components/freeland`ca9d9b4 is the selected FreelandQAmain descendant. Its embedded legacy Console is not the active universal Starter Console. Product Freeland is read-only: no push, deployment or migration.
 - Read `docs/qualification/commands.md` before tool qualification. Default Console/Freeland `npm test` may start browser/product work: it is not the root packaging test. No implicit live fallback, dependency install, skill/plugin install, watcher, delivery, payment or cloud setup.
 - Keep credentials, sessions, private provider/account data, traces, active graphs, outboxes and managed registrations outside tracked delivery. `.local/` is ignored but not a security boundary; use distinct product/run roots and explicit registries. Never transfer Freeland business rules or payment permission to another product.
 - Keep source pins frozen during a campaign. Changes to tests/oracles/graph inputs require their owning identity refresh and relevant requalification. Refuse dirty-source restore; preserve source history and independent user work.

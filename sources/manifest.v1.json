@@ -14,22 +14,22 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "76d00b174f1e74a79a1c88d93a1e227d48489979",
-      "tree": "d9d2d53d89559abeb6e99087f1b50e285bac3faf",
+      "commit": "f4b0d56c0885ca96f310c675872a9adabee9a0e9",
+      "tree": "592376cd04784537e69939e83caa582e37912db2",
       "bundle": "sources/console.bundle",
-      "sha256": "657c1659d93a946ce03a10dd43c231a72cf007b6e4e93219659e2c12d93a66b8",
+      "sha256": "e5360ee684eec94d8776f6610ea0745e0e914a9aa887d27be46905247f788dbb",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed; integrated continuation/learning/portability gate 36/36; not full-suite or live-product qualification"
+      "qualification": "source-reviewed; bounded exact-GET dependency qualification; prior continuation/learning/portability retained; no original-product G1 qualification"
     },
     {
       "id": "freeland",
       "path": "components/freeland",
-      "commit": "3d0088ec86b16a2802aa09cca975ca65cc2ede32",
-      "tree": "87dcf4cfe7695257cb8d80b520ff021fe3644bf8",
+      "commit": "ca9d9b4844f940d5f544652f22bbca7ebf9c4754",
+      "tree": "c334612fd6e55fcd09880c02fe5e35bc6465c4fb",
       "bundle": "sources/freeland.bundle",
-      "sha256": "bf20d0487ccefbc94b1b6375cbeb70f1bf2f56d1252e7b216888d449741d061d",
+      "sha256": "0dca9ee5015735d71080b4df7581b099c79e6ce921f38bf087e2b92906d13b9c",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed; assembled-runtime-not-qualified"
+      "qualification": "source-reviewed; campaign cleanup and local tool gates qualified; live broader campaign and controlled receipt renewal pending"
     },
     {
       "id": "kernel-reporting-reference",

@@ -11,8 +11,8 @@ Source instructions and external host prerequisites are in [skills](../../skills
 
 ## Qualified source and adoption boundary
 
-- The [delivery manifest](../../sources/manifest.v1.json) selects Console `76d00b1`, Kernel `393af20`
-  and Freeland `3d0088e`. [Assembly](assembly.md) and [authored fixture](authored-fixture.md)
+- The [delivery manifest](../../sources/manifest.v1.json) selects Console `f4b0d56`, Kernel `393af20`
+  and Freeland `ca9d9b4`. [Assembly](assembly.md) and [authored fixture](authored-fixture.md)
   qualify selected local gates and source delivery, not whole products.
 - G3+G4+G5 are integrated at Console `76d00b174f1e74a79a1c88d93a1e227d48489979`.
   The earlier G3+G5 focused TAP contains
@@ -26,6 +26,10 @@ Source instructions and external host prerequisites are in [skills](../../skills
   gate passed47/47. Neither result is a universal automatic learner or full-product proof.
 - A local result may be accepted as evidence while its reusable source is still pending adoption.
   Do not silently change component pins, installed skills or product owners to use a candidate.
+- [Exact GET dependencies](read-only-dependencies.md) extend only the public read-only browser lane;
+  they do not add authenticated, payment or general external-network authority. Original MagicCard
+  qualification remains pending. [Cancellation](cancellation.md) repairs owned cleanup and evidence
+  writes; it does not renew historical controlled receipts or prove a whole product.
 
 ## Capability matrix
 

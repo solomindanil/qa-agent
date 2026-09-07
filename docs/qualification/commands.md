@@ -4,6 +4,8 @@ Read against Kernel393 / Console432 / Freeland3d, 2026-09-07. Commands below are
 
 Consoleb38a8b4 and76d00b1 change only fixtures/tests. Their executed gates are recorded in [authored-fixture.md](authored-fixture.md) and [learning-portability.md](learning-portability.md). The latter six-file gate was reviewed and executed in isolation; no broader command or live workflow is implicitly authorized by those results.
 
+Later bounded source qualifications are recorded separately: [Consolef4b0d56 exact dependencies](read-only-dependencies.md) and [Freelandca9d9b4 cancellation](cancellation.md). The latter's reviewed, isolated `qa:verify` repeat does not turn that command into an automatically safe live/default action. Read those reports for the tested bytes, final test-only delta and remaining product proof. Actual original-product execution still needs its current owner, environment and permitted-action checks.
+
 ## Separate dependencies
 
 Each active child has a separate package-lock. Root has no runtime dependencies. All resolved dependency tarballs in the three root lockfiles use registry.npmjs.org with integrity fields. No root install hook is defined. Transitive esbuild/fsevents packages do define install hooks: initial qualification deliberately uses `npm ci --ignore-scripts --no-audit --no-fund` with a separate cache and no copied owner npm config. This contacts the registry and writes dependencies; it is an explicit assembly step, never bootstrap behavior. Browser downloads are separate and not needed for the selected checks below.

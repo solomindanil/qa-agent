@@ -1,5 +1,20 @@
 # Source bundle qualification — 2026-09-07
 
+## G1/G2 source follow-up
+
+The Console and Freeland bundles now select the separately reviewed commits below; Kernel393 and the inactive reporting reference are unchanged. An independent ordinary-clone check verified both complete histories, exact HEAD/tree/parent, every tracked blob and mode, strict fsck and clean child-local Git stores. Full stored object populations equal the selected reachable closures: no extra objects or donor alternates. No dependencies or private product state were copied and no runtime/product test was executed by this delivery check.
+
+| Component | Selected commit | Tree | Commits / objects / tracked files |
+| --- | --- | --- | --- |
+| Console | f4b0d56c0885ca96f310c675872a9adabee9a0e9 | 592376cd04784537e69939e83caa582e37912db2 | 114 / 1560 / 164 |
+| Freeland | ca9d9b4844f940d5f544652f22bbca7ebf9c4754 | c334612fd6e55fcd09880c02fe5e35bc6465c4fb | 119 / 2232 / 547 |
+
+The bundle hashes are read back in [the current manifest](../../sources/manifest.v1.json): Console `e5360ee684eec94d8776f6610ea0745e0e914a9aa887d27be46905247f788dbb`; Freeland `0dca9ee5015735d71080b4df7581b099c79e6ce921f38bf087e2b92906d13b9c`. Independent delivery-proof JSON SHA-256: `abf92040a50ed36b655c3698f96f66c96f4ccec01ddb92842ecde58643a77159`, retained privately with the G0–G5 handoff. These are source-delivery measurements, not renewed product receipts. See [G1 qualification](read-only-dependencies.md) and [G2 qualification](cancellation.md) for their separate test chronology and remaining original-product exits.
+
+Root packaging tests passed47/47 after the bundle/pin changes. Whole-root own-entrypoint cold restoration for this follow-up is a separate integration checkpoint; historical results below are not reassigned to it. Existing product owner coordination remains required before adopting new active source pins.
+
+## Initial assembly (historical)
+
 This records the initial assembly. Console advanced through [b38 authored-fixture qualification](authored-fixture.md) to [76d00b1 continuation/learning/portability qualification](learning-portability.md). Initial object counts, scan reports and open boundaries below are preserved as history, not measurements of replacement bundles.
 
 **Verified:** four complete selected-tip bundles restore independently into fresh local repositories. This is source delivery, not a new product QA run or full tool qualification.
