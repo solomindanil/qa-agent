@@ -1,4 +1,5 @@
-import { readFile, mkdir, lstat, readdir, realpath } from 'node:fs/promises';
+import { readFile, mkdir, lstat, readdir, realpath, readlink, open } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import { join, resolve, dirname, isAbsolute, parse } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -121,6 +122,54 @@ async function verifyBundle(root, entry) {
   git(root, ['bundle', 'verify', path]);
 }
 
+async function trackedBytes(path, mode, entry) {
+  if (!(await guardPath(dirname(path)))?.isDirectory()) {
+    fail('SOURCE_DIRTY', `Tracked path is missing in ${entry.id}`);
+  }
+  const stat = await statIfPresent(path);
+  if (!stat) fail('SOURCE_DIRTY', `Tracked path is missing in ${entry.id}`);
+  if (mode === '120000') {
+    if (!stat.isSymbolicLink()) fail('SOURCE_DIRTY', `Tracked mode differs in ${entry.id}`);
+    try { return await readlink(path, { encoding: 'buffer' }); }
+    catch { fail('SOURCE_DIRTY', `Tracked symlink is unreadable in ${entry.id}`); }
+  }
+  if (!['100644', '100755'].includes(mode) || !stat.isFile() || stat.isSymbolicLink() ||
+      Boolean(stat.mode & 0o100) !== (mode === '100755')) {
+    fail('SOURCE_DIRTY', `Tracked mode differs in ${entry.id}`);
+  }
+  let handle;
+  try {
+    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const opened = await handle.stat();
+    if (!opened.isFile() || opened.dev !== stat.dev || opened.ino !== stat.ino ||
+        Boolean(opened.mode & 0o100) !== (mode === '100755')) {
+      fail('SOURCE_DIRTY', `Tracked mode differs in ${entry.id}`);
+    }
+    return await handle.readFile();
+  } catch (error) {
+    if (error.code === 'SOURCE_DIRTY') throw error;
+    fail('SOURCE_DIRTY', `Tracked file is unreadable in ${entry.id}`);
+  } finally {
+    await handle?.close();
+  }
+}
+
+async function verifyTrackedTree(child, entry) {
+  const records = git(child, ['ls-tree', '-rz', '--full-tree', entry.tree]).split('\0').filter(Boolean);
+  for (const record of records) {
+    const separator = record.indexOf('\t');
+    const match = /^(100644|100755|120000) blob ([a-f0-9]{40})$/.exec(record.slice(0, separator));
+    const path = record.slice(separator + 1);
+    if (separator < 0 || !match || !path || isAbsolute(path) ||
+        path.split('/').some(part => !part || part === '.' || part === '..')) {
+      fail('SOURCE_DIRTY', `Unsupported tracked entry in ${entry.id}`);
+    }
+    const bytes = await trackedBytes(join(child, path), match[1], entry);
+    const object = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+    if (object !== match[2]) fail('SOURCE_DIRTY', `Tracked bytes differ in ${entry.id}`);
+  }
+}
+
 async function verifyChild(root, entry) {
   const child = join(root, entry.path);
   await verifyRepository(child);
@@ -133,6 +182,7 @@ async function verifyChild(root, entry) {
   if (git(child, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--ignore-submodules=none']).length) {
     fail('SOURCE_DIRTY', `Tracked or untracked changes in ${entry.id}`);
   }
+  await verifyTrackedTree(child, entry);
 }
 
 async function createParents(root, path) {

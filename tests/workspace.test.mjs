@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, realpath, readdir, lstat, readlink, symlink, rename, copyFile, chmod } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, realpath, readdir, lstat, readlink, symlink, rename, copyFile, chmod, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +23,10 @@ async function fixture() {
   await mkdir(donor); await mkdir(root);
   git(donor, 'init', '--template='); git(root, 'init', '--template=');
   await writeFile(join(donor, 'example.txt'), 'synthetic source\n');
-  git(donor, 'add', 'example.txt'); git(donor, 'commit', '-m', 'Synthetic fixture');
+  await writeFile(join(donor, 'executable.sh'), '#!/bin/sh\nexit 0\n');
+  await chmod(join(donor, 'executable.sh'), 0o755);
+  await symlink('example.txt', join(donor, 'example-link'));
+  git(donor, 'add', '.'); git(donor, 'commit', '-m', 'Synthetic fixture');
   const commit = git(donor, 'rev-parse', 'HEAD').trim();
   const tree = git(donor, 'rev-parse', 'HEAD^{tree}').trim();
   await mkdir(join(root, 'sources'));
@@ -71,6 +74,11 @@ test('cold restore materializes the exact independent source and returns a sourc
   assert.equal(git(f.child, 'rev-parse', 'HEAD').trim(), f.commit);
   assert.equal(git(f.child, 'rev-parse', 'HEAD^{tree}').trim(), f.tree);
   assert.equal(await readFile(join(f.child, 'example.txt'), 'utf8'), 'synthetic source\n');
+  assert.equal((await lstat(join(f.child, 'example.txt'))).mode & 0o111, 0);
+  assert.equal(await readFile(join(f.child, 'executable.sh'), 'utf8'), '#!/bin/sh\nexit 0\n');
+  assert.equal((await lstat(join(f.child, 'executable.sh'))).mode & 0o111, 0o111);
+  assert.equal((await lstat(join(f.child, 'example-link'))).isSymbolicLink(), true);
+  assert.equal(await readlink(join(f.child, 'example-link')), 'example.txt');
   assert.equal(git(f.child, 'rev-parse', '--absolute-git-dir').trim(), resolve(f.child, '.git'));
   assert.equal(spawnSync('git', ['symbolic-ref', '-q', 'HEAD'], { cwd: f.child, env }).status, 1);
 });
@@ -83,6 +91,63 @@ test('repeat restore and verify preserve existing matching bytes and an attached
   assert.deepEqual(await snapshot(f.root), before);
   assert.equal(git(f.child, 'symbolic-ref', '--short', 'HEAD').trim(), 'keep-attached');
 });
+
+test('verify reads tracked bytes when allowed stat settings leave same-size tampering clean', async () => {
+  const f = await fixture(); succeeds(f);
+  const path = join(f.child, 'example.txt');
+  git(f.child, 'config', 'core.trustctime', 'false');
+  git(f.child, 'config', 'core.checkStat', 'minimal');
+  await utimes(path, 1_600_000_000, 1_600_000_000);
+  git(f.child, 'update-index', '--refresh');
+  const before = await lstat(path);
+  const tampered = 'tampered source!\n';
+  assert.equal(Buffer.byteLength(tampered), before.size);
+  await writeFile(path, tampered);
+  await utimes(path, before.atime, before.mtime);
+  const after = await lstat(path);
+  assert.equal(after.size, before.size);
+  assert.equal(Math.trunc(after.mtimeMs), Math.trunc(before.mtimeMs));
+  assert.equal(git(f.child, 'status', '--porcelain=v1'), '');
+  await refusesUnchanged(f, 'SOURCE_DIRTY', 'verify');
+});
+
+test('verify compares tracked executable mode independently from matching bytes', async () => {
+  const f = await fixture(); succeeds(f);
+  const path = join(f.child, 'example.txt');
+  const bytes = await readFile(path);
+  git(f.child, 'config', 'core.filemode', 'false');
+  await chmod(path, 0o755);
+  assert.deepEqual(await readFile(path), bytes);
+  assert.equal(git(f.child, 'status', '--porcelain=v1'), '');
+  await refusesUnchanged(f, 'SOURCE_DIRTY', 'verify');
+});
+
+for (const [name, file, pinnedMode, workingMode, accepted] of [
+  ['rejects missing owner execute for a pinned executable', 'executable.sh', '100755', 0o655, false],
+  ['accepts group and other execute for a pinned nonexecutable', 'example.txt', '100644', 0o655, true],
+  ['accepts owner-only execute for a pinned executable', 'executable.sh', '100755', 0o744, true],
+]) {
+  test(`verify uses Git owner-execute semantics: ${name}`, async () => {
+    const f = await fixture(); succeeds(f);
+    const path = join(f.child, file);
+    const bytes = await readFile(path);
+    assert.equal(git(f.child, 'ls-tree', 'HEAD', '--', file).split(' ', 1)[0], pinnedMode);
+    git(f.child, 'config', 'core.filemode', 'false');
+    await chmod(path, workingMode);
+    assert.equal((await lstat(path)).mode & 0o777, workingMode);
+    assert.deepEqual(await readFile(path), bytes);
+    assert.equal(git(f.child, 'status', '--porcelain=v1'), '');
+    assert.equal(git(f.child, '-c', 'core.filemode=true', 'diff', '--summary', '--', file).trim(),
+      accepted ? '' : 'mode change 100755 => 100644 executable.sh');
+    if (accepted) {
+      const before = await snapshot(f.root);
+      succeeds(f, 'verify');
+      assert.deepEqual(await snapshot(f.root), before);
+    } else {
+      await refusesUnchanged(f, 'SOURCE_DIRTY', 'verify');
+    }
+  });
+}
 
 test('verify refuses a missing child without creating paths', async () => {
   const f = await fixture(); await refusesUnchanged(f, 'MISSING_CHILD', 'verify');
