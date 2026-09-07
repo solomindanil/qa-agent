@@ -22,6 +22,12 @@ Full operational details and actual CLI grammar are in the delivered [component 
 
 The247-record run belongs to the earlier frozen candidate;78 selected records cover the final correction. It was not a fresh full CLI run on the final commit. Build retained an existing bundle-size warning, not a product performance finding.
 
+## Source-skill discovery check
+
+A read-only audit found no explicit dependency-guide locator in the current declarative skill reference and proposed two short source-reference additions. Before applying that proposal, a fresh Codex receiver followed the unchanged skill on a synthetic blocked-script case, with no audit or answer key. It independently found the delivered guide/CLI, prepared the supported exact request and CAS plan-revision path, supplied the conditional digest flag, preserved assertions and unresolved coverage, and refused to infer the request tuple from a cleaned URL alone. It did not execute a command or product action.
+
+That bounded baseline succeeded, so the proposed skill expansion was not applied. The missing direct locator remains a static discoverability observation, not a demonstrated inability to use the workflow. This single source-context exercise is not statistical reliability, an installed-skill test or actual Claude-host qualification. No entrypoint, reference, runtime pin or installed skill changed as a result.
+
 ## Original-product exit still pending
 
 Coordinate the existing MagicCard owner, wait for its current operation cleanup, and adopt the source without modifying its registration/publication by hand. Use its current approved workspace/plan and ordinary tools to restore an executable check with the original business assertions. Validate the entire plan, inspect all executable and blocked targets, approve only the exact current dependency scope and perform one read-only run. Read back the current publication, bound trace, closure, assertions and unresolved coverage; publish confirmed knowledge only through the owner's graph workflow.

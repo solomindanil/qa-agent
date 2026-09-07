@@ -26,6 +26,14 @@ The execFile adapter has a30-minute child watchdog; the standalone staging launc
 
 ## Next proof
 
-Independently restore the source bundle and coordinate adoption with the product owner. Re-observe the live candidate before the approved broader read-only campaign. A passing cancellation unit test does not qualify the original payment, Telegram, VPN or ticket scenarios. Stale controlled acceptance needs its supported qualification path, not an edited digest.
+Independent source restoration is proved in [source delivery](source-delivery.md); coordinate adoption with the product owner. Re-observe the live candidate and resolve the scope below before the approved broader campaign. A passing cancellation unit test does not qualify the original payment, Telegram, VPN or ticket scenarios. Stale controlled acceptance needs its supported qualification path, not an edited digest.
 
 No product purchase, tracker write, cloud worker, source installation or environment mutation is part of this slice.
+
+## Broader-run scope audit
+
+Read-only source review of this commit confirmed that the standard full staging selection is not strictly read-only. Two `app.spec.ts` deposit-panel cases conditionally click address creation; `api.spec.ts` sends anonymous POST `/api/dev/mock-activate`; `tma.spec.ts` sends authenticated POST `/api/telegram/write-access`. The latter two expect rejection by the server under test, not prevention by a client guard. The address cases require an actual ready address; substituting a mock or accepting pending would weaken their contract.
+
+Fresh-account, relink, support and recovery mutation cases have explicit permission gates; the ordinary launcher strips those inputs from its child environment, so their normal skips remain coverage gaps. Merely opening PaySheet is not a completed purchase: some checkout tests abort POSTs before effects, while PUR-01/02/03 have no local abort and FREEL-277 only observes/asserts request absence afterward. A dry-run label is not a side-effect guard.
+
+The existing staging launcher supports explicit Playwright selection arguments for a labelled partial diagnostic. Full campaign construction has no exclusion switch; retain the original inventory and distinguish blocked/unrun cases if scope is narrowed. Resolve the actual test-account/environment authority before provisioning or negative write probes, preserve the no-money guard, and never report a filtered diagnostic as the full campaign. This audit inspected sources only; it made no requests and changed no permissions.
