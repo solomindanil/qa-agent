@@ -6,6 +6,8 @@ The north star is agent-first QA that can test products through dialogue first a
 
 Follow the [approved post-review plan](../superpowers/plans/2026-09-07-post-review-dialogue-qa-plan.md) and [current correctness checkpoint](../qualification/post-review-correctness.md). This branch assembles reviewed candidate Console784eda0 / Kernel11d013c / Freeland6f4ae06; it does not replace accepted root48bccef. Claude is unavailable, so Main/Codex now owns its implementation lane. Kernel's complete gate remains1692pass/9timeouts; preparation and independent safe work continue without declaring that gate passed. The dated stage table and earlier qualification records below retain their original scopes and source attribution.
 
+Exact candidate2f42683 has now passed independent committed cold source-delivery qualification (own restore/final verify0, root52/52,1015/1015 tracked entry matches). This closes the packaging checkpoint, not the remaining business/workflow gates. Later baseline/candidate regeneration-file runs each passed434/434 without changing deadlines; the last complete39-file gate still failed9/1701. Current local work proceeds to one complete Kernel verification and admitted real-product slices. Live Freeland is blocked by unavailable staging access; MagicCard remains owner-stopped. See the correctness checkpoint for exact evidence and the limited four-case held-out assessment.
+
 | Stage | Current boundary | Next proof |
 | --- | --- | --- |
 | G0 — common entry and reuse | Reviewed source slices exist; this workspace brings their owners/skills together. Full installed/dual-host qualification remains open | Fresh session finds the right source owner and safely completes the selected tool paths |
