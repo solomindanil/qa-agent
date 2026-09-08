@@ -4,7 +4,7 @@ This checkpoint records execution of the [approved post-review plan](../superpow
 
 ## Current catalog integration — 2026-09-08
 
-The manifest now selects Freeland `04b771a7f048d244b501e4c0cab6618bd4305d79` with unchanged Consoledeb262c / Kernel11d013c / inactive reference10d398d. Its bounded credential-free discovery fix passed2436/2436 harness checks and independent Lead AQA review at the component source. Fresh graph-first preparation and one anonymous TC-ВХОД-01 shadow run reached stable staging2981985 without login or purchases. This supersedes the blanket unavailable-staging statement below only for the observed guest scope. Strict graph gaps and authenticated/full/ticket acceptance remain open. See [exact scope and assembly boundary](catalog-discovery.md). Accepted root48bccef and installed skills remain unchanged.
+The manifest now selects Freeland `9c2509e32462319d5b96ccb49d5ae2070df7b18d` with unchanged Consoledeb262c / Kernel11d013c / inactive reference10d398d. The [reviewed source-locator repair](graph-reuse-pilot.md) passed2442/2442 harness checks on final component bytes and removes only4strict locator findings,180→176. It does not add business coverage or fresh runtime evidence. The prior credential-free discovery fix and guest shadow observation remain attributed to04b771a: [exact earlier scope](catalog-discovery.md). That earlier observation supersedes the blanket unavailable-staging statement below only for its observed guest scope, not a claim of current live availability. Strict graph gaps and authenticated/full/ticket acceptance remain open. Accepted root48bccef and installed skills remain unchanged.
 
 ## Prior skill integration and Kernel result — 2026-09-08
 

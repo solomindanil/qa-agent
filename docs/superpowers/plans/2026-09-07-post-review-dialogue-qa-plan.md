@@ -139,19 +139,27 @@ The older freeland_graph archive at product5b75d6b is a read-only evidence donor
 
 ### Task 3A.1 — four-node reuse pilot
 
-- [ ] Review `req:B11`, `req:D7`, `invariant:vip-card-entitlement-gate`, `route:seo-analytics`: compare normative clauses, current source/test bytes, historical proof and the active graph consumer.
-- [ ] Correct only exact source paths/symbols demonstrably belonging to each node through existing mappings/contracts. Retain displaced coordinates as history; record current coordinates and source SHA in review evidence. Do not build a second proof engine.
-- [ ] Before linking a test as full coverage, verify the exact selector and every claimed assertion. A stale contract, partial test, unavailable Product-CI channel or unexplained contradiction remains explicit debt. VIP referral-attribution behavior must not be silently reconciled with the older grant/admin/POSTED-only contract.
-- [ ] Use a focused RED regression for each changed graph behavior, then the existing builder/validator on healthy and missing/stale-source controls. Keep schema/guard behavior unchanged unless a separately evidenced defect requires a bounded fix.
-- [ ] Rebuild twice from frozen input bytes in an isolated graph root; compare structural output and per-code/per-node finding deltas. Preserve full-scope selection, manual pending and unrelated nodes/tickets. Lead AQA reviews both spec compliance and implementation quality before integration.
+- [x] Review `req:B11`, `req:D7`, `invariant:vip-card-entitlement-gate`, `route:seo-analytics`: compare normative clauses, current source/test bytes, historical proof and the active graph consumer.
+- [x] Correct only exact source paths/symbols demonstrably belonging to each node through existing mappings/contracts. Retain displaced coordinates as history; record current coordinates and source SHA in review evidence. Do not build a second proof engine.
+- [x] Before linking a test as full coverage, verify the exact selector and every claimed assertion. A stale contract, partial test, unavailable Product-CI channel or unexplained contradiction remains explicit debt. VIP referral-attribution behavior must not be silently reconciled with the older grant/admin/POSTED-only contract.
+- [x] Use a focused RED regression for each changed graph behavior, then the existing builder/validator on healthy and missing/stale-source controls. Keep schema/guard behavior unchanged unless a separately evidenced defect requires a bounded fix.
+- [x] Rebuild twice from frozen input bytes in an isolated graph root; compare structural output and per-code/per-node finding deltas. Preserve full-scope selection, manual pending and unrelated nodes/tickets. Lead AQA reviews both spec compliance and implementation quality before integration.
 
 Exit: four explicit decisions with current source/test references and rationale; only proven graph corrections applied, every removed finding explained, genuine gaps retained. This exit does not require making all four nodes green or reusing prior runtime PASS.
+
+Completed source slice: Freeland9c2509e; independent Lead AQA APPROVED, final qa:verify2442/2442, Main focused repeat8/8 and provenance VALID. Strict180→176 only for code locators. [Qualification and acceptance limits](../../qualification/graph-reuse-pilot.md). Task3A.4 generation/adoption and runtime evidence are not closed by this checkbox update.
 
 ### Task 3A.2 — actual money gaps, not mapping-only closure
 
 - [ ] Reuse B11 tests first; cover exact amount/currency acceptance and amount/currency mismatch -> manual_review without provisioning. Confirm the test exercises the current source, not a copied algorithm.
 - [ ] For D7 inspect simultaneous same-rail requests, lock refusal with/without an existing address, unique-insert conflict, single active address/provider creation and lock release. A mock that always acquires the lock does not prove these cases.
 - [ ] Add only missing tests in the QA-owned lane or prepare an explicit product testability request where product changes would be necessary. No modification or push to the product repository. Positive/negative controls plus a realistic faulty control must demonstrate assertion sensitivity; no live providers or money for this slice.
+
+Current-source design review (2981985): reuse the actual exported product modules and existing Vitest mocks, with QA-owned sidecar tests in a disposable execution tree. B11's existing exact-confirmation positive (`apps/api/tests/payment-checkouts.test.ts:1149`) provides a working provisioning control; add under/overpayment and wrong-currency cases that assert final review reason, saved provider values, no provisioning/operation creation. Do not assert that intermediate `paid` never occurred: current code records it before mismatch review. The DB test at `payment-checkout-concurrency.integration.test.ts:2001` starts in `manual_review` and is not evidence for incoming-signal classification.
+
+Also reuse the existing VELVET amount-mismatch negative (`apps/api/tests/velvet-vpn-payment-reservation.test.ts:842–859`): it already checks manual review, the amount reason, no provisioning and event completion without a linked operation ID. This is a useful partial control, not evidence that currency mismatch and all B11 cases are covered; avoid duplicating it without adding a missing assertion or boundary.
+
+D7's current `wallet-deposit-rail-provisioning.test.ts` has a sequential retry positive, but its lock always succeeds and insert never conflicts. Add lock=false with no winner / a winner appearing on reread; simultaneous calls controlled by a Promise barrier, not sleep; and unique-conflict winner/missing-winner cases with release assertions. Unique conflict happens after the provider call, so do not promise zero external creation for that branch or infer database TTL/atomicity from mocks. Actual PostgreSQL lock/unique semantics need an isolated integration DB and schema receipt. The current mirror has no Vitest dependencies; provision/cache/build only in the disposable QA execution tree, never in the read-only product mirror. No production export or endpoint is needed for this local contract slice. These results remain source-contract evidence while the product-CI execution channel is unavailable.
 
 ### Task 3A.3 — access/replay and changed-file mapping
 
