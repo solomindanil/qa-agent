@@ -1,6 +1,6 @@
 # Agent entrypoint — shared by Codex and Claude
 
-This branch is the post-review integration candidate, not the accepted workspace. See [current checkpoint](docs/qualification/post-review-correctness.md). Source restore/verify is permitted locally; a matching manifest does not authorize product execution or clear the unresolved Kernel full-gate timeouts. The accepted root remains at48bccef until separately qualified integration.
+This branch is the post-review integration candidate, not the accepted workspace. See [current checkpoint](docs/qualification/post-review-correctness.md). Source restore/verify is permitted locally; a matching manifest does not authorize product execution. Kernel's later full verify passed, with separate supervisor evidence limits and the old timeout cause unresolved. The accepted root remains at48bccef until separately qualified integration.
 
 ## Before work
 
@@ -20,7 +20,7 @@ This branch is the post-review integration candidate, not the accepted workspace
 
 ## Component and environment boundaries
 
-- Candidate `components/kernel`11d013c and `components/console`784eda0 are the paired Starter sources. Console's embedded authority is authoritative; historical README examples are not current pins. Kernel's full gate remains1692pass/9timeouts; source restoration does not clear that gap. Never switch to `components/kernel-reporting-reference`10d to make an API available.
+- Candidate `components/kernel`11d013c and `components/console`deb262c are the paired Starter sources. Console's embedded authority is authoritative; historical README examples are not current pins. Kernel's unchanged source later passed1701/1701 and build0; the original supervisor receipt is incomplete and passive settlement was separately verified. Source restoration is not assembled-runtime qualification. Never switch to `components/kernel-reporting-reference`10d to make an API available.
 - Candidate `components/freeland`6f4ae06 is the selected FreelandQAmain descendant. Its embedded legacy Console is not the active universal Starter Console. Product Freeland is read-only: no push, deployment or migration.
 - Read `docs/qualification/commands.md` before tool qualification. Default Console/Freeland `npm test` may start browser/product work: it is not the root packaging test. No implicit live fallback, dependency install, skill/plugin install, watcher, delivery, payment or cloud setup.
 - Keep credentials, sessions, private provider/account data, traces, active graphs, outboxes and managed registrations outside tracked delivery. `.local/` is ignored but not a security boundary; use distinct product/run roots and explicit registries. Never transfer Freeland business rules or payment permission to another product.

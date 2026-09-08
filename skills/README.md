@@ -5,11 +5,12 @@ These are links to **complete delivered directories**, not partial copies or ins
 | Request | Source instruction |
 | --- | --- |
 | New product, registration recovery, separate I2 first-evidence review | [qa-init](../components/console/skills/qa-init/SKILL.md) |
-| Existing Starter product pack, declarative/authored checks, agent-led browser work, human help | [qa-product-v0](../components/console/skills/qa-product-v0/SKILL.md) |
+| Unfamiliar product analysis, existing Starter pack, declarative/authored checks, agent-led browser work, human help | [qa-product-v0](../components/console/skills/qa-product-v0/SKILL.md) |
+| Product-specific test design, clarification or delegated investigation | [product-analysis reference](../components/console/skills/qa-product-v0/references/product-analysis.md) |
 | Starter plan/oracle/managed knowledge operations | [declarative-campaign reference](../components/console/skills/qa-product-v0/references/declarative-campaign.md) |
 | Agent tools and observation-storage limitations | [agent-observations reference](../components/console/skills/qa-product-v0/references/agent-observations.md) |
 | Freeland full/smoke, QA column/current cycle, one ticket or product area | [freeland-release-qa](../components/freeland/skills/freeland-release-qa/SKILL.md) |
 
 Console also preserves its original `.claude/skills/` compatibility sources. Root CLAUDE.md deliberately routes to the same full source instructions used by Codex. Host-level support skills (e2e-testing, browser-qa, verification/debugging, Nuanu Flow work-items/human-input) are external prerequisites: discover their availability and read current instructions; do not claim they were bundled or silently install them.
 
-Known boundary: this candidate selects Kernel11d013c paired with Console784eda0; the accepted root remains unchanged. Candidate Kernel11d013c still does not export `recordAgentToolObservation` / `readAgentToolObservation`. Agent observations can help investigation, but are labelled local/unsealed with a storage blocker; they cannot qualify a release. The preserved reporting sibling is not activated to bypass this limitation. See the [candidate checkpoint](../docs/qualification/post-review-correctness.md) for its exact source and unresolved full-gate status.
+Known boundary: this candidate selects Kernel11d013c paired with Consoledeb262c; the accepted root remains unchanged. Candidate Kernel11d013c still does not export `recordAgentToolObservation` / `readAgentToolObservation`. Agent observations can help investigation, but are labelled local/unsealed with a storage blocker; they cannot qualify a release. The preserved reporting sibling is not activated to bypass this limitation. See the [candidate checkpoint](../docs/qualification/post-review-correctness.md) for exact qualifications and the [bounded skill evaluation](../docs/qualification/product-analysis.md). Source parity is not installed-host or general oracle-reliability proof.

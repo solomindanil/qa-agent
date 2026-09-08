@@ -2,7 +2,17 @@
 
 This checkpoint records execution of the [approved post-review plan](../superpowers/plans/2026-09-07-post-review-dialogue-qa-plan.md). It is not a product release verdict, a source-promotion record, or cloud qualification.
 
-## Isolated candidate assembly — 2026-09-08
+## Current skill integration and Kernel result — 2026-09-08
+
+The current manifest selects Console `deb262c5e9701d9d216c28ca53521dafb9f94be8` with unchanged Kernel11d013c, Freeland6f4ae06 and inactive reference10d398d. The Console delta since784eda0 consists only of reviewed README commitd6963a8 and skill commitdeb262c; its runtime/Kernel authority is unchanged. See [product-analysis qualification](product-analysis.md) for source packaging, clarification/investigation evaluation and residual unsupported-oracle findings. Accepted root48bccef, installed host skills and existing product campaigns remain unchanged; no cloud or live-product acceptance follows.
+
+The previously pending full Kernel verification has now completed once on unchanged exact11d013cb75805f66b539960c044512ea52762e7e: actual npm exit0, typecheck0,1701/1701 tests in39/39 files, build0;0failed/skipped/todo/unreported. The original supervisor's final receipt and own exit remain **INCOMPLETE**. A separate bounded passive settlement passed; this does not manufacture the missing original receipt. The old9timeouts were not reproduced in this run and their cause remains unresolved. No timeout/source change, dependency install or repeat-to-green is credited.
+
+Main previously read back all50 delivery payloads and the independent settlement review, and rechecked the final report hash for this integration. Durable host-local evidence: `/Users/danilsolomin/projectsnew/NuanuFlowQA/docs/local/qa-starter/gates/2026-09-08-kernel-full-verify-nxiz5pcs/`. Final report SHA256`6343e588baa471e466c9518b8f34e35d64940eaa4087a7ae970059ca43aaf6a3`; delivery manifest SHA256`1d08ef832bdf0cb84d94e948dd87b12ab70f3d20f388f5f8ebc8e0bc73dc4017`. This is component-source qualification, not a combined installed Console/Freeland/host or product run. Preserve the historical failed gates below; do not interpret their formerly pending status as current.
+
+Current remaining boundaries: general agent-oracle reliability, scoped full/ticket product workflows, original-path business evidence, actual host installation/Claude parity and cloud. Freeland access and MagicCard owner-stop remain as recorded below. Independent safe source work may continue without promoting unsupported product checks.
+
+## Prior isolated candidate assembly — 2026-09-08 (historical)
 
 Main restored the reviewed component bundles into a fresh ordinary root clone based on `7a0b8b546c007ff16508cf945af0559809b4ddaf`, branch `codex/postreview-assembly`. The candidate manifest selects Kernel11d013c, Console784eda0, Freeland6f4ae06 and the unchanged non-active reporting reference10d398d. Accepted root48bccef was freshly verified and remains unchanged. `runtimeAuthority` identifies the component role; it is not runtime permission or a qualification verdict.
 
@@ -53,7 +63,7 @@ Host-local evidence (not included in portable source): `/private/tmp/qa-agent-co
 
 Each slice had a failing control, healthy controls and independent Lead AQA review. Those are harness checks, not a product-coverage denominator. Compiler source checks pass; a separate audit found three pre-existing standalone test-type diagnostics, with no new diagnostics introduced by the Kernel pin test.
 
-## Open integration gates
+## Earlier integration gates (historical; current updates above)
 
 1. Freeland runtime-binding and wrapper-test repairs are committed at `6f4ae06` after both independent spec/quality approval and the full2432-record source gate. Its complete-history bundle restores into an ordinary clean receiver with547/547 raw Git entries checked; bundle verify and fsck pass. The source has not been promoted into the accepted root. Original failed logs remain retained. This is not a live product run or promotion of PAY09.
 2. Console QA01 and all four downstream fixture consumers are reviewed and committed through `784eda092c566fad0db0f1e4b25ff56b07bddd22`. Earlier Nuanu authored API, help/resume and Chromium vertical19/19 passed; the fourth public-auth fixture passed8/8 after an independently reproduced saved-reference repair. Main's final serial integration gate passed adapter26 + authored authority1 + dependencyCLI2 + portability3 =32/32, zero failures/skips/cancellations; source typecheck also exits0. The final complete-history Console bundle restores with167/167 raw entries and clean status. This closes the bounded takeover source slice, not the entire Console suite, real-product learning or accepted-root promotion. Intermediate bundles and original REDs are preserved.

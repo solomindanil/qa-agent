@@ -1,6 +1,6 @@
 # Command and state boundary
 
-This is the historical command audit for the sources named below, not a launch authorization for the post-review candidate. Its current pins and packaging-only checks are in [post-review correctness](post-review-correctness.md). Only root source restore/verify and root packaging tests were newly executed there. Before any candidate child check, resolve its exact manifest/embedded authority and separately review the command/effect scope; never copy the historical393 Kernel override into Console784eda0.
+This is the historical command audit for the sources named below, not a launch authorization for the post-review candidate. Its current pins and attributed checks are in [post-review correctness](post-review-correctness.md) and [product-analysis integration](product-analysis.md). Before any candidate child check, resolve its exact manifest/embedded authority and separately review the command/effect scope; never copy the historical393 Kernel override into Consoledeb262c, which retains authority11d013c.
 
 Read against Kernel393 / Console432 / Freeland3d, 2026-09-07. Commands below are candidates, not an execution record; actual results live in [assembly.md](assembly.md).
 

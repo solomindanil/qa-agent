@@ -1,6 +1,6 @@
 # Source bundle qualification — 2026-09-07
 
-Historical source-delivery record. The dated pins, hashes and counts below belong to their original revisions; they are not measurements of the current candidate manifest. For Console784eda0 / Kernel11d013c / Freeland6f4ae06 and their fresh packaging checks, use [post-review correctness](post-review-correctness.md). The candidate is not the accepted root; its Kernel full gate remains unresolved.
+Historical source-delivery record. The dated pins, hashes and counts below belong to their original revisions; they are not measurements of the current candidate manifest. For Consoledeb262c / Kernel11d013c / Freeland6f4ae06, use [post-review correctness](post-review-correctness.md) and [product-analysis integration](product-analysis.md). The candidate is not the accepted root; Kernel's later full verify and separate evidence limits are recorded there.
 
 ## G1/G2 source follow-up (historical)
 

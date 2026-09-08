@@ -9,17 +9,17 @@
       "bundle": "sources/kernel.bundle",
       "sha256": "586b8729885c1f7df345612ad4359ea243aa6fd5e6e4e3c983e86e2406be6374",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed candidate; focused236 passed; full gate1692 passed/9 timeouts unresolved; not accepted-root promotion or assembled-runtime qualification"
+      "qualification": "source-reviewed candidate; later unchanged full verify1701/1701 and build exit0; original supervisor receipt incomplete, separate passive settlement passed; old timeout cause unresolved; not accepted-root or assembled-runtime qualification"
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "784eda092c566fad0db0f1e4b25ff56b07bddd22",
-      "tree": "3dfc3e23e2ea13c1fee2034c39d97f50b2cef63e",
+      "commit": "deb262c5e9701d9d216c28ca53521dafb9f94be8",
+      "tree": "c371a6dc74a4cef68a215b24acd6f97ec3b69375",
       "bundle": "sources/console.bundle",
-      "sha256": "b4a476d5aba51295226d89333f1eb4cc68341ab062ee216c7eaf89fb2f9101c5",
+      "sha256": "87cacba3080f3bc395bae5712448fe57a983c09444e76880a7b224314ef4ca29",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed candidate; QA01 and four fixture consumers qualified; final finding fixture8/8 and dependent32/32; no full-suite, original-product or accepted-root qualification"
+      "qualification": "source-reviewed candidate; QA01/four fixture results remain attributed to784eda0; subsequent reviewed README and skill-only changes, packaging2/2 and bounded offline clarify/investigate evaluation GO WITH LIMITATIONS; unsupported proposed oracles remain; no full-suite, live-product, host-installation or accepted-root qualification"
     },
     {
       "id": "freeland",
