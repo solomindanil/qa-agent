@@ -1,5 +1,7 @@
 # Assembly qualification — selected gates passed
 
+Historical assembly record: the dated results below retain their original sources. This branch now contains a separate [post-review candidate](post-review-correctness.md), with fresh source-packaging checks and an unresolved Kernel full gate. Do not apply the earlier counts or acceptance to its new pins.
+
 Latest source follow-up: Console `f4b0d56` adds [bounded read-only dependencies](read-only-dependencies.md);
 Freeland `ca9d9b4` adds [owned campaign cancellation](cancellation.md). Those pages distinguish fresh
 checks from inherited results. No historical result below is reattributed to the new commits.

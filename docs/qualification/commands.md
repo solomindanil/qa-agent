@@ -1,5 +1,7 @@
 # Command and state boundary
 
+This is the historical command audit for the sources named below, not a launch authorization for the post-review candidate. Its current pins and packaging-only checks are in [post-review correctness](post-review-correctness.md). Only root source restore/verify and root packaging tests were newly executed there. Before any candidate child check, resolve its exact manifest/embedded authority and separately review the command/effect scope; never copy the historical393 Kernel override into Console784eda0.
+
 Read against Kernel393 / Console432 / Freeland3d, 2026-09-07. Commands below are candidates, not an execution record; actual results live in [assembly.md](assembly.md).
 
 Consoleb38a8b4 and76d00b1 change only fixtures/tests. Their executed gates are recorded in [authored-fixture.md](authored-fixture.md) and [learning-portability.md](learning-portability.md). The latter six-file gate was reviewed and executed in isolation; no broader command or live workflow is implicitly authorized by those results.

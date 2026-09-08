@@ -2,6 +2,10 @@
 
 The north star is agent-first QA that can test products through dialogue first and later run on another host. Assembly reuses the existing implementations; it does not restart the roadmap or count source tests as product coverage.
 
+## Current execution — 2026-09-08
+
+Follow the [approved post-review plan](../superpowers/plans/2026-09-07-post-review-dialogue-qa-plan.md) and [current correctness checkpoint](../qualification/post-review-correctness.md). This branch assembles reviewed candidate Console784eda0 / Kernel11d013c / Freeland6f4ae06; it does not replace accepted root48bccef. Claude is unavailable, so Main/Codex now owns its implementation lane. Kernel's complete gate remains1692pass/9timeouts; preparation and independent safe work continue without declaring that gate passed. The dated stage table and earlier qualification records below retain their original scopes and source attribution.
+
 | Stage | Current boundary | Next proof |
 | --- | --- | --- |
 | G0 — common entry and reuse | Reviewed source slices exist; this workspace brings their owners/skills together. Full installed/dual-host qualification remains open | Fresh session finds the right source owner and safely completes the selected tool paths |
@@ -27,6 +31,6 @@ The [approved detailed master plan](2026-09-06-master-plan.historical.md) is ret
 
 The snapshot was intentionally not rewritten. Its12 relative link occurrences (11 unique targets) are **not portable**: `../audits/` originally means NuanuFlowQA/docs/superpowers/audits; `../../local/` originally means NuanuFlowQA/docs/local, not this repository's local/ or .local/. The preceding implementation-plan link also belongs to the old plans folder. Two `/private/tmp/...` links are host-dependent. These linked documents were not automatically imported or published. Do not follow a missing link by creating a symlink or relabeling evidence.
 
-Old Console771/Kernel953 pins and historical source line numbers are preserved as history; current owners are Consolef4b0d56/Kernel393 and Freelandca9d9b4 in the manifest. Inline code paths belong to their named component, not automatically the qa-agent root. Reporting source belongs to the non-active reference. Current status is this index plus the actual qualification report, not the old summary table.
+Old Console771/Kernel953 and earlier integration Consolef4b0d56/Kernel393/Freelandca9d9b4 pins are preserved as history; this candidate's sources are Console784eda0/Kernel11d013c/Freeland6f4ae06 in the manifest. Inline code paths belong to their named component, not automatically the qa-agent root. Reporting source belongs to the non-active reference. Current status is this index plus the actual qualification report, not the old summary table.
 
 The complete link map/content audit is retained privately at `.local/source-audits/master-plan/REPORT.md`, SHA-256 `19ee37a15ae5226c2c21aa5a55eae314414bf7f24951191d01b9492a23ce35a9`. No credentials/private user payload were found in the snapshot; internal names/paths are retained for the approved private destination. This does not audit every linked file or authorize a public release.

@@ -25,4 +25,4 @@ Restore uses only the local reviewed bundles. It does not install dependencies, 
 
 Component links resolve after restore. `runtimeAuthority: true` means selected source ownership, not permission to execute or proof that a runtime works. Reporting reference10d is deliberately **not active**. No product accounts, managed registrations or current campaigns are transferred by restore.
 
-Current delivery proves only the checks actually recorded in the qualification report. Product coverage, live deployment identity, plugin authentication and release readiness must be assessed for each campaign. The pending Starter fixture timeout remains visible.
+This branch is the [post-review integration candidate](docs/qualification/post-review-correctness.md), not a promotion of the accepted workspace. It proves only the source-packaging checks actually recorded there; the Kernel full gate still has nine unresolved timeouts. Product coverage, live deployment identity, plugin authentication and release readiness must be assessed for each campaign.
