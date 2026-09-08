@@ -2,15 +2,19 @@
 
 This checkpoint records execution of the [approved post-review plan](../superpowers/plans/2026-09-07-post-review-dialogue-qa-plan.md). It is not a product release verdict, a source-promotion record, or cloud qualification.
 
-## Current skill integration and Kernel result — 2026-09-08
+## Current catalog integration — 2026-09-08
 
-The current manifest selects Console `deb262c5e9701d9d216c28ca53521dafb9f94be8` with unchanged Kernel11d013c, Freeland6f4ae06 and inactive reference10d398d. The Console delta since784eda0 consists only of reviewed README commitd6963a8 and skill commitdeb262c; its runtime/Kernel authority is unchanged. See [product-analysis qualification](product-analysis.md) for source packaging, clarification/investigation evaluation and residual unsupported-oracle findings. Accepted root48bccef, installed host skills and existing product campaigns remain unchanged; no cloud or live-product acceptance follows.
+The manifest now selects Freeland `04b771a7f048d244b501e4c0cab6618bd4305d79` with unchanged Consoledeb262c / Kernel11d013c / inactive reference10d398d. Its bounded credential-free discovery fix passed2436/2436 harness checks and independent Lead AQA review at the component source. Fresh graph-first preparation and one anonymous TC-ВХОД-01 shadow run reached stable staging2981985 without login or purchases. This supersedes the blanket unavailable-staging statement below only for the observed guest scope. Strict graph gaps and authenticated/full/ticket acceptance remain open. See [exact scope and assembly boundary](catalog-discovery.md). Accepted root48bccef and installed skills remain unchanged.
+
+## Prior skill integration and Kernel result — 2026-09-08
+
+The prior skill-integration manifest selected Console `deb262c5e9701d9d216c28ca53521dafb9f94be8` with unchanged Kernel11d013c, Freeland6f4ae06 and inactive reference10d398d. The Console delta since784eda0 consists only of reviewed README commitd6963a8 and skill commitdeb262c; its runtime/Kernel authority is unchanged. See [product-analysis qualification](product-analysis.md) for source packaging, clarification/investigation evaluation and residual unsupported-oracle findings. Accepted root48bccef, installed host skills and existing product campaigns remain unchanged; no cloud or live-product acceptance follows from that integration.
 
 The previously pending full Kernel verification has now completed once on unchanged exact11d013cb75805f66b539960c044512ea52762e7e: actual npm exit0, typecheck0,1701/1701 tests in39/39 files, build0;0failed/skipped/todo/unreported. The original supervisor's final receipt and own exit remain **INCOMPLETE**. A separate bounded passive settlement passed; this does not manufacture the missing original receipt. The old9timeouts were not reproduced in this run and their cause remains unresolved. No timeout/source change, dependency install or repeat-to-green is credited.
 
 Main previously read back all50 delivery payloads and the independent settlement review, and rechecked the final report hash for this integration. Durable host-local evidence: `/Users/danilsolomin/projectsnew/NuanuFlowQA/docs/local/qa-starter/gates/2026-09-08-kernel-full-verify-nxiz5pcs/`. Final report SHA256`6343e588baa471e466c9518b8f34e35d64940eaa4087a7ae970059ca43aaf6a3`; delivery manifest SHA256`1d08ef832bdf0cb84d94e948dd87b12ab70f3d20f388f5f8ebc8e0bc73dc4017`. This is component-source qualification, not a combined installed Console/Freeland/host or product run. Preserve the historical failed gates below; do not interpret their formerly pending status as current.
 
-Current remaining boundaries: general agent-oracle reliability, scoped full/ticket product workflows, original-path business evidence, actual host installation/Claude parity and cloud. Freeland access and MagicCard owner-stop remain as recorded below. Independent safe source work may continue without promoting unsupported product checks.
+Current remaining boundaries: general agent-oracle reliability, scoped full/ticket product workflows, original-path business evidence, actual host installation/Claude parity and cloud. Freeland guest access is updated above; MagicCard owner-stop remains as recorded below. Independent safe source work may continue without promoting unsupported product checks.
 
 ## Prior isolated candidate assembly — 2026-09-08 (historical)
 
@@ -90,7 +94,7 @@ Independent Lead AQA supported all eight original synthetic diagnoses and one ad
 
 A later separately frozen four-case held-out assessment also received bounded independent support:4/4 diagnoses/scoped outcomes,0falsePASS/4,0falsebug/4 and0missed designated synthetic defect/1. Its27manifest entries and5output payloads were verified, and the two-stage case's first answer was committed before releasing its second input. However, the action journal was self-recorded: the prohibited-action axis remains `insufficient_audit`, not PASS. This was single-arm offline interpretation, not the required baseline/candidate comparison or real-product acceptance. Report `/private/tmp/qa-step2-heldout-grade.OuZqbK/REVIEW.md`, SHA256`6c15abd54c2401c2f0f66d5807a122c77446162ae1d3a6d6fd0246a4f43017f9`, was fully read and hashed by Main. Keep these four cases separate from the earlier nine exploratory observations.
 
-### Current real-product boundaries
+### Earlier real-product boundaries (superseded only where stated above)
 
 The completed official-plugin inventory at2026-09-08T07:06:10.582Z contained2active Freeland QA items without a cycle filter: FREEL-398 and FREEL-426, both with null cycle IDs. This is a non-atomic inventory, not generation-bound product evidence. Original descriptions/comments and attachment metadata were read; attachment bodies were not. Independent AC review found that developer numbering does not match original FREEL-426 AC3/AC6. Preserve all8original AC as unassessed until independently tested; do not turn developer handoff into FIXED.
 

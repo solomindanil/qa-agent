@@ -24,12 +24,12 @@
     {
       "id": "freeland",
       "path": "components/freeland",
-      "commit": "6f4ae0642a1f32144f6a2853acf40f236439b57d",
-      "tree": "e1ddd4265fde6e957a29393cb846c29098d82ea2",
+      "commit": "04b771a7f048d244b501e4c0cab6618bd4305d79",
+      "tree": "f296e2dd35965b77d6d1ada431d08fd4ce5979fc",
       "bundle": "sources/freeland.bundle",
-      "sha256": "6a9a1920254b49ece0cdd8a8a71218188e78d01d41fb4ddab9fe5c6f2b3baa09",
+      "sha256": "f0976f7ad4f63902acea5651b03c65c45cba5b593474a11fae97a17e818e12ad",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed candidate; full qa:verify2432 passed at component source; no live campaign or accepted-root promotion; qualified-receipt renewal and PAY07/PAY09 qualification remain separate"
+      "qualification": "source-reviewed candidate; credential-free catalog/dry-run with strict authenticated execution preserved; full qa:verify2436 passed at exact component source; fresh graph preflight and one guest shadow observation on product2981985, not full manual or release acceptance; strict graph gaps, PAY07/PAY09 qualification and accepted-root promotion remain separate"
     },
     {
       "id": "kernel-reporting-reference",
