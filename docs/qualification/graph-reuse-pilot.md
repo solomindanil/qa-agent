@@ -46,6 +46,10 @@ The PRODUCT-MAP byte change also requires updating its existing expected digest 
 
 No deployment, product edit, payment, tracker write, accepted-root promotion, cloud work or historical evidence rewrite is authorized by this result. Re-export the Obsidian view only from a reviewed integrated graph generation; the previous view remains a historical observation until then.
 
+## Cold source delivery
+
+Final cold-source delivery passed at root `ab9da25294fb221dc6d73c0668ab8ceca7007558`, tree `656196fcaba1c9bd02284a40eaf5d5bd68e9916b`: an independent `git clone --no-local` ran its own `sources:restore`, `sources:verify` and root `npm test`, all exit0,52/52 tests without failures/skips/cancellations. Root and all four children remained clean at their expected pins; no dependency directories were copied or installed. This satisfies the independent packaging review's delivery condition, not accepted-root promotion, private state adoption or product execution. Completion/audit record `.local/qualification/graph-reuse-cold-20260909.json` has SHA256 `5ef4732d14a016bdfbf0cda153856b963666824c8e6af4b59bd31b91734f5c4c`; raw task paths are retained, not included in the source bundle. This documentation-only follow-up does not reattribute the cold result to a later commit.
+
 ## Next useful slice
 
 Continue Task3A.2 with actual money/concurrency assertions: B11 amount/currency mismatch must prevent provisioning; D7 lock-refused contenders must not call the provider, and unique-conflict recovery must reuse a valid winner without another provider attempt. Actual database concurrency/TTL semantics and global external-resource uniqueness remain separate pending checks. First reuse existing product or QA checks, including the existing VELVET amount-mismatch negative. If the available runner cannot observe those boundaries, retain the gap and make a specific testability request rather than link a partial test as full coverage. Product code remains read-only and this plan does not require real purchases.
