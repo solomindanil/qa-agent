@@ -125,6 +125,46 @@ Exit: selected required controls show no false PASS or false confirmed bug and d
 
 Exit per business slice: independent expectation → actual role/state → executed original path → observed final business state → diagnosis → repeatable check. Local/unsealed agent observations remain useful investigation, not silently upgraded release evidence.
 
+## Step 3A — reuse-first graph repair (G2/G4), approved 2026-09-09
+
+This owner-approved lane refines the Freeland graph obligation in Steps3–5. It does not restart G0–G5, block independent second-product work, or authorize product code changes, deployment, purchases, tracker writes or cloud work. Main owns root plan/integration; one isolated Freeland source worker owns graph edits; an independent Lead AQA reviews the exact diff and scope claims.
+
+### Baseline and honest denominators
+
+Use harness04b771a and clean read-only product2981985e6eaebddbdb1b6691a261bc7e9369bcaa for the first source slice. Its frozen graph is `sha256:cdb70c3252f1f24a5cacea16bc732fea0a4569dfe70b4cdac7683c180d7739ba`. This is source analysis, not a new live campaign. Before any later live run, re-resolve deployment identity, owner and effects.
+
+Strict180 records refer to98 distinct semantic owners:37 requirements without test ownership,36 overlapping excluded-without-automation records, the overlapping D7 coverage gap,89 unresolved code locators and17 orphan semantic nodes. Separately track106 unmapped out of142 changed files and all443 locators (74 resolved /248 review_required /121 unresolved). Clearing strict findings alone does not qualify the369 pending source reviews.89 manual cases remain pending in this frozen plan.
+
+The older freeland_graph archive at product5b75d6b is a read-only evidence donor. Its21 historical fully-automated bindings among the current ownership-problem nodes are candidates for review, not current PASS. Old source overrides already exist in the expanded active pack; never replace that pack wholesale. Gap detectors and source-string checks cannot stand in for runtime business assertions.
+
+### Task 3A.1 — four-node reuse pilot
+
+- [ ] Review `req:B11`, `req:D7`, `invariant:vip-card-entitlement-gate`, `route:seo-analytics`: compare normative clauses, current source/test bytes, historical proof and the active graph consumer.
+- [ ] Correct only exact source paths/symbols demonstrably belonging to each node through existing mappings/contracts. Retain displaced coordinates as history; record current coordinates and source SHA in review evidence. Do not build a second proof engine.
+- [ ] Before linking a test as full coverage, verify the exact selector and every claimed assertion. A stale contract, partial test, unavailable Product-CI channel or unexplained contradiction remains explicit debt. VIP referral-attribution behavior must not be silently reconciled with the older grant/admin/POSTED-only contract.
+- [ ] Use a focused RED regression for each changed graph behavior, then the existing builder/validator on healthy and missing/stale-source controls. Keep schema/guard behavior unchanged unless a separately evidenced defect requires a bounded fix.
+- [ ] Rebuild twice from frozen input bytes in an isolated graph root; compare structural output and per-code/per-node finding deltas. Preserve full-scope selection, manual pending and unrelated nodes/tickets. Lead AQA reviews both spec compliance and implementation quality before integration.
+
+Exit: four explicit decisions with current source/test references and rationale; only proven graph corrections applied, every removed finding explained, genuine gaps retained. This exit does not require making all four nodes green or reusing prior runtime PASS.
+
+### Task 3A.2 — actual money gaps, not mapping-only closure
+
+- [ ] Reuse B11 tests first; cover exact amount/currency acceptance and amount/currency mismatch -> manual_review without provisioning. Confirm the test exercises the current source, not a copied algorithm.
+- [ ] For D7 inspect simultaneous same-rail requests, lock refusal with/without an existing address, unique-insert conflict, single active address/provider creation and lock release. A mock that always acquires the lock does not prove these cases.
+- [ ] Add only missing tests in the QA-owned lane or prepare an explicit product testability request where product changes would be necessary. No modification or push to the product repository. Positive/negative controls plus a realistic faulty control must demonstrate assertion sensitivity; no live providers or money for this slice.
+
+### Task 3A.3 — access/replay and changed-file mapping
+
+- [ ] Review G7, payment-creation idempotency and environment/account isolation. One endpoint's missing-header test does not prove all sensitive endpoints or concurrent replay.
+- [ ] Start unmapped-path review with `apps/api/src/services/payassist-api-client.ts`, `apps/web/src/lib/payment-checkout-attempt.ts`, `apps/api/src/providers/vpn-provider.ts`, `apps/api/src/services/vpn-activation-recovery.ts`, `apps/api/src/config/integration-config.ts`, `apps/web/src/hooks/useApi.ts`. Each needs an evidenced source->node->test chain or justified exact exclusion; then continue by risk through the remaining inventory.
+- [ ] Preserve full fallback while strict debt/unmapped impact remains. Never use a broad exclusion or generic smoke edge to manufacture narrow coverage.
+
+### Task 3A.4 — adoption and continued learning
+
+- [ ] Integrate reviewed Freeland commit/bundle through the existing root source mechanism; refresh source-dependent graph/plan identities, not old receipts. Keep accepted root separate until its integration gate passes.
+- [ ] Re-export the reviewed Obsidian projection and read back files/links; preserve old snapshots and explicit outstanding debt.
+- [ ] In the next admitted full/ticket task, show that the repaired dependency changes selection/interpretation correctly. This real consumer proof, not a reduced counter alone, closes the learning slice. Reusable process lessons go into the existing shared workflow only when demonstrated beyond a Freeland-specific assertion.
+
 ## Step 4 — deliver both dialogue workflows and explicit coverage (G2)
 
 - [ ] Full QA: requirements/roles/states/integrations/dependencies inventory; risk-based design with boundaries, negative cases and state transitions; execute supported lanes and list every remaining gap.

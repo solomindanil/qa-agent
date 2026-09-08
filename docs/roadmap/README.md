@@ -2,7 +2,7 @@
 
 The north star is agent-first QA that can test products through dialogue first and later run on another host. Assembly reuses the existing implementations; it does not restart the roadmap or count source tests as product coverage.
 
-## Current execution — 2026-09-08
+## Current execution — 2026-09-09
 
 Follow the [approved post-review plan](../superpowers/plans/2026-09-07-post-review-dialogue-qa-plan.md) and [current correctness checkpoint](../qualification/post-review-correctness.md). This branch assembles reviewed candidate Consoledeb262c / Kernel11d013c / Freeland04b771a; it does not replace accepted root48bccef. Claude is unavailable, so Main/Codex owns its implementation lane. Kernel's later unchanged full verify passed1701/1701/build0; original-supervisor receipt remains incomplete, separate passive settlement passed, and old timeout cause is unresolved. The dated stage table and earlier qualification records below retain their original scopes and source attribution.
 
@@ -19,6 +19,17 @@ Exact prior candidate2f42683 passed independent committed cold source-delivery q
 | G6 — cloud host | Deliberately later | Move a proven dialogue workflow with explicit tools/credentials/network/recovery, not another QA engine |
 
 ## Next bounded work
+
+### Approved graph repair lane — G2/G4, reuse first
+
+The owner approved adding the 2026-09-09 graph review to this global plan and starting implementation. Follow [Step 3A](../superpowers/plans/2026-09-07-post-review-dialogue-qa-plan.md#step-3a--reuse-first-graph-repair-g2g4-approved-2026-09-09). This is one product-pack lane, not a new universal engine or a prerequisite to every other product task. G1 and G3/G5 can continue independently when their own owners/capabilities permit; MagicCard stays owner-stopped and Claude remains unavailable.
+
+- Frozen observation baseline: Freeland harness04b771a, product2981985e6eaebddbdb1b6691a261bc7e9369bcaa, graph `sha256:cdb70c3252f1f24a5cacea16bc732fea0a4569dfe70b4cdac7683c180d7739ba`. This is the last observed staging slice, not a claim of today's live deployment or production acceptance.
+- Strict180 findings touch98 unique semantic owners. The36 excluded-without-automation and D7 coverage-gap records overlap the37 ownerless requirements. Separately:89 unresolved code-locator records,17 semantic orphans;106/142 changed files unmapped;443 source locators include74 resolved,248 review_required and121 unresolved. Keep these denominators distinct.
+- First: revalidate existing source/test evidence for B11, D7, VIP entitlement and SEO attribution; correct only proven bindings. Then fill real money/access/replay gaps, then remaining source/requirement mapping. No blanket import of historical `fully_automated` or `gap_detected` classifications.
+- The Obsidian view is a generated snapshot, not the source of acceptance. Re-export only after reviewed source changes and a fresh build/validate/plan; preserve the historical graph and previous evidence.
+
+Immediate status: plan updated; bounded four-node source/contract investigation in progress. No finding has been closed by this roadmap update. Subsequent execution evidence belongs in the qualification record, not in rewritten historical reports.
 
 1. Assembly source/tool gates and independent Lead AQA/fresh-context reviews are complete. Preserve the accepted pins and qualification evidence; publish only to the authorized private repository with exact remote-SHA readback. See [qualification](../qualification/assembly.md) and [assembly plan](../superpowers/plans/2026-09-07-independent-workspace-assembly.md).
 2. Authored fixture repair is reviewed and qualified at Consoleb38a8b4:22/22 local tests, exit0, no command reruns. Nuanu-only300s and post-registration retention were approved; child120s/public-auth180s, assertions and Kernel pin are unchanged. Observed Nuanu164.364s is not proof that increasing the budget caused success. Git batching is deferred. See [exact result](../qualification/authored-fixture.md); proceed to G1 instead of expanding infrastructure without a demonstrated need.
