@@ -34,3 +34,18 @@ Host-local evaluation: `/private/tmp/qa-universal-oracle-eval.IYuAQp`; source re
 Codex subagents used fresh contexts and inherited model/effort without overrides; the exact model identifier was not captured. One output write was denied; the same returned answer was saved by the coordinator under the approved evaluation scope, without regenerating the answer. Later dispatches clarified local output authorization. These operational deviations and the arm mapping are recorded separately from the unchanged blind grade. This is not a randomized, seeded or cross-host benchmark.
 
 Accepted root48bccef, host-installed skills, product registrations, live environments and Freeland acceptance remain unchanged. No push, cloud setup, tracker write or purchase occurred. The deeper Freeland graph/test obligations remain in the global plan, not erased by U1.
+
+## Cold source delivery — root81e5ee7
+
+A fresh normal Git clone (`--no-local`) of exact root `81e5ee786edb465b6622359f19b708eb0e2315cb` at `/private/tmp/qa-u1-cold.45bet7/repo` restored its four components from its own committed bundles. `sources:restore`, `sources:verify` before and after testing, root `npm test` (52/52), and Console's existing `qa-product-skill.test.ts` (2/2, Node22.23.1 with `--experimental-strip-types`) all exited0. Both test gates had0failures/skips/cancellations; root remained clean. No dependency install, full child suite, browser or product campaign was run. These checks qualify source delivery/parity, not a deployed product or actual Claude-host behavior.
+
+Raw logs are retained under `/private/tmp/qa-u1-cold.45bet7`:
+
+| Artifact | SHA256 |
+| --- | --- |
+| restore.log | 44e7ecc7cd91de620dfdd11891304db1bcc258e1471ad6e5cf516a3617cb9627 |
+| verify-before.log and verify-after.log (identical) | 2dd742c8d04d9fb9f53751665aedc1f257e00bf58ce555f3905ec372f00947ad |
+| root-tests.tap (32501.316583ms) | aedcd0ecabdbf8a1eef2b7ba2d7d94d28b2a5f17876e35541a6fab200b92be7a |
+| skill-tests.tap (95.547583ms) | eb1303610c361779d5a89efb327f87a376fab0f14981a9c237aa33f7ddeb45d8 |
+
+This subsequent documentation record does not change the tested commit's attribution. Component pins, bundle bytes and runtime/test inputs remain those of81e5ee7; accepted-root and installed-skill promotion are still separate.
