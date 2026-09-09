@@ -4,22 +4,22 @@
     {
       "id": "kernel",
       "path": "components/kernel",
-      "commit": "11d013cb75805f66b539960c044512ea52762e7e",
-      "tree": "1b709b1c0cfeb304fe6e712e58472d5c4e15b990",
+      "commit": "15a067c9a694de26460102ce5dadb9707c7977b1",
+      "tree": "4e865e14beac98930651a6b0a790e13e69affab3",
       "bundle": "sources/kernel.bundle",
-      "sha256": "586b8729885c1f7df345612ad4359ea243aa6fd5e6e4e3c983e86e2406be6374",
+      "sha256": "52071a93dd534aa2c38e67ab1b0778b26e09f0777d3e2655aad4f06432cedefe",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed candidate; later unchanged full verify1701/1701 and build exit0; original supervisor receipt incomplete, separate passive settlement passed; old timeout cause unresolved; not accepted-root or assembled-runtime qualification"
+      "qualification": "source-reviewed candidate; existing private reader public re-export with scoped24/24 and build consumer proof; prior1701/1701 belongs to11d013c; source assembly is not full runtime, product or accepted-root qualification"
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "cef3a8d385229a64acd163268095ad353d8e4dd6",
-      "tree": "088b2c301a078187eead6a38cf359c4723c9d00f",
+      "commit": "f3660d0eed9c442aec974f1b57dcaa6b7a8bcc3b",
+      "tree": "af54d7c4d1dea07a86846f9603bb4de56d93d762",
       "bundle": "sources/console.bundle",
-      "sha256": "737ae944cb9d5851e7bd2cfbdd30c7f0178a92c5a27be90016dbbc63e3a3075b",
+      "sha256": "6b3155cc9aebe07ac076c5caf63ef5a5ca0d159b760d5f921a59d7d7d3be5df1",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed candidate; QA01/four fixture results remain attributed to784eda0; latest two-reference-only change has packaging2/2 and independent Lead AQA approval; nineteen offline replies retain useful reasoning, historical original-regression5 affected to0/5 new, held-out0/5 definite errors both arms; no causal/universal reliability, full-suite, live-product, host-installation or accepted-root qualification"
+      "qualification": "source-reviewed candidate;1c5c502 receipt-bound attributed reviews with final CLI16/16;af832c9 interruption fixture9/9;f3660d0 additive trace event count with4RED-to-GREEN,30adapter and152compatibility tests; scopes overlap and are not product coverage; no automatic review-to-verdict promotion, production recovery, full-suite, dual-host or accepted-root qualification"
     },
     {
       "id": "freeland",
