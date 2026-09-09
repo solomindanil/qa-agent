@@ -11,9 +11,9 @@ Source instructions and external host prerequisites are in [skills](../../skills
 
 ## Qualified source and adoption boundary
 
-- The candidate [delivery manifest](../../sources/manifest.v1.json) selects Console `deb262c`, Kernel `11d013c`
-  and Freeland `6f4ae06`; accepted root48bccef is unchanged. [Current checkpoint](post-review-correctness.md)
-  and [product-analysis integration](product-analysis.md) retain exact qualifications and limits. Dated gates below remain historical, not current whole-product proof.
+- The candidate [delivery manifest](../../sources/manifest.v1.json) selects Console `cef3a8d`, Kernel `11d013c`
+  and Freeland `9c2509e`; accepted root48bccef is unchanged. [Current checkpoint](post-review-correctness.md),
+  [product-analysis integration](product-analysis.md) and [material expectation grounding](product-oracle-grounding.md) retain exact qualifications and limits. Dated gates below remain historical, not current whole-product proof.
 - G3+G4+G5 are integrated at Console `76d00b174f1e74a79a1c88d93a1e227d48489979`.
   The earlier G3+G5 focused TAP contains
   **10/10 passing records**, zero failures/skips/cancellations: 7 G3 + 3 G5, including parents.

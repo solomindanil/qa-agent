@@ -58,6 +58,35 @@ Subsequent owner diagnosis, read back by Main: `STG-RESTART-014` identifies the 
 
 No two workers edit the same component file concurrently. Console-to-Kernel API changes require coordination before editing. The table is the next work allocation; this planning turn does not dispatch implementation.
 
+## Universal-first execution order — owner decision2026-09-09
+
+This priority override follows the owner's explicit request to advance universality before deep product-specific tests. It preserves completed work and the original stage obligations below. Task3A.1 remains complete in its bounded source scope. Task3A.2/B11/D7 and3A.3 deep Freeland coverage work remain open and deferred, not cancelled or silently waived. No shared runtime change may skip its relevant Freeland regression controls.
+
+### U1 — unfamiliar-product reasoning into a usable QA plan (existing G0/G2)
+
+- [x] Re-audit the current source and stored decision samples, not only historical summaries: Consoledeb262c analysis instructions already exist; independent Lead AQA confirmed unsupported required properties in compound expectations in the earlier5/5candidate initials. The existing catalog validator protects exact expectation binding, not its semantic truth.
+- [x] Owner-approved refinement only in the existing `qa-product-v0/references/product-analysis.md` and Claude source mirror: Consolecef3a8d adds material-clause grounding while preserving justified consequences and independent work. Independent Lead AQA source review APPROVED; no schema, scoring rule, engine or runtime change.
+- [x] Fresh unfamiliar-domain comparison and separate original-regression exercise completed:10 initials +4 dependent continuations +5 new original-scenario replies retained. Blind unfamiliar-domain grading found0/5 definite overreach in each arm (not evidence of error-rate reduction); the five historical original-scenario failures were absent in five new replies, without losing critical checks or blocking all work. Historical comparison is not a randomized causal estimate; no universal reliability claim. [Exact qualification](../../qualification/product-oracle-grounding.md).
+
+### U2 — fresh agent completes the existing execution path (G1)
+
+- [ ] Resolve one permitted product/environment and source authority without borrowing Freeland credentials/rules or reopening owner-stopped MagicCard. Where no real target is available, label a controlled exercise as such and retain the real-product exit.
+- [ ] A fresh agent reads its brief/sources, independently chooses1–2business checks, reconciles graph/catalog and authors the plan through existing Console/Kernel APIs. Validate and execute the supported safe subset; unsupported scope remains visible. A prewritten fixture caller or a textual test plan does not satisfy this exit.
+- [ ] Read complete attempt/receipt artifacts, diagnose product versus expectation/selector/environment issues and report the actual scope. On current Console, two oracle failures remain `needs_review`; only a supported agent diagnosis can confirm a defect. Agent-led host observations remain explicitly local/unsealed when the accepted storage API is absent.
+
+### U3 — full/ticket workflow, human help and graph reuse (G2/G3/G4)
+
+- [ ] Verify both dialogue routes: full known-product scope and official Nuanu Flow QA-ticket reproduction with relevant dependency outcomes. Reuse selected product workflow/state/template rules; no second tracker client or generic invented CLI.
+- [ ] When a real capability/decision gap occurs, ask only for the dependent case, complete independent checks and retain an actionable checkpoint. A reply saying ready must be checked against actual current access/state before resuming.
+- [ ] From a confirmed failure or useful dependency/coverage discovery, review and apply one knowledge/regression revision using existing publication/CAS/readback APIs. A fresh context consumes it and executes the next justified check without importing old PASS. Do not fabricate a bug merely to demonstrate learning.
+
+### U4 — host portability, then G6 cloud
+
+- [ ] Reuse the same source workflow in actual Codex and Claude entry when available. Claude remains unavailable now; source parity alone does not close this gate.
+- [ ] Add a shared helper/adapter only when U2/U3 demonstrates a specific missing seam; do not proactively activate the reporting sibling, build an observation engine or restructure source bundles. Cloud work starts later, not during this priority change.
+
+Current-source review confirms the existing authored-plan/runner and registration-knowledge APIs are usable building blocks. The fixture `proposeFindingRegression` is intentionally tied to its own expected marker and is not a ready universal learner. U1 completed only its bounded source/offline decision scope after the owner's2026-09-09 approval. Next is U2's actual product-specific decision executed through existing tools, with truthful remaining scope, not another infrastructure layer. U1 does not close U2–U4 or Freeland acceptance.
+
 ## Step 0 — preserve completed work and establish one integration checkpoint (G0/G5)
 
 Files: `sources/manifest.v1.json`, `docs/roadmap/README.md`, `docs/qualification/`, `products/README.md`, `skills/README.md`.
@@ -150,6 +179,8 @@ Exit: four explicit decisions with current source/test references and rationale;
 Completed source slice: Freeland9c2509e; independent Lead AQA APPROVED, final qa:verify2442/2442, Main focused repeat8/8 and provenance VALID. Strict180→176 only for code locators. [Qualification and acceptance limits](../../qualification/graph-reuse-pilot.md). Task3A.4 generation/adoption and runtime evidence are not closed by this checkbox update.
 
 ### Task 3A.2 — actual money gaps, not mapping-only closure
+
+Deferred by the universal-first owner decision above. Keep this concrete test design for later; no B11/D7 implementation started after the priority switch.
 
 - [ ] Reuse B11 tests first; cover exact amount/currency acceptance and amount/currency mismatch -> manual_review without provisioning. Confirm the test exercises the current source, not a copied algorithm.
 - [ ] For D7 inspect simultaneous same-rail requests, lock refusal with/without an existing address, unique-insert conflict, single active address/provider creation and lock release. A mock that always acquires the lock does not prove these cases.

@@ -2,9 +2,13 @@
 
 This checkpoint records execution of the [approved post-review plan](../superpowers/plans/2026-09-07-post-review-dialogue-qa-plan.md). It is not a product release verdict, a source-promotion record, or cloud qualification.
 
-## Current catalog integration — 2026-09-08
+## Current universal reasoning slice — 2026-09-09
 
-The manifest now selects Freeland `9c2509e32462319d5b96ccb49d5ae2070df7b18d` with unchanged Consoledeb262c / Kernel11d013c / inactive reference10d398d. The [reviewed source-locator repair](graph-reuse-pilot.md) passed2442/2442 harness checks on final component bytes and removes only4strict locator findings,180→176. It does not add business coverage or fresh runtime evidence. The prior credential-free discovery fix and guest shadow observation remain attributed to04b771a: [exact earlier scope](catalog-discovery.md). That earlier observation supersedes the blanket unavailable-staging statement below only for its observed guest scope, not a claim of current live availability. Strict graph gaps and authenticated/full/ticket acceptance remain open. Accepted root48bccef and installed skills remain unchanged.
+The manifest selects Console `cef3a8d385229a64acd163268095ad353d8e4dd6`, with Kernel11d013c / Freeland9c2509e / inactive reference10d398d unchanged. Only two mirrored product-analysis references changed since Consoledeb262c. Independent Lead AQA approved the source and five new original-scenario replies; the separate blind unfamiliar-domain evaluation retained ten initials and four dependent follow-ups. See [exact results and limitations](product-oracle-grounding.md). This is a bounded source/decision improvement, not a fresh product run, actual Claude-host parity or proof of universal reliability. The owner prioritized U1→U2 generic workflow before deeper Freeland B11/D7 work; those gaps remain open. Accepted root48bccef and installed skills are unchanged.
+
+## Prior catalog integration — 2026-09-08
+
+That manifest selected Freeland `9c2509e32462319d5b96ccb49d5ae2070df7b18d` with unchanged Consoledeb262c / Kernel11d013c / inactive reference10d398d. The [reviewed source-locator repair](graph-reuse-pilot.md) passed2442/2442 harness checks on final component bytes and removes only4strict locator findings,180→176. It does not add business coverage or fresh runtime evidence. The prior credential-free discovery fix and guest shadow observation remain attributed to04b771a: [exact earlier scope](catalog-discovery.md). That earlier observation supersedes the blanket unavailable-staging statement below only for its observed guest scope, not a claim of current live availability. Strict graph gaps and authenticated/full/ticket acceptance remain open. Accepted root48bccef and installed skills remain unchanged.
 
 ## Prior skill integration and Kernel result — 2026-09-08
 
