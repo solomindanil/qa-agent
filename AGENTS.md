@@ -5,7 +5,7 @@ This branch is the reviewed-source integration candidate, not the accepted works
 ## Before work
 
 1. Resolve this normal Git root, read `sources/manifest.v1.json` and `docs/qualification/assembly.md`, then run `npm run sources:verify`. If components are absent, `sources:restore` is local-only; do not overwrite conflicting children. Root self-tests verify packaging, not products.
-2. Select the requested product and its existing execution/knowledge owner in `products/README.md`. Read the full source skill and its required references in `skills/README.md`. Child-relative commands run from that child, not this root or an old session cwd.
+2. Select the requested product and its existing execution/knowledge owner in `products/README.md`. For general QA requests without a selected specialist, start with the root-owned [qa-check](skills/qa-check/SKILL.md). Read the full selected source skill and its required references in `skills/README.md`. Child-relative commands run from that child, not this root or an old session cwd.
 3. Verify component HEAD, product environment/candidate, available tools and permitted actions. A copied account policy, old acceptance, saved path or `runtimeAuthority` does not grant new execution authority. Do not infer current identity from an old graph or receipt.
 4. Check other active campaigns and ownership before writing shared state. Keep one owner per product campaign. Do not re-register or manually move a managed workspace to this root; reconcile existing registration through its owning tools.
 

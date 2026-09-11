@@ -4,7 +4,8 @@ These are links to **complete delivered directories**, not partial copies or ins
 
 | Request | Source instruction |
 | --- | --- |
-| New product, registration recovery, separate I2 first-evidence review | [qa-init](../components/console/skills/qa-init/SKILL.md) |
+| General product/release/ticket QA before a specialist is selected | [qa-check](qa-check/SKILL.md) — root-owned routing only; not another runner |
+| Actual setup/registration, registration recovery, separate I2 first-evidence review | [qa-init](../components/console/skills/qa-init/SKILL.md) |
 | Unfamiliar product analysis, existing Starter pack, declarative/authored checks, agent-led browser work, human help | [qa-product-v0](../components/console/skills/qa-product-v0/SKILL.md) |
 | Product-specific test design, clarification or delegated investigation | [product-analysis reference](../components/console/skills/qa-product-v0/references/product-analysis.md) |
 | Starter plan/oracle/managed knowledge operations | [declarative-campaign reference](../components/console/skills/qa-product-v0/references/declarative-campaign.md) |
