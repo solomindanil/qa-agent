@@ -1,0 +1,59 @@
+import type { ReactNode } from "react";
+
+// The small reusable pieces every I2 card is built from: a labelled field, a
+// wrapping digest value, the card shell, and the fixture-provenance strip. Kept
+// together so the three cards share one visual grammar instead of re-inventing
+// rows.
+
+interface FieldProps {
+  label: string;
+  children: ReactNode;
+  /** Long values (digests, URLs) get their own line and wrap anywhere. */
+  wrap?: boolean;
+}
+
+export function Field({ label, children, wrap = false }: FieldProps) {
+  return (
+    <div className={`ev-field${wrap ? " is-wrap" : ""}`}>
+      <span className="ev-field-label">{label}</span>
+      <span className="ev-field-value mono">{children}</span>
+    </div>
+  );
+}
+
+/** A digest or id — monospace, wrapping, and visually inset from the panel. */
+export function DigestValue({ value }: { value: string }) {
+  return <code className="ev-digest">{value}</code>;
+}
+
+interface CardProps {
+  title: string;
+  contract: string;
+  children: ReactNode;
+  /** Rendered right of the contract chip — a state tag. */
+  meta?: ReactNode;
+}
+
+export function EvidenceCard({ title, contract, meta, children }: CardProps) {
+  return (
+    <section className="panel ev-card">
+      <div className="ev-card-head">
+        <h3 className="ev-card-title">{title}</h3>
+        <span className="chip ev-contract">{contract}</span>
+        <span className="ev-card-spacer" />
+        {meta}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** Says, in every card, exactly where the data came from. */
+export function FixtureNote({ provenance }: { provenance: string }) {
+  return (
+    <p className="ev-fixture-note mono">
+      <span className="ev-fixture-badge">fixture</span>
+      {provenance}
+    </p>
+  );
+}

@@ -1,0 +1,38 @@
+# E2E pipeline. Products activate via repository Variables/Secrets:
+#   Variables: <PRODUCT>_BASE_URL   Secrets: <PRODUCT>_TEST_EMAIL / _TEST_PASSWORD
+# With none configured the run is a valid no-op (0 tests).
+# For large suites, split a job with sharding:
+#   run: npx playwright test --shard=${{ matrix.shard }}/4
+name: E2E
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * *'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+        env:
+          FREELAND_BASE_URL: ${{ vars.FREELAND_BASE_URL }}
+          FREELAND_TEST_EMAIL: ${{ secrets.FREELAND_TEST_EMAIL }}
+          FREELAND_TEST_PASSWORD: ${{ secrets.FREELAND_TEST_PASSWORD }}
+          MAGICPAY_BASE_URL: ${{ vars.MAGICPAY_BASE_URL }}
+          # Nuanu Flow CI is public/read-only: repository base-URL variable only.
+          NUANUFLOW_BASE_URL: ${{ vars.NUANUFLOW_BASE_URL }}
+          # Add your product's vars/secrets here.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30

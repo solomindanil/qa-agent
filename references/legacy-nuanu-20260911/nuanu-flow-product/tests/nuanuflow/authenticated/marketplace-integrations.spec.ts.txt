@@ -1,0 +1,83 @@
+import { test, expect } from '../fixtures/authenticated.fixture';
+import {
+  INTEGRATION_CARD_NAMES,
+  WorkspaceOperationsPage,
+} from '../pages/workspace-operations.page';
+
+test.describe.configure({ mode: 'serial' });
+
+test.describe('Nuanu Flow marketplace and integrations', () => {
+  test('filters and searches the empty marketplace without publishing or installing', async ({
+    page,
+    assertSandbox,
+  }) => {
+    const operations = new WorkspaceOperationsPage(page);
+
+    await operations.gotoMarketplace();
+    await assertSandbox();
+    const all = page.getByRole('button', {
+      name: 'All',
+      exact: true,
+    });
+    const activeFilterClass = await all.getAttribute('class');
+    expect(activeFilterClass).not.toBeNull();
+    for (const filter of ['Agents', 'Workflows', 'Installed']) {
+      const button = page.getByRole('button', {
+        name: filter,
+        exact: true,
+      });
+      await expect(button).toBeVisible();
+      expect(await button.getAttribute('class')).not.toBe(activeFilterClass);
+      await button.click();
+      await expect
+        .poll(() => button.getAttribute('class'))
+        .toBe(activeFilterClass);
+      await expect
+        .poll(() => all.getAttribute('class'))
+        .not.toBe(activeFilterClass);
+      await expect(
+        page.getByText('No listings here yet', { exact: true }),
+      ).toBeVisible();
+    }
+    await all.click();
+    await expect
+      .poll(() => all.getAttribute('class'))
+      .toBe(activeFilterClass);
+    await expect(
+      page.getByRole('button', { name: 'Publish', exact: true }),
+    ).toBeVisible();
+
+    await operations.marketplaceSearch.fill('QA E2E absent listing');
+    await expect(
+      page.getByText('No listings here yet', { exact: true }),
+    ).toBeVisible();
+    await operations.marketplaceSearch.clear();
+  });
+
+  test('renders the exact disconnected integration card inventory', async ({
+    page,
+    assertSandbox,
+  }) => {
+    const operations = new WorkspaceOperationsPage(page);
+
+    await operations.gotoIntegrations();
+    await assertSandbox();
+    await expect(operations.integrationsHeading).toBeVisible();
+    for (const name of INTEGRATION_CARD_NAMES) {
+      await expect(page.getByText(name, { exact: true })).toHaveCount(1);
+    }
+    await expect(
+      page.getByText('Not connected', { exact: true }),
+    ).toHaveCount(INTEGRATION_CARD_NAMES.length);
+    await expect(
+      page.getByRole('button', { name: 'Connect', exact: true }),
+    ).toHaveCount(INTEGRATION_CARD_NAMES.length);
+  });
+
+  test('captures and cancels an integration handoff before OAuth', async () => {
+    test.fixme(
+      true,
+      'Connect controls expose no static destination and no proven interception/cancel path that prevents provider completion; OAuth handoff is not clicked and Not connected remains unchanged.',
+    );
+  });
+});

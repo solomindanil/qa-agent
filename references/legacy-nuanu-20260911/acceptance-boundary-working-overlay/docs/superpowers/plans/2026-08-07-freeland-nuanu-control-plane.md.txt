@@ -1,0 +1,1265 @@
+# Freeland Nuanu Control Plane Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Prove and implement the Nuanu-native path from an exact QA-column entry through a remote Codex agent and BPMN Decision to an auditable Manual/Assist outcome, without building a duplicate workflow engine.
+
+**Architecture:** Product-neutral TypeScript contracts validate the deployed Nuanu build, exact state UUIDs, server-generated Column Start, worker envelope, proof ledger, and missed-entry audit. Nuanu remains authoritative for graph validation, activation, journeys, worker leases, human Decisions, Artifacts, and transition receipts. Live probes run first in an isolated sandbox and only then create the exact Freeland QA binding; the selected Flow item, not the binding, starts in Manual mode.
+
+**Tech Stack:** TypeScript 6, Playwright test runner's `program` project, Nuanu Flow structured graph v3, official Nuanu MCP, Codex App Server remote worker, SHA-256 canonical JSON, versioned Nuanu Artifacts.
+
+## Global Constraints
+
+1. Execute in `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program` from baseline `affd6e1` or its reviewed descendant.
+2. Do not modify the user's dirty root worktree.
+3. The 2026-08-07 column-trigger release is an owner-reported input until the exact deployed server build and tool schema digests are captured.
+4. Do not create or activate a production Freeland binding before all sandbox N0 proofs pass.
+5. Never author raw BPMN XML. Preserve the returned `project_process_start` exactly.
+6. Every graph validation must return `ready_to_save:true`, `errors:[]`, and `warnings:[]`; save, read back, and compare before activation.
+7. Column End targets are exact UUIDs; `target_state_id:null` is the hold path.
+8. Decisions have explicit human assignees and separate approve, deny, and refine edges. Refine returns to the evidence-producing step.
+9. Manual and Assist never change a ticket status at End. Auto appears only in
+   the disposable sandbox negative authority/repin probes; this plan never
+   enables or promotes Freeland Auto.
+10. The worker accepts a closed command ID and immutable references only. Ticket text is untrusted data, not an instruction.
+11. Nuanu owns task claim/requeue/lease state. This code owns only `qaRunKey` idempotency and a thin missed-entry audit.
+12. `stop_flow_item_process` and `take_over_flow_item_process` require a separately confirmed live drill; they are never silent conflict recovery.
+13. No live purchase, product mutation, or production state transition occurs in this plan.
+14. The closed `freeland-qa-run-v1` worker operation owns freeze, selection,
+    Computer Use-first lane execution, secondary Playwright/API lanes,
+    aggregation, freshness recheck, and sanitized publication. The BPMN graph
+    does not expose independently caller-selectable lane tasks; exact lane
+    facts remain visible in the typed result and Artifact.
+15. The graph consumes at most one automatic status transition per journey
+    visit and never attempts a thirteenth automatic transition; journey counters
+    are read before any later Auto activation.
+
+---
+
+## Target File Structure
+
+```text
+src/nuanu/
+  control-plane-config.ts
+  qa-column-graph.ts
+  worker-envelope.ts
+  freeland-runner-adapter.ts
+  prepared-invocation.ts
+  prepared-invocation-file-store.ts
+  worker-control.ts
+  schemas/
+    qa-worker-seed.v1.schema.json
+    qa-run-result.v1.schema.json
+  proof-ledger.ts
+  missed-entry-audit.ts
+  shadow-corpus.ts
+packages/freeland-worker-adapter/
+  package.json
+  README.md
+tools/nuanu/
+  build-freeland-worker-adapter.mjs
+tsconfig.freeland-worker-adapter.json
+tests/program/nuanu/
+  control-plane-config.spec.ts
+  qa-column-graph.spec.ts
+  worker-envelope.spec.ts
+  freeland-runner-adapter.spec.ts
+  prepared-invocation.spec.ts
+  worker-control.spec.ts
+  freeland-worker-adapter-package.spec.ts
+  proof-ledger.spec.ts
+  missed-entry-audit.spec.ts
+  shadow-corpus.spec.ts
+  fixtures/
+    generated-column-start.json
+    saved-column-graph.json
+    journey-with-receipt.json
+docs/runbooks/
+  nuanu-column-acceptance.md
+  nuanu-assist-shadow.md
+```
+
+Product-neutral source contains no real Freeland state UUID, member UUID,
+agent UUID, host, token, or Artifact URL. Live IDs remain in Nuanu and in the
+sanitized proof Artifact created by the acceptance run.
+
+---
+
+### Task 1: Pin the Deployed Nuanu Contract and Exact Project States
+
+**Files:**
+
+- Create: `src/nuanu/control-plane-config.ts`
+- Create: `tests/program/nuanu/control-plane-config.spec.ts`
+
+**Interfaces:**
+
+- **Consumes:** sanitized values returned by Nuanu catalog/state reads.
+- **Produces:** `NuanuDeploymentPin`, `ProjectStatePins`, and strict validators.
+- **Does not contain:** credentials, base URLs, or real project/member IDs.
+
+```ts
+export const REQUIRED_NUANU_OPERATIONS = [
+  'create_project_process_binding',
+  'get_project_process_binding',
+  'get_process_template',
+  'validate_process_graph',
+  'update_process_template',
+  'activate_project_process_binding',
+  'run_flow_item_column_process',
+  'get_flow_item_process_control',
+  'get_project_process_journey',
+] as const;
+
+export type RequiredNuanuOperation = typeof REQUIRED_NUANU_OPERATIONS[number];
+
+export interface NuanuDeploymentPin {
+  observedAt: string;
+  serverBuildId: string;
+  plugin: { name: 'nuanu-flow'; version: string; manifestSha256: string };
+  catalogRevision: string;
+  schemaDigests: Record<RequiredNuanuOperation, string>;
+}
+
+export interface ProjectStatePins {
+  workspaceSlug: string;
+  projectId: string;
+  projectIdentifier: string;
+  qaStateId: string;
+  readyForProdStateId: string;
+  inProgressStateId: string;
+}
+```
+
+- [ ] **Step 1: Write failing strict-contract tests**
+
+```ts
+import { expect, test } from '@playwright/test';
+import {
+  REQUIRED_NUANU_OPERATIONS,
+  assertNuanuDeploymentPin,
+  assertProjectStatePins,
+} from '../../../src/nuanu/control-plane-config.js';
+
+const uuid = (suffix: string) => `00000000-0000-4000-8000-${suffix.padStart(12, '0')}`;
+
+test('deployment pin requires every reviewed schema digest', () => {
+  const schemaDigests = Object.fromEntries(
+    REQUIRED_NUANU_OPERATIONS.map((name) => [name, 'a'.repeat(64)]),
+  );
+  expect(assertNuanuDeploymentPin({
+    observedAt: '2026-08-07T10:00:00.000Z',
+    serverBuildId: 'build-20260807.1',
+    plugin: { name: 'nuanu-flow', version: '0.3.9', manifestSha256: 'b'.repeat(64) },
+    catalogRevision: 'catalog-17',
+    schemaDigests,
+  }).serverBuildId).toBe('build-20260807.1');
+});
+
+test('project states are distinct exact UUIDs', () => {
+  expect(() => assertProjectStatePins({
+    workspaceSlug: 'freeland',
+    projectId: uuid('1'),
+    projectIdentifier: 'FREEL',
+    qaStateId: uuid('2'),
+    readyForProdStateId: uuid('2'),
+    inProgressStateId: uuid('3'),
+  })).toThrow(/distinct/u);
+});
+```
+
+- [ ] **Step 2: Run the focused test and record RED**
+
+Run:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/control-plane-config.spec.ts
+```
+
+Expected: FAIL because `src/nuanu/control-plane-config.ts` does not exist.
+
+- [ ] **Step 3: Implement closed validators**
+
+```ts
+const SHA256 = /^[0-9a-f]{64}$/u;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
+export function assertProjectStatePins(value: unknown): ProjectStatePins {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('project state pins must be an object');
+  }
+  const input = value as Record<string, unknown>;
+  const ids = ['projectId', 'qaStateId', 'readyForProdStateId', 'inProgressStateId'] as const;
+  for (const field of ids) {
+    if (typeof input[field] !== 'string' || !UUID.test(input[field])) {
+      throw new TypeError(`${field} must be a canonical UUID`);
+    }
+  }
+  const states = [input.qaStateId, input.readyForProdStateId, input.inProgressStateId];
+  if (new Set(states).size !== 3) throw new TypeError('production state IDs must be distinct');
+  if (typeof input.workspaceSlug !== 'string' || typeof input.projectIdentifier !== 'string') {
+    throw new TypeError('workspace and project identifier are required');
+  }
+  return Object.freeze({
+    workspaceSlug: input.workspaceSlug,
+    projectId: input.projectId,
+    projectIdentifier: input.projectIdentifier,
+    qaStateId: input.qaStateId,
+    readyForProdStateId: input.readyForProdStateId,
+    inProgressStateId: input.inProgressStateId,
+  }) as ProjectStatePins;
+}
+```
+
+Implement `assertNuanuDeploymentPin` with exact own-key checks, canonical UTC,
+non-empty build/catalog/version, exact plugin name, lowercase SHA-256 values,
+and exactly the `REQUIRED_NUANU_OPERATIONS` keys.
+
+- [ ] **Step 4: Verify GREEN and aggregate contracts**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/control-plane-config.spec.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: focused PASS and typecheck exit 0.
+
+- [ ] **Step 5: Commit exact scope**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+git add src/nuanu/control-plane-config.ts tests/program/nuanu/control-plane-config.spec.ts
+git commit -m "feat: pin Nuanu control plane contracts"
+```
+
+---
+
+### Task 2: Build the QA Column Graph from the Server-Owned Start
+
+**Files:**
+
+- Create: `src/nuanu/qa-column-graph.ts`
+- Create: `tests/program/nuanu/qa-column-graph.spec.ts`
+- Create: `tests/program/nuanu/fixtures/generated-column-start.json`
+- Create: `tests/program/nuanu/fixtures/saved-column-graph.json`
+
+**Interfaces:**
+
+```ts
+export interface ColumnStartNode {
+  id: string;
+  type: 'start';
+  name?: string;
+  config: {
+    project_process_start: {
+      binding_id: string;
+      project_id: string;
+      state_id: string;
+    };
+  };
+}
+
+export interface QaColumnGraphInput {
+  generatedStart: ColumnStartNode;
+  states: ProjectStatePins;
+  remoteAgentId: string;
+  decisionAssigneeIds: readonly string[];
+  resultSchemaVersion: 1;
+}
+
+export function buildQaColumnGraph(input: QaColumnGraphInput): ProcessGraph;
+export function assertGeneratedStartPreserved(
+  before: ColumnStartNode,
+  after: ColumnStartNode,
+): void;
+export function assertGraphReadBack(expected: ProcessGraph, actual: unknown): void;
+```
+
+- [ ] **Step 1: Write failing graph invariants**
+
+```ts
+test('graph preserves generated Start and wires every verdict to an explicit End', () => {
+  const graph = buildQaColumnGraph(input);
+  expect(JSON.stringify(graph.nodes[0])).toBe(JSON.stringify(input.generatedStart));
+  expect(endTarget(graph, 'pass_end')).toBe(input.states.readyForProdStateId);
+  expect(endTarget(graph, 'product_fail_end')).toBe(input.states.inProgressStateId);
+  expect(endTarget(graph, 'qa_hold_end')).toBeNull();
+});
+
+test('human decision has approve deny and refine with refine returning to evidence', () => {
+  const graph = buildQaColumnGraph(input);
+  expect(edge(graph, 'human_review', 'qa_hold_end', 'approve')).toBeTruthy();
+  expect(edge(graph, 'human_review', 'denied_hold_end', 'deny')).toBeTruthy();
+  expect(edge(graph, 'human_review', 'run_qa', 'refine')).toBeTruthy();
+});
+```
+
+Add cases for an empty assignee list, malformed agent UUID, changed generated
+Start, duplicate edges, missing `otherwise`, and an
+LLM/AI gateway attempting to choose a verdict.
+
+- [ ] **Step 2: Run RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/qa-column-graph.spec.ts
+```
+
+Expected: FAIL with missing graph module.
+
+- [ ] **Step 3: Implement the closed graph**
+
+The graph builder produces this semantic spine:
+
+```text
+generated Start
+  -> run_qa agent_task (closed runner command, structured output)
+  -> verdict XOR (simple conditions only)
+       PASS          -> pass_end
+       PRODUCT_FAIL  -> product_fail_end
+       otherwise     -> human_review Decision
+                           approve -> qa_hold_end
+                           deny    -> denied_hold_end
+                           refine  -> run_qa
+```
+
+This intentionally compiles the design's logical freeze/plan/lane/join/
+aggregate/freshness stages into the one closed worker task. It preserves the
+same deterministic stages and evidence while preventing ticket data or BPMN
+configuration from selecting a phase, executor, or retry independently.
+
+Use these exact process-facing output fields:
+
+```ts
+const runnerOutput = [
+  { name: 'qa_run_key', type: 'string' },
+  { name: 'issue_verdict', type: 'string' },
+  { name: 'candidate_verdict', type: 'string' },
+  { name: 'applicability', type: 'string' },
+  { name: 'execution_health', type: 'string' },
+  { name: 'evidence_status', type: 'string' },
+  { name: 'artifact_id', type: 'string' },
+  { name: 'artifact_version_id', type: 'string' },
+  { name: 'artifact_sha256', type: 'string' },
+] as const;
+```
+
+The graph task input is the exact `QaWorkerSeedV1` from Task 3. It cannot
+contain `qaRunKey`; the trusted remote-worker preparation boundary materializes
+the full `QaWorkerInputV1` before dispatch and the graph receives `qa_run_key`
+only through the validated output projection above.
+
+The XOR edges use `{{run_qa.issue_verdict}}` through simple `eq` conditions and
+one `otherwise`. No AI gateway or summarizer may write the verdict field.
+
+- [ ] **Step 4: Verify local graph and typecheck**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/qa-column-graph.spec.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: PASS. This proves local invariants only; server validation remains
+Task 5.
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+git add src/nuanu/qa-column-graph.ts tests/program/nuanu/qa-column-graph.spec.ts tests/program/nuanu/fixtures
+git commit -m "feat: define Freeland QA column graph"
+```
+
+---
+
+### Task 3: Close the Remote Worker Envelope
+
+**Files:**
+
+- Create: `src/nuanu/worker-envelope.ts`
+- Create: `src/nuanu/freeland-runner-adapter.ts`
+- Create: `src/nuanu/prepared-invocation.ts`
+- Create: `src/nuanu/prepared-invocation-file-store.ts`
+- Create: `src/nuanu/worker-control.ts`
+- Create: `src/nuanu/schemas/qa-worker-seed.v1.schema.json`
+- Create: `src/nuanu/schemas/qa-run-result.v1.schema.json`
+- Create: `packages/freeland-worker-adapter/package.json`
+- Create: `packages/freeland-worker-adapter/README.md`
+- Create: `tsconfig.freeland-worker-adapter.json`
+- Create: `tools/nuanu/build-freeland-worker-adapter.mjs`
+- Create: `tests/program/nuanu/worker-envelope.spec.ts`
+- Create: `tests/program/nuanu/freeland-runner-adapter.spec.ts`
+- Create: `tests/program/nuanu/prepared-invocation.spec.ts`
+- Create: `tests/program/nuanu/worker-control.spec.ts`
+- Create: `tests/program/nuanu/freeland-worker-adapter-package.spec.ts`
+
+**Interfaces:**
+
+```ts
+export type QaWorkerCommandId = 'freeland-qa-run-v1';
+export type QaExecutionMode = 'manual' | 'assist' | 'auto';
+
+export interface QaWorkerSeedV1 {
+  schemaVersion: 1;
+  flowItemId: string;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateDigest: string;
+  requirementIds: readonly string[];
+  runnerCommandId: QaWorkerCommandId;
+  paymentAuthorizationId: string | null;
+  deadline: string;
+}
+
+export interface QaWorkerInputV1 extends QaWorkerSeedV1 {
+  qaRunKey: string;
+}
+
+export interface RunnerRegistry {
+  'freeland-qa-run-v1': (input: QaWorkerInputV1) => Promise<unknown>;
+}
+
+export interface FreelandRunnerPort {
+  prepare(seed: QaWorkerSeedV1): Promise<QaWorkerInputV1>;
+  execute(input: QaWorkerInputV1): Promise<unknown>;
+}
+
+export interface PreparedQaInvocationReceiptV1 {
+  schemaVersion: 1;
+  seedDigest: string;
+  preparedInputJson: string;
+  materializationReceiptId: string;
+}
+
+export interface PreparedQaInvocationPort {
+  materializeOnce(input: {
+    seedDigest: string;
+    canonicalSeedJson: string;
+    prepare(): Promise<QaWorkerInputV1>;
+  }): Promise<PreparedQaInvocationReceiptV1>;
+}
+
+export function createDurablePreparedQaInvocationPort(input: {
+  absoluteRoot: string;
+  expectedUid: number;
+  maximumBytes: 1_048_576;
+}): PreparedQaInvocationPort;
+
+export interface NuanuWorkerControlPort {
+  captureFreshness(input: QaWorkerInputV1): Promise<unknown>;
+  publishArtifact(input: {
+    qaRunKey: string;
+    name: 'qa-evidence-bundle.v1.json';
+    mediaType: 'application/json';
+    bytesBase64: string;
+    sha256: string;
+  }): Promise<{ artifactId: string; versionId: string; sha256: string }>;
+}
+
+export function createInheritedNuanuWorkerControlPort(input: {
+  fd: 3;
+  deploymentPinDigest: string;
+  handlerSpecDigest: string;
+  executionMode: QaExecutionMode;
+}): Promise<NuanuWorkerControlPort>;
+
+export interface QaWorkerOutputV1 {
+  qa_run_key: string;
+  issue_verdict: string;
+  candidate_verdict: string;
+  applicability: string;
+  execution_health: string;
+  evidence_status: string;
+  artifact_id: string;
+  artifact_version_id: string;
+  artifact_sha256: string;
+}
+
+export function assertQaWorkerSeed(value: unknown, now?: Date): QaWorkerSeedV1;
+export function assertQaWorkerInput(value: unknown, now?: Date): QaWorkerInputV1;
+export function dispatchQaCommand(
+  input: QaWorkerInputV1,
+  registry: RunnerRegistry,
+): Promise<unknown>;
+
+export function executeFreelandQaTask(
+  seedInput: unknown,
+  port: FreelandRunnerPort,
+  invocations: PreparedQaInvocationPort,
+): Promise<QaWorkerOutputV1>;
+```
+
+This product-neutral repository validates `qaRunKey` as the exact lowercase
+64-hex wire string. The FreelandQA boundary then converts it through its sole
+`asQaRunKey` validator into the branded `QaRunKey`; no unchecked cross-repo
+TypeScript cast is shared.
+
+The Nuanu process supplies only `QaWorkerSeedV1`. Before the closed command is
+dispatched, the adapter canonicalizes the validated seed, derives its SHA-256,
+and calls `PreparedQaInvocationPort.materializeOnce`. Only that atomic port may
+invoke the supplied preparation callback. On the first delivery the callback
+uses the trusted FreelandQA runner port to load its reviewed registry, plan the
+exact requirement closure, derive the complete identity and `qaRunKey`, and
+return one frozen `QaWorkerInputV1`; the invocation port durably commits its
+canonical JSON before returning a receipt. Concurrent/reclaimed deliveries for
+the same seed digest return the exact committed bytes and never call `prepare`
+again. The adapter validates the receipt/digest, reparses the committed bytes,
+and requires the prepared value to differ from the seed only by the key with
+every seed field byte-identical. The N0 server capability probe and Manual
+acceptance must prove a production implementation of this port; if the deployed
+protocol cannot provide it, the graph stays inactive.
+
+`createDurablePreparedQaInvocationPort` is the production single-host worker
+implementation. It accepts only the statically composed absolute runtime root,
+creates owned `0700` directories and immutable `0600` content-addressed files,
+uses atomic create/fsync/link semantics, validates owner/mode/realpath/link
+count and canonical bytes on every read, and never overwrites a committed
+seed. A crash before publication may prepare again because no dispatch was
+possible; a crash after publication always replays the committed receipt.
+
+Task 3 also builds these adapter sources and the two exact schemas into
+`@nuanu/freeland-worker-adapter@1.0.0`. The package contains compiled JavaScript,
+declarations, and schemas only; it has no install script, Nuanu credential,
+runner implementation, dynamic loader, caller-selected network endpoint, or
+general network client. Package-archive output is not imported from a sibling
+checkout. N1 vendors the reviewed
+tarball and pins both its SHA-256 and this repository's exact source commit
+before a live worker may load it. The package also exposes the closed inherited
+worker-control client: the official Nuanu transport passes an authenticated
+socket as file descriptor `3`, outside task JSON. The client verifies the
+signed deployment/session pin, mode-specific handler-spec digest, closed
+`manual | assist | auto` execution mode, and peer, then permits only frozen
+Flow-item freshness reads and one content-addressed sanitized Artifact-version
+publication. The server atomically claims `(task, qaRunKey, name)` before
+creation: an exact digest replay returns the original three-field reference,
+while a changed digest/name or second distinct publication fails closed. It exposes no
+general MCP call, item mutation, Decision, route, URL, token, or arbitrary
+request method. A missing/unauthenticated inherited control channel keeps the
+task uncompleted and the binding inactive.
+
+For each claimed task the transport resolves the selected Flow item's binding
+and authoritative process-control record, reads its closed execution mode, and
+selects the separately immutable handler-spec/deployment-pin pair for that
+mode. Neither the seed, task JSON, ticket text, graph, parent environment, nor
+worker CLI may propose or override the mode or either digest. The mode is part
+of the authenticated session transcript and every signed freshness response.
+The worker's pinned environment, handler manifest, deployment pin, and session
+must agree before preparation or `qaRunKey` derivation. Because
+`captureFreshness` requires the prepared `QaWorkerInputV1`, its first response
+then cross-checks that same mode immediately after envelope validation and
+before execution authority, any lane, or publication.
+
+`createInheritedNuanuWorkerControlPort` takes exclusive ownership of FD `3`
+immediately, wraps it in one private auto-closing socket, and exposes neither
+the number nor the socket. The caller cannot duplicate, detach, transfer, or
+retrieve it. Every ordinary process spawn in the worker program declares an
+exact `stdio` array containing only reviewed descriptors `0`–`2`; no child ever
+inherits or aliases the Nuanu worker-control endpoint. The sole exception is
+the statically selected CDP/payment host daemon: its spawn may map a newly
+created one-shot 32-byte host-key pipe to one reviewed child-local descriptor.
+That pipe is cryptographically and descriptor-identifiably distinct from the
+Nuanu socket, cannot carry worker-control frames, and is read and closed before
+the host binds. All of that daemon's descendants then observe the descriptor as
+`EBADF`. Closing the control port makes the original worker descriptor
+observably `EBADF`. Package tests keep the control channel open, start fixed
+ordinary and host-daemon descendant probes, and prove the Nuanu endpoint is
+never inherited, the one-shot pipe cannot alias it, and every unreviewed
+descriptor returns `EBADF` before live activation.
+
+The seed and result schemas under `src/nuanu/schemas/` are exact independently
+validated wire copies of the corresponding FreelandQA v1 schemas and are pinned
+by SHA-256 in the adapter test. `executeFreelandQaTask` validates the complete camel-case result,
+requires its `qaRunKey`, issue revision/content digest, candidate identity, and
+sole artifact to match the prepared input, and requires
+`result.artifacts.length === 1`. It then maps only the nine exact fields of
+`QaWorkerOutputV1`; no generic `TResult`, agent prose, or extra artifact can
+reach the process outputs.
+
+- [ ] **Step 1: Write failing authority tests**
+
+```ts
+test('worker input rejects prompt-controlled authority', () => {
+  for (const field of [
+    'url', 'origin', 'repositoryPath', 'shell', 'selector', 'testFile',
+    'processRunId', 'taskId', 'stepId', 'environmentId', 'allowedSurfaces',
+  ]) {
+    expect(() => assertQaWorkerInput({ ...validInput, [field]: 'attacker-controlled' })).toThrow();
+  }
+});
+
+test('dispatch selects only the closed command registry', async () => {
+  const calls: string[] = [];
+  await dispatchQaCommand(validInput, {
+    'freeland-qa-run-v1': async () => { calls.push('validate'); return { ok: true }; },
+  });
+  expect(calls).toEqual(['validate']);
+});
+
+test('process seed cannot supply qaRunKey and preparation may add only that field');
+test('atomic materialization commits canonical input bytes before dispatch');
+test('concurrent and reclaimed delivery replay one receipt without preparing again');
+test('changed receipt seed digest bytes or materialization ID fail closed');
+test('durable store replays exact bytes across process restart and concurrent claim');
+test('durable store rejects symlink hardlink wrong owner mode root and changed bytes');
+test('prepared envelope preserves every seed byte and is frozen before dispatch');
+test('adapter validates exact QaRunResult v1 and maps nine snake-case outputs');
+test('zero two mismatched or malformed artifact references fail before completion');
+test('result key issue candidate or schema drift cannot reach process outputs');
+test('independent Nuanu seed and result schema digests match reviewed Freeland schemas');
+test('adapter package contains only reviewed dist declarations and schemas with no install hook');
+test('inherited worker control rejects wrong fd peer pin MAC method and extra field');
+test('control session rejects task mode and mismatched authoritative mode handler or deployment pin');
+test('freshness signs the authoritative mode and rejects an environment or session mode mismatch');
+test('inherited worker control exposes only freshness and one artifact publication');
+test('exact publication replay returns the same reference and digest drift fails closed');
+test('owned worker fd is private and descendants cannot inherit or alias it');
+test('one-shot host-key pipe is distinct closes before bind and descendants observe EBADF');
+test('package builder rejects symlink output roots partial crash output and multiple tarballs');
+test('verify-pack and output modes remove owned temporary state and leave the source snapshot unchanged');
+```
+
+Add malformed/expired deadline, unknown schema revision, duplicate requirement,
+secret-shaped field value, arbitrary command ID, and mutation
+after validation cases.
+
+- [ ] **Step 2: Run RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node tools/nuanu/build-freeland-worker-adapter.mjs --verify-pack
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/worker-envelope.spec.ts tests/program/nuanu/prepared-invocation.spec.ts tests/program/nuanu/freeland-runner-adapter.spec.ts tests/program/nuanu/worker-control.spec.ts tests/program/nuanu/freeland-worker-adapter-package.spec.ts
+```
+
+- [ ] **Step 3: Implement snapshot-before-reflection validation**
+
+Validate exact own keys, copy primitive/array values before any async boundary,
+freeze the returned object, require lowercase SHA-256 digests, canonical UTC,
+non-empty sorted unique requirement arrays, and a deadline no more than
+30 minutes in the future. `paymentAuthorizationId` is an opaque identifier and
+never contains a card value.
+
+```ts
+export async function dispatchQaCommand(
+  input: QaWorkerInputV1,
+  registry: RunnerRegistry,
+): Promise<unknown> {
+  const command = input.runnerCommandId;
+  if (command === 'freeland-qa-run-v1') {
+    return registry['freeland-qa-run-v1'](input);
+  }
+  throw new TypeError('unsupported worker command');
+}
+```
+
+Implement `executeFreelandQaTask` as the sole process binding: validate and
+snapshot the seed, call exactly one `materializeOnce`, validate its closed
+receipt and canonical committed bytes, validate/freeze the resulting
+`QaWorkerInputV1`, require exact seed equality, dispatch exactly once,
+through a locally constructed `RunnerRegistry` whose only handler is
+`port.execute`, validate the complete result with the pinned independent schema, require one
+matching artifact reference, and project the exact snake-case output record.
+Preparation failure, schema drift, mismatch, or artifact cardinality never
+completes the Nuanu task as a typed product verdict.
+
+Implement the dependency-free ESM package build tool as a fixed file allowlist
+from these Task 3 sources, including `worker-control.ts`. Its command line is
+closed to exactly one of `--verify-pack` or
+`--output <absolute-owned-empty-temp-dir>`; zero arguments, combined modes,
+relative output paths, and extra arguments fail before a compiler or packer is
+started. Both modes compile with `tsconfig.freeland-worker-adapter.json`, copy
+only the two reviewed schemas, reject source maps/absolute paths/symlinks, and
+pack twice from independent build roots so the expected tarball filename,
+bytes, SHA-256, and exact entry allowlist must match.
+
+`--verify-pack` creates one builder-owned `0700` `mkdtemp` root below the real
+OS private temporary directory, outside the N0 source repository. Its two build
+roots and pack outputs exist only below that root, and the entire root is
+removed in `finally` after success or any controlled compiler/packer failure.
+A unique owned marker permits the next invocation to remove only stale
+builder-owned roots left by a forcibly killed prior invocation. This mode
+publishes nothing and proves the exact pre-run status/byte snapshot of its N0
+source repository is unchanged afterward; Task 3 may still contain its intended
+uncommitted implementation before the Step 5 commit.
+
+`--output` accepts only an absolute real path that is an empty, non-symlink
+directory owned by the current uid with mode `0700`, outside the N0 source
+repository. The tool builds and
+double-verifies in its own private root, then atomically publishes exactly one
+regular single-link deterministic `nuanu-freeland-worker-adapter-1.0.0.tgz`
+into the caller-owned output directory. It rejects pre-existing entries,
+symlink swaps, wrong owner/mode, a packer that returns zero or multiple
+tarballs, or any unexpected name; failure removes any partial publication but
+never deletes the caller-owned directory.
+
+The tool invokes only the repository's pinned TypeScript compiler and npm CLI
+through `/opt/homebrew/opt/node@20/bin/node`, always with `shell:false`,
+lifecycle scripts disabled, offline registry behavior, and bounded captured
+output; it does not use `tsx`, `npx`, dependency installation, or the network.
+Package tests inject a compiler/packer crash, symlink replacement, and
+zero/multiple-output responses, verify safe cleanup/recovery, recheck the N0
+Git tree snapshot is unchanged, untar the accepted result, compare the exact
+entry allowlist and schema digests, and import `executeFreelandQaTask`,
+`createDurablePreparedQaInvocationPort`, and
+`createInheritedNuanuWorkerControlPort` from the packed artifact rather than
+the working tree.
+
+- [ ] **Step 4: Verify GREEN and whole program project**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node tools/nuanu/build-freeland-worker-adapter.mjs --verify-pack
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/worker-envelope.spec.ts tests/program/nuanu/prepared-invocation.spec.ts tests/program/nuanu/freeland-runner-adapter.spec.ts tests/program/nuanu/worker-control.spec.ts tests/program/nuanu/freeland-worker-adapter-package.spec.ts
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+git add src/nuanu/worker-envelope.ts src/nuanu/freeland-runner-adapter.ts src/nuanu/prepared-invocation.ts src/nuanu/prepared-invocation-file-store.ts src/nuanu/worker-control.ts src/nuanu/schemas/qa-worker-seed.v1.schema.json src/nuanu/schemas/qa-run-result.v1.schema.json packages/freeland-worker-adapter/package.json packages/freeland-worker-adapter/README.md tsconfig.freeland-worker-adapter.json tools/nuanu/build-freeland-worker-adapter.mjs tests/program/nuanu/worker-envelope.spec.ts tests/program/nuanu/prepared-invocation.spec.ts tests/program/nuanu/freeland-runner-adapter.spec.ts tests/program/nuanu/worker-control.spec.ts tests/program/nuanu/freeland-worker-adapter-package.spec.ts
+git commit -m "feat: close Nuanu worker task authority"
+```
+
+---
+
+### Task 4: Prove Delivery and Recover Missed Column Entries
+
+**Files:**
+
+- Create: `src/nuanu/proof-ledger.ts`
+- Create: `src/nuanu/missed-entry-audit.ts`
+- Create: `tests/program/nuanu/proof-ledger.spec.ts`
+- Create: `tests/program/nuanu/missed-entry-audit.spec.ts`
+- Create: `tests/program/nuanu/fixtures/journey-with-receipt.json`
+
+**Interfaces:**
+
+```ts
+export type ProofStatus = 'PROVEN' | 'FAILED' | 'UNPROVABLE';
+
+export interface ProbeObservation {
+  probeId: string;
+  observedAt: string;
+  targetDigest: string;
+  beforeDigest: string;
+  afterDigest: string;
+  receiptIds: readonly string[];
+  status: ProofStatus;
+}
+
+export interface QaEntryObservation {
+  itemId: string;
+  revision: string;
+  stateId: string;
+  enteredAt: string;
+  entryReceiptId: string | null;
+}
+
+export interface JourneyObservation {
+  itemId: string;
+  journeyId: string;
+  bindingId: string;
+  entryReceiptIds: readonly string[];
+  authoritativeRunKeys: readonly string[];
+  activeRunId: string | null;
+}
+
+export interface AuditWatermark {
+  bindingId: string;
+  observedThrough: string;
+  observationDigest: string;
+}
+
+export function evaluateN0Proofs(observations: readonly ProbeObservation[]): N0ProofReport;
+export function auditMissedEntries(
+  entries: readonly QaEntryObservation[],
+  journeys: readonly JourneyObservation[],
+  watermark: AuditWatermark,
+): AuditResult;
+export function planMissingStart(
+  finding: MissingEntryFinding,
+  control: FlowItemProcessControl,
+): RunColumnProcessCommand | BlockedRepair;
+```
+
+- [ ] **Step 1: Write failing proof/audit tests**
+
+```ts
+test('a missing required proof is UNPROVABLE and blocks N0', () => {
+  const report = evaluateN0Proofs([]);
+  expect(report.ready).toBe(false);
+  expect(report.proofs.find((proof) => proof.probeId === 'trigger-delivery')?.status)
+    .toBe('UNPROVABLE');
+});
+
+test('one missed entry yields one deterministic repair key', () => {
+  const result = auditMissedEntries([entry], [], watermark);
+  expect(result.missing).toHaveLength(1);
+  const command = planMissingStart(result.missing[0]!, idleControl);
+  expect(command).toEqual({
+    action: 'run_flow_item_column_process',
+    itemId: entry.itemId,
+    idempotencyKey: expectedSha256,
+  });
+});
+```
+
+Cover duplicate authoritative run, active journey, stale revision/state,
+missing entry receipt, replayed audit, changed watermark, and duplicate repair.
+
+- [ ] **Step 2: Run RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/proof-ledger.spec.ts tests/program/nuanu/missed-entry-audit.spec.ts
+```
+
+- [ ] **Step 3: Implement deterministic evaluation**
+
+`evaluateN0Proofs` requires exactly these proof IDs:
+
+```ts
+export const N0_PROOF_IDS = [
+  'deployment-pin',
+  'state-pins',
+  'graph-validate-save-readback',
+  'trigger-delivery',
+  'claim-reclaim',
+  'idempotent-completion',
+  'missed-entry',
+  'stale-end',
+  'hold-end',
+] as const;
+```
+
+The repair idempotency key is SHA-256 of canonical
+`{bindingId,itemId,entryReceiptId}`. A missing receipt is `UNPROVABLE`; an
+active run, changed state/revision, or process-control conflict is
+`BlockedRepair`, never an automatic mutation.
+
+- [ ] **Step 4: Verify focused and aggregate tests**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/proof-ledger.spec.ts tests/program/nuanu/missed-entry-audit.spec.ts
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+git add src/nuanu/proof-ledger.ts src/nuanu/missed-entry-audit.ts tests/program/nuanu
+git commit -m "feat: audit Nuanu column delivery proofs"
+```
+
+---
+
+### Task 5: Execute the N0 Sandbox Acceptance Matrix
+
+**Files:**
+
+- Create: `docs/runbooks/nuanu-column-acceptance.md`
+
+**Interfaces:**
+
+- **Consumes:** exact MCP descriptors fetched after the 2026-08-07 deployment.
+- **Produces:** one sanitized run-scoped `nuanu-column-n0-proof.json` Artifact
+  containing `NuanuDeploymentPin`, state hashes, graph digest, run/journey/task
+  IDs, transition receipt IDs, adapter source/tarball/entry/handler-map digests,
+  authoritative mode plus mode-specific handler/deployment-pin readbacks,
+  durable materialization receipt, and the nine `ProbeObservation` records.
+- **Never stores:** tokens, prompts, task instructions, raw item text, or worker
+  credentials.
+
+N0 Tasks 1–4 may proceed in parallel with N1 Tasks 1–7. Task 5 Step 1 may draft
+the runbook, but no live Step 3–6 action may begin until all N0 Tasks 1–4 and N1
+Task 8 are committed. N1 Task 8 must include the vendored adapter lock, all
+three static mode handler manifests, direct handler spawn, and authenticated FD
+`3` integration tests GREEN. Step 2 records those clean commits and exact GREEN
+receipts before the first live graph write.
+
+- [ ] **Step 1: Write the runbook as an executable ordered checklist**
+
+The runbook must name these exact operations in order:
+
+```text
+list_states → list_workspace_members → list_agents
+→ create_project_process_binding(kind=column, sandbox state UUID)
+→ get_project_process_binding → get_process_template
+→ validate_process_graph → update_process_template → get_process_template
+→ activate_project_process_binding
+→ get_flow_item_process_control → move synthetic item into bound sandbox state
+→ get_project_process_journey → submit_process_decision
+→ get_project_process_journey → get_flow_item_process_control
+```
+
+It must require fresh full tool descriptors/schema digests and use only IDs
+returned by the current deployment.
+
+- [ ] **Step 2: Verify GREEN, commit the operating runbook, and pin clean trees**
+
+Before any sandbox mutation, run the complete local N0 suite from the intended
+N0 implementation commit, commit the executable runbook by itself, and require
+an empty status. Read and record the already committed N1 Task 8 revision and
+its GREEN vendoring/handler/FD `3` receipts; require that implementation tree to
+be empty too. A dirty tree, uncommitted handler, or receipt from a different
+revision blocks live work.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add docs/runbooks/nuanu-column-acceptance.md
+git commit -m "docs: pin Nuanu column acceptance runbook"
+git status --short
+git rev-parse HEAD
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git status --short
+git rev-parse HEAD
+```
+
+Expected: both status commands print nothing; the revisions equal the recorded
+N0 operating-runbook and N1 Task 8 commits. Only then continue.
+
+- [ ] **Step 3: Validate/save/read back the graph**
+
+Preserve the generated Start, build the graph from Task 2, repair every server
+warning/error, require `ready_to_save:true`, update it, read it back, and verify
+the canonical graph digest. Activation is limited to the isolated sandbox
+binding.
+
+- [ ] **Step 4: Exercise trigger, human, and hold paths**
+
+Pause delivery, create and read back a new immutable Assist deployment pin in
+the closed mode map, then set a synthetic item's authoritative process-control
+mode to Assist. Read back the exact item/binding mode and selected handler/
+deployment digests before resuming delivery; there must be no interval in which
+an Assist task can claim a missing or old pin. No seed or task field may carry
+the mode. Enter the bound state
+and prove that the release-created column trigger starts exactly one journey
+and agent task without an explicit run call. Its authenticated freshness,
+handler manifest, deployment pin, and CLI environment must all say `assist`.
+Submit `refine` and prove `run_qa` reopens. Submit `deny` and prove the separate
+null-target hold End. Run a fresh item through `approve` and its distinct hold
+End. Neither item may change status automatically.
+
+- [ ] **Step 5: Exercise recovery and race probes**
+
+Stop the worker after `PreparedQaInvocationPort.materializeOnce` returns its
+durable receipt but before command dispatch, wait for task reclaim, restart it
+under another worker process, and prove the reclaimed task receives the exact
+same canonical `QaWorkerInputV1` bytes/receipt and one authoritative `qaRunKey`
+without invoking `FreelandRunnerPort.prepare` again. A second preparation call,
+changed key/bytes/seed digest, or inability to read back the materialized input
+keeps the binding inactive. In the same probe, require the official worker to
+pass its authenticated task-scoped control socket as inherited file descriptor
+`3`; prove the child receives no Nuanu token, URL, generic method, or task-
+controlled environment override and that a wrong peer, session, authoritative
+mode, deployment-pin digest, handler-spec digest, or closed control channel
+cannot complete the task.
+Re-submit completion and prove idempotent or stale handling. Pause worker delivery, enter the bound
+state, resume, and determine whether native recovery starts a journey; if not,
+run the Task 4 audit and prove exactly one idempotent repair.
+
+On one disposable sandbox item, exercise `manual → assist → auto` in order.
+With delivery paused, each transition must first create and exactly read back a
+new immutable mode-specific handler-spec digest and deployment-pin digest, then
+change and read back the authoritative item/binding mode before starting a
+fresh authenticated session and new deployment-scoped prepared-invocation
+root. The same seed must derive a distinct mode-bound `qaRunKey` in each mode;
+the prior session, handler pin, deployment pin, environment, and prepared bytes
+must be rejected after the transition. A task-supplied mode, a CLI environment
+mode that differs from the authenticated session/pins, or reuse of a Manual/
+Assist pin for Auto fails before preparation. A signed-freshness mode mismatch
+after the prepared envelope exists fails before any lane. In the Auto pass
+only, edit/move/
+cancel immediately before an End. Any stale status transition marks
+`stale-end=FAILED` and forbids Freeland Auto. Test a `target_state_id:null` End
+and prove it does not start a loop. Restore the item to Manual, read back the
+new Manual-specific pins, close all old sessions, and leave Auto disabled.
+
+- [ ] **Step 6: Store and review exact evidence**
+
+Create `nuanu-column-n0-proof.json` as a run-scoped sanitized Artifact, link it
+to the sandbox process run, commit it to project scope, read the exact version
+back, and feed its nine observations through `evaluateN0Proofs`. N0 passes only
+when all are `PROVEN`. A native failure requires a separately approved fallback
+design and equivalent tests.
+
+- [ ] **Step 7: Commit only the sanitized evidence outcome**
+
+Append the reviewed `PROVEN`/blocked observation matrix and the pinned commit/
+schema digests to `nuanu-column-acceptance.md`, without live UUIDs, URLs,
+tokens, task text, or downloaded Artifact content. The authoritative proof
+remains the exact Nuanu Artifact version. Stage only the runbook, inspect the
+one-file scope, and make a separate docs-only evidence commit from the still-
+clean operating revision.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+git add docs/runbooks/nuanu-column-acceptance.md
+git diff --cached --name-only
+git commit -m "docs: record sanitized Nuanu column proof outcome"
+git status --short
+```
+
+Expected: the staged-name command prints only the runbook and the final status
+prints nothing. Do not commit live UUIDs or downloaded proof content.
+
+---
+
+### Task 6: Run the Freeland Manual Slice and Prepare Assist Calibration
+
+**Files:**
+
+- Create: `src/nuanu/shadow-corpus.ts`
+- Create: `tests/program/nuanu/shadow-corpus.spec.ts`
+- Create: `docs/runbooks/nuanu-assist-shadow.md`
+
+**Interfaces:**
+
+```ts
+export type ShadowOutcome =
+  | 'KNOWN_GOOD'
+  | 'KNOWN_BAD'
+  | 'STALE'
+  | 'BLOCKED'
+  | 'FLAKY'
+  | 'INFRA_FAILURE'
+  | 'LANE_CONFLICT';
+
+export interface ShadowCase {
+  caseId: string;
+  issueRevisionDigest: string;
+  candidateDigest: string;
+  expected: ShadowOutcome;
+  safeToRepeat: true;
+  artifactVersionIds: readonly string[];
+}
+
+export function validateShadowCorpus(cases: readonly ShadowCase[]): ShadowCorpusReport;
+export function evaluateShadowAgreement(
+  cases: readonly ShadowCase[],
+  blindedHumanOutcomes: readonly BlindedHumanOutcome[],
+  harnessOutcomes: readonly HarnessOutcome[],
+): ShadowAgreementReport;
+```
+
+No Task 6 step begins until N0 Task 5 has stored and read back nine `PROVEN`
+observations, committed its separate sanitized evidence outcome from a clean
+operating revision, and committed N1 Task 8 has GREEN vendored-adapter
+provenance, three mode-specific static handlers, direct-spawn, and
+authenticated FD `3` integration receipts. Reference those exact commits and
+receipts in the Task 6 runbook; do not infer this gate from an uncommitted
+sibling checkout.
+
+- [ ] **Step 1: Write failing corpus tests**
+
+Require 30–50 unique cases, every required outcome class, immutable candidate
+and issue digests, pinned Artifact versions, no live payment side effects, and
+human decisions recorded before harness outcomes are revealed.
+
+```ts
+test('critical known-bad green prevents Assist eligibility', () => {
+  const report = evaluateShadowAgreement(cases, human, harnessWithFalseGreen);
+  expect(report.assistEligible).toBe(false);
+  expect(report.criticalFalseGreen).toBe(1);
+});
+```
+
+- [ ] **Step 2: Run focused RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/shadow-corpus.spec.ts
+```
+
+Expected: the focused test fails because `shadow-corpus.ts` is absent.
+
+- [ ] **Step 3: Implement, write the operating runbook, and verify GREEN**
+
+Implement exact denominator accounting; missing/duplicate/late human outcomes
+are errors, not disagreement exclusions. Write
+`docs/runbooks/nuanu-assist-shadow.md` as the exact ordered Manual/Assist
+operating specification, including clean commit pins, the three-mode handler
+map, delivery pause/repin/readback steps, FD `3` fixture gate, rollback, and the
+sanitized evidence fields. No live worker or item mutation occurs in this step.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/shadow-corpus.spec.ts
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands exit `0`; no skipped/TODO test is accepted. Live
+worker creation remains prohibited until this block is green.
+
+- [ ] **Step 4: Commit the operating specification and pin a clean revision**
+
+Stage only the shadow validator, its tests, and the complete pre-live runbook.
+Commit them before any external mutation, require an empty worktree, and record
+that commit beside the already clean N1 Task 8 and N0 Task 5 evidence commits.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+git add src/nuanu/shadow-corpus.ts tests/program/nuanu/shadow-corpus.spec.ts docs/runbooks/nuanu-assist-shadow.md
+git diff --cached --name-only
+git commit -m "feat: define Nuanu Assist shadow gate"
+git status --short
+git rev-parse HEAD
+```
+
+Expected: the staged-name command prints exactly the three allowlisted paths,
+the final status prints nothing, and the recorded revision is the only N0
+source/runbook revision used by the live steps.
+
+- [ ] **Step 5: Create the least-privilege Freeland worker and Manual item**
+
+With the Task 6 entry gate satisfied, create a remote agent employee and launch
+the official Nuanu remote-worker transport from the exact pinned FreelandQA
+checkout with approval mode `deny`. Its static task-handler map binds only
+`freeland-qa-run-v1` and contains this closed reviewed map:
+`manual → config/nuanu/worker-handler.manual.v1.json`,
+`assist → config/nuanu/worker-handler.assist.v1.json`, and
+`auto → config/nuanu/worker-handler.auto.v1.json`. The transport resolves the
+claimed task to the selected Flow item's binding and authoritative process-
+control mode, then selects that mode's immutable handler manifest and
+deployment pin; task JSON, seed data, graph fields, and ambient environment
+cannot choose the mode or manifest. The initially selected item must read back
+as Manual, with a new Manual deployment pin containing the exact Manual
+handler-spec digest. The handler verifies its own literal mode and digest plus
+the vendored N0 adapter lock, then performs one direct
+spawn with exact cwd at the pinned checkout, executable
+`/opt/homebrew/opt/node@20/bin/node`, argv
+`--import tsx tools/runner/run-nuanu-worker.ts`, `shell:false`,
+`detached:false`, bounded seed stdin, result-only stdout, coarse-code stderr,
+and the child control socket mapped directly to stdio slot `3`. It never invokes
+npm, the local `qa:nuanu-worker` alias, a shell, PATH lookup, a model prompt, or
+a general shell tool; the spawned Node process is the final protocol peer. The
+transport creates one
+authenticated task-scoped socketpair, passes only the child endpoint as
+inherited file descriptor `3`, and serves only `captureFreshness` and the
+single-artifact `publishArtifact` operation. It builds the child environment
+from nothing and accepts only the exact ordered required/optional key tuples in
+the selected N1 digest-pinned handler manifest, including
+`FREELAND_QA_HANDLER_SPEC_DIGEST`. N1 activates no optional key; N3 may
+activate only `FREELAND_STAGING_MESH_IP` and runtime-role
+`FREELAND_QA_DATABASE_URL` for its persona/runtime stores; N5 may additionally
+activate only reconciler-role `FREELAND_PAYMENT_RECONCILER_DATABASE_URL` and
+the owned local `FREELAND_PAYMENT_SECRET_BROKER_SOCKET`/`_PIN`. Each phase uses
+a new clean product commit/deployment pin and exact read-back. No authorization
+ID is an environment input. It explicitly drops the Nuanu bearer token/endpoint, owner,
+migration and test DSNs, authorization/mint/program-gate/switch files, provider
+mutation credentials, model/tool settings, `NODE_OPTIONS`, `NODE_PATH`,
+inspectors/loaders, `DYLD_*`, `DOTENV_*`, npm/proxy variables, all unknown
+parent values, and every task-provided environment value. The child validates
+that the lowercase deployment and handler digests and literal execution mode
+match the selected manifest/deployment pin before opening FD `3`; it then opens
+the control session with all three values. That authenticated transcript is the
+pre-preparation mode authority. After the prepared envelope exists, the first
+authenticated freshness response must contain the same authoritative mode
+before execution authority or any lane, and the later freshness read must still
+match. Task JSON cannot supply or override any of them. Record the product commit,
+adapter source commit, tarball/entry digests, worker handler-map digest, and
+handler-spec digest/runtime-root receipt in the deployment pin. Before any
+binding activation, run the same official handler-spawn adapter against the
+fixture control peer and prove one seed reaches the final child, FD `3` is
+authenticated there, stdout contains exactly one nine-field JSON value with no
+launcher prefix, and restart/reclaim uses the same Manual handler and
+deployment digests. Then create the exact Freeland QA Column binding, preserve
+its generated Start, validate/save/read back the graph, and set only the
+selected non-critical Flow item's authoritative process-control record to
+Manual. Never accept a mode from the seed, task body, binding graph, or BPMN
+node. If the deployed remote-worker transport cannot register and select this
+closed executable handler from item/binding authority, the binding remains
+inactive.
+
+- [ ] **Step 6: Execute the Manual vertical slice**
+
+Call `run_flow_item_column_process` with one stable idempotency key. Verify the
+full packaged path `authoritative Manual mode/pins → authenticated session →
+seed → deployment-scoped durable materializeOnce → N1 prepare once → prepared
+envelope → authenticated freshness → N1 execute → nine snake outputs`, exact
+sanitized Artifact ID/version/SHA,
+assigned Decision, refine/deny paths, worker restart/reclaim without a second
+prepare, journey history, and unchanged item state.
+Do not enable Assist if any N0 or runner proof is missing.
+
+- [ ] **Step 7: Freeze and map the complete current Freeland QA column**
+
+Read every item whose exact state UUID is the pinned Freeland QA state, with a
+stable pagination watermark and a second read proving no item was missed during
+the scan. Normalize only IDs, revisions, content digests, candidate references,
+and reviewed requirement mappings. Every item must map to one or more active
+requirement IDs or a typed owned coverage gap; payment-dependent items remain
+explicitly blocked until N5 and cannot be counted as a PASS. Publish the
+sanitized snapshot as one exact-version Artifact and use its digest as the
+shadow-corpus denominator. A ticket added or revised after the watermark enters
+the next audit and cannot inherit an older verdict.
+
+- [ ] **Step 8: Run Process Experiments and promote only to Assist**
+
+Before the first Assist experiment, create a new immutable Assist deployment
+pin selecting only the committed Assist handler manifest, update the selected
+item's authoritative process-control mode, and read back the exact `assist`
+mode plus handler/deployment digests. Start a new authenticated session and a
+new deployment-scoped prepared-invocation root; the Manual pin, session, root,
+and prepared bytes must no longer be accepted. Prove one Assist seed reaches
+the worker only when CLI environment, selected manifest, deployment pin, and
+authenticated freshness all agree on `assist`.
+
+Freeze two to five graph/config variants, the same safe corpus, deterministic
+result selector, scripted human interactions, concurrency, and spend. Run the
+30–50 blinded cases through Nuanu Process Experiments. Require at least 98%
+reviewed agreement, zero critical false green, zero wrong issue/candidate/state,
+and zero missing or duplicate authoritative journeys. Winner promotion requires
+explicit human approval, an exact Assist mode/pin readback, and a fresh session;
+it changes only future process execution. It does not reuse the Manual pin or
+activate Auto. The Task 5 disposable Auto repin was a negative sandbox proof,
+not promotion authority.
+
+- [ ] **Step 9: Commit only the sanitized Manual/Assist evidence outcome**
+
+Read back the exact Nuanu Artifact versions and promotion record, then append
+only the blinded denominator, aggregate outcome classes, agreement/gate result,
+and pinned commit/schema digests to `nuanu-assist-shadow.md`. Do not commit live
+item/member/agent/task/journey UUIDs, URLs, prompts, credentials, or downloaded
+Artifact bodies. Re-run the local verification from the unchanged operating
+commit, stage only the runbook, and make a separate docs-only evidence commit.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/shadow-corpus.spec.ts
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add docs/runbooks/nuanu-assist-shadow.md
+git diff --cached --name-only
+git commit -m "docs: record sanitized Nuanu Assist evidence outcome"
+git status --short
+```
+
+Expected: tests remain GREEN, the staged-name command prints only the runbook,
+and the final status prints nothing.
+
+## Plan Acceptance
+
+- All eight scoped operating/evidence commits are present and the worktree is
+  clean; no live step ran from an uncommitted revision.
+- The pinned Node 20 local Playwright CLI program suite and pinned Node 20 npm
+  `typecheck` script exit 0.
+- N0 proof Artifact contains nine `PROVEN` records from the deployed build.
+- One real Freeland Manual run completes approve/deny/refine/restart without a
+  status mutation.
+- Every item in the pinned current Freeland QA snapshot maps to active reviewed
+  requirements or a typed owned gap; none is silently excluded.
+- Assist is enabled only after the blinded corpus gate; Auto remains disabled.
+- No custom queue, lease daemon, agent registry, or generic Artifact store was
+  introduced.

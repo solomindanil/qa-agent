@@ -1,0 +1,42 @@
+# Sati product overview
+
+## Release objective
+
+Assess the exact Sati iOS TestFlight candidate for a same-day production
+decision, using the deepest safe computer-only evidence available while keeping
+real-iPhone, account, permission, push, and payment gaps explicit.
+
+## Observed candidate
+
+- Distribution: TestFlight
+- Version/build: `3.0.1 (15)`
+- Release date: 2026-09-01
+- Bundle ID: `com.satiuniversity.sati`
+- Product scope confirmed by owner: iPhone-only
+- Runtime used: macOS 26.2 Apple Silicon, TestFlight iOS-on-Mac compatibility
+- Source commit and server deployment identity: unavailable
+
+## Current verdict
+
+**NO-GO.** The portrait Mac proxy is useful for React layout, anonymous input,
+media controls, negative deep links, and local persistence checks, but it is not
+an iPhone simulator and cannot establish physical-iPhone readiness.
+
+Independent iPhone-relevant blockers include:
+
+- F-007: the supposedly iPhone-only binary declares iPad support and landscape;
+- F-009: plaintext sign-in credentials persist in CFNetwork's disk cache;
+- F-002: Expo OTA checks fail because the release channel is absent;
+- F-010: production share traffic is branded Cielo and targets a missing iOS
+  listing;
+- F-011: app-owned privacy declaration does not account for embedded PostHog;
+- F-012: OneSignal development mode conflicts with production APNs entitlement.
+
+Mac cold-launch/fullscreen failures remain F-001/F-003, but are compatibility
+evidence rather than proof of an iPhone startup defect. Full evidence, positive
+passes, blocked lanes, and retest order are in
+`docs/product/mac-release-campaign.md`.
+
+No account was created, no provider login or password reset was completed, no
+purchase or subscription was attempted, and no HealthKit/profile/community
+mutation was performed.

@@ -1,0 +1,232 @@
+// Explicitly labelled UI fixture adapter for the I2 evidence flow.
+//
+// The design (§7) puts the discovery plan, execution approval and run receipt
+// behind loopback Console routes. Those routes do not exist yet — server/bridge.mjs
+// serves /api/cli/* and /api/workspace only — and this slice is UI-only, so the
+// visual flow is driven from here instead of from a live seam.
+//
+// Everything this module emits is marked: digests are prefixed `fixture:`, ids
+// use a `fixture-` urn segment, and the adapter id is carried on the plan and on
+// the observation. No request is ever made and nothing is persisted. When the
+// real routes land, `src/lib/registration.ts` already holds the typed client for
+// the registration half; this file is what gets replaced, not the view model.
+
+import type {
+  BaselineApproval,
+  BaselineReview,
+  DiscoveryRunPlan,
+  DiscoveryRunReceipt,
+  EvidenceEnvironment,
+  ExecutionApproval,
+  RunObservation,
+} from "./evidence-flow";
+
+export const FIXTURE_ADAPTER = "fixture:qa-console-ui";
+
+/** The three outcomes a bounded read-only probe can reach (design §2). */
+export const FIXTURE_OUTCOMES = ["observed", "environment_blocked", "harness_fault"] as const;
+export type FixtureOutcome = (typeof FIXTURE_OUTCOMES)[number];
+
+export const FIXTURE_OUTCOME_LABEL: Record<FixtureOutcome, string> = {
+  observed: "observation succeeds",
+  environment_blocked: "environment refuses",
+  harness_fault: "harness faults",
+};
+
+/** How long the fixture pretends each async gate takes, so the UI can show it. */
+export const FIXTURE_TIMINGS = { approveMs: 320, compileMs: 420, probeMs: 900 } as const;
+
+// A fixed instant keeps the whole flow deterministic — screenshots and E2E
+// assertions never depend on the wall clock.
+const FIXTURE_CLOCK = "2026-08-31T09:12:04.000Z";
+
+/** FNV-1a, expanded to stable hex. Not a hash of anything real. */
+function hex(seed: string, length: number): string {
+  let state = 0x811c9dc5;
+  for (const character of seed) {
+    state = Math.imul(state ^ (character.codePointAt(0) ?? 0), 0x01000193) >>> 0;
+  }
+  let out = "";
+  while (out.length < length) {
+    state = (Math.imul(state, 0x01000193) ^ (state >>> 15)) >>> 0;
+    out += state.toString(16).padStart(8, "0");
+  }
+  return out.slice(0, length);
+}
+
+function digest(seed: string): string {
+  return `fixture:sha256:${hex(seed, 64)}`;
+}
+
+function id(kind: string, seed: string): string {
+  return `urn:qa:fixture-${kind}:${hex(seed, 24)}`;
+}
+
+const ENVIRONMENT: EvidenceEnvironment = {
+  id: "urn:qa:fixture-environment:2f6c1ad4b90e77c3a15d8402",
+  name: "Public web",
+  kind: "production",
+};
+
+// example.com is IANA-reserved for documentation, so the fixture can never point
+// a reader at somebody's real service.
+const DECLARED_SOURCE = "https://example.com/";
+
+export interface FixtureRegistration {
+  readonly workspacePath: string;
+  readonly workspaceDigest: string;
+}
+
+export function fixtureBaseline(registration: FixtureRegistration): BaselineReview {
+  const seed = `${registration.workspacePath}|${registration.workspaceDigest}`;
+  return {
+    sessionId: id("session", seed),
+    workspacePath: registration.workspacePath,
+    registrationReceiptDigest: digest(`registration-receipt|${seed}`),
+    artifacts: [
+      { label: "profile", contract: "product-profile.v1", digest: digest(`profile|${seed}`) },
+      { label: "graph", contract: "product-graph.v1", digest: digest(`graph|${seed}`) },
+      { label: "coverage", contract: "coverage-map.v1", digest: digest(`coverage|${seed}`) },
+      { label: "test catalog", contract: "test-catalog.v1", digest: digest(`catalog|${seed}`) },
+      { label: "draft strategy", contract: "test-strategy-draft.v1", digest: digest(`strategy|${seed}`) },
+    ],
+    blockers: [],
+    unresolvedOracles: 7,
+    candidateChecks: 12,
+    selectedEnvironment: ENVIRONMENT,
+    declaredSource: DECLARED_SOURCE,
+    adapter: FIXTURE_ADAPTER,
+  };
+}
+
+export function fixtureApproval(baseline: BaselineReview): BaselineApproval {
+  const seed = `${baseline.sessionId}|${baseline.registrationReceiptDigest}`;
+  return {
+    approvalId: id("baseline-approval", seed),
+    approvalDigest: digest(`baseline-approval|${seed}`),
+    idempotencyKeyDigest: digest(`baseline-approval-key|${seed}`),
+    lifecycle: "DRY_RUN_READY",
+    nextAction: "COMPILE_DISCOVERY_RUN",
+    approvedAt: FIXTURE_CLOCK,
+    boundArtifactCount: baseline.artifacts.length + 1,
+  };
+}
+
+export function fixturePlan(baseline: BaselineReview, approval: BaselineApproval): DiscoveryRunPlan {
+  const environment = baseline.selectedEnvironment ?? ENVIRONMENT;
+  const seed = `${approval.approvalDigest}|${environment.id}|${baseline.declaredSource}`;
+  return {
+    planDigest: digest(`discovery-run-plan|${seed}`),
+    baselineApprovalDigest: approval.approvalDigest,
+    environment,
+    declaredSource: baseline.declaredSource,
+    normalizedUrl: DECLARED_SOURCE,
+    allowedOrigin: "https://example.com",
+    method: "GET",
+    sideEffectClass: "read_only",
+    maxRedirects: 3,
+    maxResponseBytes: 262144,
+    timeoutMs: 15000,
+    retainedEvidenceFields: [
+      "requestedUrl",
+      "effectiveUrl",
+      "status",
+      "selectedHeaders",
+      "bodyByteCount",
+      "bodyDigest",
+      "capturedAt",
+      "adapter",
+    ],
+    expectedObservationKind: "http-metadata-observation.v1",
+    adapter: FIXTURE_ADAPTER,
+  };
+}
+
+// Deterministic in the plan alone: re-approving the same plan reconnects to the
+// same run instead of minting a second one (design §3.2).
+export function fixtureExecutionApproval(plan: DiscoveryRunPlan): ExecutionApproval {
+  const scopeDigest = digest(`scope|${plan.method}|${plan.normalizedUrl}|${plan.allowedOrigin}|${plan.sideEffectClass}`);
+  return {
+    runId: id("discovery-run", plan.planDigest),
+    executionApprovalDigest: digest(`execution-approval|${plan.planDigest}`),
+    idempotencyKeyDigest: digest(`execution-approval-key|${plan.planDigest}`),
+    planDigest: plan.planDigest,
+    scopeDigest,
+    lifecycle: "RUNNING",
+    nextAction: "COLLECT_EVIDENCE",
+    approvedAt: FIXTURE_CLOCK,
+  };
+}
+
+function observation(plan: DiscoveryRunPlan): RunObservation {
+  return {
+    requestedUrl: plan.normalizedUrl,
+    effectiveUrl: plan.normalizedUrl,
+    status: 200,
+    redirects: 0,
+    // Only the safe headers the plan's evidence policy retains.
+    headers: [
+      { name: "content-type", value: "text/html; charset=utf-8" },
+      { name: "content-length", value: "1256" },
+      { name: "cache-control", value: "max-age=604800" },
+    ],
+    bodyBytes: 1256,
+    bodyDigest: digest(`observation-body|${plan.planDigest}`),
+    capturedAt: FIXTURE_CLOCK,
+    adapter: FIXTURE_ADAPTER,
+  };
+}
+
+export function fixtureReceipt(
+  plan: DiscoveryRunPlan,
+  execution: ExecutionApproval,
+  outcome: FixtureOutcome,
+): DiscoveryRunReceipt {
+  const common = {
+    runId: execution.runId,
+    receiptDigest: digest(`discovery-run-receipt|${execution.runId}|${outcome}`),
+    planDigest: plan.planDigest,
+    baselineApprovalDigest: plan.baselineApprovalDigest,
+    executionApprovalDigest: execution.executionApprovalDigest,
+    evidenceManifestDigest: digest(`evidence-manifest|${execution.runId}|${outcome}`),
+    completedAt: FIXTURE_CLOCK,
+  } as const;
+
+  switch (outcome) {
+    case "observed":
+      return {
+        ...common,
+        state: "final",
+        verdict: "INCONCLUSIVE",
+        observation: observation(plan),
+        blocker: null,
+        evidenceEntries: 1,
+      };
+    case "environment_blocked":
+      return {
+        ...common,
+        state: "incomplete",
+        verdict: "ENV_BLOCKED",
+        observation: null,
+        blocker: {
+          class: "environment",
+          code: "E_TLS_HANDSHAKE",
+          detail: `the declared origin ${plan.allowedOrigin} closed the connection before a response was read`,
+        },
+        evidenceEntries: 0,
+      };
+    case "harness_fault":
+      return {
+        ...common,
+        state: "incomplete",
+        verdict: "HARNESS_FAIL",
+        observation: null,
+        blocker: {
+          class: "harness",
+          code: "E_EVIDENCE_PERSIST",
+          detail: "the evidence manifest could not be written and read back byte-for-byte",
+        },
+        evidenceEntries: 0,
+      };
+  }
+}

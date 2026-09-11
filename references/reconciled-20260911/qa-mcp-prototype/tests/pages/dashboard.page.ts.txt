@@ -1,0 +1,28 @@
+import type { Locator, Page } from '@playwright/test';
+
+// TODO(product): заменить эвристические локаторы на реальные (data-testid),
+// когда будут известны атрибуты staging-дашборда.
+export class DashboardPage {
+  readonly page: Page;
+  readonly balance: Locator;
+  readonly topupButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.balance = page.getByTestId('balance');
+    this.topupButton = page.getByRole('button', { name: /top ?up|deposit|пополнить/i });
+  }
+
+  async goto(): Promise<void> {
+    await this.page.goto('/');
+  }
+
+  async balanceValue(): Promise<number> {
+    const text = (await this.balance.textContent()) ?? '';
+    const value = Number(text.replace(/[^\d.,-]/g, '').replace(',', '.'));
+    if (Number.isNaN(value)) {
+      throw new Error(`Не удалось распарсить баланс из текста: "${text}"`);
+    }
+    return value;
+  }
+}

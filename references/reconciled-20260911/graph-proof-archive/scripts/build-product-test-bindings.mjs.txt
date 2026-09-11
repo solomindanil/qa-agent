@@ -1,0 +1,67 @@
+import { readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+
+import { buildProductTestCatalog } from "../src/model.mjs";
+
+const legacyPath = argument("--legacy-catalog");
+const proposalPath = argument("--proposal");
+const outputPath = argument("--output");
+if (!legacyPath || !proposalPath || !outputPath) {
+  throw new TypeError("--legacy-catalog, --proposal and --output are required");
+}
+const legacy = JSON.parse(await readFile(resolve(legacyPath), "utf8"));
+const proposal = JSON.parse(await readFile(resolve(proposalPath), "utf8"));
+if (legacy.sourceSha !== proposal.generatedForSourceSha) throw new TypeError("Product test source identities differ");
+
+const tests = new Map();
+const excludedFromProductCi = new Set();
+for (const row of legacy.tests ?? []) {
+  for (const requirementId of row.requirementIds ?? []) addBinding(row.id, row.file, row.selector, requirementId, "full");
+}
+for (const owner of [...(proposal.unownedRequirements ?? []), ...(proposal.orphanSemanticNodes ?? [])]) {
+  for (const addition of owner.candidateTypedProductCiAdditions ?? []) {
+    const parsed = parseTestId(addition.testId);
+    for (const nodeId of addition.nodeIds ?? []) addBinding(addition.testId, parsed.file, parsed.selector, nodeId, addition.coverage);
+  }
+}
+const catalog = buildProductTestCatalog({
+  sourceSha: legacy.sourceSha,
+  tests: [...tests.values()].map(test => ({
+    file: test.file,
+    selector: test.selector,
+    bindings: [...test.bindings.values()],
+  })),
+});
+const target = resolve(outputPath);
+const temporary = resolve(dirname(target), `.${target.split("/").at(-1)}.tmp`);
+await writeFile(temporary, `${JSON.stringify(catalog, null, 2)}\n`, { mode: 0o600 });
+await rename(temporary, target);
+process.stdout.write(`${JSON.stringify({
+  tests: catalog.tests.length,
+  excludedFromProductCi: [...excludedFromProductCi].sort(),
+  digest: catalog.catalogDigest,
+})}\n`);
+
+function addBinding(id, file, selector, nodeId, coverage) {
+  if (/\.integration\.test\.[cm]?[jt]sx?$/.test(file)) {
+    excludedFromProductCi.add(id);
+    return;
+  }
+  const test = tests.get(id) ?? { id, file, selector, bindings: new Map() };
+  if (test.file !== file || test.selector !== selector) throw new TypeError(`Product test identity collision: ${id}`);
+  const previous = test.bindings.get(nodeId);
+  const rank = { detection: 1, partial: 2, full: 3 };
+  if (!previous || rank[coverage] > rank[previous.coverage]) test.bindings.set(nodeId, { nodeId, coverage });
+  tests.set(id, test);
+}
+
+function parseTestId(id) {
+  const match = String(id).match(/^product-ci:(.+)#(.+)$/s);
+  if (!match) throw new TypeError(`Invalid Product CI test ID: ${id}`);
+  return { file: match[1], selector: match[2] };
+}
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}

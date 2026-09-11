@@ -1,0 +1,21 @@
+import { test, expect, TOOLS } from '../fixtures/mcp-client';
+import { hasMcpEnv } from '../fixtures/env';
+
+test.skip(!hasMcpEnv, 'MCP_SERVER_URL не настроен (.env)');
+
+test('вызов несуществующего инструмента даёт ошибку, соединение живо', async ({ mcp }) => {
+  await expect(mcp.callTool({ name: 'definitely-not-a-tool', arguments: {} })).rejects.toThrow();
+
+  const { tools } = await mcp.listTools();
+  expect(tools.length).toBeGreaterThan(0);
+});
+
+test('огромный аргумент не роняет сервер', async ({ mcp }) => {
+  const huge = 'x'.repeat(100_000);
+  await mcp
+    .callTool({ name: TOOLS.search, arguments: { query: huge } })
+    .catch(() => undefined); // ошибка допустима, обрыв — нет
+
+  const { tools } = await mcp.listTools();
+  expect(tools.length).toBeGreaterThan(0);
+});

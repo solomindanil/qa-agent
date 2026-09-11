@@ -1,0 +1,173 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import {
+  REGISTRATION_BUILD_PHASES,
+  buildRegistrationProgress,
+  type RegistrationPhaseView,
+} from "../../src/lib/registration-progress";
+
+const SETTLED = {
+  kind: "settled",
+  workspaceDigest: `sha256:${"a".repeat(64)}`,
+  workspacePath: "/private/tmp/qa-console-progress",
+} as const;
+
+function phase(view: { phases: readonly RegistrationPhaseView[] }, name: string): RegistrationPhaseView {
+  const found = view.phases.find((entry) => entry.phase === name);
+  assert.ok(found, `phase ${name} is missing from the progress view`);
+  return found;
+}
+
+test("the pipeline is the six accepted build phases in kernel order", () => {
+  const view = buildRegistrationProgress({ kind: "idle" });
+  assert.deepEqual(
+    view.phases.map((entry) => entry.phase),
+    ["QUEUED", "INITIALIZING", "DISCOVERING", "COMPILING", "PUBLISHING", "VALIDATING"],
+  );
+  assert.deepEqual([...REGISTRATION_BUILD_PHASES], view.phases.map((entry) => entry.phase));
+});
+
+test("an unsubmitted intake claims no progress at all", () => {
+  const view = buildRegistrationProgress({ kind: "idle" });
+  assert.ok(view.phases.every((entry) => entry.status === "pending"));
+  assert.equal(view.completeCount, 0);
+  assert.equal(view.reportedCount, 0);
+  assert.equal(view.outcome, null);
+  assert.equal(view.error, null);
+});
+
+// The single-request seam accepts the build but reports no per-phase telemetry.
+// The view must say so instead of animating phases it cannot observe.
+test("an in-flight build reports only the queue step it can actually observe", () => {
+  const view = buildRegistrationProgress({ kind: "submitting" });
+  assert.equal(phase(view, "QUEUED").status, "complete");
+  assert.equal(phase(view, "QUEUED").reported, true);
+  for (const name of ["INITIALIZING", "DISCOVERING", "COMPILING", "PUBLISHING", "VALIDATING"]) {
+    assert.equal(phase(view, name).status, "running");
+    assert.equal(phase(view, name).reported, false, `${name} must not claim to be reported`);
+  }
+  assert.equal(view.reportedCount, 1);
+  assert.equal(view.outcome, null);
+});
+
+test("a workspace that stops short of baseline approval keeps the later phases unclaimed", () => {
+  const view = buildRegistrationProgress({
+    ...SETTLED,
+    lifecycleState: "DISCOVERING",
+    nextAction: "RUN_DISCOVERY",
+  });
+  assert.equal(phase(view, "QUEUED").status, "complete");
+  assert.equal(phase(view, "INITIALIZING").status, "complete");
+  for (const name of ["DISCOVERING", "COMPILING", "PUBLISHING", "VALIDATING"]) {
+    assert.equal(phase(view, name).status, "pending", `${name} must not be claimed complete`);
+  }
+  assert.equal(view.completeCount, 2);
+  assert.equal(view.outcome?.baselineApprovalRequired, false);
+  assert.equal(view.outcome?.lifecycleState, "DISCOVERING");
+  assert.equal(view.outcome?.nextAction, "RUN_DISCOVERY");
+});
+
+test("a baseline-approval read-back completes every phase and stays honest about runs", () => {
+  const view = buildRegistrationProgress({
+    ...SETTLED,
+    lifecycleState: "BASELINE_APPROVAL_REQUIRED",
+    nextAction: "REVIEW_BASELINE",
+  });
+  assert.ok(view.phases.every((entry) => entry.status === "complete"));
+  assert.equal(view.completeCount, 6);
+  // Only the queue step is individually evidenced by this seam.
+  assert.equal(view.reportedCount, 1);
+  assert.equal(view.outcome?.baselineApprovalRequired, true);
+  assert.equal(view.outcome?.runs, "none");
+  assert.equal(view.outcome?.verdict, "NOT_EVALUATED");
+  assert.equal(view.outcome?.canOpenWorkspace, true);
+  assert.equal(view.outcome?.workspacePath, SETTLED.workspacePath);
+});
+
+test("a lifecycle past baseline approval completes the build without claiming the approval gate", () => {
+  const view = buildRegistrationProgress({
+    ...SETTLED,
+    lifecycleState: "DRY_RUN_READY",
+    nextAction: "PLAN_CAMPAIGN",
+  });
+  assert.equal(view.completeCount, 6);
+  assert.equal(view.outcome?.baselineApprovalRequired, false);
+});
+
+test("a failed request blocks the build phases and surfaces the error", () => {
+  const view = buildRegistrationProgress({ kind: "failed", message: "E_WORKSPACE_EXISTS · exit 2" });
+  assert.equal(phase(view, "QUEUED").status, "complete");
+  for (const name of ["INITIALIZING", "DISCOVERING", "COMPILING", "PUBLISHING", "VALIDATING"]) {
+    assert.equal(phase(view, name).status, "blocked");
+  }
+  assert.equal(view.error, "E_WORKSPACE_EXISTS · exit 2");
+  assert.equal(view.outcome, null);
+});
+
+test("a non-absolute workspace path cannot offer the open-workspace action", () => {
+  const view = buildRegistrationProgress({
+    kind: "settled",
+    lifecycleState: "BASELINE_APPROVAL_REQUIRED",
+    nextAction: "REVIEW_BASELINE",
+    workspaceDigest: "—",
+    workspacePath: "relative/path",
+  });
+  assert.equal(view.outcome?.canOpenWorkspace, false);
+});
+
+test("evidence tags separate what was reported from what was derived", () => {
+  const idle = buildRegistrationProgress({ kind: "idle" });
+  assert.ok(idle.phases.every((entry) => entry.evidence === "not started"));
+  assert.equal(idle.evidenceSummary, "no build has run yet");
+
+  const baseline = buildRegistrationProgress({
+    ...SETTLED,
+    lifecycleState: "BASELINE_APPROVAL_REQUIRED",
+    nextAction: "REVIEW_BASELINE",
+  });
+  assert.equal(phase(baseline, "QUEUED").evidence, "reported");
+  assert.equal(phase(baseline, "VALIDATING").evidence, "derived from BASELINE_APPROVAL_REQUIRED");
+  assert.match(baseline.evidenceSummary, /^1 of 6 phases reported by this seam/);
+
+  const short = buildRegistrationProgress({
+    ...SETTLED,
+    lifecycleState: "DISCOVERING",
+    nextAction: "RUN_DISCOVERY",
+  });
+  assert.equal(phase(short, "VALIDATING").evidence, "not evidenced");
+  assert.match(short.evidenceSummary, /not evidenced by DISCOVERING$/);
+
+  const failed = buildRegistrationProgress({ kind: "failed", message: "boom" });
+  assert.equal(phase(failed, "VALIDATING").evidence, "not run");
+});
+
+test("every phase row carries a note explaining what that phase does", () => {
+  const states = [
+    { kind: "idle" },
+    { kind: "submitting" },
+    { kind: "failed", message: "boom" },
+    { ...SETTLED, lifecycleState: "DISCOVERING", nextAction: "RUN_DISCOVERY" },
+    { ...SETTLED, lifecycleState: "BASELINE_APPROVAL_REQUIRED", nextAction: "REVIEW_BASELINE" },
+  ] as const;
+  for (const state of states) {
+    const view = buildRegistrationProgress(state);
+    assert.ok(view.headline.length > 0);
+    assert.ok(view.evidenceSummary.length > 0);
+    for (const entry of view.phases) {
+      assert.ok(entry.note.length > 0, `${entry.phase} note is empty for ${state.kind}`);
+      assert.ok(entry.evidence.length > 0, `${entry.phase} evidence is empty for ${state.kind}`);
+    }
+  }
+});
+
+// The row copy describes the phase itself, so it stays stable while the status
+// and the evidence tag carry everything the console actually observed.
+test("phase notes are the same regardless of build state", () => {
+  const idle = buildRegistrationProgress({ kind: "idle" });
+  const done = buildRegistrationProgress({
+    ...SETTLED,
+    lifecycleState: "BASELINE_APPROVAL_REQUIRED",
+    nextAction: "REVIEW_BASELINE",
+  });
+  assert.deepEqual(idle.phases.map((entry) => entry.note), done.phases.map((entry) => entry.note));
+});

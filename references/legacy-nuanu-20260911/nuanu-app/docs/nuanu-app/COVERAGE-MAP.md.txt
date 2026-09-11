@@ -1,0 +1,87 @@
+# Nuanu App foundation coverage map
+
+This map describes registered coverage, not historical or current pass state.
+Every `PASS`, `FAIL`, or other execution result belongs to a separate named
+run.
+
+## Implemented graph bindings
+
+| Graph target | Registered automated case | Coverage disposition | What is established |
+| --- | --- | --- | --- |
+| Reviewed runtime-contract invariant | `NAPP-CONTRACT-001` | `AUTOMATED` | Synthetic offline exact role/name contract behavior, including duplicate/unavailable fail-closed gates |
+| Root route | `NAPP-PUB-001` | `AUTOMATED` | Public root availability and a rendered application shell |
+| Root route via reviewed selector evidence | `NAPP-PUB-002` | `AUTOMATED` | Contract-gated unique visibility/reachability of the reviewed discovery controls; no business-data claim |
+| Public read-only evidence invariant | `NAPP-SAFE-001` | `AUTOMATED` | Non-idempotent request blocking in a guarded test |
+| Public read-only evidence invariant | `NAPP-EVID-001` | `AUTOMATED` | Query and fragment removal from evidence URLs |
+| Public read-only evidence invariant | `NAPP-SAFE-002` | `AUTOMATED` | Trace, screenshot, and video disabled for the project |
+| Public read-only evidence invariant | `NAPP-EVID-002` | `AUTOMATED` | Bounded marker-only console evidence |
+| Public read-only evidence invariant | `NAPP-EVID-003` | `AUTOMATED` | Bounded sanitized failed-request URLs |
+| Public read-only evidence invariant | `NAPP-EVID-004` | `AUTOMATED` | Bounded sanitized first-party HTTP 5xx URLs |
+
+The complete titles and graph IDs are in [TEST-CASES.md](TEST-CASES.md). The
+starter mappings bind exactly these nine discovered cases. Fresh validation
+fails when a mapped test disappears from discovery. A later plan rejects a
+persisted graph when its discovery attestation changes. Fresh validation may
+accept an additional unmapped discovered test; that test remains outside
+mapped selection until its graph relationship is reviewed.
+
+## Coverage dimensions
+
+| Dimension | Foundation state | Remaining work |
+| --- | --- | --- |
+| Public root/app shell | Automated case registered | Deep links, hydration states, reload, title/meta, and soft-404 oracle |
+| Mutation prevention | Automated harness control registered | Every future navigating case must install the guard before navigation |
+| Evidence privacy | Automated harness controls registered | Sanitized durable evidence packaging and per-run report remain expansion work |
+| Desktop Chromium | Default project configured | Record a per-run result; registration alone is not a pass |
+| Desktop Firefox | Opt-in project configured | Install engine and record a per-run compatibility result |
+| Desktop WebKit | Opt-in project configured | Treat as approximation, not physical Safari evidence |
+| Android browser emulation | Opt-in Pixel 5 Chromium configured | Expand journeys and keep physical Android acceptance `MANUAL` |
+| iPhone browser emulation | Opt-in iPhone 13 WebKit configured | Expand journeys and keep physical iPhone acceptance `MANUAL` |
+| Physical Android Chrome/PWA | `MANUAL` requirement; no foundation case ID yet | Device, permission, install, update, keyboard, back, and lifecycle evidence |
+| Physical iPhone Safari/PWA | `MANUAL` requirement; no foundation case ID yet | Device, permission, install, update, safe-area, keyboard, and lifecycle evidence |
+| Native iOS/Android | `OUT_OF_SCOPE` V1 | Add later without changing stable web/PWA IDs |
+| Authenticated behavior | `BLOCKED` gap; no foundation case ID yet | Add reviewed read-only cases and an operator-supplied state fixture |
+| Places, map, filters, details, search | Contract-gated control reachability registered; business behavior remains `UNVERIFIED` | Add deterministic route, content, and interaction oracles |
+| PWA lifecycle/offline/update | `UNVERIFIED` in the foundation | Add manifest, service-worker, cache, reconnect, and installed-mode cases |
+| Accessibility | `UNVERIFIED` in the foundation | Add automated rules, keyboard checks, and manual assistive-tech review |
+| Performance | `UNVERIFIED` in the foundation | Establish named five-run lab baseline before thresholds |
+| API/data contracts | `UNVERIFIED` in the foundation | Add approved schemas, clock, snapshots, and error fixtures |
+| Aggregate telemetry | Independent optional lane | May add selection only; never supplies case verdicts or deployment proof |
+
+## Planner and result accounting
+
+The graph dispositions are `AUTOMATED`, `MANUAL`, `BLOCKED`, `UNVERIFIED`,
+and `NOT_DEPLOYED`. The planner produces disjoint `selectedAutomated`,
+`manual`, `blocked`, `notDeployed`, and `unverified` buckets. Execution then
+records exactly one per-run result from `PASS`, `FAIL`, `EXPECTED_FAIL`,
+`FLAKY`, `MANUAL`, `BLOCKED`, `UNVERIFIED`, `NOT_DEPLOYED`, or
+`INCONCLUSIVE`.
+
+Optional aggregate telemetry retains its own `AVAILABLE`, `BLOCKED`,
+`NOT_INSTRUMENTED`, `UNAVAILABLE`, or `SUPPRESSED` status. Those statuses do
+not enter case-result or graph-disposition buckets.
+
+## Identity and artifact chain
+
+```text
+reviewed mappings
+  + runtime catalog
+  + accepted runtime contract
+  + selector observation/capture plan/bindings
+  + optional clean source lock
+  + discovered Playwright catalog
+        -> validated graph
+        -> impact
+        -> dry-run test plan
+        -> final plan-commit marker
+```
+
+`source-lock.json` attests inspected source only. `runtime-catalog.json`
+attests observed public runtime only. Neither artifact alone proves that an
+upstream commit is deployed. URL-only planning therefore keeps source impact
+`UNVERIFIED`; source-only nodes cannot claim live coverage.
+
+All graph artifacts live under the fixed gitignored
+`docs/local/nuanu-app/product-graph/` tree. The final marker is the commit point
+for a plan; partial impact or plan files without a matching marker are not
+consumable evidence.

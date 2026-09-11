@@ -1,0 +1,540 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { digestJson } from "../../tools/nuanu-app-graph/model.mjs";
+import {
+  MIN_TELEMETRY_COHORT_SIZE,
+  createP75PairDigestInput,
+  digestP75Pair,
+} from "../../tools/nuanu-app-graph/telemetry-contract.mjs";
+import {
+  buildTelemetryCatalog,
+  normalizeAggregateMetric,
+  validateTelemetryCatalog,
+} from "../../tools/nuanu-app-graph/telemetry.mjs";
+
+const FIXTURE_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "posthog");
+const safe = JSON.parse(await readFile(join(FIXTURE_DIRECTORY, "aggregate-safe.json"), "utf8"));
+const forbidden = JSON.parse(await readFile(join(FIXTURE_DIRECTORY, "aggregate-forbidden.json"), "utf8"));
+const HASH_A = "a".repeat(64);
+const HASH_B = "b".repeat(64);
+const HASH_C = "c".repeat(64);
+const UUID_1 = "00000000-0000-4000-8000-000000000001";
+const UUID_2 = "00000000-0000-4000-8000-000000000002";
+const UUID_3 = "00000000-0000-4000-8000-000000000003";
+
+function clone(value) {
+  return structuredClone(value);
+}
+
+function candidate(metricId = "route-health", overrides = {}) {
+  return {
+    queryId: metricId,
+    queryHash: HASH_A,
+    p75Pairing: null,
+    metricId,
+    status: "AVAILABLE",
+    capturedAt: safe.capturedAt,
+    bucketEndedAt: safe.bucketEndedAt,
+    aggregate: clone(safe.syntheticAggregates.count),
+    breakdowns: [],
+    exceptionGroups: [],
+    providerExceptionFingerprintAttestation: null,
+    limitations: ["NO_REVIEWED_THRESHOLD"],
+    ...overrides,
+  };
+}
+
+function p75Candidate(overrides = {}) {
+  return candidate("web-vitals-lcp-p75", {
+    p75Pairing: clone(safe.p75Pairing),
+    aggregate: clone(safe.syntheticAggregates.p75),
+    ...overrides,
+  });
+}
+
+function unavailableCandidate(metricId = "route-health", overrides = {}) {
+  return candidate(metricId, {
+    queryHash: HASH_A,
+    p75Pairing: null,
+    status: "UNAVAILABLE",
+    bucketEndedAt: null,
+    aggregate: null,
+    breakdowns: [],
+    exceptionGroups: [],
+    providerExceptionFingerprintAttestation: null,
+    limitations: ["QUERY_UNAVAILABLE"],
+    ...overrides,
+  });
+}
+
+function normalize(input, {
+  publicValueAllowlists = {},
+  randomIdForValue = () => `napp-telemetry-bucket-${UUID_1}`,
+} = {}) {
+  return normalizeAggregateMetric({
+    candidate: input,
+    publicValueAllowlists,
+    randomIdForValue,
+  });
+}
+
+function build(candidates, overrides = {}) {
+  const uuids = overrides.uuids ?? [UUID_1, UUID_2, UUID_3];
+  let uuidIndex = 0;
+  return buildTelemetryCatalog({
+    accessLockDigest: safe.accessLockDigest,
+    capturedAt: safe.capturedAt,
+    candidates,
+    publicValueAllowlists: overrides.publicValueAllowlists ?? {},
+    randomUUID: overrides.randomUUID ?? (() => uuids[uuidIndex++]),
+  });
+}
+
+function randomBreakdown(value = safe.syntheticPrivateValue, overrides = {}) {
+  return {
+    dimension: "release",
+    value,
+    sampleSize: 100,
+    count: 4,
+    rate: null,
+    p75: null,
+    ...overrides,
+  };
+}
+
+function recomputeCatalogDigest(catalog) {
+  const { catalogDigest: _ignored, ...content } = catalog;
+  return { ...content, catalogDigest: digestJson(content) };
+}
+
+function assertRejectsHugeSparseWithoutProportionalEnumeration(action) {
+  const originalArrayFrom = Array.from;
+  let proportionalEnumerationAttempts = 0;
+  Array.from = function guardedArrayFrom(source, ...rest) {
+    if (source && typeof source === "object" && source.length > 100_000) {
+      proportionalEnumerationAttempts += 1;
+      throw new Error("PROPORTIONAL_ARRAY_ENUMERATION_ATTEMPTED");
+    }
+    return Reflect.apply(originalArrayFrom, this, [source, ...rest]);
+  };
+  try {
+    assert.throws(action, (error) =>
+      error.message !== "PROPORTIONAL_ARRAY_ENUMERATION_ATTEMPTED" &&
+      ["INVALID_TELEMETRY_DATA", "INVALID_TELEMETRY_P75_PAIR"].includes(error.code));
+    assert.equal(proportionalEnumerationAttempts, 0);
+  } finally {
+    Array.from = originalArrayFrom;
+  }
+}
+
+test("normalizes one aggregate into count rate or p75 only", () => {
+  const count = normalize(candidate());
+  const rate = normalize(candidate("js-exception-rate", {
+    aggregate: { sampleSize: 200, count: null, rate: 0.05, p75: null },
+  }));
+  const p75 = normalize(p75Candidate());
+  assert.deepEqual(count.aggregate, { sampleSize: 200, count: 10, rate: null, p75: null });
+  assert.deepEqual(rate.aggregate, { sampleSize: 200, count: null, rate: 0.05, p75: null });
+  assert.deepEqual(p75.aggregate, { sampleSize: 200, count: null, rate: null, p75: 2100.5 });
+  assert.throws(() => normalize(candidate(undefined, {
+    aggregate: { sampleSize: 200, count: 1, rate: 0.1, p75: null },
+  })));
+});
+
+test("canonical p75 pair digest uses the one exact nested role object", () => {
+  const input = createP75PairDigestInput({
+    metricId: "web-vitals-lcp-p75",
+    dimensions: ["browser"],
+    percentileQueryHash: HASH_A,
+    sampleCountQueryHash: HASH_B,
+  });
+  assert.deepEqual(input, safe.p75Pairing.p75PairDigestInput);
+  assert.equal(digestP75Pair(input), safe.p75Pairing.pairDigest);
+  assert.equal(digestP75Pair(input), digestJson(input));
+});
+
+test("accepts only structural p75 source hashes roles and recomputed pair digest", () => {
+  const normalized = normalize(p75Candidate());
+  assert.deepEqual(normalized.p75Pairing, safe.p75Pairing);
+  assert.notStrictEqual(normalized.p75Pairing, safe.p75Pairing);
+});
+
+test("rejects equal p75 role hashes malformed digest input and a wrong pair digest", () => {
+  assert.throws(() => createP75PairDigestInput({
+    metricId: "web-vitals-lcp-p75", dimensions: ["browser"],
+    percentileQueryHash: HASH_A, sampleCountQueryHash: HASH_A,
+  }));
+  assert.throws(() => digestP75Pair({
+    ...clone(safe.p75Pairing.p75PairDigestInput), dimensions: ["os", "browser"],
+  }));
+  assert.throws(() => normalize(p75Candidate({
+    p75Pairing: { ...clone(safe.p75Pairing), pairDigest: HASH_C },
+  })));
+});
+
+test("requires queryHash for available unavailable and post-query blocked candidates", () => {
+  assert.throws(() => normalize(candidate(undefined, { queryHash: null })));
+  assert.throws(() => normalize(unavailableCandidate(undefined, { queryHash: null })));
+  assert.throws(() => normalize(unavailableCandidate(undefined, {
+    status: "BLOCKED", queryHash: null, limitations: ["HTTP_AUTH_BLOCKED"],
+  })));
+});
+
+test("allows null queryHash only for not instrumented and pre-query blocked candidates", () => {
+  const notInstrumented = unavailableCandidate(undefined, {
+    status: "NOT_INSTRUMENTED", queryHash: null, limitations: ["EVENT_NOT_PROVEN"],
+  });
+  const blocked = unavailableCandidate(undefined, {
+    status: "BLOCKED", queryHash: null, limitations: ["STRUCTURED_QUERY_BLOCKED"],
+  });
+  assert.equal(normalize(notInstrumented).queryHash, null);
+  assert.equal(normalize(blocked).queryHash, null);
+  assert.throws(() => normalize(unavailableCandidate(undefined, {
+    status: "BLOCKED", queryHash: null, limitations: [],
+  })));
+});
+
+test("enforces the exact p75 pairing status union and null for every non-p75 metric", () => {
+  assert.throws(() => normalize(p75Candidate({ p75Pairing: null })));
+  assert.equal(normalize(unavailableCandidate("web-vitals-lcp-p75")).p75Pairing, null);
+  assert.throws(() => normalize(candidate(undefined, { p75Pairing: clone(safe.p75Pairing) })));
+  assert.throws(() => normalize(unavailableCandidate("web-vitals-lcp-p75", {
+    status: "BLOCKED", p75Pairing: clone(safe.p75Pairing), limitations: ["HTTP_AUTH_BLOCKED"],
+  })));
+});
+
+test("suppressed p75 retains valid pairing but no percentile or cohort identity", () => {
+  let randomCalls = 0;
+  const output = normalize(p75Candidate({
+    aggregate: { sampleSize: MIN_TELEMETRY_COHORT_SIZE - 1, count: null, rate: null, p75: 2100.5 },
+    breakdowns: [randomBreakdown(undefined, { count: null, p75: 2050.25 })],
+  }), { randomIdForValue: () => { randomCalls += 1; return `napp-telemetry-bucket-${UUID_1}`; } });
+  assert.equal(output.status, "SUPPRESSED");
+  assert.deepEqual(output.p75Pairing, safe.p75Pairing);
+  assert.equal(output.aggregate, null);
+  assert.equal(output.bucketEndedAt, null);
+  assert.deepEqual(output.breakdowns, []);
+  assert.deepEqual(output.exceptionGroups, []);
+  assert.equal(output.suppressedCohortCount, 1);
+  assert.equal(randomCalls, 0);
+  assert.doesNotMatch(JSON.stringify(output), /Synthetic Private Cohort|2100\.5/);
+});
+
+test("persists an exact allowlisted public categorical value only after twenty samples", () => {
+  const publicBreakdown = {
+    dimension: "browser", value: "Synthetic Browser", sampleSize: 20,
+    count: 4, rate: null, p75: null,
+  };
+  const output = normalize(candidate(undefined, { breakdowns: [publicBreakdown] }), {
+    publicValueAllowlists: { browser: ["Synthetic Browser"] },
+  });
+  assert.deepEqual(output.breakdowns, [{
+    dimension: "browser", publicValue: "Synthetic Browser", catalogLocalId: null,
+    sampleSize: 20, count: 4, rate: null, p75: null,
+  }]);
+});
+
+test("rejects a public-mode value outside its allowlist without randomizing it", () => {
+  let randomCalls = 0;
+  assert.throws(() => normalize(candidate(undefined, {
+    breakdowns: [{ ...randomBreakdown(), dimension: "browser" }],
+  }), {
+    publicValueAllowlists: { browser: ["Synthetic Browser"] },
+    randomIdForValue: () => { randomCalls += 1; return `napp-telemetry-bucket-${UUID_1}`; },
+  }));
+  assert.equal(randomCalls, 0);
+});
+
+test("validates public mode before suppressing a small cohort and never randomizes it", () => {
+  let randomCalls = 0;
+  const options = {
+    publicValueAllowlists: { browser: ["Synthetic Browser"] },
+    randomIdForValue: () => { randomCalls += 1; return `napp-telemetry-bucket-${UUID_1}`; },
+  };
+  assert.throws(() => normalize(candidate(undefined, {
+    breakdowns: [{
+      dimension: "browser", value: "Synthetic Unreviewed Browser", sampleSize: 19,
+      count: 1, rate: null, p75: null,
+    }],
+  }), options));
+
+  const good = normalize(candidate(undefined, {
+    breakdowns: [{
+      dimension: "browser", value: "Synthetic Browser", sampleSize: 19,
+      count: 1, rate: null, p75: null,
+    }],
+  }), options);
+  assert.deepEqual(good.breakdowns, []);
+  assert.equal(good.suppressedCohortCount, 1);
+  assert.equal(randomCalls, 0);
+  assert.doesNotMatch(JSON.stringify(good), /Synthetic Browser|napp-telemetry-bucket/);
+});
+
+test("uses random-ID mode only when the dimension is omitted from public allowlists", () => {
+  const output = normalize(candidate(undefined, { breakdowns: [randomBreakdown()] }));
+  assert.equal(output.breakdowns[0].publicValue, null);
+  assert.equal(output.breakdowns[0].catalogLocalId, `napp-telemetry-bucket-${UUID_1}`);
+  assert.doesNotMatch(JSON.stringify(output), /Synthetic Private Cohort/);
+});
+
+test("reuses one random ID per distinct raw value across the whole catalog", () => {
+  let calls = 0;
+  const shared = randomBreakdown();
+  const catalog = build([
+    candidate("route-health", { breakdowns: [shared] }),
+    candidate("funnel-search", { breakdowns: [clone(shared)] }),
+  ], { randomUUID: () => { calls += 1; return UUID_1; } });
+  assert.equal(calls, 1);
+  assert.equal(catalog.metrics[0].breakdowns[0].catalogLocalId, catalog.metrics[1].breakdowns[0].catalogLocalId);
+});
+
+test("uses distinct IDs for distinct values and a fresh private memo per catalog", () => {
+  const inputs = [candidate(undefined, {
+    breakdowns: [randomBreakdown("Synthetic A"), randomBreakdown("Synthetic B")],
+  })];
+  const first = build(inputs, { uuids: [UUID_1, UUID_2] });
+  const second = build(inputs, { uuids: [UUID_2, UUID_3] });
+  const firstIds = first.metrics[0].breakdowns.map((entry) => entry.catalogLocalId);
+  const secondIds = second.metrics[0].breakdowns.map((entry) => entry.catalogLocalId);
+  assert.equal(new Set(firstIds).size, 2);
+  assert.equal(new Set(secondIds).size, 2);
+  assert.notDeepEqual(firstIds, secondIds);
+});
+
+test("rejects a random UUID collision between distinct raw values", () => {
+  assert.throws(() => build([candidate(undefined, {
+    breakdowns: [randomBreakdown("Synthetic A"), randomBreakdown("Synthetic B")],
+  })], { randomUUID: () => UUID_1 }));
+  assert.throws(() => normalize(candidate(undefined, {
+    breakdowns: [randomBreakdown("Synthetic A"), randomBreakdown("Synthetic B")],
+  }), { randomIdForValue: () => `napp-telemetry-bucket-${UUID_1}` }));
+});
+
+test("direct normalization requires one stable random ID for the same raw value", () => {
+  const breakdowns = [
+    randomBreakdown("Synthetic Shared", { dimension: "device" }),
+    randomBreakdown("Synthetic Shared", { dimension: "release" }),
+  ];
+  let inconsistentCalls = 0;
+  assert.throws(() => normalize(candidate(undefined, { breakdowns }), {
+    randomIdForValue: () => {
+      inconsistentCalls += 1;
+      return `napp-telemetry-bucket-${inconsistentCalls === 1 ? UUID_1 : UUID_2}`;
+    },
+  }));
+
+  const consistent = normalize(candidate(undefined, { breakdowns }), {
+    randomIdForValue: () => `napp-telemetry-bucket-${UUID_1}`,
+  });
+  assert.deepEqual(consistent.breakdowns.map(({ catalogLocalId }) => catalogLocalId), [
+    `napp-telemetry-bucket-${UUID_1}`,
+    `napp-telemetry-bucket-${UUID_1}`,
+  ]);
+  assert.doesNotMatch(JSON.stringify(consistent), /Synthetic Shared/);
+});
+
+test("returns no raw-value reverse map from normalization or catalog build", () => {
+  const input = candidate(undefined, { breakdowns: [randomBreakdown()] });
+  const before = clone(input);
+  const normalized = normalize(input);
+  const catalog = build([input]);
+  assert.deepEqual(input, before);
+  assert.equal(normalized instanceof Map, false);
+  assert.equal(catalog instanceof Map, false);
+  assert.deepEqual(Reflect.ownKeys(normalized).sort(), [
+    "aggregate", "breakdowns", "bucketEndedAt", "exceptionGroups", "limitations", "metricId",
+    "p75Pairing", "queryHash", "queryId", "status", "suppressedCohortCount",
+  ].sort());
+  assert.doesNotMatch(JSON.stringify({ normalized, catalog }), /Synthetic Private Cohort|rawValue|reverseMap/);
+});
+
+test("never derives a cohort identity from an unkeyed hash", () => {
+  const raw = safe.syntheticPrivateValue;
+  const output = normalize(candidate(undefined, { breakdowns: [randomBreakdown(raw)] }));
+  assert.equal(output.breakdowns[0].catalogLocalId, `napp-telemetry-bucket-${UUID_1}`);
+  assert.notEqual(output.breakdowns[0].catalogLocalId, digestJson(raw));
+  assert.doesNotMatch(output.breakdowns[0].catalogLocalId, /^[0-9a-f]{64}$/);
+});
+
+test("suppresses an overall sample below twenty", () => {
+  const output = normalize(candidate(undefined, {
+    aggregate: { sampleSize: 19, count: 19, rate: null, p75: null },
+  }));
+  assert.deepEqual(output, {
+    queryId: "route-health", queryHash: HASH_A, p75Pairing: null, metricId: "route-health",
+    status: "SUPPRESSED", bucketEndedAt: null, aggregate: null, breakdowns: [],
+    exceptionGroups: [], suppressedCohortCount: 1,
+    limitations: ["LOW_SAMPLE_SUPPRESSED", "NO_REVIEWED_THRESHOLD"],
+  });
+});
+
+test("drops cohorts below twenty and increments only the suppression count", () => {
+  let randomCalls = 0;
+  const output = normalize(candidate("js-exception-rate", {
+    breakdowns: [randomBreakdown("Synthetic Small", { sampleSize: 19 })],
+    exceptionGroups: [{
+      providerFingerprint: safe.syntheticProviderFingerprint,
+      sampleSize: 19, count: 1, rate: 0.05,
+    }],
+    providerExceptionFingerprintAttestation: clone(safe.providerExceptionFingerprintAttestation),
+  }), { randomIdForValue: () => { randomCalls += 1; return `napp-telemetry-bucket-${UUID_1}`; } });
+  assert.deepEqual(output.breakdowns, []);
+  assert.deepEqual(output.exceptionGroups, []);
+  assert.equal(output.suppressedCohortCount, 2);
+  assert.ok(output.limitations.includes("LOW_SAMPLE_SUPPRESSED"));
+  assert.equal(randomCalls, 0);
+  assert.doesNotMatch(JSON.stringify(output), /Synthetic Small|synthetic-provider-opaque-group-1/);
+});
+
+test("treats provider fingerprint evidence as a structural attestation only", () => {
+  const output = normalize(candidate("js-exception-rate", {
+    aggregate: { sampleSize: 200, count: null, rate: 0.04, p75: null },
+    exceptionGroups: [{
+      providerFingerprint: safe.syntheticProviderFingerprint,
+      sampleSize: 100, count: 4, rate: 0.04,
+    }],
+    providerExceptionFingerprintAttestation: clone(safe.providerExceptionFingerprintAttestation),
+  }));
+  assert.deepEqual(output.exceptionGroups, [{
+    providerFingerprint: safe.syntheticProviderFingerprint,
+    sampleSize: 100, count: 4, rate: 0.04,
+  }]);
+});
+
+test("drops exception groups without a structural attestation and keeps totals", () => {
+  const output = normalize(candidate("js-exception-rate", {
+    aggregate: { sampleSize: 200, count: null, rate: 0.04, p75: null },
+    exceptionGroups: [{
+      providerFingerprint: safe.syntheticProviderFingerprint,
+      sampleSize: 100, count: 4, rate: 0.04,
+    }],
+  }));
+  assert.deepEqual(output.aggregate, { sampleSize: 200, count: null, rate: 0.04, p75: null });
+  assert.deepEqual(output.exceptionGroups, []);
+  assert.equal(output.suppressedCohortCount, 0);
+});
+
+test("rejects raw event person replay and export shaped fields", () => {
+  for (const shape of forbidden.providerPayloadShapes) {
+    assert.throws(() => normalize(candidate(undefined, shape)));
+  }
+});
+
+test("rejects URL query identifier IP GPS contact and search fields", () => {
+  for (const shape of forbidden.identityAndLocationShapes) {
+    assert.throws(() => normalize(candidate(undefined, shape)));
+  }
+});
+
+test("rejects exception detail code variables headers and bodies", () => {
+  for (const shape of forbidden.exceptionAndTransportShapes) {
+    assert.throws(() => normalize(candidate(undefined, shape)));
+  }
+});
+
+test("rejects unknown fields prototypes accessors symbols and sparse arrays", () => {
+  assert.throws(() => normalize(candidate(undefined, { unknown: true })));
+  assert.throws(() => normalize(Object.assign(Object.create({ inherited: true }), candidate())));
+  const accessor = candidate();
+  Object.defineProperty(accessor, "queryId", { enumerable: true, get: () => "route-health" });
+  assert.throws(() => normalize(accessor));
+  const symbol = candidate();
+  symbol[Symbol("synthetic")] = true;
+  assert.throws(() => normalize(symbol));
+  const sparse = candidate();
+  sparse.breakdowns = new Array(1);
+  assert.throws(() => normalize(sparse));
+
+  const hugeSparseBreakdowns = [];
+  hugeSparseBreakdowns.length = 1_000_000_000;
+  assertRejectsHugeSparseWithoutProportionalEnumeration(() => normalize(candidate(undefined, {
+    breakdowns: hugeSparseBreakdowns,
+  })));
+
+  const hugeSparseDimensions = [];
+  hugeSparseDimensions.length = 1_000_000_000;
+  const hugePairInput = clone(safe.p75Pairing.p75PairDigestInput);
+  hugePairInput.dimensions = hugeSparseDimensions;
+  assertRejectsHugeSparseWithoutProportionalEnumeration(() => digestP75Pair(hugePairInput));
+});
+
+test("rejects unknown metric status dimension limitation and malformed numbers", () => {
+  assert.throws(() => normalize(candidate("unknown-metric")));
+  assert.throws(() => normalize(candidate(undefined, { status: "SUPPRESSED" })));
+  assert.throws(() => normalize(candidate(undefined, { breakdowns: [randomBreakdown(undefined, { dimension: "unknown" })] })));
+  assert.throws(() => normalize(candidate(undefined, { limitations: ["UNKNOWN_LIMITATION"] })));
+  for (const malformed of [NaN, Infinity, -1, -0, 1.1, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => normalize(candidate(undefined, {
+      aggregate: { sampleSize: malformed, count: 1, rate: null, p75: null },
+    })));
+  }
+  assert.throws(() => normalize(candidate(undefined, {
+    aggregate: { sampleSize: 20, count: null, rate: 1.1, p75: null },
+  })));
+});
+
+test("catalog wrapper has the exact six fields and sorted unique metrics", () => {
+  const catalog = build([candidate("route-health"), candidate("funnel-search")]);
+  assert.deepEqual(Object.keys(catalog), [
+    "schemaVersion", "provider", "accessLockDigest", "capturedAt", "metrics", "catalogDigest",
+  ]);
+  assert.deepEqual(catalog.metrics.map(({ metricId }) => metricId), ["funnel-search", "route-health"]);
+  assert.deepEqual(validateTelemetryCatalog(catalog), { ok: true, errors: [] });
+  assert.throws(() => build([candidate("route-health"), candidate("route-health")]));
+  assert.throws(() => validateTelemetryCatalog({ ...catalog, extra: true }));
+});
+
+test("catalog validation rejects forged available samples below twenty including p75", () => {
+  const countAtTwenty = build([candidate(undefined, {
+    aggregate: { sampleSize: 20, count: 20, rate: null, p75: null },
+  })]);
+  assert.deepEqual(validateTelemetryCatalog(countAtTwenty), { ok: true, errors: [] });
+  const forgedCount = clone(countAtTwenty);
+  forgedCount.metrics[0].aggregate.sampleSize = 19;
+  assert.throws(() => validateTelemetryCatalog(recomputeCatalogDigest(forgedCount)));
+
+  const p75AtTwenty = build([p75Candidate({
+    aggregate: { sampleSize: 20, count: null, rate: null, p75: 2100.5 },
+  })]);
+  assert.deepEqual(validateTelemetryCatalog(p75AtTwenty), { ok: true, errors: [] });
+  const forgedP75 = clone(p75AtTwenty);
+  forgedP75.metrics[0].aggregate.sampleSize = 19;
+  assert.throws(() => validateTelemetryCatalog(recomputeCatalogDigest(forgedP75)));
+});
+
+test("catalog digest excludes only itself and includes capturedAt and accessLockDigest", () => {
+  const catalog = build([candidate()]);
+  const { catalogDigest, ...content } = catalog;
+  assert.equal(catalogDigest, digestJson(content));
+  assert.notEqual(catalogDigest, digestJson({ ...content, capturedAt: "2026-08-27T00:00:00.000Z" }));
+  assert.notEqual(catalogDigest, digestJson({ ...content, accessLockDigest: HASH_A }));
+  assert.throws(() => validateTelemetryCatalog({ ...catalog, capturedAt: "2026-08-27T00:00:00.000Z" }));
+});
+
+test("catalog ordering and digest are deterministic for fixed injected inputs", () => {
+  const leftInput = [
+    candidate("route-health", { breakdowns: [randomBreakdown("Synthetic B"), randomBreakdown("Synthetic A")] }),
+    candidate("funnel-search"),
+  ];
+  const before = clone(leftInput);
+  const left = build(leftInput, { uuids: [UUID_2, UUID_1] });
+  const right = build([...leftInput].reverse(), { uuids: [UUID_2, UUID_1] });
+  assert.deepEqual(left, right);
+  assert.deepEqual(leftInput, before);
+});
+
+test("unavailable metrics retain status without invented zero values", () => {
+  const output = normalize(unavailableCandidate());
+  assert.deepEqual(output, {
+    queryId: "route-health", queryHash: HASH_A, p75Pairing: null, metricId: "route-health",
+    status: "UNAVAILABLE", bucketEndedAt: null, aggregate: null, breakdowns: [],
+    exceptionGroups: [], suppressedCohortCount: 0, limitations: ["QUERY_UNAVAILABLE"],
+  });
+  assert.equal(output.aggregate, null);
+  assert.deepEqual(output.breakdowns, []);
+  assert.deepEqual(output.exceptionGroups, []);
+});

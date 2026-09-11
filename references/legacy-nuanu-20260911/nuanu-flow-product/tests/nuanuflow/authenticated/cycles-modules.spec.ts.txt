@@ -1,0 +1,179 @@
+import { test, expect } from '../fixtures/authenticated.fixture';
+import { SANDBOX } from '../fixtures/sandbox-data';
+import {
+  type CreatedCycle,
+  type CreatedModule,
+  ProjectFeaturesPage,
+} from '../pages/project-features.page';
+import { WorkItemsPage } from '../pages/work-items.page';
+
+const MUTATING_TEST_TIMEOUT_MS = 120_000;
+
+const daysFromNow = (days: number) => {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + days);
+  return date;
+};
+
+test.describe.configure({ mode: 'serial' });
+
+test.describe('Nuanu Flow owned cycles and modules', () => {
+  test('enforces observed cycle and module title/date rules without creating a container', async ({
+    page,
+    assertSandbox,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const features = new ProjectFeaturesPage(page, assertSandbox);
+
+    expect(await features.rejectEmptyCycle()).toBe(0);
+    await features.assertCyclePastDatesDisabled();
+    await assertSandbox();
+
+    expect(await features.rejectEmptyModule()).toBe(0);
+    await features.assertModulePastDatesEnabled();
+    await assertSandbox();
+  });
+
+  test('adds and removes an owned work item while cycle counts survive reload', async ({
+    page,
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const workItems = new WorkItemsPage(page);
+    const features = new ProjectFeaturesPage(page, assertSandbox);
+    const itemName = ownedName('cycle item');
+    const cycleName = ownedName('cycle');
+    let ownedCycle: CreatedCycle | undefined;
+
+    await workItems.goto();
+    await assertSandbox();
+    const item = await workItems.create({ title: itemName }, (responseOwned) => {
+      cleanupLedger.register({
+        kind: 'work-item',
+        id: responseOwned.id,
+        name: itemName,
+        workspaceSlug: SANDBOX.workspaceSlug,
+        cleanup: () => workItems.deleteOwned(responseOwned.id, itemName),
+      });
+    });
+
+    const cycle = await features.createCycle(
+      {
+        name: cycleName,
+        description: 'Synthetic QA cycle with no personal data.',
+        startDate: daysFromNow(35),
+        endDate: daysFromNow(36),
+      },
+      (responseOwned) => {
+        if (responseOwned.kind !== 'cycle') {
+          throw new Error('Expected a response-owned cycle.');
+        }
+        ownedCycle = responseOwned;
+        cleanupLedger.register({
+          kind: 'cycle',
+          id: responseOwned.id,
+          name: cycleName,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: () => features.cleanupOwnedCycle(responseOwned),
+        });
+      },
+    );
+    expect(ownedCycle).toEqual(cycle);
+
+    await workItems.goto();
+    await workItems.openByName(itemName, item);
+    await features.assignCycleToCurrentWorkItem(workItems, cycle, item);
+    await features.assertCycleProgress(cycle, itemName);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const cycleProgress = page
+      .getByRole('main')
+      .getByText('0/1', { exact: true });
+    await expect(cycleProgress).toHaveCount(1);
+    await expect(cycleProgress).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole('link').filter({ hasText: itemName })).toHaveCount(1);
+
+    await workItems.goto();
+    await workItems.openByName(itemName, item);
+    await features.removeCycleFromCurrentWorkItem(workItems, cycle, item);
+    await expect(workItems.title).toHaveValue(itemName);
+
+    await features.deleteOwnedCycle(cycle);
+    await workItems.deleteOwned(item.id, itemName);
+  });
+
+  test('adds and removes an owned work item while module counts survive reload', async ({
+    page,
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const workItems = new WorkItemsPage(page);
+    const features = new ProjectFeaturesPage(page, assertSandbox);
+    const itemName = ownedName('module item');
+    const moduleName = ownedName('module');
+    let ownedModule: CreatedModule | undefined;
+
+    await workItems.goto();
+    await assertSandbox();
+    const item = await workItems.create({ title: itemName }, (responseOwned) => {
+      cleanupLedger.register({
+        kind: 'work-item',
+        id: responseOwned.id,
+        name: itemName,
+        workspaceSlug: SANDBOX.workspaceSlug,
+        cleanup: () => workItems.deleteOwned(responseOwned.id, itemName),
+      });
+    });
+
+    const module = await features.createModule(
+      {
+        name: moduleName,
+        description: 'Synthetic QA module with no personal data.',
+        startDate: daysFromNow(2),
+        endDate: daysFromNow(3),
+      },
+      (responseOwned) => {
+        if (responseOwned.kind !== 'module') {
+          throw new Error('Expected a response-owned module.');
+        }
+        ownedModule = responseOwned;
+        cleanupLedger.register({
+          kind: 'module',
+          id: responseOwned.id,
+          name: moduleName,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: () => features.cleanupOwnedModule(responseOwned),
+        });
+      },
+    );
+    expect(ownedModule).toEqual(module);
+
+    await workItems.goto();
+    await workItems.openByName(itemName, item);
+    await features.assignModuleToCurrentWorkItem(workItems, module, item);
+    await features.assertModuleProgress(module, itemName);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    const moduleProgress = page
+      .getByRole('main')
+      .getByText('0/1', { exact: true });
+    await expect(moduleProgress).toHaveCount(1);
+    await expect(moduleProgress).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole('link').filter({ hasText: itemName })).toHaveCount(1);
+
+    await workItems.goto();
+    await workItems.openByName(itemName, item);
+    await features.removeModuleFromCurrentWorkItem(workItems, module, item);
+    await expect(workItems.title).toHaveValue(itemName);
+
+    await features.deleteOwnedModule(module);
+    await workItems.deleteOwned(item.id, itemName);
+  });
+});

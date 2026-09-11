@@ -1,0 +1,149 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+import {
+  buildChangedFileClassificationDocument,
+  validateChangedFileClassifications,
+} from "../src/impact-proof.mjs";
+
+const baselineSha = "a".repeat(40);
+const candidateSha = "b".repeat(40);
+const runtime = {
+  status: "M",
+  paths: ["apps/api/src/app.ts"],
+  diffSha256: `sha256:${"1".repeat(64)}`,
+};
+const testOnly = {
+  status: "A",
+  paths: ["apps/api/tests/app.test.ts"],
+  diffSha256: `sha256:${"2".repeat(64)}`,
+};
+
+function row(change, overrides = {}) {
+  return {
+    ...change,
+    disposition: "product_impact",
+    nodeIds: ["route:api-gates"],
+    assuranceNodeIds: [],
+    reason: "Changes the authenticated API gate behavior.",
+    assuranceImpact: "direct runtime behavior",
+    ...overrides,
+  };
+}
+
+test("changed-file proof validates complete exact diff classifications", () => {
+  const document = buildChangedFileClassificationDocument({
+    baselineSha,
+    candidateSha,
+    classifications: [
+      row(runtime),
+      row(testOnly, {
+        disposition: "no_product_impact",
+        nodeIds: [],
+        assuranceNodeIds: ["route:api-gates"],
+        reason: "Test-only change with no shipped runtime bytes.",
+        assuranceImpact: "narrows API regression coverage",
+      }),
+    ],
+  });
+  const result = validateChangedFileClassifications({
+    document,
+    expectedChanges: [runtime, testOnly],
+    baselineSha,
+    candidateSha,
+    validNodeIds: new Set(["route:api-gates"]),
+    requireComplete: true,
+  });
+  assert.equal(result.classified, 2);
+  assert.deepEqual(result.counts, { productImpact: 1, noProductImpact: 1 });
+});
+
+test("changed-file proof rejects wrong identity, missing and stale diff rows", () => {
+  const document = buildChangedFileClassificationDocument({
+    baselineSha,
+    candidateSha,
+    classifications: [row(runtime)],
+  });
+  assert.throws(() => validateChangedFileClassifications({
+    document,
+    expectedChanges: [runtime],
+    baselineSha: "c".repeat(40),
+    candidateSha,
+    validNodeIds: ["route:api-gates"],
+  }), /CHANGED_FILE_SHA_MISMATCH/);
+  assert.throws(() => validateChangedFileClassifications({
+    document,
+    expectedChanges: [runtime, testOnly],
+    baselineSha,
+    candidateSha,
+    validNodeIds: ["route:api-gates"],
+    requireComplete: true,
+  }), /CHANGED_FILE_CLASSIFICATION_INCOMPLETE/);
+  assert.throws(() => validateChangedFileClassifications({
+    document,
+    expectedChanges: [{ ...runtime, diffSha256: `sha256:${"3".repeat(64)}` }],
+    baselineSha,
+    candidateSha,
+    validNodeIds: ["route:api-gates"],
+  }), /CHANGED_FILE_DIFF_MISMATCH/);
+});
+
+test("changed-file proof rejects duplicates, unsafe paths and ownerless product impact", () => {
+  assert.throws(() => buildChangedFileClassificationDocument({
+    baselineSha,
+    candidateSha,
+    classifications: [row(runtime), row(runtime)],
+  }), /CHANGED_FILE_CLASSIFICATION_DUPLICATE/);
+  assert.throws(() => buildChangedFileClassificationDocument({
+    baselineSha,
+    candidateSha,
+    classifications: [row({ ...runtime, paths: ["../app.ts"] })],
+  }), /CHANGED_FILE_PATHS_INVALID/);
+  assert.throws(() => buildChangedFileClassificationDocument({
+    baselineSha,
+    candidateSha,
+    classifications: [row(runtime, { nodeIds: [] })],
+  }), /CHANGED_FILE_PRODUCT_OWNER_REQUIRED/);
+  assert.throws(() => validateChangedFileClassifications({
+    document: buildChangedFileClassificationDocument({
+      baselineSha,
+      candidateSha,
+      classifications: [row(runtime, { nodeIds: ["req:UNKNOWN"] })],
+    }),
+    expectedChanges: [runtime],
+    baselineSha,
+    candidateSha,
+    validNodeIds: ["route:api-gates"],
+  }), /CHANGED_FILE_OWNER_UNKNOWN/);
+});
+
+test("test and CI no-impact rows must record assurance impact", () => {
+  assert.throws(() => buildChangedFileClassificationDocument({
+    baselineSha,
+    candidateSha,
+    classifications: [row(testOnly, {
+      disposition: "no_product_impact",
+      nodeIds: [],
+      assuranceNodeIds: ["route:api-gates"],
+      reason: "Test-only change with no runtime bytes.",
+      assuranceImpact: "none",
+    })],
+  }), /CHANGED_FILE_ASSURANCE_IMPACT_REQUIRED/);
+});
+
+test("the Freeland baseline-to-production diff has a complete sealed classification", async () => {
+  const document = JSON.parse(await readFile(new URL("../proof/changed-file-classifications.v1.json", import.meta.url), "utf8"));
+  const graph = JSON.parse(await readFile(new URL("../graph/current/graph.json", import.meta.url), "utf8"));
+  const expectedChanges = document.classifications.map(({ status, paths, diffSha256 }) => ({ status, paths, diffSha256 }));
+  const result = validateChangedFileClassifications({
+    document,
+    expectedChanges,
+    baselineSha: "94991c44860bb12306f5eafb940727e02092ecc7",
+    candidateSha: "5b75d6bbc4a390434d660a95324510f1bff13148",
+    validNodeIds: new Set(graph.nodes.map(node => node.id)),
+    requireComplete: true,
+  });
+  assert.equal(result.classified, 535);
+  assert.deepEqual(result.counts, { productImpact: 334, noProductImpact: 201 });
+});

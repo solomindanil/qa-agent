@@ -1,0 +1,994 @@
+import {
+  expect,
+  test,
+} from '../fixtures/authenticated.fixture';
+import type { Page } from '@playwright/test';
+import {
+  SANDBOX,
+} from '../fixtures/sandbox-data';
+import {
+  PROCESS_PATHS,
+  PROCESS_SANDBOX_WORKSPACE_ID,
+  ProcessEditorPage,
+  ProcessesPage,
+  type CreatedProcess,
+  type InertExclusiveGatewayGraph,
+  type InertHumanTaskGraph,
+  type ProcessMutationCapture,
+  assertExactInertBpmnAutosavePayload,
+  assertExactInertBpmnAutosaveResponse,
+  assertExactInertExclusiveGatewayGraph,
+  assertExactInertHumanTaskGraph,
+  assertExactProcessNameAbsent,
+  captureExactProcessMetadataUpdate,
+  captureExactProcessSaves,
+  classifyNuanu8ProcessOutcome,
+  cleanupCapturedProcessBatch,
+  reconcileRejectedProcessExactIds,
+  requireNuanu8KnownBugFailure,
+  withBlockedProcessMutations,
+} from '../pages/processes.page';
+
+const MUTATING_TEST_TIMEOUT_MS = 90_000;
+
+const absoluteEndpoint = (pageUrl: string, path: string) =>
+  new URL(path, pageUrl).href;
+
+const expectHealthyCapture = <T>(
+  capture: ProcessMutationCapture<T>,
+  expectedSuccesses = 1,
+) => {
+  expect(capture.actionError).toBeUndefined();
+  expect(capture.attemptCount).toBe(expectedSuccesses);
+  expect(capture.responseCount).toBe(expectedSuccesses);
+  expect(capture.successfulEntries).toHaveLength(expectedSuccesses);
+  expect(capture.nonSuccessResponses).toEqual([]);
+  expect(capture.contractErrors).toEqual([]);
+  expect(capture.registrationErrors).toEqual([]);
+  expect(capture.requestFailedOutcomes).toEqual([]);
+  expect(capture.unexpectedMutationAttempts).toEqual([]);
+};
+
+const recoverRejectedCreateIds = async ({
+  page,
+  capture,
+  requestedName,
+  created,
+}: {
+  page: Page;
+  capture: ProcessMutationCapture<CreatedProcess>;
+  requestedName: string;
+  created: CreatedProcess[];
+}) => {
+  await reconcileRejectedProcessExactIds({
+    rejections: capture.contractErrors,
+    requestedName,
+    workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+    inspect: async (id) => {
+      const response = await page.request.get(
+        PROCESS_PATHS.detailApi(id),
+      );
+      return {
+        status: response.status(),
+        ...(response.status() === 200
+          ? { body: await response.json() }
+          : {}),
+      };
+    },
+    cleanup: async (recovered) => {
+      if (!created.some(({ id }) => id === recovered.id)) {
+        created.push(recovered);
+      }
+    },
+  });
+};
+
+const cleanupOwnedProcesses = async ({
+  page,
+  assertSandbox,
+  created,
+  allowedNames,
+}: {
+  page: Page;
+  assertSandbox: () => Promise<void>;
+  created: CreatedProcess[];
+  allowedNames: ReadonlySet<string>;
+}) =>
+  cleanupCapturedProcessBatch({
+    page,
+    requestContext: page.request,
+    assertSandbox,
+    created,
+    allowedNames,
+    detailEndpoint: PROCESS_PATHS.detailApi,
+    collectionEndpoint: PROCESS_PATHS.collectionApi,
+    uiPath: PROCESS_PATHS.list,
+  });
+
+test.describe.configure({ mode: 'serial' });
+
+test.describe('Nuanu Flow authenticated processes', () => {
+  test('loads and reloads the sandbox process list without mutation', async ({
+    page,
+    assertSandbox,
+  }) => {
+    const processes = new ProcessesPage(page, assertSandbox);
+
+    await processes.gotoList();
+    await assertSandbox();
+    expect(new URL(page.url()).pathname).toBe(PROCESS_PATHS.list);
+    await expect(processes.createButton).toBeVisible();
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await assertSandbox();
+    await expect(processes.createButton).toBeVisible();
+  });
+
+  test('cancels an exact-prefix draft with zero process POSTs', async ({
+    page,
+    assertSandbox,
+    ownedName,
+  }) => {
+    const processes = new ProcessesPage(page, assertSandbox);
+    const cancelledName = ownedName('cancelled BPMN process');
+
+    await processes.gotoList();
+    await assertSandbox();
+    await processes.openCreate();
+    await processes.fillCreate({
+      name: cancelledName,
+      description: 'Inert cancelled BPMN draft.',
+      category: 'Operational',
+    });
+    const endpoint = absoluteEndpoint(
+      page.url(),
+      PROCESS_PATHS.collectionApi,
+    );
+    const blocked = await withBlockedProcessMutations({
+      page,
+      targets: [{ method: 'POST', endpoint }],
+      action: () => processes.cancelCreate(),
+    });
+
+    expect(blocked.actionError).toBeUndefined();
+    expect(blocked.attemptCount).toBe(0);
+    expect(blocked.allowedCount).toBe(0);
+    expect(blocked.requestFailedOutcomes).toEqual([]);
+    await expect(page.getByText(cancelledName, { exact: true })).toHaveCount(0);
+  });
+
+  test('persists owned process metadata and cleans its exact ID', async ({
+    page,
+    assertSandbox,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const processes = new ProcessesPage(page, assertSandbox);
+    const initialName = ownedName('metadata BPMN process');
+    const renamedName = ownedName('metadata BPMN process renamed');
+    const initialDescription =
+      'Inert BPMN metadata lifecycle created by guarded E2E.';
+    const updatedDescription =
+      'Inert BPMN metadata persisted after guarded rename.';
+    const allowedNames = new Set([initialName]);
+    const created: CreatedProcess[] = [];
+
+    try {
+      const createCapture = await processes.createOwned({
+        name: initialName,
+        description: initialDescription,
+        category: 'Operational',
+        register: (responseOwned) => {
+          created.push(responseOwned);
+        },
+      });
+      await recoverRejectedCreateIds({
+        page,
+        capture: createCapture,
+        requestedName: initialName,
+        created,
+      });
+      expectHealthyCapture(createCapture);
+      const owned = created[0];
+      expect(owned).toBeDefined();
+      if (!owned) throw new Error('Missing response-owned process.');
+
+      await expect(processes.ownedProcessLink(owned.id)).toHaveCount(1);
+      await processes.gotoOwned(owned);
+      await assertSandbox();
+      expect(new URL(page.url()).pathname).toBe(
+        PROCESS_PATHS.detail(owned.id),
+      );
+
+      const editor = new ProcessEditorPage(page, assertSandbox);
+      await expect(editor.processNameInput).toHaveValue(initialName);
+      await expect(editor.processDescriptionInput).toHaveValue(
+        initialDescription,
+      );
+      await expect(editor.processCategorySelect).toHaveCount(1);
+      await expect(editor.processCategorySelect).toHaveValue('operational');
+      await expect(editor.startRunButton).toBeDisabled();
+
+      const endpoint = absoluteEndpoint(
+        page.url(),
+        PROCESS_PATHS.detailApi(owned.id),
+      );
+      const familyPattern =
+        absoluteEndpoint(page.url(), PROCESS_PATHS.collectionApi) + '**';
+
+      const renameCapture = await captureExactProcessMetadataUpdate({
+        page,
+        created: owned,
+        allowedNames,
+        endpoint,
+        familyPattern,
+        patch: { name: renamedName },
+        assertSandbox,
+        action: async () => {
+          await editor.processNameInput.fill(renamedName);
+          await editor.processNameInput.press('Tab');
+        },
+      });
+      expectHealthyCapture(renameCapture.capture);
+      expect(renameCapture.foreignWriteAttempts).toEqual([]);
+
+      const descriptionCapture =
+        await captureExactProcessMetadataUpdate({
+          page,
+          created: owned,
+          allowedNames,
+          endpoint,
+          familyPattern,
+          patch: { description: updatedDescription },
+          assertSandbox,
+          action: async () => {
+            await editor.processDescriptionInput.fill(
+              updatedDescription,
+            );
+            await editor.processDescriptionInput.press('Tab');
+          },
+        });
+      expectHealthyCapture(descriptionCapture.capture);
+      expect(descriptionCapture.foreignWriteAttempts).toEqual([]);
+
+      const categoryCapture =
+        await captureExactProcessMetadataUpdate({
+          page,
+          created: owned,
+          allowedNames,
+          endpoint,
+          familyPattern,
+          patch: { category: 'service' },
+          assertSandbox,
+          action: () =>
+            editor.processCategorySelect.selectOption({
+              label: 'Service',
+            }),
+        });
+      expectHealthyCapture(categoryCapture.capture);
+      expect(categoryCapture.foreignWriteAttempts).toEqual([]);
+
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await assertSandbox();
+      await expect(editor.processNameInput).toHaveValue(renamedName);
+      await expect(editor.processDescriptionInput).toHaveValue(
+        updatedDescription,
+      );
+      await expect(editor.processCategorySelect).toHaveValue('service');
+      await expect(editor.savedIndicator).toBeVisible();
+    } finally {
+      await cleanupOwnedProcesses({
+        page,
+        assertSandbox,
+        created,
+        allowedNames,
+      });
+    }
+  });
+
+  test('handles a bracketed process name without silent failure (NUANU-8)', async ({
+    page,
+    assertSandbox,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const processes = new ProcessesPage(page, assertSandbox);
+    const bracketedName = ownedName('[BPMN] punctuation');
+    const allowedNames = new Set([bracketedName]);
+    const created: CreatedProcess[] = [];
+    let behaviorFailure: unknown | undefined;
+
+    try {
+      const capture = await processes.createOwned({
+        name: bracketedName,
+        description: 'Guarded regression coverage for NUANU-8.',
+        category: 'Operational',
+        register: (responseOwned) => {
+          created.push(responseOwned);
+        },
+        quietMs: 750,
+        minAdmissionMs: 25_000,
+        maxAdmissionMs: 26_000,
+      });
+      await recoverRejectedCreateIds({
+        page,
+        capture,
+        requestedName: bracketedName,
+        created,
+      });
+
+      const operationalErrors: unknown[] = [];
+      if (capture.actionError !== undefined) {
+        operationalErrors.push(capture.actionError);
+      }
+      operationalErrors.push(
+        ...capture.nonSuccessResponses.map(
+          ({ status, url }) =>
+            new Error(`NUANU-8 create returned ${status} at ${url}.`),
+        ),
+        ...capture.contractErrors.map(({ error }) => error),
+        ...capture.registrationErrors.map(({ error }) => error),
+        ...capture.requestFailedOutcomes.map(
+          ({ url }) =>
+            new Error(`NUANU-8 create request failed at ${url}.`),
+        ),
+        ...capture.unexpectedMutationAttempts.map(
+          ({ method, url }) =>
+            new Error(
+              `NUANU-8 blocked unexpected process mutation ${method} ${url}.`,
+            ),
+        ),
+      );
+
+      const dialogVisible = await processes.createDialog.isVisible();
+      const validationMessages = dialogVisible
+        ? await processes.createNameValidationMessages()
+        : [];
+      const actionableValidation = validationMessages.length > 0;
+      const [createdProcess] = created;
+      const exactProcessVisible =
+        created.length === 1 &&
+        createdProcess !== undefined &&
+        (await processes.ownedProcessLink(createdProcess.id).count()) === 1;
+      let exactNameAbsenceProven = false;
+      if (
+        capture.successfulEntries.length === 0 &&
+        operationalErrors.length === 0
+      ) {
+        await assertExactProcessNameAbsent({
+          page,
+          requestContext: page.request,
+          assertSandbox,
+          name: bracketedName,
+          collectionEndpoint: PROCESS_PATHS.collectionApi,
+          uiPath: PROCESS_PATHS.list,
+        });
+        exactNameAbsenceProven = true;
+      }
+
+      behaviorFailure = classifyNuanu8ProcessOutcome({
+        submitCompleted: capture.actionError === undefined,
+        dialogVisible,
+        actionableValidation,
+        exactProcessVisible,
+        successfulProcessCount: capture.successfulEntries.length,
+        exactNameAbsenceProven,
+        operationalErrors,
+        cleanupResidualIds: [],
+      });
+    } finally {
+      await cleanupOwnedProcesses({
+        page,
+        assertSandbox,
+        created,
+        allowedNames,
+      });
+    }
+
+    const expectedFailure =
+      requireNuanu8KnownBugFailure(behaviorFailure);
+    test.fail(
+      true,
+      'NUANU-8: completed submit leaves the bracketed process form open without actionable validation or an exact created process.',
+    );
+    throw expectedFailure;
+  });
+
+  test('persists an inert Start → Human Task → End graph', async ({
+    page,
+    assertSandbox,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const processes = new ProcessesPage(page, assertSandbox);
+    const processName = ownedName('editor BPMN process');
+    const humanTaskLabel = ownedName('human task');
+    const allowedNames = new Set([processName]);
+    const created: CreatedProcess[] = [];
+    let humanTaskId: string | undefined;
+    let finalGraph: InertHumanTaskGraph | undefined;
+    let finalRequestXml: string | undefined;
+
+    const requireOneId = (
+      xml: string,
+      localName: 'userTask' | 'sequenceFlow',
+      relation?: { sourceRef: string; targetRef: string },
+    ) => {
+      const tags = [
+        ...xml.matchAll(
+          new RegExp(`<bpmn:${localName}\\b[^>]*>`, 'gu'),
+        ),
+      ].filter(({ 0: tag }) => {
+        if (!relation) return true;
+        return (
+          tag.includes(`sourceRef="${relation.sourceRef}"`) &&
+          tag.includes(`targetRef="${relation.targetRef}"`)
+        );
+      });
+      expect(tags).toHaveLength(1);
+      const id = tags[0]?.[0].match(/\bid="([^"]+)"/u)?.[1];
+      expect(id).toMatch(/^[A-Za-z][A-Za-z0-9_-]*$/);
+      if (!id) throw new Error(`Missing exact ${localName} ID.`);
+      return id;
+    };
+
+    try {
+      const createCapture = await processes.createOwned({
+        name: processName,
+        description:
+          'Inert Start to Human Task to End BPMN lifecycle.',
+        category: 'Operational',
+        register: (responseOwned) => {
+          created.push(responseOwned);
+        },
+      });
+      await recoverRejectedCreateIds({
+        page,
+        capture: createCapture,
+        requestedName: processName,
+        created,
+      });
+      expectHealthyCapture(createCapture);
+      const owned = created[0];
+      expect(owned).toBeDefined();
+      if (!owned) throw new Error('Missing response-owned process.');
+
+      await processes.gotoOwned(owned);
+      await assertSandbox();
+      expect(new URL(page.url()).pathname).toBe(
+        PROCESS_PATHS.detail(owned.id),
+      );
+      const editor = new ProcessEditorPage(page, assertSandbox);
+      await expect(editor.autosaveSwitch).toBeChecked();
+      await expect(editor.elementById('StartEvent_1')).toHaveCount(1);
+      await expect(editor.startRunButton).toBeDisabled();
+
+      const humanTaskCapture = await captureExactProcessSaves({
+        page,
+        created: owned,
+        allowedNames,
+        assertSandbox,
+        action: () => editor.appendHumanTaskFrom('StartEvent_1'),
+        validatePayload: (request) => {
+          const xml = assertExactInertBpmnAutosavePayload(
+            request.postDataJSON(),
+            { requiredElementIds: ['StartEvent_1'] },
+          );
+          const taskId = requireOneId(xml, 'userTask');
+          requireOneId(xml, 'sequenceFlow', {
+            sourceRef: 'StartEvent_1',
+            targetRef: taskId,
+          });
+          humanTaskId = taskId;
+        },
+        validateResponse: (body, request) => {
+          const requestXml = assertExactInertBpmnAutosavePayload(
+            request.postDataJSON(),
+            { requiredElementIds: ['StartEvent_1'] },
+          );
+          assertExactInertBpmnAutosaveResponse(body, {
+            processId: owned.id,
+            workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+            requestXml,
+          });
+        },
+        quietMs: 800,
+        maxAdmissionMs: 5_000,
+      });
+      expectHealthyCapture(humanTaskCapture.capture);
+      expect(humanTaskCapture.foreignWriteAttempts).toEqual([]);
+      expect(humanTaskId).toBeDefined();
+      if (!humanTaskId) {
+        throw new Error('Human Task save missed its exact ID.');
+      }
+      const exactHumanTaskId = humanTaskId;
+      await expect(editor.elementById(exactHumanTaskId)).toHaveCount(1);
+
+      const labelCapture = await captureExactProcessSaves({
+        page,
+        created: owned,
+        allowedNames,
+        assertSandbox,
+        action: async () => {
+          await editor.elementById(exactHumanTaskId).click();
+          await editor.renameSelectedHumanTask(humanTaskLabel);
+        },
+        validatePayload: (request) => {
+          assertExactInertBpmnAutosavePayload(
+            request.postDataJSON(),
+            {
+              requiredElementIds: [
+                'StartEvent_1',
+                exactHumanTaskId,
+              ],
+              requiredLabel: humanTaskLabel,
+            },
+          );
+        },
+        validateResponse: (body, request) => {
+          const requestXml = assertExactInertBpmnAutosavePayload(
+            request.postDataJSON(),
+            {
+              requiredElementIds: [
+                'StartEvent_1',
+                exactHumanTaskId,
+              ],
+              requiredLabel: humanTaskLabel,
+            },
+          );
+          assertExactInertBpmnAutosaveResponse(body, {
+            processId: owned.id,
+            workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+            requestXml,
+          });
+        },
+        quietMs: 800,
+        maxAdmissionMs: 5_000,
+      });
+      expectHealthyCapture(labelCapture.capture);
+      expect(labelCapture.foreignWriteAttempts).toEqual([]);
+
+      const endCapture = await captureExactProcessSaves({
+        page,
+        created: owned,
+        allowedNames,
+        assertSandbox,
+        action: () =>
+          editor.appendEndEventFrom(exactHumanTaskId),
+        validatePayload: (request) => {
+          const body = request.postDataJSON() as {
+            bpmn_xml?: unknown;
+          };
+          if (typeof body.bpmn_xml !== 'string') {
+            throw new Error('Final BPMN save missed its XML.');
+          }
+          finalGraph = assertExactInertHumanTaskGraph(
+            body.bpmn_xml,
+            {
+              taskLabel: humanTaskLabel,
+              expectedStartId: 'StartEvent_1',
+            },
+          );
+          finalRequestXml = body.bpmn_xml;
+        },
+        validateResponse: (body, request) => {
+          const requestBody = request.postDataJSON() as {
+            bpmn_xml?: unknown;
+          };
+          if (typeof requestBody.bpmn_xml !== 'string') {
+            throw new Error('Final BPMN response missed request XML.');
+          }
+          assertExactInertHumanTaskGraph(requestBody.bpmn_xml, {
+            taskLabel: humanTaskLabel,
+            expectedStartId: 'StartEvent_1',
+          });
+          assertExactInertBpmnAutosaveResponse(body, {
+            processId: owned.id,
+            workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+            requestXml: requestBody.bpmn_xml,
+          });
+        },
+        quietMs: 800,
+        maxAdmissionMs: 5_000,
+      });
+      expectHealthyCapture(endCapture.capture);
+      expect(endCapture.foreignWriteAttempts).toEqual([]);
+      expect(finalGraph).toBeDefined();
+      expect(finalRequestXml).toBeDefined();
+      if (!finalGraph || !finalRequestXml) {
+        throw new Error('Final inert BPMN graph was not captured.');
+      }
+
+      await expect(editor.savedIndicator).toBeVisible();
+      await expect(editor.zeroErrorsIndicator).toBeVisible();
+      await expect(
+        editor.elementById(finalGraph.startId),
+      ).toHaveCount(1);
+      await expect(
+        editor.elementById(finalGraph.humanTaskId),
+      ).toContainText(humanTaskLabel);
+      await expect(editor.elementById(finalGraph.endId)).toHaveCount(1);
+      await expect(
+        editor.elementById(finalGraph.startToTaskFlowId),
+      ).toHaveCount(1);
+      await expect(
+        editor.elementById(finalGraph.taskToEndFlowId),
+      ).toHaveCount(1);
+
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await assertSandbox();
+      await expect(editor.savedIndicator).toBeVisible();
+      await expect(editor.zeroErrorsIndicator).toBeVisible();
+      await expect(
+        editor.elementById(finalGraph.humanTaskId),
+      ).toContainText(humanTaskLabel);
+      for (const id of [
+        finalGraph.startId,
+        finalGraph.endId,
+        finalGraph.startToTaskFlowId,
+        finalGraph.taskToEndFlowId,
+      ]) {
+        await expect(editor.elementById(id)).toHaveCount(1);
+      }
+
+      const persisted = await page.request.get(
+        PROCESS_PATHS.detailApi(owned.id),
+      );
+      expect(persisted.status()).toBe(200);
+      const persistedBody: unknown = await persisted.json();
+      const persistedXml = assertExactInertBpmnAutosaveResponse(
+        persistedBody,
+        {
+          processId: owned.id,
+          workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+          requestXml: finalRequestXml,
+        },
+      );
+      expect(
+        assertExactInertHumanTaskGraph(persistedXml, {
+          taskLabel: humanTaskLabel,
+          expectedStartId: 'StartEvent_1',
+        }),
+      ).toEqual(finalGraph);
+    } finally {
+      await cleanupOwnedProcesses({
+        page,
+        assertSandbox,
+        created,
+        allowedNames,
+      });
+    }
+  });
+
+  test('persists and undo-redoes one inert Exclusive Gateway path', async ({
+    page,
+    assertSandbox,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const processes = new ProcessesPage(page, assertSandbox);
+    const processName = ownedName('exclusive gateway BPMN process');
+    const allowedNames = new Set([processName]);
+    const created: CreatedProcess[] = [];
+    let gatewayId: string | undefined;
+    let endId: string | undefined;
+    let startToGatewayFlowId: string | undefined;
+    let finalGraph: InertExclusiveGatewayGraph | undefined;
+    let finalRequestXml: string | undefined;
+
+    const requireOneElementId = (
+      xml: string,
+      localName:
+        | 'exclusiveGateway'
+        | 'endEvent'
+        | 'sequenceFlow',
+      relation?: { sourceRef: string; targetRef: string },
+    ) => {
+      const tags = [
+        ...xml.matchAll(
+          new RegExp(`<bpmn:${localName}\\b[^>]*>`, 'gu'),
+        ),
+      ].filter(({ 0: tag }) => {
+        if (!relation) return true;
+        return (
+          tag.includes(`sourceRef="${relation.sourceRef}"`) &&
+          tag.includes(`targetRef="${relation.targetRef}"`)
+        );
+      });
+      expect(tags).toHaveLength(1);
+      const id = tags[0]?.[0].match(/\bid="([^"]+)"/u)?.[1];
+      expect(id).toMatch(/^[A-Za-z][A-Za-z0-9_-]*$/);
+      if (!id) throw new Error(`Missing exact ${localName} ID.`);
+      return id;
+    };
+
+    try {
+      const createCapture = await processes.createOwned({
+        name: processName,
+        description:
+          'Inert Start to Exclusive Gateway to End BPMN lifecycle.',
+        category: 'Operational',
+        register: (responseOwned) => {
+          created.push(responseOwned);
+        },
+      });
+      await recoverRejectedCreateIds({
+        page,
+        capture: createCapture,
+        requestedName: processName,
+        created,
+      });
+      expectHealthyCapture(createCapture);
+      const owned = created[0];
+      expect(owned).toBeDefined();
+      if (!owned) throw new Error('Missing response-owned process.');
+
+      await processes.gotoOwned(owned);
+      await assertSandbox();
+      const editor = new ProcessEditorPage(page, assertSandbox);
+      await expect(editor.elementById('StartEvent_1')).toHaveCount(1);
+      await editor.gatewayPaletteGroup.hover();
+      await expect(editor.gatewayOptions).toHaveText([
+        'Exclusive',
+        'Inclusive',
+        'Parallel',
+        'Event-based',
+      ]);
+      const captureSave = (
+        action: () => Promise<unknown>,
+        validate: (xml: string) => void,
+      ) =>
+        captureExactProcessSaves({
+          page,
+          created: owned,
+          allowedNames,
+          assertSandbox,
+          action,
+          validatePayload: (request) => {
+            const xml = assertExactInertBpmnAutosavePayload(
+              request.postDataJSON(),
+              { requiredElementIds: ['StartEvent_1'] },
+            );
+            validate(xml);
+          },
+          validateResponse: (body, request) => {
+            const requestXml =
+              assertExactInertBpmnAutosavePayload(
+                request.postDataJSON(),
+                { requiredElementIds: ['StartEvent_1'] },
+              );
+            assertExactInertBpmnAutosaveResponse(body, {
+              processId: owned.id,
+              workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+              requestXml,
+            });
+          },
+          quietMs: 800,
+          maxAdmissionMs: 5_000,
+        });
+
+      const gatewayCapture = await captureSave(
+        () => editor.createExclusiveGateway(),
+        (xml) => {
+          gatewayId = requireOneElementId(
+            xml,
+            'exclusiveGateway',
+          );
+        },
+      );
+      expectHealthyCapture(gatewayCapture.capture);
+      expect(gatewayCapture.foreignWriteAttempts).toEqual([]);
+      if (!gatewayId) {
+        throw new Error('Exclusive Gateway save missed its ID.');
+      }
+      const exactGatewayId = gatewayId;
+
+      const endCapture = await captureSave(
+        () => editor.createEndEvent(),
+        (xml) => {
+          endId = requireOneElementId(xml, 'endEvent');
+        },
+      );
+      expectHealthyCapture(endCapture.capture);
+      expect(endCapture.foreignWriteAttempts).toEqual([]);
+      if (!endId) throw new Error('End event save missed its ID.');
+      const exactEndId = endId;
+
+      const firstFlowCapture = await captureSave(
+        () =>
+          editor.connectWithGlobalTool(
+            'StartEvent_1',
+            exactGatewayId,
+          ),
+        (xml) => {
+          startToGatewayFlowId = requireOneElementId(
+            xml,
+            'sequenceFlow',
+            {
+              sourceRef: 'StartEvent_1',
+              targetRef: exactGatewayId,
+            },
+          );
+        },
+      );
+      expectHealthyCapture(firstFlowCapture.capture);
+      expect(firstFlowCapture.foreignWriteAttempts).toEqual([]);
+      if (!startToGatewayFlowId) {
+        throw new Error('Start to Gateway save missed its flow ID.');
+      }
+      const exactStartToGatewayFlowId =
+        startToGatewayFlowId;
+
+      const finalFlowCapture = await captureSave(
+        () =>
+          editor.connectFromContext(
+            exactGatewayId,
+            exactEndId,
+          ),
+        (xml) => {
+          finalGraph = assertExactInertExclusiveGatewayGraph(
+            xml,
+            { expectedStartId: 'StartEvent_1' },
+          );
+          finalRequestXml = xml;
+        },
+      );
+      expectHealthyCapture(finalFlowCapture.capture);
+      expect(finalFlowCapture.foreignWriteAttempts).toEqual([]);
+      if (!finalGraph || !finalRequestXml) {
+        throw new Error('Final Exclusive Gateway graph was not captured.');
+      }
+      const exactFinalGraph = finalGraph;
+      const exactFinalRequestXml = finalRequestXml;
+      expect(exactFinalGraph.gatewayId).toBe(exactGatewayId);
+      expect(exactFinalGraph.endId).toBe(exactEndId);
+      expect(exactFinalGraph.startToGatewayFlowId).toBe(
+        exactStartToGatewayFlowId,
+      );
+      await expect(editor.savedIndicator).toBeVisible();
+      await expect(editor.noIssuesIndicator).toBeVisible();
+
+      const undoCapture = await captureSave(
+        () => editor.undoWithButton(),
+        (xml) => {
+          assertExactInertBpmnAutosavePayload(
+            { bpmn_xml: xml },
+            {
+              requiredElementIds: [
+                exactFinalGraph.startId,
+                exactFinalGraph.gatewayId,
+                exactFinalGraph.endId,
+                exactFinalGraph.startToGatewayFlowId,
+              ],
+            },
+          );
+          expect(
+            xml.match(/<bpmn:sequenceFlow\b/gu) ?? [],
+          ).toHaveLength(1);
+          expect(xml).not.toContain(
+            `id="${exactFinalGraph.gatewayToEndFlowId}"`,
+          );
+        },
+      );
+      expectHealthyCapture(undoCapture.capture);
+      expect(undoCapture.foreignWriteAttempts).toEqual([]);
+      await expect(editor.oneWarningIndicator).toBeVisible();
+
+      const redoCapture = await captureSave(
+        () => editor.redoWithButton(),
+        (xml) => {
+          expect(
+            assertExactInertExclusiveGatewayGraph(xml, {
+              expectedStartId: 'StartEvent_1',
+            }),
+          ).toEqual(exactFinalGraph);
+        },
+      );
+      expectHealthyCapture(redoCapture.capture);
+      expect(redoCapture.foreignWriteAttempts).toEqual([]);
+      await expect(editor.noIssuesIndicator).toBeVisible();
+
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await assertSandbox();
+      await expect(editor.savedIndicator).toBeVisible();
+      await expect(editor.noIssuesIndicator).toBeVisible();
+      for (const id of Object.values(exactFinalGraph)) {
+        await expect(editor.elementById(id)).toHaveCount(1);
+      }
+      const persisted = await page.request.get(
+        PROCESS_PATHS.detailApi(owned.id),
+      );
+      expect(persisted.status()).toBe(200);
+      const persistedXml = assertExactInertBpmnAutosaveResponse(
+        await persisted.json(),
+        {
+          processId: owned.id,
+          workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+          requestXml: exactFinalRequestXml,
+        },
+      );
+      expect(
+        assertExactInertExclusiveGatewayGraph(persistedXml, {
+          expectedStartId: 'StartEvent_1',
+        }),
+      ).toEqual(exactFinalGraph);
+    } finally {
+      await cleanupOwnedProcesses({
+        page,
+        assertSandbox,
+        created,
+        allowedNames,
+      });
+    }
+  });
+
+  test('covers Inclusive, Parallel, and Event-based gateway paths', async () => {
+    test.fixme(
+      true,
+      'Only the Exclusive Gateway path has a proven inert topology, autosave, undo/redo, reload, and cleanup contract; valid Inclusive, Parallel, and Event-based branch semantics remain unproven.',
+    );
+  });
+
+  test('enforces process required-name, length, and invalid-character boundaries', async () => {
+    test.fixme(
+      true,
+      'Cancel is proven with zero POSTs, but exact process-name length and invalid-character validation boundaries have not been observed with a family-wide blocked-create drain.',
+    );
+  });
+
+  test('captures and cleans every rapid double-submit process response', async () => {
+    test.fixme(
+      true,
+      'The collector supports concurrent duplicate successes, but the live Create Process button retry/double-submit admission behavior has not been safely observed in NF QA Sandbox.',
+    );
+  });
+
+  test('asserts the exact duplicate-name process contract', async () => {
+    test.fixme(
+      true,
+      'Duplicate-name acceptance versus actionable validation has not been observed with two fresh exact IDs and shared-name batch cleanup.',
+    );
+  });
+
+  test('cancels owned process deletion without a DELETE', async () => {
+    test.fixme(
+      true,
+      'Confirmed exact-ID deletion is proven for cleanup, but the product uses a native confirm rather than a distinct cancellable in-app control; an automated no-DELETE cancel contract is not yet established.',
+    );
+  });
+
+  test('archives, restores, and deactivates only an exact owned process', async () => {
+    test.fixme(
+      true,
+      'No reversible archive/restore contract was exposed and activation/deactivation is intentionally blocked until run/history cascade cleanup is proven.',
+    );
+  });
+
+  test('blocks an observed invalid draft with zero run mutations', async () => {
+    test.fixme(
+      true,
+      'No exact invalid-draft lint rule and corresponding run endpoint have both been observed; Start Run being disabled on an inactive draft is not treated as invalid-graph proof.',
+    );
+  });
+
+  test('keeps an admitted autosave safe during navigation', async () => {
+    test.fixme(
+      true,
+      'The exact reproducible pending-save interval has not been proven; do not add timing sleeps.',
+    );
+  });
+
+  test('copies only to a controllable exact-prefix process name', async () => {
+    test.fixme(
+      true,
+      'Copy name control is not proven; auto-created Copy of names would violate the exact-prefix ownership boundary.',
+    );
+  });
+
+  test('runs a minimal inert process and proves run/history cascade cleanup', async () => {
+    test.fixme(
+      true,
+      'Read-only recon proved template_id run linkage and the run/steps/tasks routes, but POST/activation success schemas and terminal standalone-delete statuses remain unobserved; process deletion only soft-archives runs/tasks, so no run mutation is authorized.',
+    );
+  });
+});

@@ -1,0 +1,1373 @@
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { expect, test, type Browser } from '@playwright/test';
+import { CleanupLedger, SANDBOX } from './fixtures/sandbox-data';
+import {
+  assertExactOwnedFeatureCleanupTarget,
+  captureExactFeaturePosts,
+  parseCreatedCycle,
+  parseCreatedModule,
+  parseCreatedProject,
+  ProjectFeaturesPage,
+  validateCycleAssignmentRequest,
+  validateCycleRemovalRequest,
+  validateModuleAssignmentRequest,
+  validateModuleRemovalRequest,
+  waitForExactResponse,
+} from './pages/project-features.page';
+import { WorkItemsPage } from './pages/work-items.page';
+
+const IDS = {
+  project: '11111111-1111-4111-8111-111111111111',
+  cycle: '22222222-2222-4222-8222-222222222222',
+  module: '33333333-3333-4333-8333-333333333333',
+  item: '88888888-8888-4888-8888-888888888888',
+} as const;
+
+const jsonAssociationRequest = (body: unknown) => ({
+  postData: () => JSON.stringify(body),
+  postDataJSON: () => body,
+});
+
+test('cycle assignment validator admits only one owned item ID', () => {
+  expect(() =>
+    validateCycleAssignmentRequest(
+      jsonAssociationRequest({ issues: [IDS.item] }),
+      IDS.item,
+    ),
+  ).not.toThrow();
+  expect(() =>
+    validateCycleAssignmentRequest(
+      jsonAssociationRequest({ issues: [IDS.item, IDS.project] }),
+      IDS.item,
+    ),
+  ).toThrow(/single response-owned work-item ID/);
+});
+
+test('cycle removal validator requires an empty body', () => {
+  expect(() =>
+    validateCycleRemovalRequest({
+      postData: () => null,
+      postDataJSON: () => null,
+    }),
+  ).not.toThrow();
+  expect(() =>
+    validateCycleRemovalRequest(jsonAssociationRequest({ issues: [] })),
+  ).toThrow(/must not include/);
+});
+
+test('module assignment validator rejects extra fields and arrays', () => {
+  expect(() =>
+    validateModuleAssignmentRequest(
+      jsonAssociationRequest({ issues: [IDS.item] }),
+      IDS.item,
+    ),
+  ).not.toThrow();
+  expect(() =>
+    validateModuleAssignmentRequest(
+      jsonAssociationRequest({
+        issues: [IDS.item],
+        removed_modules: [IDS.module],
+      }),
+      IDS.item,
+    ),
+  ).toThrow(/single response-owned work-item ID/);
+});
+
+test('module removal validator requires its exact two-field schema', () => {
+  expect(() =>
+    validateModuleRemovalRequest(
+      jsonAssociationRequest({
+        modules: [],
+        removed_modules: [IDS.module],
+      }),
+      IDS.module,
+    ),
+  ).not.toThrow();
+  expect(() =>
+    validateModuleRemovalRequest(
+      jsonAssociationRequest({
+        modules: [IDS.project],
+        removed_modules: [IDS.module],
+      }),
+      IDS.module,
+    ),
+  ).toThrow(/exact owned schema/);
+});
+
+test('accepts only the exact response-owned project identity', () => {
+  const created = parseCreatedProject(
+    {
+      id: IDS.project,
+      name: 'QA E2E run project',
+      identifier: 'QE123',
+    },
+    'QA E2E run project',
+    'QE123',
+  );
+
+  expect(created).toEqual({
+    kind: 'project',
+    id: IDS.project,
+    name: 'QA E2E run project',
+    identifier: 'QE123',
+  });
+  expect(() =>
+    parseCreatedProject(
+      { ...created, name: 'NF QA Sandbox' },
+      'QA E2E run project',
+      'QE123',
+    ),
+  ).toThrow(/identity/);
+  expect(() =>
+    parseCreatedProject(
+      { ...created, identifier: 'NFQAS' },
+      'QA E2E run project',
+      'QE123',
+    ),
+  ).toThrow(/identity/);
+});
+
+test('rejects malformed or cross-project planning-container responses', () => {
+  const cycleBody = {
+    id: IDS.cycle,
+    name: 'QA E2E run cycle',
+    project_id: SANDBOX.projectId,
+    start_date: '2026-08-25T00:00:01Z',
+    end_date: '2026-08-26T23:59:00Z',
+  };
+  const moduleBody = {
+    id: IDS.module,
+    name: 'QA E2E run module',
+    project_id: SANDBOX.projectId,
+    start_date: '2026-07-27',
+    target_date: '2026-07-28',
+    status: 'backlog',
+  };
+
+  expect(parseCreatedCycle(cycleBody, cycleBody.name)).toEqual({
+    kind: 'cycle',
+    id: IDS.cycle,
+    name: cycleBody.name,
+    projectId: SANDBOX.projectId,
+    startDate: cycleBody.start_date,
+    endDate: cycleBody.end_date,
+  });
+  expect(parseCreatedModule(moduleBody, moduleBody.name)).toEqual({
+    kind: 'module',
+    id: IDS.module,
+    name: moduleBody.name,
+    projectId: SANDBOX.projectId,
+    startDate: moduleBody.start_date,
+    targetDate: moduleBody.target_date,
+    status: 'backlog',
+  });
+
+  expect(() =>
+    parseCreatedCycle(
+      { ...cycleBody, project_id: '44444444-4444-4444-8444-444444444444' },
+      cycleBody.name,
+    ),
+  ).toThrow(/identity/);
+  expect(() =>
+    parseCreatedModule(
+      { ...moduleBody, id: 'not-a-uuid' },
+      moduleBody.name,
+    ),
+  ).toThrow(/exact ID contract/);
+});
+
+test('cleanup guard refuses an ID, name, or project mismatch', () => {
+  const owned = parseCreatedCycle(
+    {
+      id: IDS.cycle,
+      name: 'QA E2E run cycle',
+      project_id: SANDBOX.projectId,
+      start_date: '2026-08-25T00:00:01Z',
+      end_date: '2026-08-26T23:59:00Z',
+    },
+    'QA E2E run cycle',
+  );
+
+  expect(
+    assertExactOwnedFeatureCleanupTarget(
+      {
+        id: IDS.cycle,
+        name: owned.name,
+        project_id: SANDBOX.projectId,
+      },
+      owned,
+    ),
+  ).toMatchObject({ id: IDS.cycle, name: owned.name });
+  expect(() =>
+    assertExactOwnedFeatureCleanupTarget(
+      { id: IDS.module, name: owned.name, project_id: SANDBOX.projectId },
+      owned,
+    ),
+  ).toThrow(/ownership match/);
+  expect(() =>
+    assertExactOwnedFeatureCleanupTarget(
+      { id: IDS.cycle, name: 'Existing cycle', project_id: SANDBOX.projectId },
+      owned,
+    ),
+  ).toThrow(/ownership match/);
+  expect(() =>
+    assertExactOwnedFeatureCleanupTarget(
+      {
+        id: IDS.cycle,
+        name: owned.name,
+        project_id: '44444444-4444-4444-8444-444444444444',
+      },
+      owned,
+    ),
+  ).toThrow(/ownership match/);
+});
+
+test('registers and cleans an admitted late 201 before surfacing an action error', async ({
+  page,
+}) => {
+  const endpoint = 'https://qa.invalid/modules/';
+  const name = 'QA E2E late response module';
+  let releaseResponse = () => {};
+  const responseGate = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  await page.setContent('<main>synthetic feature collector</main>');
+  await page.route(endpoint, async (route) => {
+    await responseGate;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: IDS.module,
+        name,
+        project_id: SANDBOX.projectId,
+        start_date: '2026-07-27',
+        target_date: '2026-07-28',
+        status: 'backlog',
+      }),
+    });
+  });
+
+  const ledger = new CleanupLedger();
+  const registeredIds: string[] = [];
+  const cleanedIds: string[] = [];
+  let settled = false;
+  const settling = captureExactFeaturePosts({
+    page,
+    endpoint,
+    quietMs: 30,
+    maxAdmissionMs: 200,
+    parse: (body) => parseCreatedModule(body, name),
+    register: (created) => {
+      registeredIds.push(created.id);
+      ledger.register({
+        kind: 'module',
+        id: created.id,
+        name,
+        workspaceSlug: SANDBOX.workspaceSlug,
+        cleanup: async () => {
+          cleanedIds.push(created.id);
+        },
+      });
+    },
+    action: async () => {
+      let confirmAdmission = () => {};
+      const admitted = new Promise<void>((resolve) => {
+        confirmAdmission = resolve;
+      });
+      const observeRequest = (request: { method(): string; url(): string }) => {
+        if (request.method() === 'POST' && request.url() === endpoint) {
+          page.off('request', observeRequest);
+          confirmAdmission();
+        }
+      };
+      page.on('request', observeRequest);
+      await page.evaluate((url) => {
+        void fetch(url, { method: 'POST' }).catch(() => {});
+      }, endpoint);
+      await admitted;
+      throw new Error('synthetic click timeout after request admission');
+    },
+  }).then((capture) => {
+    settled = true;
+    return capture;
+  });
+
+  await page.waitForTimeout(2_200);
+  expect(settled).toBe(false);
+  expect(registeredIds).toEqual([]);
+  releaseResponse();
+  const capture = await settling;
+
+  expect(capture.actionError).toHaveProperty(
+    'message',
+    'synthetic click timeout after request admission',
+  );
+  expect(capture.attemptCount).toBe(1);
+  expect(capture.responseCount).toBe(1);
+  expect(capture.created.map(({ id }) => id)).toEqual([IDS.module]);
+  expect(registeredIds).toEqual([IDS.module]);
+  await expect(ledger.cleanupAll()).resolves.toEqual([]);
+  expect(cleanedIds).toEqual([IDS.module]);
+});
+
+const PROJECTS_PAGE =
+  `https://flow.nuanu.com/${SANDBOX.workspaceSlug}/projects/`;
+const PROJECTS_ENDPOINT =
+  `https://flow.nuanu.com/be/api/workspaces/${SANDBOX.workspaceSlug}/projects/`;
+const CYCLES_PAGE =
+  `https://flow.nuanu.com/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/cycles/`;
+const CYCLES_ENDPOINT =
+  `https://flow.nuanu.com/be/api/workspaces/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/cycles/`;
+const CYCLES_DATE_CHECK_ENDPOINT = `${CYCLES_ENDPOINT}date-check/`;
+const DEFAULT_ACTION_TIMEOUT_MS = 10_000;
+
+const projectFormHtml = (submitScript = '') => `
+  <button onclick="document.querySelector('dialog').showModal()">Add Project</button>
+  <dialog>
+    <input aria-label="Project name" />
+    <input aria-label="Project ID" />
+    <textarea aria-label="Description"></textarea>
+    <button onclick="${submitScript}">Create project</button>
+    <button>Cancel</button>
+  </dialog>
+`;
+
+const cycleFormHtml = ({
+  blockCreate = false,
+  dateCheckFormAction,
+}: {
+  blockCreate?: boolean;
+  dateCheckFormAction?: string;
+} = {}) => `
+  <button onclick="document.querySelector('dialog').showModal()">Add cycle</button>
+  <dialog>
+    <h2>Create cycle</h2>
+    <input aria-label="Title" />
+    <textarea aria-label="Description"></textarea>
+    <button id="date-range">Start date End date</button>
+    <div role="listbox" aria-label="Start date End date" hidden>
+      <button type="button" role="option">2026</button>
+      <button type="button" role="option">July</button>
+      <button type="button" data-date aria-label="Monday, July 27th, 2026">27</button>
+      <button type="button" data-date aria-label="Tuesday, July 28th, 2026">28</button>
+    </div>
+    ${
+      dateCheckFormAction
+        ? `<form method="post" action="${dateCheckFormAction}"><button type="submit">Create cycle</button></form>`
+        : '<button>Create cycle</button>'
+    }
+    <button>Cancel</button>
+    <div id="blocker" hidden style="position:fixed;inset:0;z-index:9999"></div>
+  </dialog>
+  <script>
+    const listbox = document.querySelector('[role=listbox]');
+    const blocker = document.getElementById('blocker');
+    document.getElementById('date-range').onclick = () => { listbox.hidden = false; };
+    let selectedDates = 0;
+    for (const button of document.querySelectorAll('[data-date]')) {
+      button.onclick = () => {
+        selectedDates += 1;
+        if (selectedDates === 2) {
+          listbox.hidden = true;
+          ${blockCreate ? 'blocker.hidden = false;' : ''}
+        }
+      };
+    }
+  </script>
+`;
+
+test('rejecting the injected sandbox guard prevents the project create action and POST', async ({
+  page,
+}) => {
+  await page.route(PROJECTS_PAGE, (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: projectFormHtml(
+        `window.syntheticCreateClicks += 1; void fetch('${PROJECTS_ENDPOINT}', { method: 'POST' })`,
+      ).replace(
+        '<button onclick=',
+        '<script>window.syntheticCreateClicks = 0</script><button onclick=',
+      ),
+    }),
+  );
+  let mutationRequests = 0;
+  await page.route(PROJECTS_ENDPOINT, (route) =>
+    route.fulfill({ status: 201, contentType: 'application/json', body: '{}' }),
+  );
+  page.on('request', (request) => {
+    if (
+      ['POST', 'PATCH', 'DELETE'].includes(request.method()) &&
+      request.url().startsWith('https://flow.nuanu.com/be/api/')
+    ) {
+      mutationRequests += 1;
+    }
+  });
+  let guardCalls = 0;
+  const features = new ProjectFeaturesPage(page, async () => {
+    guardCalls += 1;
+    throw new Error('synthetic sandbox guard rejected');
+  });
+
+  await expect(
+    features.createProject(
+      {
+        name: 'QA E2E guarded project',
+        identifier: 'QG123',
+        description: 'Synthetic only.',
+      },
+      () => {},
+    ),
+  ).rejects.toThrow('synthetic sandbox guard rejected');
+  expect(guardCalls).toBe(1);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { syntheticCreateClicks: number })
+            .syntheticCreateClicks,
+      ),
+    )
+    .toBe(0);
+  expect(mutationRequests).toBe(0);
+
+  const harnessPost = page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' && request.url() === PROJECTS_ENDPOINT,
+  );
+  await page
+    .getByRole('button', { name: 'Create project', exact: true })
+    .click();
+  await harnessPost;
+  expect(mutationRequests).toBe(1);
+});
+
+test('cycle create click failure without a date-check drains quickly and removes observers', async ({
+  page,
+}) => {
+  await page.route(CYCLES_PAGE, (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: cycleFormHtml({ blockCreate: true }),
+    }),
+  );
+  await page.route('https://flow.nuanu.com/be/api/**', (route) =>
+    route.abort('blockedbyclient'),
+  );
+
+  let mutationRequests = 0;
+  const observeMutation = (request: { method(): string; url(): string }) => {
+    if (
+      request.method() === 'POST' &&
+      [CYCLES_ENDPOINT, CYCLES_DATE_CHECK_ENDPOINT].includes(request.url())
+    ) {
+      mutationRequests += 1;
+    }
+  };
+  page.on('request', observeMutation);
+  const listenerPage = page as typeof page & {
+    listenerCount(event: string): number;
+  };
+  const baselineListeners = {
+    request: listenerPage.listenerCount('request'),
+    response: listenerPage.listenerCount('response'),
+    requestfailed: listenerPage.listenerCount('requestfailed'),
+  };
+  page.setDefaultTimeout(300);
+
+  try {
+    let guardCalls = 0;
+    const features = new ProjectFeaturesPage(page, async () => {
+      guardCalls += 1;
+      expect(new URL(page.url()).pathname).toBe(
+        `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/cycles/`,
+      );
+    });
+    const startedAt = Date.now();
+    const completion = features.createCycle(
+      {
+        name: 'QA E2E blocked date-check cycle',
+        description: 'Synthetic only.',
+        startDate: new Date(2026, 6, 27, 12),
+        endDate: new Date(2026, 6, 28, 12),
+      },
+      () => {
+        throw new Error('Blocked cycle must not register.');
+      },
+    );
+    const outcome = await Promise.race([
+      completion.then(
+        () => ({ kind: 'resolved' as const }),
+        (error: unknown) => ({ kind: 'rejected' as const, error }),
+      ),
+      new Promise<{ kind: 'timed-out' }>((resolve) =>
+        setTimeout(() => resolve({ kind: 'timed-out' }), 2_500),
+      ),
+    ]);
+
+    expect(outcome.kind).toBe('rejected');
+    expect(Date.now() - startedAt).toBeLessThan(2_500);
+    expect(guardCalls).toBe(1);
+    expect(mutationRequests).toBe(0);
+    expect(listenerPage.listenerCount('request')).toBe(baselineListeners.request);
+    expect(listenerPage.listenerCount('response')).toBe(baselineListeners.response);
+    expect(listenerPage.listenerCount('requestfailed')).toBe(
+      baselineListeners.requestfailed,
+    );
+  } finally {
+    page.setDefaultTimeout(DEFAULT_ACTION_TIMEOUT_MS);
+    page.off('request', observeMutation);
+  }
+});
+
+test('cycle create drains an admitted slow date-check after its click times out', async ({
+  page,
+}) => {
+  test.setTimeout(6_000);
+  let releaseDateCheck = () => {};
+  const dateCheckGate = new Promise<void>((resolve) => {
+    releaseDateCheck = resolve;
+  });
+  let confirmDateCheckAdmission = () => {};
+  const dateCheckAdmission = new Promise<void>((resolve) => {
+    confirmDateCheckAdmission = resolve;
+  });
+  let dateCheckRequests = 0;
+  let cycleCreateRequests = 0;
+  let dateCheckFulfilled = false;
+
+  await page.route(CYCLES_PAGE, (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: cycleFormHtml({
+        dateCheckFormAction: CYCLES_DATE_CHECK_ENDPOINT,
+      }),
+    }),
+  );
+  await page.route('https://flow.nuanu.com/be/api/**', (route) =>
+    route.abort('blockedbyclient'),
+  );
+  await page.route(CYCLES_DATE_CHECK_ENDPOINT, async (route) => {
+    dateCheckRequests += 1;
+    confirmDateCheckAdmission();
+    await dateCheckGate;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: false,
+        error: 'Synthetic occupied date range.',
+      }),
+    });
+    dateCheckFulfilled = true;
+  });
+  const observeCreate = (request: { method(): string; url(): string }) => {
+    if (request.method() === 'POST' && request.url() === CYCLES_ENDPOINT) {
+      cycleCreateRequests += 1;
+    }
+  };
+  page.on('request', observeCreate);
+  const listenerPage = page as typeof page & {
+    listenerCount(event: string): number;
+  };
+  const baselineListeners = {
+    request: listenerPage.listenerCount('request'),
+    response: listenerPage.listenerCount('response'),
+    requestfailed: listenerPage.listenerCount('requestfailed'),
+  };
+  page.setDefaultTimeout(300);
+
+  try {
+    const features = new ProjectFeaturesPage(page, async () => {});
+    let settled = false;
+    const completion = features
+      .createCycle(
+        {
+          name: 'QA E2E admitted slow date-check cycle',
+          description: 'Synthetic only.',
+          startDate: new Date(2026, 6, 27, 12),
+          endDate: new Date(2026, 6, 28, 12),
+        },
+        () => {
+          throw new Error('Slow rejected cycle must not register.');
+        },
+      )
+      .then(
+        () => ({ kind: 'resolved' as const }),
+        (error: unknown) => ({ kind: 'rejected' as const, error }),
+      )
+      .finally(() => {
+        settled = true;
+      });
+
+    await dateCheckAdmission;
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    expect(settled).toBe(false);
+    releaseDateCheck();
+    const outcome = await completion;
+
+    expect(outcome.kind).toBe('rejected');
+    expect(dateCheckRequests).toBe(1);
+    expect(dateCheckFulfilled).toBe(true);
+    expect(cycleCreateRequests).toBe(0);
+    expect(listenerPage.listenerCount('request')).toBe(baselineListeners.request);
+    expect(listenerPage.listenerCount('response')).toBe(baselineListeners.response);
+    expect(listenerPage.listenerCount('requestfailed')).toBe(
+      baselineListeners.requestfailed,
+    );
+  } finally {
+    releaseDateCheck();
+    page.setDefaultTimeout(DEFAULT_ACTION_TIMEOUT_MS);
+    page.off('request', observeCreate);
+  }
+});
+
+test('keeps create admission open while a slow precondition later emits a 201', async ({
+  page,
+}) => {
+  const endpoint = 'https://qa.invalid/slow-date-check/modules/';
+  const preconditionEndpoint =
+    'https://qa.invalid/slow-date-check/modules/date-check/';
+  const createReleaseEndpoint =
+    'https://qa.invalid/slow-date-check/release-create/';
+  const name = 'QA E2E slow precondition module';
+  let releasePrecondition = () => {};
+  const preconditionGate = new Promise<void>((resolve) => {
+    releasePrecondition = resolve;
+  });
+  let releaseCreate = () => {};
+  const createGate = new Promise<void>((resolve) => {
+    releaseCreate = resolve;
+  });
+  await page.setContent('<main>synthetic slow precondition</main>');
+  await page.route(preconditionEndpoint, async (route) => {
+    await preconditionGate;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ status: true }),
+    });
+  });
+  await page.route(createReleaseEndpoint, async (route) => {
+    await createGate;
+    await route.fulfill({ status: 204 });
+  });
+  await page.route(endpoint, (route) =>
+    route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: IDS.module,
+        name,
+        project_id: SANDBOX.projectId,
+        start_date: '2026-07-27',
+        target_date: '2026-07-28',
+        status: 'backlog',
+      }),
+    }),
+  );
+  page.setDefaultTimeout(50);
+
+  try {
+    const ledger = new CleanupLedger();
+    const registeredIds: string[] = [];
+    const cleanedIds: string[] = [];
+    let settled = false;
+    const precondition = waitForExactResponse(
+      page,
+      'POST',
+      preconditionEndpoint,
+      { timeout: 0 },
+    );
+    const settling = captureExactFeaturePosts({
+      page,
+      endpoint,
+      quietMs: 30,
+      maxAdmissionMs: 200,
+      action: () =>
+        page.evaluate(
+          ({ checkUrl, createUrl, releaseUrl }) => {
+            void fetch(checkUrl, { method: 'POST' })
+              .then(() => fetch(releaseUrl))
+              .then(() => fetch(createUrl, { method: 'POST' }))
+              .catch(() => {});
+          },
+          {
+            checkUrl: preconditionEndpoint,
+            createUrl: endpoint,
+            releaseUrl: createReleaseEndpoint,
+          },
+        ),
+      waitBeforeAdmissionClose: async (waitForExactAdmission) => {
+        const response = await precondition;
+        expect(await response.json()).toEqual({ status: true });
+        await waitForExactAdmission();
+      },
+      parse: (body) => parseCreatedModule(body, name),
+      register: (created) => {
+        registeredIds.push(created.id);
+        ledger.register({
+          kind: 'module',
+          id: created.id,
+          name,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: async () => cleanedIds.push(created.id),
+        });
+      },
+    }).then((capture) => {
+      settled = true;
+      return capture;
+    });
+
+    await page.waitForTimeout(2_200);
+    expect(settled).toBe(false);
+    expect(registeredIds).toEqual([]);
+    releasePrecondition();
+    await new Promise((resolve) => setTimeout(resolve, 2_250));
+    expect(settled).toBe(false);
+    expect(registeredIds).toEqual([]);
+    releaseCreate();
+    const capture = await settling;
+    expect((await precondition).status()).toBe(200);
+    expect(capture.attemptCount).toBe(1);
+    expect(capture.created.map(({ id }) => id)).toEqual([IDS.module]);
+    expect(registeredIds).toEqual([IDS.module]);
+    await expect(ledger.cleanupAll()).resolves.toEqual([]);
+    expect(cleanedIds).toEqual([IDS.module]);
+  } finally {
+    releasePrecondition();
+    releaseCreate();
+    page.setDefaultTimeout(DEFAULT_ACTION_TIMEOUT_MS);
+  }
+});
+
+test('reconciles an exact project ID when async registration rejects', async ({
+  page,
+}) => {
+  const detailEndpoint = `${PROJECTS_ENDPOINT}${IDS.project}/`;
+  const body = {
+    id: IDS.project,
+    name: 'QA E2E async registration project',
+    identifier: 'QA123',
+  };
+  await page.route(PROJECTS_PAGE, (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: projectFormHtml(
+        `void fetch('${PROJECTS_ENDPOINT}', { method: 'POST' })`,
+      ),
+    }),
+  );
+  await page.route(PROJECTS_ENDPOINT, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+  const inspectedUrls: string[] = [];
+  const deletedUrls: string[] = [];
+  const features = new ProjectFeaturesPage(page, async () => {}, {
+    get: async (url) => {
+      inspectedUrls.push(url);
+      return {
+        status: () => 200,
+        json: async () => body,
+      };
+    },
+    delete: async (url) => {
+      deletedUrls.push(url);
+      return { status: () => 204 };
+    },
+  });
+
+  await expect(
+    features.createProject(
+      {
+        name: body.name,
+        identifier: body.identifier,
+        description: 'Synthetic only.',
+      },
+      async () => {
+        throw new Error('synthetic async registration rejected');
+      },
+    ),
+  ).rejects.toThrow(/Exact feature POST capture failed after guarded cleanup/);
+  expect(inspectedUrls).toEqual([detailEndpoint]);
+  expect(deletedUrls).toEqual([detailEndpoint]);
+});
+
+test('preauthorizes an exact planned project name before a failed PATCH response', async ({
+  page,
+}) => {
+  const originalName = 'QA E2E rename before response loss';
+  const updatedName = `${originalName} updated`;
+  const identifier = 'QR123';
+  const detailEndpoint = `${PROJECTS_ENDPOINT}${IDS.project}/`;
+  const settingsPage =
+    `https://flow.nuanu.com/${SANDBOX.workspaceSlug}/settings/projects/${IDS.project}/`;
+  let serverName = originalName;
+
+  await page.route(PROJECTS_PAGE, (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: projectFormHtml(
+        `void fetch('${PROJECTS_ENDPOINT}', { method: 'POST' }).then(() => document.querySelector('dialog').close())`,
+      ),
+    }),
+  );
+  await page.route(PROJECTS_ENDPOINT, (route) =>
+    route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: IDS.project,
+        name: originalName,
+        identifier,
+      }),
+    }),
+  );
+  await page.route(settingsPage, (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: `
+        <input aria-label="Project name" value="${originalName}" />
+        <textarea aria-label="Enter project description">before</textarea>
+        <button onclick="void fetch('${detailEndpoint}', { method: 'PATCH' })">Update project</button>
+      `,
+    }),
+  );
+  await page.route(detailEndpoint, async (route) => {
+    if (route.request().method() !== 'PATCH') {
+      await route.abort('blockedbyclient');
+      return;
+    }
+    serverName = updatedName;
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: 'synthetic response loss' }),
+    });
+  });
+
+  const inspectedUrls: string[] = [];
+  const deletedUrls: string[] = [];
+  const features = new ProjectFeaturesPage(page, async () => {}, {
+    get: async (url) => {
+      inspectedUrls.push(url);
+      return {
+        status: () => 200,
+        json: async () => ({
+          id: IDS.project,
+          name: serverName,
+          identifier,
+        }),
+      };
+    },
+    delete: async (url) => {
+      deletedUrls.push(url);
+      return { status: () => 204 };
+    },
+  });
+  const created = await features.createProject(
+    {
+      name: originalName,
+      identifier,
+      description: 'Synthetic only.',
+    },
+    () => {},
+  );
+
+  await expect(
+    features.updateProject(created, updatedName, 'updated before response loss'),
+  ).rejects.toThrow();
+  expect(serverName).toBe(updatedName);
+  await expect(features.cleanupOwnedProject(created)).resolves.toBeUndefined();
+  expect(inspectedUrls).toEqual([detailEndpoint]);
+  expect(deletedUrls).toEqual([detailEndpoint]);
+});
+
+test('rejects a forged pre-existing work item before any outgoing mutation', async ({
+  page,
+}) => {
+  const workItems = new WorkItemsPage(page);
+  let mutationRequests = 0;
+  page.on('request', (request) => {
+    if (['POST', 'PATCH', 'DELETE'].includes(request.method())) {
+      mutationRequests += 1;
+    }
+  });
+
+  await expect(
+    workItems.assertCurrentResponseOwned({
+      id: '55555555-5555-4555-8555-555555555555',
+      name: 'QA E2E forged pre-existing item',
+      projectId: SANDBOX.projectId,
+      requestCount: 1,
+      sequenceId: 999,
+    }),
+  ).rejects.toThrow(/create-response ledger/);
+  expect(mutationRequests).toBe(0);
+});
+
+test('rejects a cross-project work item before any outgoing mutation', async ({
+  page,
+}) => {
+  const workItems = new WorkItemsPage(page);
+  let mutationRequests = 0;
+  page.on('request', (request) => {
+    if (['POST', 'PATCH', 'DELETE'].includes(request.method())) {
+      mutationRequests += 1;
+    }
+  });
+
+  await expect(
+    workItems.assertCurrentResponseOwned({
+      id: '66666666-6666-4666-8666-666666666666',
+      name: 'QA E2E cross-project item',
+      projectId: '77777777-7777-4777-8777-777777777777',
+      requestCount: 1,
+      sequenceId: 1000,
+    }),
+  ).rejects.toThrow(/sandbox project/);
+  expect(mutationRequests).toBe(0);
+});
+
+const SYNTHETIC_ITEM_ID = IDS.item;
+const PRE_EXISTING_ITEM_ID = '99999999-9999-4999-8999-999999999999';
+const SYNTHETIC_ITEM_SEQUENCE = 77;
+const SYNTHETIC_MODULE_NAME = 'QA E2E guarded association module';
+const SYNTHETIC_ITEM_NAME = 'QA E2E guarded association item';
+const MODULES_PATH =
+  `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/modules/`;
+const MODULES_ENDPOINT_PATH =
+  `/be/api/workspaces/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/modules/`;
+const ISSUES_PATH =
+  `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/issues/`;
+const ISSUES_ENDPOINT_PATH =
+  `/be/api/workspaces/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/issues/`;
+const ITEM_PATH =
+  `/${SANDBOX.workspaceSlug}/browse/NFQAS-${SYNTHETIC_ITEM_SEQUENCE}/`;
+const MODULE_ASSOCIATION_ENDPOINT_PATH =
+  `/be/api/workspaces/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/modules/${IDS.module}/issues/`;
+
+type SyntheticAssociationOptions = {
+  requestPath?: string;
+  delayedRequestAfterPickerMs?: number;
+  delayedSecondRequestMs?: number;
+};
+
+const startSyntheticAssociationServer = async (
+  associationPayload: unknown,
+  options: SyntheticAssociationOptions = {},
+) => {
+  let itemCreated = false;
+  let associationRequests = 0;
+  const receivedAssociationPayloads: unknown[] = [];
+  const associationRequestPath =
+    options.requestPath ?? MODULE_ASSOCIATION_ENDPOINT_PATH;
+
+  const server = createServer(async (request, response) => {
+    const method = request.method ?? 'GET';
+    const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname;
+    const sendHtml = (body: string) => {
+      response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      response.end(body);
+    };
+    const sendJson = (status: number, body: unknown) => {
+      response.writeHead(status, { 'content-type': 'application/json' });
+      response.end(JSON.stringify(body));
+    };
+    const readJson = async () => {
+      let raw = '';
+      for await (const chunk of request) raw += chunk.toString();
+      return JSON.parse(raw) as unknown;
+    };
+
+    if (method === 'GET' && path === MODULES_PATH) {
+      sendHtml(`
+        <button id="add-module">Add Module</button>
+        <dialog id="module-dialog">
+          <h2>Create module</h2>
+          <input aria-label="Title" />
+          <textarea aria-label="Description"></textarea>
+          <button id="date-range">Start date End date</button>
+          <div id="date-list" role="listbox" aria-label="Start date End date" hidden>
+            <button type="button" role="option">July</button>
+            <button type="button" data-date aria-label="Monday, July 27th, 2026">27</button>
+            <button type="button" data-date aria-label="Tuesday, July 28th, 2026">28</button>
+          </div>
+          <button id="create-module">Create Module</button>
+          <button>Cancel</button>
+        </dialog>
+        <script>
+          const moduleDialog = document.getElementById('module-dialog');
+          const dateList = document.getElementById('date-list');
+          document.getElementById('add-module').onclick = () => moduleDialog.showModal();
+          document.getElementById('date-range').onclick = () => { dateList.hidden = false; };
+          let selectedDates = 0;
+          for (const button of document.querySelectorAll('[data-date]')) {
+            button.onclick = () => {
+              selectedDates += 1;
+              if (selectedDates === 2) dateList.hidden = true;
+            };
+          }
+          document.getElementById('create-module').onclick = () => {
+            void fetch('${MODULES_ENDPOINT_PATH}', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ name: '${SYNTHETIC_MODULE_NAME}' }),
+            }).then(() => moduleDialog.close());
+          };
+        </script>
+      `);
+      return;
+    }
+
+    if (method === 'POST' && path === MODULES_ENDPOINT_PATH) {
+      sendJson(201, {
+        id: IDS.module,
+        name: SYNTHETIC_MODULE_NAME,
+        project_id: SANDBOX.projectId,
+        start_date: '2026-07-27',
+        target_date: '2026-07-28',
+        status: 'backlog',
+      });
+      return;
+    }
+
+    if (method === 'GET' && path === ISSUES_PATH) {
+      sendHtml(`
+        <button id="add-work-item">Add work item</button>
+        <dialog id="work-item-dialog">
+          <h2>Create new work item</h2>
+          <input aria-label="Title" />
+          <div contenteditable="true"></div>
+          <button id="save-work-item">Save</button>
+        </dialog>
+        ${
+          itemCreated
+            ? `<a href="${ITEM_PATH}">${SYNTHETIC_ITEM_NAME}</a>`
+            : ''
+        }
+        <script>
+          const itemDialog = document.getElementById('work-item-dialog');
+          document.getElementById('add-work-item').onclick = () => itemDialog.showModal();
+          document.getElementById('save-work-item').onclick = () => {
+            void fetch('${ISSUES_ENDPOINT_PATH}', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ name: '${SYNTHETIC_ITEM_NAME}' }),
+            }).then(() => itemDialog.close());
+          };
+        </script>
+      `);
+      return;
+    }
+
+    if (method === 'POST' && path === ISSUES_ENDPOINT_PATH) {
+      itemCreated = true;
+      sendJson(201, {
+        id: SYNTHETIC_ITEM_ID,
+        name: SYNTHETIC_ITEM_NAME,
+        project_id: SANDBOX.projectId,
+        sequence_id: SYNTHETIC_ITEM_SEQUENCE,
+      });
+      return;
+    }
+
+    if (method === 'GET' && path === ITEM_PATH) {
+      const delayedRequest =
+        options.delayedRequestAfterPickerMs === undefined
+          ? ''
+          : `
+            blocker.hidden = false;
+            setTimeout(sendAssociation, ${options.delayedRequestAfterPickerMs});
+          `;
+      const optionAction =
+        options.delayedRequestAfterPickerMs === undefined
+          ? `
+            sendAssociation();
+            ${
+              options.delayedSecondRequestMs === undefined
+                ? ''
+                : `setTimeout(sendAssociation, ${options.delayedSecondRequestMs});`
+            }
+          `
+          : '';
+      sendHtml(`
+        <main>
+          <input aria-label="Work item title" value="${SYNTHETIC_ITEM_NAME}" />
+          <div>
+            <span>Modules</span>
+            <button id="module-property">No module</button>
+          </div>
+          <div id="module-options" role="listbox" hidden>
+            <button id="module-option" role="option">${SYNTHETIC_MODULE_NAME}</button>
+          </div>
+          <div id="blocker" hidden style="position:fixed;inset:0;z-index:9999"></div>
+        </main>
+        <script>
+          const moduleProperty = document.getElementById('module-property');
+          const moduleOptions = document.getElementById('module-options');
+          const blocker = document.getElementById('blocker');
+          const sendAssociation = () => {
+            void fetch('${associationRequestPath}', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(${JSON.stringify(associationPayload)}),
+            }).then((result) => {
+              if (!result.ok) return;
+              moduleProperty.textContent = '${SYNTHETIC_MODULE_NAME}';
+              moduleOptions.hidden = true;
+            }).catch(() => {});
+          };
+          moduleProperty.onclick = () => {
+            moduleOptions.hidden = false;
+            ${delayedRequest}
+          };
+          document.getElementById('module-option').onclick = () => {
+            ${optionAction}
+          };
+        </script>
+      `);
+      return;
+    }
+
+    if (
+      method === 'POST' &&
+      path !== MODULES_ENDPOINT_PATH &&
+      path !== ISSUES_ENDPOINT_PATH
+    ) {
+      associationRequests += 1;
+      receivedAssociationPayloads.push(await readJson());
+      sendJson(201, {});
+      return;
+    }
+
+    response.writeHead(404);
+    response.end();
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address() as AddressInfo;
+  return {
+    origin: `http://127.0.0.1:${address.port}`,
+    associationRequests: () => associationRequests,
+    receivedAssociationPayloads,
+    close: () =>
+      new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      ),
+  };
+};
+
+const openSyntheticOwnedModuleAssociation = async (
+  browser: Browser,
+  associationPayload: unknown,
+  options: SyntheticAssociationOptions = {},
+) => {
+  const server = await startSyntheticAssociationServer(
+    associationPayload,
+    options,
+  );
+  const context = await browser.newContext({ baseURL: server.origin });
+  try {
+    const page = await context.newPage();
+    const assertSandbox = async () => {
+      expect(new URL(page.url()).pathname).toMatch(
+        new RegExp(`^/${SANDBOX.workspaceSlug}/`),
+      );
+    };
+    const features = new ProjectFeaturesPage(page, assertSandbox);
+    const workItems = new WorkItemsPage(page);
+    const module = await features.createModule(
+      {
+        name: SYNTHETIC_MODULE_NAME,
+        description: 'Synthetic local module.',
+        startDate: new Date(2026, 6, 27, 12),
+        endDate: new Date(2026, 6, 28, 12),
+      },
+      () => {},
+    );
+    await workItems.goto();
+    const item = await workItems.create(
+      { title: SYNTHETIC_ITEM_NAME },
+      () => {},
+    );
+    await workItems.goto();
+    await workItems.openByName(SYNTHETIC_ITEM_NAME, item);
+    return {
+      context,
+      features,
+      item,
+      module,
+      page,
+      server,
+      workItems,
+      close: async () => {
+        await context.close();
+        await server.close();
+      },
+    };
+  } catch (error) {
+    await context.close();
+    await server.close();
+    throw error;
+  }
+};
+
+test('association helper aborts a mixed owned and pre-existing payload before backend mutation', async ({
+  browser,
+}) => {
+  const harness = await openSyntheticOwnedModuleAssociation(browser, {
+    issues: [SYNTHETIC_ITEM_ID, PRE_EXISTING_ITEM_ID],
+  });
+  try {
+    await expect(
+      harness.features.assignModuleToCurrentWorkItem(
+        harness.workItems,
+        harness.module,
+        harness.item,
+      ),
+    ).rejects.toThrow(/single response-owned work-item ID/);
+    expect(harness.server.associationRequests()).toBe(0);
+    expect(harness.server.receivedAssociationPayloads).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('association helper continues one exact owned-item array without rewriting it', async ({
+  browser,
+}) => {
+  const exactPayload = { issues: [SYNTHETIC_ITEM_ID] };
+  const harness = await openSyntheticOwnedModuleAssociation(
+    browser,
+    exactPayload,
+  );
+  try {
+    await harness.features.assignModuleToCurrentWorkItem(
+      harness.workItems,
+      harness.module,
+      harness.item,
+    );
+    expect(harness.server.associationRequests()).toBe(1);
+    expect(harness.server.receivedAssociationPayloads).toEqual([exactPayload]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('association helper aborts a mutation sent to a non-exact endpoint', async ({
+  browser,
+}) => {
+  test.setTimeout(5_000);
+  const exactPayload = { issues: [SYNTHETIC_ITEM_ID] };
+  const harness = await openSyntheticOwnedModuleAssociation(
+    browser,
+    exactPayload,
+    { requestPath: `${MODULE_ASSOCIATION_ENDPOINT_PATH}unexpected/` },
+  );
+  try {
+    await expect(
+      harness.features.assignModuleToCurrentWorkItem(
+        harness.workItems,
+        harness.module,
+        harness.item,
+      ),
+    ).rejects.toThrow(/exact endpoint/);
+    expect(harness.server.associationRequests()).toBe(0);
+    expect(harness.server.receivedAssociationPayloads).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('association helper keeps its guard active while a failed action drains delayed traffic', async ({
+  browser,
+}) => {
+  const exactPayload = { issues: [SYNTHETIC_ITEM_ID] };
+  const harness = await openSyntheticOwnedModuleAssociation(
+    browser,
+    exactPayload,
+    { delayedRequestAfterPickerMs: 350 },
+  );
+  try {
+    harness.page.setDefaultTimeout(40);
+    await expect(
+      harness.features.assignModuleToCurrentWorkItem(
+        harness.workItems,
+        harness.module,
+        harness.item,
+      ),
+    ).rejects.toThrow();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(harness.server.associationRequests()).toBe(0);
+    expect(harness.server.receivedAssociationPayloads).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('association helper drains and aborts a delayed retry after an invalid first request', async ({
+  browser,
+}) => {
+  const harness = await openSyntheticOwnedModuleAssociation(
+    browser,
+    { issues: [SYNTHETIC_ITEM_ID, PRE_EXISTING_ITEM_ID] },
+    { delayedSecondRequestMs: 350 },
+  );
+  try {
+    await expect(
+      harness.features.assignModuleToCurrentWorkItem(
+        harness.workItems,
+        harness.module,
+        harness.item,
+      ),
+    ).rejects.toThrow();
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(harness.server.associationRequests()).toBe(0);
+    expect(harness.server.receivedAssociationPayloads).toEqual([]);
+  } finally {
+    await harness.close();
+  }
+});
+
+test('association helper surfaces and aborts a delayed retry after one valid request', async ({
+  browser,
+}) => {
+  const exactPayload = { issues: [SYNTHETIC_ITEM_ID] };
+  const harness = await openSyntheticOwnedModuleAssociation(
+    browser,
+    exactPayload,
+    { delayedSecondRequestMs: 350 },
+  );
+  let associationError: unknown;
+  try {
+    try {
+      await harness.features.assignModuleToCurrentWorkItem(
+        harness.workItems,
+        harness.module,
+        harness.item,
+      );
+    } catch (error) {
+      associationError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(associationError).toBeInstanceOf(Error);
+    expect(`${associationError}`).toContain('more than one mutation request');
+    expect(harness.server.associationRequests()).toBe(1);
+    expect(harness.server.receivedAssociationPayloads).toEqual([exactPayload]);
+  } finally {
+    await harness.close();
+  }
+});

@@ -1,0 +1,1228 @@
+{
+  "version": 1,
+  "date": "2026-09-11",
+  "active": false,
+  "meaning": "Allowlisted source-only preservation; .txt prevents instruction/test/package auto-discovery. Never execute without separate compatibility and authority review.",
+  "entries": [
+    {
+      "group": "baseline-semantic-proof",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-task2",
+      "sourcePath": "package.json",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "baseline-semantic-proof/package.json.txt",
+      "bytes": 1442,
+      "sha256": "bdaf40decd58184916f9aa9d9185f75acfdb450ae21d5f65d44013822043c29b"
+    },
+    {
+      "group": "baseline-semantic-proof",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-task2",
+      "sourcePath": "tests/coverage/baseline-contract.test.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "baseline-semantic-proof/tests/coverage/baseline-contract.test.ts.txt",
+      "bytes": 11031,
+      "sha256": "e77326f0d897b4daaad196a6b2f3b133b9e10796396b6fc78ad0ecb0d00b2bf6"
+    },
+    {
+      "group": "baseline-semantic-proof",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-task2",
+      "sourcePath": "tests/coverage/baseline-contract.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "baseline-semantic-proof/tests/coverage/baseline-contract.ts.txt",
+      "bytes": 39509,
+      "sha256": "4735efb74fd285db3f922733f3c7189b9a1d54d7658d7e303512c8bd4034b5bc"
+    },
+    {
+      "group": "baseline-semantic-proof",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-task2",
+      "sourcePath": "tests/coverage/baseline-files.test.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "baseline-semantic-proof/tests/coverage/baseline-files.test.ts.txt",
+      "bytes": 9674,
+      "sha256": "6f326cbb989a2326277596d5c2f32ceb48318d111f653d8bc2f557e9c479197e"
+    },
+    {
+      "group": "baseline-semantic-proof",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-task2",
+      "sourcePath": "tests/coverage/freeland-baseline.manifest.json",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "baseline-semantic-proof/tests/coverage/freeland-baseline.manifest.json.txt",
+      "bytes": 77444,
+      "sha256": "8d4e2d6f1126ae3086fc25d3af9e617fd341669a8de6371187f8cc57670b6ddb"
+    },
+    {
+      "group": "baseline-semantic-proof",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-task2",
+      "sourcePath": "tests/playwright/freeland/auth.setup.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "baseline-semantic-proof/tests/playwright/freeland/auth.setup.ts.txt",
+      "bytes": 1027,
+      "sha256": "fac3497871f3a23e14480ef1d9bbb1b89d7654269dd7b478d8e0dcaf4414d296"
+    },
+    {
+      "group": "baseline-semantic-proof",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-task2",
+      "sourcePath": "tests/coverage/generate-freeland-baseline-manifest.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "baseline-semantic-proof/tests/coverage/generate-freeland-baseline-manifest.ts.txt",
+      "bytes": 2896,
+      "sha256": "d2a2f358289d12a5e16017b65cddfc543b50b3099306f17da689b97f36b8ada6"
+    },
+    {
+      "group": "source-access-bootstrap",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-source-access-bootstrap",
+      "sourcePath": "scripts/freeland-source-access/cli.mjs",
+      "sourceCommit": "0e7fc478aadc92eacee878291b1d9dae89c266b8",
+      "status": "inactive-source-reference",
+      "archivePath": "source-access-bootstrap/scripts/freeland-source-access/cli.mjs.txt",
+      "bytes": 10705,
+      "sha256": "e5af849e0adf92d5ce060b738052eb56e82947c798125a85cb5409217dee6036"
+    },
+    {
+      "group": "source-access-bootstrap",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-source-access-bootstrap",
+      "sourcePath": "scripts/freeland-source-access/constants.mjs",
+      "sourceCommit": "0e7fc478aadc92eacee878291b1d9dae89c266b8",
+      "status": "inactive-source-reference",
+      "archivePath": "source-access-bootstrap/scripts/freeland-source-access/constants.mjs.txt",
+      "bytes": 720,
+      "sha256": "ee8fa1cd8ccf7ed99672232fefa3ba18f4f183a3ed56afb834cc993c28ca1a18"
+    },
+    {
+      "group": "source-access-bootstrap",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-source-access-bootstrap",
+      "sourcePath": "scripts/freeland-source-access/lib.mjs",
+      "sourceCommit": "0e7fc478aadc92eacee878291b1d9dae89c266b8",
+      "status": "inactive-source-reference",
+      "archivePath": "source-access-bootstrap/scripts/freeland-source-access/lib.mjs.txt",
+      "bytes": 23303,
+      "sha256": "8a1c9b0dc8a19464c28562ea3022e3696597c83e4176b65d307212249a4bf07f"
+    },
+    {
+      "group": "source-access-bootstrap",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-source-access-bootstrap",
+      "sourcePath": "tests/freeland-source-access/cli.test.mjs",
+      "sourceCommit": "0e7fc478aadc92eacee878291b1d9dae89c266b8",
+      "status": "inactive-source-reference",
+      "archivePath": "source-access-bootstrap/tests/freeland-source-access/cli.test.mjs.txt",
+      "bytes": 13020,
+      "sha256": "9111768aace426d8fdbf8278d23059e603bb100e2ae14f551ccce5f4f5b7d191"
+    },
+    {
+      "group": "source-access-bootstrap",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-source-access-bootstrap",
+      "sourcePath": "tests/freeland-source-access/prepare.test.mjs",
+      "sourceCommit": "0e7fc478aadc92eacee878291b1d9dae89c266b8",
+      "status": "inactive-source-reference",
+      "archivePath": "source-access-bootstrap/tests/freeland-source-access/prepare.test.mjs.txt",
+      "bytes": 20942,
+      "sha256": "84d17fa35c54ecf1fe381092a3a0f39319e6eb01195a2d392b6d25b9f0a0edce"
+    },
+    {
+      "group": "source-access-bootstrap",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-source-access-bootstrap",
+      "sourcePath": "tests/freeland-source-access/verify.test.mjs",
+      "sourceCommit": "0e7fc478aadc92eacee878291b1d9dae89c266b8",
+      "status": "inactive-source-reference",
+      "archivePath": "source-access-bootstrap/tests/freeland-source-access/verify.test.mjs.txt",
+      "bytes": 20459,
+      "sha256": "fa7bba1b3a24da90c8d301e9f4512702df231869bf431c003bd1c86cbc9efe27"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "package-lock.json",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/package-lock.json.txt",
+      "bytes": 242,
+      "sha256": "1c0a69662dda5772c1a4964e19aef878061e5a910c166572056539ac76e50f75"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "package.json",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/package.json.txt",
+      "bytes": 468,
+      "sha256": "abb3fe501e847a9463609a1f960c329357edecffd167ef81907cbd1a24179e71"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/build-coverage-ownership.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/build-coverage-ownership.mjs.txt",
+      "bytes": 5360,
+      "sha256": "a235d726e1f8e8e2e2123b28e55e6386688f7677ea3d8961eba6fae8240129af"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/build-final-gap-product-catalog.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/build-final-gap-product-catalog.mjs.txt",
+      "bytes": 10562,
+      "sha256": "8b5c5d49fc0f1d5b00b9a1bce0c470ea27bed167e57af1752cd25d725f3fa618"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/build-product-test-bindings.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/build-product-test-bindings.mjs.txt",
+      "bytes": 2878,
+      "sha256": "f3b93a31b9a93eab93bad2fb8bea74cf757f546be2aea3d40fbffa0c922b1b71"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/check.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/check.mjs.txt",
+      "bytes": 626,
+      "sha256": "b195ede6fa273bb59d5c216158e96cc1cd3641594b7b99f1d0a51ea4bc91d60f"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/merge-source-locator-decisions.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/merge-source-locator-decisions.mjs.txt",
+      "bytes": 4215,
+      "sha256": "d9b5a4fc0f81ce91fcde7ce97d0e38422aa93281b2c2e007a5b7b116beb51c60"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/rebuild.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/rebuild.mjs.txt",
+      "bytes": 466,
+      "sha256": "359a8958944cc0bccdc94a7ea7c0b5cd4e1a2e48f13ec1fcc648b8ecadb41a2a"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/render-locator-corrected-product-map.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/render-locator-corrected-product-map.mjs.txt",
+      "bytes": 2906,
+      "sha256": "de414aecf4b90be672d3aec60259e01f6aabfb4910145ed163649cdc572c8372"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/review-changed-files.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/review-changed-files.mjs.txt",
+      "bytes": 2810,
+      "sha256": "4970d26cd48ae7ea6e619214559a07f07b33f434b6eb1bbf15cae21fd548a5cc"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/review-source-locators.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/review-source-locators.mjs.txt",
+      "bytes": 4346,
+      "sha256": "89a6ccf0e73316ab29a5c55094225c6d2b41425454bae52d84c156689438e52d"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/seal-changed-file-classifications.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/seal-changed-file-classifications.mjs.txt",
+      "bytes": 3679,
+      "sha256": "599fea41a7f2c3f7edb6d0f2183d29b9de3b58973b09eecfc093a81094674542"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/seal-product-ci-run.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/seal-product-ci-run.mjs.txt",
+      "bytes": 7628,
+      "sha256": "b374178ba249be594af87fc16fa57d2b4eafdd503cec6cd3381ceecba2e68fb3"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/seal-source-locator-reviews.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/seal-source-locator-reviews.mjs.txt",
+      "bytes": 3714,
+      "sha256": "474034f7d147cb54bb1ff80fbf1d336dcd36909e74afe2f7b74dcab1a7022627"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/validate.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/validate.mjs.txt",
+      "bytes": 384,
+      "sha256": "d7dfb91b9495ca88d6d5f3eb3771cba20207e57a8bac19301f835712ec1a01e1"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/verify-rebuild-determinism.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/verify-rebuild-determinism.mjs.txt",
+      "bytes": 2150,
+      "sha256": "f915ec10143e71ae433e46a8d130748c9bfe5d18bd8efd82109ff7826bc2549e"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "scripts/verify-snapshot.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/scripts/verify-snapshot.mjs.txt",
+      "bytes": 329,
+      "sha256": "b5474925879250431c3daf8710896b01d27f8e4679f7d0dcb4cf7b964b89f6d7"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "src/audited-gap-reconciliation.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/src/audited-gap-reconciliation.mjs.txt",
+      "bytes": 3562,
+      "sha256": "05d1babec984ee75f17f992d583249a9f4a25158cfe00db2966d92266eade588"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "src/coverage-builder.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/src/coverage-builder.mjs.txt",
+      "bytes": 5334,
+      "sha256": "e7c6bb2fc16515b7042d79c8f1f23342f0e995e8dce52e3a679e9f06b5aa3964"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "src/coverage-proof.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/src/coverage-proof.mjs.txt",
+      "bytes": 7647,
+      "sha256": "ce3924fb18863b416f8e4ecac3886dfd5e2c797efbd185ddd0adea799e6a78c2"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "src/impact-proof.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/src/impact-proof.mjs.txt",
+      "bytes": 7582,
+      "sha256": "06a48af8f53ddd9c26d3978ccc80b4b4e00fb96b69406d4ade977d7d0142c5fe"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "src/model.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/src/model.mjs.txt",
+      "bytes": 51622,
+      "sha256": "070f592a9a92951b3b4c5bf4fa6cd14a9dd82357f2b16e9d382a71a9d4456325"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "src/obsidian.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/src/obsidian.mjs.txt",
+      "bytes": 30850,
+      "sha256": "6d0c09ad714b6cab59bc90b0b3c5cfe6edfe7f8ea98888e17caaa54b89f67646"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "src/product-ci-proof.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/src/product-ci-proof.mjs.txt",
+      "bytes": 6448,
+      "sha256": "10ffc0eca6890de772452900c89f9aef03fbbc99e3fe9ac7545456ba1e327050"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "src/proof.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/src/proof.mjs.txt",
+      "bytes": 7961,
+      "sha256": "98298b90d3163503684af09010dc8e56c147f57c2aaed67b45cd9f64010d8cf2"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "src/rebuild.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/src/rebuild.mjs.txt",
+      "bytes": 25564,
+      "sha256": "38bdd53f9ae9f68a8c1d516183aac5e3f68aaac49e83f037a76e0b9e77f14d7f"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "src/repository.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/src/repository.mjs.txt",
+      "bytes": 19237,
+      "sha256": "4011607146a4c15f8c6765b40a0d83798b90d98759e1f42906d28fb02b3d0dca"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "tests/audited-gap-reconciliation.test.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/tests/audited-gap-reconciliation.test.mjs.txt",
+      "bytes": 4224,
+      "sha256": "5e3d5a36b3a74fb5ccc58eb3a6ef0dc8b4843e6cb48853fc4dd4ccde03144640"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "tests/coverage-proof.test.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/tests/coverage-proof.test.mjs.txt",
+      "bytes": 7260,
+      "sha256": "69f7e311587a0b060a2e76dff0c2bb6784de14cd3916057ae933a1ac85b7fff4"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "tests/impact-proof.test.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/tests/impact-proof.test.mjs.txt",
+      "bytes": 5105,
+      "sha256": "929488afe64ffbc59344b30a229fa87c47cd57243dcb00b2ed1e70d977c81f2b"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "tests/product-ci-proof.test.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/tests/product-ci-proof.test.mjs.txt",
+      "bytes": 17246,
+      "sha256": "acd5ac5b7ed12666572418fc01753678aacf1b841fc3b6c3e811182ede1eafaf"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "tests/proof.test.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/tests/proof.test.mjs.txt",
+      "bytes": 7206,
+      "sha256": "e548167da6781986b9372ca918f11ece0b980108875feb0e89fd406de1e456df"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "tests/repository.test.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/tests/repository.test.mjs.txt",
+      "bytes": 13562,
+      "sha256": "f78918608dce4e8be9cee3f28b35526d46ca9bf83f645bfb355e31f6da1be47a"
+    },
+    {
+      "group": "graph-proof-archive",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/freeland_graph",
+      "sourcePath": "tests/source-locator-proof.test.mjs",
+      "sourceCommit": "86e8330cba47c99ea50b52ec1af43f8d258609e1",
+      "status": "inactive-source-reference",
+      "archivePath": "graph-proof-archive/tests/source-locator-proof.test.mjs.txt",
+      "bytes": 2024,
+      "sha256": "d882c6afa3cc335c2dca4f955e7cce75de0d5302698b29e08fe754ce8fc8dc2c"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "README.md",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/README.md.txt",
+      "bytes": 6691,
+      "sha256": "0b56be9fbdb8aa1f426153e9fd43a555bac2fecfcb8f45988266ebf62cdfd0af"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/App.tsx",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/App.tsx.txt",
+      "bytes": 6389,
+      "sha256": "452e4009f30dae91dc3c8da48b11eabd402ae4bdd8a82f8b546de6845a51fa13"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/components/intake/IntakeScreen.tsx",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/components/intake/IntakeScreen.tsx.txt",
+      "bytes": 24168,
+      "sha256": "6396a7c633d8b7baa691ac2d3e7fdb7ba6df27e889afd41567ba17908ff6d80c"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/styles/global.css",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/styles/global.css.txt",
+      "bytes": 32241,
+      "sha256": "c34760b0844fb1cb065a55818421445f0453031a9b5d6659212f694054c52379"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/components/evidence/BaselineReviewCard.tsx",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/components/evidence/BaselineReviewCard.tsx.txt",
+      "bytes": 3312,
+      "sha256": "b97dae7d37652fe89b6828d433de4ed05f9c75be3d45f42463592474ea9661e8"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/components/evidence/DryRunScopeCard.tsx",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/components/evidence/DryRunScopeCard.tsx.txt",
+      "bytes": 4638,
+      "sha256": "18eb572c6f706e4e2eb09e2522cc3e3797000f56c18fae1f6cc20e20ac818e76"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/components/evidence/EvidenceFields.tsx",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/components/evidence/EvidenceFields.tsx.txt",
+      "bytes": 1755,
+      "sha256": "482ee41e61341f5d281d7aaa1b0e5d3258a39583c0ca847889e65b5b2ee1d4c3"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/components/evidence/EvidenceFlow.tsx",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/components/evidence/EvidenceFlow.tsx.txt",
+      "bytes": 5412,
+      "sha256": "a8be06eacde6b9511a3155873ea2d041b71328b3fd72f63cf8120e9895e08c9a"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/components/evidence/EvidenceStepper.tsx",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/components/evidence/EvidenceStepper.tsx.txt",
+      "bytes": 1360,
+      "sha256": "3ae70bf1e871a6bf43d760cf25c35c2d7733b240739a2c74f39251ea5f99ead2"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/components/evidence/RunReceiptCard.tsx",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/components/evidence/RunReceiptCard.tsx.txt",
+      "bytes": 4027,
+      "sha256": "8a046b4c4bdd19bbd2c377476902d8b004bbe3b534cc0a762fcb230b21d30dab"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/components/registration/RegistrationProgress.tsx",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/components/registration/RegistrationProgress.tsx.txt",
+      "bytes": 4286,
+      "sha256": "9d5855c8307634a7e75f0e97fe0094651d7754877365768618a621548bfff4f4"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/lib/evidence-fixture.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/lib/evidence-fixture.ts.txt",
+      "bytes": 8259,
+      "sha256": "7672c8c16619fe74a73d65a19def3cca0f611e327d718128e10e26169d02ddf1"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/lib/evidence-flow.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/lib/evidence-flow.ts.txt",
+      "bytes": 17041,
+      "sha256": "023fe9d7accbd3d249e85055cddea8349ebfe73490e829e85613f04c0bfc01fe"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "src/lib/registration-progress.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/src/lib/registration-progress.ts.txt",
+      "bytes": 8052,
+      "sha256": "d395922622557a494e4358b7057018a4f2ca7424bb89e34d6018e8620fd78838"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "tests/e2e/evidence-flow.spec.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/tests/e2e/evidence-flow.spec.ts.txt",
+      "bytes": 8503,
+      "sha256": "a1fb78b10749da6e74c04cb44b4ada22e1b66ddf00a40ea4e0fa8359d41fddd3"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "tests/e2e/registration-progress.spec.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/tests/e2e/registration-progress.spec.ts.txt",
+      "bytes": 5734,
+      "sha256": "4423604a1059aba77aff592fa15d1368c3ea36fa6738e02476da7d7c1e5b5b11"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "tests/unit/evidence-flow.test.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/tests/unit/evidence-flow.test.ts.txt",
+      "bytes": 12702,
+      "sha256": "4519364e767d504211c22667d7cbfd92576d2b02e6dedca92e5db686c9acc4ac"
+    },
+    {
+      "group": "console-fixture-ui",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console",
+      "sourcePath": "tests/unit/registration-progress.test.ts",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "console-fixture-ui/tests/unit/registration-progress.test.ts.txt",
+      "bytes": 7276,
+      "sha256": "12e83b885c5f5bb5fb27ba6df5c71e1efe56fd550e3abfd53c440028ae5e4d56"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": ".gitignore",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/.gitignore.txt",
+      "bytes": 133,
+      "sha256": "234867f6f2bd62ca7a5bfc929c644fcf3d5e4b39e97f39810fe81c6b017c5246"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "CLAUDE.md",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/CLAUDE.md.txt",
+      "bytes": 2623,
+      "sha256": "e71e230654cdc83ee891d09154d006bfffb2f952aef8f3195d363149351806b3"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "GUARDRAILS.md",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/GUARDRAILS.md.txt",
+      "bytes": 1700,
+      "sha256": "34429bab9bc6622aceccb344d182695ebcdab75280fdc2c350119ef15392f767"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "package-lock.json",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/package-lock.json.txt",
+      "bytes": 62111,
+      "sha256": "e985171c0ddc41a92b016166e08cc77051da8cf3e454e3904f95b890bf2b9db0"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "package.json",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/package.json.txt",
+      "bytes": 706,
+      "sha256": "10677b92699d92c0a28aa424a06fc2cce53a7f471c3c6141c999eac4032071b3"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "playwright.config.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/playwright.config.ts.txt",
+      "bytes": 1077,
+      "sha256": "7688b174fcc78b63b616cb93bd25ff7fdcc7027059bf7e6e2f9f950f5dd6d4e2"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/auth.setup.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/auth.setup.ts.txt",
+      "bytes": 753,
+      "sha256": "44436c39f5d89246d6100877c5b476e429bd77739de2c2dd9d106027ddbaf1db"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/dashboard/auth.spec.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/dashboard/auth.spec.ts.txt",
+      "bytes": 525,
+      "sha256": "e4bdb72aa7a92ece1ec71cac6d8f12f2d13a46c78312ff7bf3ac3d551ec09e27"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/dashboard/balance.spec.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/dashboard/balance.spec.ts.txt",
+      "bytes": 985,
+      "sha256": "9a275aea2c050e61c0936923a54069f8d9aebd6392f0d87b8396b95b2e75811c"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/dashboard/topup.spec.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/dashboard/topup.spec.ts.txt",
+      "bytes": 838,
+      "sha256": "d4d587a2a2dbc3012a7d312b19ed8da3aedb8b5f0b779d273a681509b4ecb0e2"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/fixtures/env.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/fixtures/env.ts.txt",
+      "bytes": 2204,
+      "sha256": "080df077a47f3c33cfa6610a9e48ac66fe2eac04bccaa6e479488c66103588a3"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/fixtures/mcp-client.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/fixtures/mcp-client.ts.txt",
+      "bytes": 2730,
+      "sha256": "e7cb94d3b458caaa35bf0733261878657678e6f51b4391e209cc3a41e9518cd7"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/mcp/errors.spec.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/mcp/errors.spec.ts.txt",
+      "bytes": 902,
+      "sha256": "cc762675deb4d28288c1df7f22ae5576e5edf142ae0a9cad65e1fba6a71a1d1f"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/mcp/handshake.spec.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/mcp/handshake.spec.ts.txt",
+      "bytes": 906,
+      "sha256": "2870e3d2b24e22899ee40f6052f84ac7b6cf333b2fe62d07a0a009fb64ca0f09"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/mcp/purchase.spec.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/mcp/purchase.spec.ts.txt",
+      "bytes": 1207,
+      "sha256": "683ed607076361a7298deee31bc09daaa0b69e469959218c443ba117d6ea344d"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/mcp/search.spec.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/mcp/search.spec.ts.txt",
+      "bytes": 1047,
+      "sha256": "0fabd792692ab013918db0eb1dd9134009dab44eb5bfa140bb10d67028bc201b"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/pages/dashboard.page.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/pages/dashboard.page.ts.txt",
+      "bytes": 987,
+      "sha256": "bd8c518c6eecc71a71be8ea7f39fdb9c0c6c5ccd9f868d8469cbcce1eb00f52f"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/pages/login.page.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/pages/login.page.ts.txt",
+      "bytes": 974,
+      "sha256": "22350a8fee3ac97e6cc5952876b28cf1f4a0a90334aef9d19ac1877941dc4f33"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tests/pages/topup.page.ts",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tests/pages/topup.page.ts.txt",
+      "bytes": 675,
+      "sha256": "6864a7b1b297526884bf0a140c6ab3c49705b5a6c465cd6073d521b47616b591"
+    },
+    {
+      "group": "qa-mcp-prototype",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/QA",
+      "sourcePath": "tsconfig.json",
+      "sourceCommit": "45c4a7858e2e17978e2d066b8497919c6de1efa1",
+      "status": "inactive-source-reference",
+      "archivePath": "qa-mcp-prototype/tsconfig.json.txt",
+      "bytes": 337,
+      "sha256": "6afd4b8c9795d46186e5fa3dc8ac271806292c7cf7112f13b2dafa8dc7e81ea3"
+    },
+    {
+      "group": "sati-native-knowledge",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/sati-qa",
+      "sourcePath": "docs/product/overview.md",
+      "sourceCommit": null,
+      "status": "historical-product-knowledge-not-current-verdict",
+      "archivePath": "sati-native-knowledge/docs/product/overview.md.txt",
+      "bytes": 1790,
+      "sha256": "ac210d73eb4fd7dd554769ae60fec72509ab689fafdabbd66903a2acbcb29436"
+    },
+    {
+      "group": "sati-native-knowledge",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/sati-qa",
+      "sourcePath": "docs/product/mac-release-campaign.md",
+      "sourceCommit": null,
+      "status": "historical-product-knowledge-not-current-verdict",
+      "archivePath": "sati-native-knowledge/docs/product/mac-release-campaign.md.txt",
+      "bytes": 12138,
+      "sha256": "5cc20581c745b22f5e1d06c193168c22ffd2a9364a0d6fc180888524edab7a93"
+    },
+    {
+      "group": "sati-native-knowledge",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/sati-qa",
+      "sourcePath": "tests/mobile/manual/iphone-proxy-matrix.md",
+      "sourceCommit": null,
+      "status": "historical-product-knowledge-not-current-verdict",
+      "archivePath": "sati-native-knowledge/tests/mobile/manual/iphone-proxy-matrix.md.txt",
+      "bytes": 4313,
+      "sha256": "89e0713ddf2ddf1d6ca56ee26aedec0aa5af48f0de1f7303dd29dbb738ca853a"
+    },
+    {
+      "group": "magiccard-pure-oracles",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/magiccard-qa-20260905/restart-20260906/scripts",
+      "sourcePath": "memory-scope-oracle.mjs",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "magiccard-pure-oracles/memory-scope-oracle.mjs.txt",
+      "bytes": 4912,
+      "sha256": "da55e61add62910504029ab94b387ab6a345e2a4fb37e4459831ab023bcc96af"
+    },
+    {
+      "group": "magiccard-pure-oracles",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/magiccard-qa-20260905/restart-20260906/scripts",
+      "sourcePath": "memory-scope-oracle-controls.mjs",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "magiccard-pure-oracles/memory-scope-oracle-controls.mjs.txt",
+      "bytes": 4666,
+      "sha256": "427e387f6bf9d026ca99c8f70f48eafb2f1b58479332419d4efe531447984c0e"
+    },
+    {
+      "group": "magiccard-pure-oracles",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/magiccard-qa-20260905/restart-20260906/scripts",
+      "sourcePath": "request-choice-oracle.mjs",
+      "sourceCommit": null,
+      "status": "inactive-source-reference",
+      "archivePath": "magiccard-pure-oracles/request-choice-oracle.mjs.txt",
+      "bytes": 9022,
+      "sha256": "40372fc331d3ba3ba00c15cc3670cf9bf2b8bf7d4e657c6e0134e8bc0fc285ad"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-artifact-witnesses.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-artifact-witnesses.md.txt",
+      "bytes": 4830,
+      "sha256": "325f92b54a0c6d362dcd657de96e4ea5661cfc2cc3fd7c6482ba8d7a173e7b39"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-counterchecks.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-counterchecks.md.txt",
+      "bytes": 1034,
+      "sha256": "49ef69fddf35711a740349e439fd500baf4caf5ff0a0752ac4894cbd6840e967"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-evaluation.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-evaluation.md.txt",
+      "bytes": 2688,
+      "sha256": "35bf22e61ac035219d3e3c11a1adeff01c8392ab27a994e74318df6f72f5dfdb"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-final-sample-1.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-final-sample-1.md.txt",
+      "bytes": 6864,
+      "sha256": "5a334fd551520f5d31f7ffb525b8199ab01e73900fc57eda69f0a97375cb01f3"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-final-sample-2.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-final-sample-2.md.txt",
+      "bytes": 6488,
+      "sha256": "64813457c31f32148d4a4ea0af795c34c88b2c5ca873d76cc41e84551af2f229"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-final-sample-3.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-final-sample-3.md.txt",
+      "bytes": 7676,
+      "sha256": "8e45211673b96449609dce7fa594886da62cbd396a84d7a2797e00cc57e5f227"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-final-sample-4.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-final-sample-4.md.txt",
+      "bytes": 6263,
+      "sha256": "22f902abac8609b6b4b5336c184c4c7a70e5d791b2eab55acd3f60a4dd81e70d"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-final-sample-5.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-final-sample-5.md.txt",
+      "bytes": 7600,
+      "sha256": "4d9023492bea3e370b534e72b9c703a627f5892ecb8241d617523643034b6a58"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-implementation-report.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-implementation-report.md.txt",
+      "bytes": 7260,
+      "sha256": "c1282d1591d29ad98e42a6d048588715d9c3ceb03da4b6e55db57f0aca57da69"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-original-.claude--skills--qa-bugfix--SKILL.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-original-.claude--skills--qa-bugfix--SKILL.md.txt",
+      "bytes": 4286,
+      "sha256": "93fc375fdadcb5939f109bf8afc6b07fb5fcc83fc7dfa7f166bbdf0c8ae76d3c"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-original-AGENTS.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-original-AGENTS.md.txt",
+      "bytes": 5529,
+      "sha256": "8689d7c7d2d1ffc0b22197ba338fbf165d723c96cbd4fba8c14dd2b302643fa6"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-original-CLAUDE.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-original-CLAUDE.md.txt",
+      "bytes": 4960,
+      "sha256": "14953ae3f636293330910651bfcd3022e64af535c2f46064ecf26591d4280195"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-original-README.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-original-README.md.txt",
+      "bytes": 6383,
+      "sha256": "69dbbda1ed8e3713d387857fa94182a4149bfde3a24f3ef72a1183b59e04cf9b"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-original-skills--qa-bugfix--SKILL.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-original-skills--qa-bugfix--SKILL.md.txt",
+      "bytes": 4286,
+      "sha256": "93fc375fdadcb5939f109bf8afc6b07fb5fcc83fc7dfa7f166bbdf0c8ae76d3c"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-original-skills--qa-bugfix--agents--openai.yaml",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-original-skills--qa-bugfix--agents--openai.yaml.txt",
+      "bytes": 437,
+      "sha256": "fb566a89731ae2bf54ce4a1e3847acbd5630b8f8d38ef054fed03c4f06fb9069"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-original-templates--fix-prompt.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-original-templates--fix-prompt.md.txt",
+      "bytes": 2134,
+      "sha256": "90c21f6d176374ca33ec00c9b0ce7c2dde73aad7caa650b5caef3961e763de24"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-v1-skill.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-v1-skill.md.txt",
+      "bytes": 4537,
+      "sha256": "31a88b5d430fa69c445c6e8600eec2faf841176896e53db797264b5bf1d40e1a"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-v1-template.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-v1-template.md.txt",
+      "bytes": 3060,
+      "sha256": "c7c2c764b0dbe270e95e3c2c9a2137ea3fae0cb6adc1f831acab1b0075cd5108"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-v2-skill.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-v2-skill.md.txt",
+      "bytes": 5154,
+      "sha256": "35335553ad3848f7df191869c75b45722b52fab4e66f899ee7321ac2faa084b0"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-v2-template.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-v2-template.md.txt",
+      "bytes": 3633,
+      "sha256": "fae4c401d247c82ffca694551aa56045aa6084870bb5a9b68adf06005da4fae4"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-v3-review-package.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-v3-review-package.md.txt",
+      "bytes": 37666,
+      "sha256": "266bafc9eca4958edaa6ba5ad4d6cf1e5a6e9e199130ca70c4a08898ea460a3d"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-v3-sample-1.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-v3-sample-1.md.txt",
+      "bytes": 6942,
+      "sha256": "6eb670341ff08ccf40d818cd0ef75d4929072434360a59a8cf7829a69bd606cc"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-v3-sample-2.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-v3-sample-2.md.txt",
+      "bytes": 7326,
+      "sha256": "5089cc51d85f7ac4cf51dc365ed91842af833c76ebe257f610fcec3de9065060"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-v3-sample-3.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-v3-sample-3.md.txt",
+      "bytes": 7632,
+      "sha256": "3dadad444ded91a395769ff112de2552dc5f54713bc2a1fa3dd268aae002cc5b"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-v3-sample-4.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-v3-sample-4.md.txt",
+      "bytes": 7922,
+      "sha256": "7004ed6b684c549f45f224e072e349367bfdfa4993bf6d7ed7f0e170dfc7774e"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0",
+      "sourcePath": "task-3-v3-sample-5.md",
+      "sourceCommit": null,
+      "status": "historical-evaluation-includes-rejected-variants",
+      "archivePath": "qa-bugfix-historical-review/task-3-v3-sample-5.md.txt",
+      "bytes": 7598,
+      "sha256": "fe46513862bb7c6cac6bc752faab0c5bb76c9fe3fc8026a41fa3f7f2bbe6c707"
+    },
+    {
+      "group": "qa-bugfix-historical-review",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourcePath": "docs/superpowers/audits/2026-09-06-qa-g0-qa-bugfix-handoff.md",
+      "sourceCommit": null,
+      "status": "historical-review",
+      "archivePath": "qa-bugfix-historical-review/docs/superpowers/audits/2026-09-06-qa-g0-qa-bugfix-handoff.md.txt",
+      "bytes": 6240,
+      "sha256": "4fd136bebe524e0ca8fe1941b4dcdf3c92620429d37f9e64f68769933e3dc75c"
+    },
+    {
+      "group": "reconciliation-audits",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-agent/.local/full-reconciliation-20260911.0l1hJ4",
+      "sourcePath": "CORE-AUDIT.md",
+      "sourceCommit": null,
+      "status": "dated-source-audit-not-product-qa",
+      "archivePath": "reconciliation-audits/CORE-AUDIT.md.txt",
+      "bytes": 29857,
+      "sha256": "8a2ae90b87dfd36870c354bdf96cb40fe1107984a40385dfaeb63a9fa06e3c56"
+    },
+    {
+      "group": "reconciliation-audits",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-agent/.local/full-reconciliation-20260911.0l1hJ4",
+      "sourcePath": "FREELAND-AUDIT.md",
+      "sourceCommit": null,
+      "status": "dated-source-audit-not-product-qa",
+      "archivePath": "reconciliation-audits/FREELAND-AUDIT.md.txt",
+      "bytes": 27240,
+      "sha256": "2c03f7cef13ddf6402cc63d210a71f15057eca3addece3edcc9f00007d6a23e7"
+    },
+    {
+      "group": "reconciliation-audits",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-agent/.local/full-reconciliation-20260911.0l1hJ4",
+      "sourcePath": "SKILLS-PROJECTS-AUDIT.md",
+      "sourceCommit": null,
+      "status": "dated-source-audit-not-product-qa",
+      "archivePath": "reconciliation-audits/SKILLS-PROJECTS-AUDIT.md.txt",
+      "bytes": 33661,
+      "sha256": "9ee564a2900c264b910094e4a0594ad9899143ccf6f7a208859f0b650a97b9e7"
+    },
+    {
+      "group": "source-access-bootstrap",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourcePath": "LICENSE",
+      "sourceCommit": "0e7fc478aadc92eacee878291b1d9dae89c266b8",
+      "status": "inactive-source-license-notice",
+      "archivePath": "source-access-bootstrap/LICENSE.txt",
+      "bytes": 1070,
+      "sha256": "db80358bea86ed171c8ea1ffe6d20e868d2e4062eefc543de85f6d0abf91d0aa"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+import type { Page, TestInfo } from '@playwright/test';
+
+import {
+  isSafeEvidenceMethod,
+  sanitizeEvidenceMethod,
+  sanitizeEvidenceUrl,
+  type MutationEvidenceMethod,
+} from '../../../tools/nuanu-app-graph/runtime-contract.mjs';
+
+export type BlockedMutation = Readonly<{
+  method: MutationEvidenceMethod;
+  originAndPath: string;
+}>;
+export type MutationLedger = Readonly<{
+  blocked: readonly BlockedMutation[];
+  overflowed: boolean;
+}>;
+
+const MAX_RECORDS = 25;
+const guardedPages = new WeakSet<Page>();
+
+const unsafeEvidenceUrl = (): Error => new Error('UNSAFE_EVIDENCE_URL');
+
+export function sanitizeUrl(raw: string): string {
+  const sanitized = sanitizeEvidenceUrl(raw);
+  if (sanitized === null) throw unsafeEvidenceUrl();
+  return sanitized;
+}
+
+export async function blockUnsafeRequests(page: Page): Promise<MutationLedger> {
+  if (guardedPages.has(page)) throw new Error('MUTATION_GUARD_ALREADY_INSTALLED');
+  const blocked: BlockedMutation[] = [];
+  let overflowed = false;
+  await page.route('**/*', async (route) => {
+    const request = route.request();
+    const method = sanitizeEvidenceMethod(request.method());
+    if (method !== null && isSafeEvidenceMethod(method)) {
+      await route.continue();
+      return;
+    }
+
+    let originAndPath: string | null = null;
+    try {
+      originAndPath = sanitizeUrl(request.url());
+    } catch {
+      // The request is still blocked; unsafe evidence is intentionally omitted.
+    }
+    if (originAndPath && method !== null) {
+      if (blocked.length < MAX_RECORDS) blocked.push(Object.freeze({ method, originAndPath }));
+      else overflowed = true;
+    }
+    await route.abort('blockedbyclient');
+  });
+  guardedPages.add(page);
+  return Object.freeze({
+    get blocked(): readonly BlockedMutation[] {
+      return Object.freeze([...blocked]);
+    },
+    get overflowed(): boolean {
+      return overflowed;
+    },
+  });
+}
+
+export function assertMutationGuardInstalled(page: Page): void {
+  if (!guardedPages.has(page)) throw new Error('MUTATION_GUARD_NOT_INSTALLED');
+}
+
+export async function attachMutationLedger(
+  testInfo: TestInfo,
+  ledger: MutationLedger,
+): Promise<void> {
+  await testInfo.attach('mutation-ledger.json', {
+    body: JSON.stringify({ blocked: ledger.blocked, overflowed: ledger.overflowed }),
+    contentType: 'application/json',
+  });
+}

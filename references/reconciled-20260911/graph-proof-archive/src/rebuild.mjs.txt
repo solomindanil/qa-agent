@@ -1,0 +1,621 @@
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { access, link, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, unlink, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
+
+import { buildCompleteCoverageOwnership } from "./coverage-builder.mjs";
+import { validateCoverageOwnership } from "./coverage-proof.mjs";
+import { validateChangedFileClassifications } from "./impact-proof.mjs";
+import {
+  assertFreelandCorpusGuards,
+  buildGraph,
+  canonicalJson,
+  digestCanonical,
+  parseCorpus,
+  validateGraph,
+  validateProductCiRun,
+  validateProductTestCatalog,
+} from "./model.mjs";
+import { renderObsidianVault } from "./obsidian.mjs";
+import { validateSourceLocatorReviews } from "./proof.mjs";
+
+const SEMANTIC_KINDS = new Set(["requirement", "flow", "route", "invariant"]);
+
+export async function rebuildRepository({ root, sourceRoot }) {
+  return withRebuildLock(root, () => rebuildRepositoryLocked({ root, sourceRoot }));
+}
+
+async function rebuildRepositoryLocked({ root, sourceRoot }) {
+  const inputs = await readInputs(root);
+  const sourceSha = git(sourceRoot, ["rev-parse", "HEAD"]).trim();
+  const baselineSha = inputs.baseline.deployment.releaseSha;
+  assertExactCommit(sourceRoot, sourceSha);
+  assertExactCommit(sourceRoot, baselineSha);
+  if (sourceSha !== inputs.sourceProof.sourceSha || sourceSha !== inputs.productCatalog.sourceSha) {
+    throw new TypeError("REBUILD_SOURCE_IDENTITY_MISMATCH");
+  }
+  if (git(sourceRoot, ["status", "--porcelain", "--untracked-files=no"]).trim()) {
+    throw new TypeError("REBUILD_SOURCE_TREE_DIRTY");
+  }
+  if (inputs.production.releaseSha !== sourceSha || inputs.production.assurance !== "corroborated") {
+    throw new TypeError("REBUILD_PRODUCTION_REFERENCE_MISMATCH");
+  }
+
+  const corpus = parseCorpus({
+    productMap: inputs.productMap,
+    coverageMap: inputs.coverageMap,
+    manualCases: inputs.manualCases,
+    baseline: inputs.baseline,
+    aliases: inputs.mappings.aliases,
+  });
+  assertFreelandCorpusGuards({ corpus, catalog: inputs.stagingCatalog });
+  const sourceReview = await validateSourceLocatorReviews({
+    document: inputs.sourceProof,
+    locators: corpus.sourceLocators,
+    sourceRoot,
+    sourceSha,
+    requireComplete: true,
+  });
+  const sourceFiles = git(sourceRoot, ["ls-tree", "-r", "--name-only", sourceSha])
+    .trim().split("\n").filter(Boolean).sort();
+  const productCatalog = validateProductTestCatalog(inputs.productCatalog);
+  const productRun = validateProductCiRun({ run: inputs.productRun, catalog: productCatalog });
+  if (productRun.state !== "completed" || productRun.counts.passed !== productCatalog.tests.length
+    || productRun.counts.failed || productRun.counts.skipped || productRun.counts.notRun) {
+    throw new TypeError("REBUILD_PRODUCT_CI_NOT_GREEN");
+  }
+
+  const inputCorpusDigest = digestCanonical({
+    productMap: inputs.productMap,
+    coverageMap: inputs.coverageMap,
+    manualCases: inputs.manualCases,
+    baseline: inputs.baseline,
+    mappings: inputs.mappings,
+    sourceReviewDigest: inputs.sourceProof.reviewDigest,
+    changedFileClassificationDigest: inputs.changedProof.classificationDigest,
+    productCatalogDigest: productCatalog.catalogDigest,
+    productRunDigest: productRun.runDigest,
+  });
+  const provenance = {
+    baselineSha,
+    productMapReferenceSha: sourceSha,
+    inputCorpusDigest,
+    sourceReviewDigest: inputs.sourceProof.reviewDigest,
+    changedFileClassificationDigest: inputs.changedProof.classificationDigest,
+    productCatalogDigest: productCatalog.catalogDigest,
+    productRunDigest: productRun.runDigest,
+    proofStatus: "fully_proven",
+  };
+  const importGuard = {
+    schemaVersion: 2,
+    corpus: { requirements: 136, manualCases: 89, flows: 18, routes: 22, invariants: 12 },
+    stagingCatalog: { tests: inputs.stagingCatalog.tests.length },
+    proof: { sourceLocators: sourceReview.reviewed, changedFiles: inputs.changedProof.classifications.length },
+  };
+  const pregraph = buildGraph({
+    corpus,
+    mappings: inputs.mappings,
+    sourceFiles,
+    sourceSha,
+    productCatalog,
+    sourceReviewsByKey: sourceReview.byKey,
+    provenance,
+    importGuard,
+  });
+  const ownership = buildCompleteCoverageOwnership({
+    graph: pregraph,
+    proposal: inputs.coverageProposal,
+    productCatalog,
+  });
+  const graph = buildGraph({
+    corpus,
+    mappings: inputs.mappings,
+    sourceFiles,
+    sourceSha,
+    productCatalog,
+    coverageOwnership: ownership,
+    sourceReviewsByKey: sourceReview.byKey,
+    provenance,
+    importGuard,
+  });
+  const semanticNodeIds = graph.nodes.filter(node => SEMANTIC_KINDS.has(node.kind)).map(node => node.id);
+  const coverageValidation = validateCoverageOwnership({
+    document: ownership,
+    sourceSha,
+    requiredNodeIds: semanticNodeIds,
+    testNodes: new Map(graph.nodes.map(node => [node.id, node])),
+    productCatalog,
+    passedProductCiIds: new Set(productRun.rows.filter(row => row.status === "passed").map(row => row.id)),
+    requireComplete: true,
+  });
+  const structural = validateGraph(graph, { requireNoUnresolved: true, requireResolved: true });
+  if (!structural.ok || graph.sourceLocators.some(locator => locator.disposition !== "resolved")) {
+    throw new TypeError(`REBUILD_GRAPH_INVALID ${canonicalJson(structural.issues)}`);
+  }
+
+  const expectedChanges = collectChanges({ sourceRoot, baselineSha, candidateSha: sourceSha });
+  const changedValidation = validateChangedFileClassifications({
+    document: inputs.changedProof,
+    expectedChanges,
+    baselineSha,
+    candidateSha: sourceSha,
+    validNodeIds: new Set(semanticNodeIds),
+    requireComplete: true,
+  });
+  const impact = buildImpact({
+    graph,
+    changedProof: inputs.changedProof,
+    baselineSha,
+    candidateSha: sourceSha,
+    knownGaps: coverageValidation.knownGaps,
+  });
+  const plan = buildPlan({
+    graph,
+    impact,
+    stagingCatalog: inputs.stagingCatalog,
+    productCatalog,
+    productRun,
+    baselineSha,
+    candidateSha: sourceSha,
+    inputCorpusDigest,
+    knownGaps: coverageValidation.knownGaps,
+  });
+  const sourceReviewSummary = buildSourceReviewSummary({ graph, sourceProof: inputs.sourceProof });
+  const current = {
+    "graph.json": graph,
+    "production-reference.json": inputs.production,
+    "impact.json": impact,
+    "test-plan.json": plan,
+    "catalog.json": inputs.stagingCatalog,
+    "product-catalog.json": productCatalog,
+    "product-ci-run.json": productRun,
+    "source-locator-review.json": sourceReviewSummary,
+    "coverage-ownership.json": ownership,
+  };
+
+  const snapshot = await prepareSnapshot({ root, graph, current });
+  const ownedOutputs = new Map([
+    ["proof/coverage-ownership.v1.json", canonicalText(ownership)],
+    ...Object.entries(current).map(([name, value]) => [`graph/current/${name}`, canonicalText(value)]),
+    ...await prepareObsidian({ root, graph, impact, plan, productionReference: inputs.production }),
+  ]);
+  if (!snapshot.alreadySealed) {
+    for (const [path, text] of snapshot.entries) ownedOutputs.set(`${snapshot.relative}/${path}`, text);
+    ownedOutputs.set(`${snapshot.relative}/snapshot.json`, canonicalText(snapshot.manifest));
+  }
+  ownedOutputs.set("reports/2026-08-29-fully-proven-audit.md", renderAuditReport({
+    graph,
+    impact,
+    plan,
+    sourceReview,
+    changedValidation,
+    coverageValidation,
+    productRun,
+    snapshot,
+  }));
+  const immutablePaths = new Set(snapshot.alreadySealed
+    ? []
+    : [...snapshot.entries.keys(), "snapshot.json"].map(path => `${snapshot.relative}/${path}`));
+  await commitOwnedOutputs({ root, outputs: ownedOutputs, immutablePaths });
+  return {
+    ok: true,
+    proofStatus: "fully_proven",
+    sourceSha,
+    baselineSha,
+    graphDigest: graph.semanticDigest,
+    counts: {
+      nodes: graph.nodes.length,
+      edges: graph.edges.length,
+      sourceLocators: graph.sourceLocators.length,
+      changedFiles: expectedChanges.length,
+      coverageOwnership: ownership.rows.length,
+      knownCoverageGaps: coverageValidation.knownGaps.length,
+      productCiPassed: productRun.counts.passed,
+    },
+    snapshot,
+  };
+}
+
+async function readInputs(root) {
+  const json = path => readFile(join(root, path), "utf8").then(JSON.parse);
+  return {
+    productMap: await readFile(join(root, "contracts/PRODUCT-MAP.md"), "utf8"),
+    coverageMap: await readFile(join(root, "contracts/COVERAGE-MAP.md"), "utf8"),
+    manualCases: await readFile(join(root, "contracts/MANUAL-TEST-CASES.md"), "utf8"),
+    baseline: await json("contracts/baseline.manifest.json"),
+    mappings: await json("mappings/mappings.v1.json"),
+    sourceProof: await json("proof/source-locator-reviews.v1.json"),
+    changedProof: await json("proof/changed-file-classifications.v1.json"),
+    coverageProposal: await json("proof/coverage-ownership-proposal.v1.json"),
+    productCatalog: await json("proof/product-test-bindings.v2.json"),
+    productRun: await json("proof/product-ci-run.v2.json"),
+    stagingCatalog: await json("graph/current/catalog.json"),
+    production: await json("graph/current/production-reference.json"),
+  };
+}
+
+export function collectChanges({ sourceRoot, baselineSha, candidateSha }) {
+  const fields = gitBuffer(sourceRoot, ["diff", "--name-status", "-z", "-M", baselineSha, candidateSha])
+    .toString("utf8").split("\0");
+  if (fields.at(-1) === "") fields.pop();
+  const changes = [];
+  for (let index = 0; index < fields.length;) {
+    const status = fields[index++];
+    const pathCount = /^(?:R|C)/.test(status) ? 2 : 1;
+    const paths = fields.slice(index, index + pathCount);
+    index += pathCount;
+    const patch = gitBuffer(sourceRoot, ["diff", "--binary", "--no-ext-diff", baselineSha, candidateSha, "--", ...paths]);
+    changes.push({ status, paths, diffSha256: `sha256:${createHash("sha256").update(patch).digest("hex")}` });
+  }
+  return changes.sort((left, right) => canonicalJson([left.status, left.paths]).localeCompare(canonicalJson([right.status, right.paths]), "en"));
+}
+
+function buildImpact({ graph, changedProof, baselineSha, candidateSha, knownGaps }) {
+  const reasons = new Map();
+  const addReason = (nodeId, reason) => reasons.set(nodeId, [...(reasons.get(nodeId) ?? []), reason]);
+  for (const row of changedProof.classifications.filter(item => item.disposition === "product_impact")) {
+    for (const nodeId of row.nodeIds) for (const path of row.paths) addReason(nodeId, {
+      type: "impact",
+      edgePath: [`file:${path}`, nodeId],
+      classificationReason: row.reason,
+    });
+  }
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const edge of graph.edges.filter(item => item.type === "affects")) {
+      if (reasons.has(edge.from) && !reasons.has(edge.to)) {
+        addReason(edge.to, { type: "propagated", edgePath: [edge.from, edge.to], evidence: edge.evidence });
+        changed = true;
+      }
+    }
+  }
+  const impactedIds = new Set(reasons.keys());
+  const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
+  const tests = graph.edges.filter(edge => ["verifies", "always_run"].includes(edge.type) && impactedIds.has(edge.to))
+    .map(edge => ({ node: nodeById.get(edge.from), edge })).filter(item => item.node);
+  const selected = kind => [...new Map(tests.filter(item => item.node.kind === kind).map(item => [item.node.id, {
+    id: item.node.id,
+    ...(item.node.runner ? { runner: item.node.runner } : {}),
+    reasons: [{ type: "verification", edgePath: [item.edge.to, item.node.id], coverage: item.edge.coverage ?? "full" }],
+  }])).values()].sort((left, right) => left.id.localeCompare(right.id, "en"));
+  const body = {
+    schemaVersion: 2,
+    proofStatus: "fully_proven",
+    releaseVerdict: "not_evaluated",
+    baselineSha,
+    candidateSha,
+    classificationDigest: changedProof.classificationDigest,
+    changedFiles: changedProof.classifications.map(row => ({
+      id: `file:${row.paths.at(-1)}`,
+      path: row.paths.at(-1),
+      paths: row.paths,
+      status: row.status,
+      disposition: row.disposition,
+    })),
+    productImpactFiles: changedProof.classifications.filter(row => row.disposition === "product_impact").length,
+    noProductImpactFiles: changedProof.classifications.filter(row => row.disposition === "no_product_impact").length,
+    assuranceFiles: changedProof.classifications.filter(row => row.assuranceNodeIds.length > 0).length,
+    impactedNodes: [...reasons].map(([id, values]) => ({ id, reasons: values })).sort((a, b) => a.id.localeCompare(b.id, "en")),
+    automated: selected("automated_test"),
+    manual: selected("manual_test"),
+    knownCoverageGaps: [...knownGaps].sort(),
+    unmappedFiles: [],
+  };
+  return { ...body, impactDigest: digestCanonical(body) };
+}
+
+function buildPlan({ graph, impact, stagingCatalog, productCatalog, productRun, baselineSha, candidateSha, inputCorpusDigest, knownGaps }) {
+  const manualTests = graph.nodes.filter(node => node.kind === "manual_test").map(node => ({
+    id: node.id,
+    caseId: node.caseId,
+    title: node.title,
+    tier: node.tier,
+    actor: node.actor,
+    priority: node.priority,
+  }));
+  const body = {
+    schemaVersion: 2,
+    proofStatus: "fully_proven",
+    releaseVerdict: "not_evaluated",
+    sourceIdentity: "exact_source_commit",
+    sourceSha: candidateSha,
+    candidateSha,
+    baselineSha,
+    graphDigest: graph.semanticDigest,
+    inputCorpusDigest,
+    environment: "staging",
+    executionProject: "freeland-staging",
+    mode: "full_release_acceptance",
+    fallback: "full",
+    fallbackReason: "Broad product-impact diff and explicit coverage gaps require the complete safety net.",
+    manualStatus: "pending",
+    manualPendingCount: manualTests.length,
+    catalogCount: stagingCatalog.tests.length,
+    automatedTests: stagingCatalog.tests,
+    productCiTests: productCatalog.tests.map(test => ({ id: test.id, file: test.file, selector: test.selector })),
+    productCiRunDigest: productRun.runDigest,
+    manualTests,
+    priorityAutomatedTests: impact.automated.map(test => test.id),
+    priorityManualTests: impact.manual.map(test => test.id),
+    knownCoverageGaps: [...knownGaps].sort(),
+    unmappedFiles: [],
+  };
+  return { ...body, planDigest: digestCanonical(body) };
+}
+
+function buildSourceReviewSummary({ graph, sourceProof }) {
+  const body = {
+    schemaVersion: 2,
+    sourceSha: sourceProof.sourceSha,
+    graphDigest: graph.semanticDigest,
+    proofStatus: "fully_proven",
+    proofReviewDigest: sourceProof.reviewDigest,
+    counts: {
+      total: graph.sourceLocators.length,
+      resolved: graph.sourceLocators.filter(locator => locator.disposition === "resolved").length,
+      reviewRequired: graph.sourceLocators.filter(locator => locator.disposition === "review_required").length,
+      unresolved: graph.sourceLocators.filter(locator => locator.disposition === "unresolved").length,
+    },
+    unresolved: [],
+  };
+  return { ...body, summaryDigest: digestCanonical(body) };
+}
+
+async function prepareObsidian({ root, graph, impact, plan, productionReference }) {
+  const rendered = renderObsidianVault({ graph, impact, plan, productionReference });
+  const outputs = [];
+  for (const [path, text] of rendered) {
+    const target = join(root, "obsidian", path);
+    if (path === ".obsidian/graph.json") continue;
+    if (path.endsWith(".canvas") && await exists(target)) {
+      const actual = JSON.parse(await readFile(target, "utf8"));
+      if (canonicalJson(actual) !== canonicalJson(JSON.parse(text))) throw new TypeError("OBSIDIAN_USER_CANVAS_SEMANTIC_DRIFT");
+      continue;
+    }
+    outputs.push([`obsidian/${path}`, text]);
+  }
+  return outputs;
+}
+
+async function prepareSnapshot({ root, graph, current }) {
+  const relative = `graph/snapshots/${graph.generatedFrom.sourceSha}/${graph.semanticDigest.replace(":", "-")}`;
+  const files = new Map(Object.entries(current).map(([name, value]) => [`current/${name}`, `${canonicalJson(value)}\n`]));
+  files.set("mappings.v1.json", await readFile(join(root, "mappings/mappings.v1.json"), "utf8"));
+  const sha256 = {};
+  for (const [path, text] of files) sha256[path] = createHash("sha256").update(text).digest("hex");
+  const manifest = {
+    schemaVersion: 2,
+    sourceSha: graph.generatedFrom.sourceSha,
+    graphDigest: graph.semanticDigest,
+    proofStatus: "fully_proven",
+    sha256,
+  };
+  const alreadySealed = await assertImmutableSnapshot({ root, relative, files, manifest });
+  return { relative, entries: files, manifest, alreadySealed, files: files.size, manifestDigest: digestCanonical(manifest) };
+}
+
+export async function assertImmutableSnapshot({ root, relative, files, manifest }) {
+  const safeRelative = validateOwnedPath(relative);
+  const entries = validatedOutputEntries(files);
+  const snapshotRoot = containedPath(root, safeRelative);
+  if (!await exists(snapshotRoot)) return false;
+  await assertNoSymlinkPath(root, safeRelative);
+  const expected = new Map(validatedOutputEntries([...entries, ["snapshot.json", canonicalText(manifest)]]));
+  const actualPaths = await walkRelative(snapshotRoot);
+  if (actualPaths.length === 0) return false;
+  if (canonicalJson(actualPaths) !== canonicalJson([...expected.keys()].sort())) {
+    throw new TypeError("SEALED_SNAPSHOT_CONFLICT");
+  }
+  for (const [path, text] of expected) {
+    await assertNoSymlinkPath(snapshotRoot, path);
+    if (await readFile(containedPath(snapshotRoot, path), "utf8") !== text) throw new TypeError("SEALED_SNAPSHOT_CONFLICT");
+  }
+  return true;
+}
+
+export async function commitOwnedOutputs({
+  root,
+  outputs,
+  immutablePaths = new Set(),
+  beforePromote = async () => {},
+  beforeRestore = async () => {},
+}) {
+  const entries = validatedOutputEntries(outputs);
+  const immutable = new Set([...immutablePaths].map(validateOwnedPath));
+  for (const path of immutable) {
+    if (!entries.some(([entryPath]) => entryPath === path)) throw new TypeError(`IMMUTABLE_OUTPUT_UNKNOWN ${path}`);
+  }
+  for (const [path] of entries) await assertNoSymlinkPath(root, path);
+  const stageRoot = await mkdtemp(join(root, ".rebuild-stage-"));
+  const backupRoot = await mkdtemp(join(root, ".rebuild-backup-"));
+  const promoted = [];
+  let preserveBackup = false;
+  try {
+    for (const [path, text] of entries) {
+      const staged = containedPath(stageRoot, path);
+      await mkdir(dirname(staged), { recursive: true });
+      await writeFile(staged, text, { mode: 0o600 });
+    }
+    let index = 0;
+    for (const [path] of entries) {
+      await beforePromote({ path, index });
+      const target = containedPath(root, path);
+      const staged = containedPath(stageRoot, path);
+      const backup = containedPath(backupRoot, path);
+      const isImmutable = immutable.has(path);
+      const hadTarget = await exists(target);
+      await mkdir(dirname(target), { recursive: true });
+      await assertNoSymlinkPath(root, path);
+      if (isImmutable) {
+        if (hadTarget) throw new TypeError(`IMMUTABLE_OUTPUT_EXISTS ${path}`);
+        await link(staged, target);
+        promoted.push({ path, target, backup, hadTarget: false, installed: true });
+        await unlink(staged);
+        index += 1;
+        continue;
+      }
+      if (hadTarget) {
+        await mkdir(dirname(backup), { recursive: true });
+        await rename(target, backup);
+      }
+      const item = { path, target, backup, hadTarget, installed: false };
+      promoted.push(item);
+      await rename(staged, target);
+      item.installed = true;
+      index += 1;
+    }
+  } catch (error) {
+    const restoreErrors = [];
+    for (const item of promoted.reverse()) {
+      try {
+        await rm(item.target, { recursive: true, force: true });
+        if (item.hadTarget) {
+          await beforeRestore({ path: item.path, backup: item.backup, target: item.target });
+          await mkdir(dirname(item.target), { recursive: true });
+          await rename(item.backup, item.target);
+        }
+      } catch (restoreError) {
+        restoreErrors.push(new Error(`restore failed for ${item.path}: ${restoreError.message}`, { cause: restoreError }));
+      }
+    }
+    if (restoreErrors.length) {
+      preserveBackup = true;
+      const aggregate = new AggregateError(
+        [error, ...restoreErrors],
+        `OWNED_OUTPUT_ROLLBACK_INCOMPLETE backup=${backupRoot}`,
+        { cause: error },
+      );
+      aggregate.backupRoot = backupRoot;
+      throw aggregate;
+    }
+    throw error;
+  } finally {
+    await rm(stageRoot, { recursive: true, force: true });
+    if (!preserveBackup) await rm(backupRoot, { recursive: true, force: true });
+  }
+}
+
+function validatedOutputEntries(outputs) {
+  if (!outputs || typeof outputs[Symbol.iterator] !== "function") throw new TypeError("OWNED_OUTPUTS_INVALID");
+  const entries = [];
+  const targets = new Set();
+  for (const entry of outputs) {
+    if (!Array.isArray(entry) || entry.length !== 2) throw new TypeError("OWNED_OUTPUT_ENTRY_INVALID");
+    const path = validateOwnedPath(entry[0]);
+    if (targets.has(path)) throw new TypeError(`OWNED_OUTPUT_TARGET_DUPLICATE ${path}`);
+    targets.add(path);
+    entries.push([path, entry[1]]);
+  }
+  return entries;
+}
+
+function validateOwnedPath(value) {
+  const path = String(value ?? "");
+  const normalized = posix.normalize(path);
+  if (!path || path.includes("\0") || path.includes("\\") || isAbsolute(path)
+    || normalized !== path || path === "." || path === ".."
+    || path.split("/").some(part => !part || part === "." || part === "..")) {
+    throw new TypeError(`OWNED_OUTPUT_PATH_INVALID ${path}`);
+  }
+  return path;
+}
+
+function containedPath(root, path) {
+  const absoluteRoot = resolve(root);
+  const target = resolve(absoluteRoot, validateOwnedPath(path));
+  const rel = relative(absoluteRoot, target);
+  if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    throw new TypeError(`OWNED_OUTPUT_PATH_OUTSIDE_ROOT ${path}`);
+  }
+  return target;
+}
+
+async function walkRelative(root, current = root) {
+  const entries = await readdir(current, { withFileTypes: true });
+  const paths = [];
+  for (const entry of entries) {
+    const path = join(current, entry.name);
+    if (entry.isSymbolicLink()) throw new TypeError(`SEALED_SNAPSHOT_SYMLINK ${path.slice(root.length + 1)}`);
+    if (entry.isDirectory()) paths.push(...await walkRelative(root, path));
+    else if (entry.isFile()) paths.push(path.slice(root.length + 1).replaceAll("\\", "/"));
+  }
+  return paths.sort();
+}
+
+export async function withRebuildLock(root, operation) {
+  const lockPath = containedPath(root, ".freeland-rebuild.lock");
+  await assertNoSymlinkPath(root, ".freeland-rebuild.lock");
+  try {
+    await mkdir(lockPath);
+  } catch (error) {
+    if (error?.code === "EEXIST") throw new TypeError("REBUILD_LOCK_HELD", { cause: error });
+    throw error;
+  }
+  try {
+    return await operation();
+  } finally {
+    await rm(lockPath, { recursive: true, force: true });
+  }
+}
+
+async function assertNoSymlinkPath(root, path) {
+  const safePath = validateOwnedPath(path);
+  const absoluteRoot = resolve(root);
+  let current = absoluteRoot;
+  for (const part of safePath.split("/")) {
+    current = join(current, part);
+    try {
+      const stat = await lstat(current);
+      if (stat.isSymbolicLink()) throw new TypeError(`OWNED_OUTPUT_SYMLINK ${safePath}`);
+    } catch (error) {
+      if (error?.code === "ENOENT") return;
+      throw error;
+    }
+  }
+}
+
+function renderAuditReport({ graph, impact, plan, sourceReview, changedValidation, coverageValidation, productRun, snapshot }) {
+  const gaps = coverageValidation.knownGaps.map(id => `- \`${id}\``).join("\n");
+  return `# Freeland graph proof audit — 2026-08-29
+
+Status: **fully_proven (graph structure)**. Release verdict: **not evaluated**.
+
+## Proven
+
+- exact source SHA: \`${graph.generatedFrom.sourceSha}\`
+- source locators: ${sourceReview.reviewed}/${sourceReview.required}, unresolved 0
+- baseline→candidate changed files: ${changedValidation.classified}/${changedValidation.required}, unmapped 0
+- semantic ownership: ${coverageValidation.owned}/${coverageValidation.required}
+- Product CI: ${productRun.counts.passed}/${productRun.counts.selected} passed by \`${productRun.execution.command}\`
+- deterministic snapshot: \`${snapshot.relative}\` (${snapshot.files} files)
+- full staging plan: ${plan.automatedTests.length} Playwright + ${plan.productCiTests.length} Product CI + ${plan.manualTests.length} manual
+
+## Honest remaining coverage gaps (${coverageValidation.knownGaps.length})
+
+${gaps || "- none"}
+
+These gaps do not invalidate graph provenance. They prevent interpreting structural proof as a green release verdict.
+
+## Impact
+
+- product-impact files: ${impact.productImpactFiles}
+- no-product-impact files: ${impact.noProductImpactFiles}
+- impacted semantic nodes: ${impact.impactedNodes.length}
+- unmapped changed files: ${impact.unmappedFiles.length}
+`;
+}
+
+function canonicalText(value) { return `${canonicalJson(value)}\n`; }
+async function exists(path) { try { await access(path); return true; } catch { return false; } }
+function assertExactCommit(sourceRoot, sha) {
+  if (!/^[a-f0-9]{40}$/.test(sha) || git(sourceRoot, ["rev-parse", `${sha}^{commit}`]).trim() !== sha) {
+    throw new TypeError(`REBUILD_GIT_IDENTITY_INVALID ${sha}`);
+  }
+}
+function git(sourceRoot, args) {
+  return execFileSync("git", args, { cwd: sourceRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+}
+function gitBuffer(sourceRoot, args) {
+  return execFileSync("git", args, { cwd: sourceRoot, maxBuffer: 64 * 1024 * 1024 });
+}

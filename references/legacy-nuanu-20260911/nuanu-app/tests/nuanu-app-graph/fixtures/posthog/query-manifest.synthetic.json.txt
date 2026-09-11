@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "provider": "posthog",
+  "targetHost": "app.nuanu.com",
+  "schemaObservation": {
+    "preflightId": "napp-posthog-preflight-11111111-1111-4111-8111-111111111111",
+    "schemaFactsDigest": "23fef3fe265b7eace86708f180aa28b5c7399934a4af424e96f475572cc2ba9f"
+  },
+  "hostScope": {
+    "propertyIdentifier": "napp_test_host",
+    "operator": "exact",
+    "value": "app.nuanu.com"
+  },
+  "bindings": [
+    {
+      "queryId": "telemetry-freshness",
+      "builderId": "trends-total-v1",
+      "eventIdentifiers": ["napp_test_population_event"],
+      "valuePropertyIdentifier": null,
+      "breakdown": {
+        "dimension": "browser",
+        "propertyIdentifier": "napp_test_browser",
+        "publicValueAllowlist": ["Synthetic Browser"]
+      },
+      "exceptionFingerprintQuery": null,
+      "p75SampleCountCompanion": null
+    },
+    {
+      "queryId": "route-health",
+      "builderId": "trends-route-health-rate-v1",
+      "eventIdentifiers": ["napp_test_route_attempt", "napp_test_route_success"],
+      "valuePropertyIdentifier": null,
+      "breakdown": {
+        "dimension": "os",
+        "propertyIdentifier": "napp_test_os",
+        "publicValueAllowlist": null
+      },
+      "exceptionFingerprintQuery": null,
+      "p75SampleCountCompanion": null
+    },
+    {
+      "queryId": "funnel-discovery",
+      "builderId": "funnels-discovery-v1",
+      "eventIdentifiers": ["napp_test_discovery_surface_view", "napp_test_place_detail_from_discovery"],
+      "valuePropertyIdentifier": null,
+      "breakdown": null,
+      "exceptionFingerprintQuery": null,
+      "p75SampleCountCompanion": null
+    },
+    {
+      "queryId": "funnel-place-detail",
+      "builderId": "funnels-place-detail-v1",
+      "eventIdentifiers": ["napp_test_place_detail_view", "napp_test_place_detail_primary_action"],
+      "valuePropertyIdentifier": null,
+      "breakdown": null,
+      "exceptionFingerprintQuery": null,
+      "p75SampleCountCompanion": null
+    },
+    {
+      "queryId": "js-exception-rate",
+      "builderId": "trends-exception-session-rate-v1",
+      "eventIdentifiers": ["napp_test_eligible_population", "napp_test_exception_population"],
+      "valuePropertyIdentifier": null,
+      "breakdown": null,
+      "exceptionFingerprintQuery": {
+        "builderId": "trends-exception-fingerprint-breakdown-v1",
+        "propertyIdentifier": "napp_test_exception_fingerprint",
+        "officialSchemaEvidenceDigest": "0707070707070707070707070707070707070707070707070707070707070707"
+      },
+      "p75SampleCountCompanion": null
+    },
+    {
+      "queryId": "web-vitals-lcp-p75",
+      "builderId": "trends-p75-v1",
+      "eventIdentifiers": ["napp_test_web_vital_lcp"],
+      "valuePropertyIdentifier": "napp_test_web_vital_value",
+      "breakdown": {
+        "dimension": "browser",
+        "propertyIdentifier": "napp_test_browser",
+        "publicValueAllowlist": ["Synthetic Browser"]
+      },
+      "exceptionFingerprintQuery": null,
+      "p75SampleCountCompanion": {
+        "builderId": "trends-total-sample-size-v1",
+        "exactPopulationSemanticsEvidenceDigest": "0606060606060606060606060606060606060606060606060606060606060606"
+      }
+    },
+    {
+      "queryId": "web-vitals-cls-p75",
+      "builderId": "trends-p75-v1",
+      "eventIdentifiers": ["napp_test_web_vital_cls"],
+      "valuePropertyIdentifier": "napp_test_web_vital_value",
+      "breakdown": {
+        "dimension": "device",
+        "propertyIdentifier": "napp_test_hardware_class",
+        "publicValueAllowlist": null
+      },
+      "exceptionFingerprintQuery": null,
+      "p75SampleCountCompanion": null
+    }
+  ]
+}

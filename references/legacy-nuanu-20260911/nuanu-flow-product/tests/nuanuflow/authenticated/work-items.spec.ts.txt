@@ -1,0 +1,335 @@
+import { test, expect } from '../fixtures/authenticated.fixture';
+import { SANDBOX } from '../fixtures/sandbox-data';
+import { WorkItemsPage } from '../pages/work-items.page';
+
+const tomorrow = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  return date;
+};
+
+const dayAfterTomorrow = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 2);
+  return date;
+};
+
+const MUTATING_TEST_TIMEOUT_MS = 90_000;
+
+test.describe.configure({ mode: 'serial' });
+
+test.describe('Nuanu Flow owned work items', () => {
+  test('persists an owned work item lifecycle with exact-ID cleanup', async ({
+    page,
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const workItemsPage = new WorkItemsPage(page);
+    const initialName = ownedName('work item');
+    const updatedName = initialName + ' updated';
+
+    await workItemsPage.goto();
+    await assertSandbox();
+    const created = await workItemsPage.create(
+      {
+        title: initialName,
+        description: 'Synthetic QA record with no personal data.',
+      },
+      (responseOwned) => {
+        cleanupLedger.register({
+          kind: 'work-item',
+          id: responseOwned.id,
+          name: initialName,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: () => workItemsPage.deleteOwned(responseOwned.id, updatedName),
+        });
+      },
+    );
+
+    await workItemsPage.openByName(initialName, created);
+    await workItemsPage.updateTitle(updatedName);
+    await workItemsPage.updateDescription(
+      'Synthetic QA record with no personal data. Updated safely.',
+    );
+    await workItemsPage.setState('In Progress');
+    await workItemsPage.setPriority('High');
+    await workItemsPage.setStartDate(tomorrow());
+    await workItemsPage.setDueDate(dayAfterTomorrow());
+    await workItemsPage.reloadCurrent();
+
+    await expect(workItemsPage.title).toHaveValue(updatedName);
+    await expect(workItemsPage.description).toContainText('Updated safely.');
+    await expect(workItemsPage.stateButton).toHaveText('In Progress');
+    await expect(workItemsPage.priorityButton).toHaveText('High');
+    await expect(workItemsPage.commentButton).toBeDisabled();
+    await workItemsPage.copyLinkWithFeedback();
+    await workItemsPage.cancelOwnedDelete();
+    await expect(workItemsPage.title).toHaveValue(updatedName);
+  });
+
+  test('accepts 255 title characters and blocks 256 before POST', async ({
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+    page,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const workItemsPage = new WorkItemsPage(page);
+    const acceptedName = (ownedName('title boundary ') + 'x'.repeat(255)).slice(
+      0,
+      255,
+    );
+    const rejectedName = acceptedName + 'y';
+
+    expect(acceptedName).toHaveLength(255);
+    expect(rejectedName).toHaveLength(256);
+
+    await workItemsPage.goto();
+    await assertSandbox();
+    const created = await workItemsPage.create(
+      { title: acceptedName },
+      (responseOwned) => {
+        cleanupLedger.register({
+          kind: 'work-item',
+          id: responseOwned.id,
+          name: acceptedName,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: () => workItemsPage.deleteOwned(responseOwned.id, acceptedName),
+        });
+      },
+    );
+
+    await workItemsPage.goto();
+    await assertSandbox();
+    const rejection = await workItemsPage.rejectOverlongTitle(rejectedName);
+    expect(rejection.attemptedPosts).toBe(0);
+    expect(rejection.validationMessage).toBe(
+      'Title should be less than 255 characters',
+    );
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('requires explicit discard confirmation and creates nothing', async ({
+    assertSandbox,
+    ownedName,
+    page,
+  }) => {
+    const workItemsPage = new WorkItemsPage(page);
+    const cancelledName = ownedName('cancelled work item');
+
+    await workItemsPage.goto();
+    await assertSandbox();
+    const createPosts = await workItemsPage.fillAndDiscard(cancelledName);
+
+    expect(createPosts).toBe(0);
+    await expect(page.getByText(cancelledName, { exact: true })).toHaveCount(0);
+  });
+
+  test('turns a rapid double-submit into one exact-ID creation', async ({
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+    page,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const workItemsPage = new WorkItemsPage(page);
+    const name = ownedName('double submit work item');
+
+    await workItemsPage.goto();
+    await assertSandbox();
+    const created = await workItemsPage.create(
+      {
+        title: name,
+        doubleSubmit: true,
+      },
+      (responseOwned) => {
+        cleanupLedger.register({
+          kind: 'work-item',
+          id: responseOwned.id,
+          name,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: () => workItemsPage.deleteOwned(responseOwned.id, name),
+        });
+      },
+    );
+
+    expect(created.requestCount).toBe(1);
+  });
+
+  test('duplicates an owned item and registers every create response ID', async ({
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+    page,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const workItemsPage = new WorkItemsPage(page);
+    const sourceName = ownedName('duplicate source');
+    const duplicateName = ownedName('duplicate result');
+
+    await workItemsPage.goto();
+    await assertSandbox();
+    const source = await workItemsPage.create({ title: sourceName }, (created) => {
+      cleanupLedger.register({
+        kind: 'work-item',
+        id: created.id,
+        name: sourceName,
+        workspaceSlug: SANDBOX.workspaceSlug,
+        cleanup: () => workItemsPage.deleteOwned(created.id, sourceName),
+      });
+    });
+    await workItemsPage.openByName(sourceName, source);
+
+    const duplicate = await workItemsPage.duplicateOwned(
+      duplicateName,
+      (created) => {
+        cleanupLedger.register({
+          kind: 'work-item',
+          id: created.id,
+          name: duplicateName,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: () => workItemsPage.deleteOwned(created.id, duplicateName),
+        });
+      },
+    );
+
+    expect(duplicate.name).toBe(duplicateName);
+    expect(duplicate.requestCount).toBe(1);
+  });
+
+  test('adds a relates-to relation between two response-owned items', async ({
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+    page,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const workItemsPage = new WorkItemsPage(page);
+    const sourceName = ownedName('relation source');
+    const targetName = ownedName('relation target');
+
+    await workItemsPage.goto();
+    await assertSandbox();
+    const source = await workItemsPage.create({ title: sourceName }, (created) => {
+      cleanupLedger.register({
+        kind: 'work-item',
+        id: created.id,
+        name: sourceName,
+        workspaceSlug: SANDBOX.workspaceSlug,
+        cleanup: () => workItemsPage.deleteOwned(created.id, sourceName),
+      });
+    });
+
+    await workItemsPage.goto();
+    await assertSandbox();
+    const target = await workItemsPage.create({ title: targetName }, (created) => {
+      cleanupLedger.register({
+        kind: 'work-item',
+        id: created.id,
+        name: targetName,
+        workspaceSlug: SANDBOX.workspaceSlug,
+        cleanup: () => workItemsPage.deleteOwned(created.id, targetName),
+      });
+    });
+
+    await workItemsPage.openByName(sourceName, source);
+    await workItemsPage.addRelatesTo(target);
+
+    await expect(
+      page.getByRole('link').filter({ hasText: targetName }),
+    ).toHaveCount(1);
+  });
+
+  test('opens verified filter and display controls without changing preferences', async ({
+    assertSandbox,
+    page,
+  }) => {
+    const workItemsPage = new WorkItemsPage(page);
+    await workItemsPage.goto();
+    await assertSandbox();
+
+    const filterListbox = await workItemsPage.openFilters();
+    await workItemsPage.assertFilterOptions(filterListbox);
+    await workItemsPage.closeFilters(filterListbox);
+
+    await workItemsPage.openDisplay();
+    await workItemsPage.assertDisplayOptions();
+    await workItemsPage.closeDisplay();
+  });
+
+  test('rejects an exact-ID stale update after owned deletion', async () => {
+    test.fixme(
+      true,
+      'The post-delete PATCH status contract was not observed; do not guess 404 versus 410 or issue an unverified mutation.',
+    );
+  });
+
+  test('blocks an empty title without creating an unowned record', async ({
+    assertSandbox,
+    page,
+  }) => {
+    const workItemsPage = new WorkItemsPage(page);
+    await workItemsPage.goto();
+    await assertSandbox();
+
+    const attemptedPosts = await workItemsPage.rejectEmptyTitleAndDiscard();
+
+    expect(attemptedPosts).toBe(0);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  test('searches owned work items by hit and miss', async () => {
+    test.fixme(
+      true,
+      'No product-local list search control is exposed; the global command palette is not a verified substitute.',
+    );
+  });
+
+  test('persists start and due dates through a detail-route reload', async () => {
+    test.fixme(
+      true,
+      'Exact date PATCH 204 and immediate rendering are proven, but authenticated expiry prevented capture of durable post-reload button values.',
+    );
+  });
+
+  test('removes a relates-to relation between owned items', async () => {
+    test.fixme(
+      true,
+      'Relation add is proven; the exact remove endpoint/status was not observed before the signed-in Chrome session expired.',
+    );
+  });
+
+  test('adds a comment without notifying external users', async () => {
+    test.fixme(true, 'Outgoing comments/messages are outside this campaign safety scope.');
+  });
+
+  test('uploads the synthetic text attachment', async () => {
+    test.fixme(
+      true,
+      'Task 13 candidate: the exact attachment POST returned 522 and the UI silently removed the 0% upload; no tracker issue is filed yet.',
+    );
+  });
+
+  test('adds and removes a response-owned sub-work item', async () => {
+    test.fixme(
+      true,
+      'The Add sub-work item control is mapped, but its create/link and unlink exact-ID response contracts are not yet proven.',
+    );
+  });
+
+  test('archives, unarchives, then deletes an owned completed item', async () => {
+    test.fixme(
+      true,
+      'Archive eligibility is mapped, but exact archive/unarchive endpoints and reversible status contracts were not observed before auth expiry.',
+    );
+  });
+
+  test('opens analytics without crashing the Work Items route', async () => {
+    test.fixme(
+      true,
+      'Task 13 candidate: Analytics rendered then crashed in workitems-insight-table; duplicate check and ticket are pending.',
+    );
+  });
+});

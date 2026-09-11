@@ -1,0 +1,1371 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+import { digestJson } from "../../tools/nuanu-app-graph/model.mjs";
+import {
+  POSTHOG_QUERY_BUILDERS,
+  buildP75PostHogQueryPair,
+  buildStructuredPostHogQuery,
+  digestStructuredPostHogQuery,
+} from "../../tools/nuanu-app-graph/posthog-query-builders.mjs";
+import {
+  POSTHOG_QUERY_IDS,
+  createExactPostHogTransport,
+  createPostHogReadAdapter,
+  validatePostHogAccessLock,
+  validatePostHogQueryManifest,
+  validatePostHogSchemaFacts,
+} from "../../tools/nuanu-app-graph/posthog-read.mjs";
+
+const FIXTURE_ROOT = new URL("./fixtures/posthog/", import.meta.url);
+const WINDOW = Object.freeze({
+  startAt: "2026-08-25T00:00:00.000Z",
+  endAt: "2026-08-26T00:00:00.000Z",
+  interval: "day",
+});
+const NOW = "2026-08-26T00:05:00.000Z";
+const WINDOW_DIGEST = "8989bc7dcbcf94bb8c7851c3917562bdbe188ee39b93ca424cfedd90107e0b0c";
+const SCHEMA_FACTS_DIGEST = "23fef3fe265b7eace86708f180aa28b5c7399934a4af424e96f475572cc2ba9f";
+const LCP_PRIMARY_HASH = "78d0c00aa373beb9a7af0371ed7d3968516adce11576e8df7f641e2764aecbad";
+const LCP_COUNT_HASH = "816abc377ec132a4e5531145b1758258d45bf0ddf470b73be062417b52be94df";
+const LCP_PAIR_DIGEST = "4fe2223bc142d70d10848c03c3a9ac4693ddfd86e9b839e363ed8b85e98f5cad";
+
+function loadFixture(name) {
+  return JSON.parse(readFileSync(new URL(name, FIXTURE_ROOT), "utf8"));
+}
+
+function fixtures() {
+  return {
+    accessLock: loadFixture("access-lock.synthetic.json"),
+    schemaFacts: loadFixture("schema-facts.synthetic.json"),
+    queryManifest: loadFixture("query-manifest.synthetic.json"),
+  };
+}
+
+function clone(value) {
+  return structuredClone(value);
+}
+
+function sealSchemaFacts(schemaFacts, queryManifest, accessLock) {
+  const content = clone(schemaFacts);
+  delete content.schemaFactsDigest;
+  schemaFacts.schemaFactsDigest = digestJson(content);
+  queryManifest.schemaObservation.schemaFactsDigest = schemaFacts.schemaFactsDigest;
+  accessLock.approvedWindow.schemaFactsDigest = schemaFacts.schemaFactsDigest;
+}
+
+function bindingForManifest(queryManifest, binding) {
+  return {
+    queryId: binding.queryId,
+    builderId: binding.builderId,
+    eventIdentifiers: binding.eventIdentifiers,
+    valuePropertyIdentifier: binding.valuePropertyIdentifier,
+    hostPropertyIdentifier: queryManifest.hostScope.propertyIdentifier,
+    breakdown: binding.breakdown,
+    p75SampleCountCompanion: binding.p75SampleCountCompanion,
+  };
+}
+
+function auxiliaryBinding(queryManifest, binding) {
+  return {
+    queryId: "js-exception-rate:fingerprint",
+    builderId: binding.exceptionFingerprintQuery.builderId,
+    eventIdentifiers: [binding.eventIdentifiers[1]],
+    valuePropertyIdentifier: null,
+    hostPropertyIdentifier: queryManifest.hostScope.propertyIdentifier,
+    breakdown: {
+      dimension: "exception_fingerprint",
+      propertyIdentifier: binding.exceptionFingerprintQuery.propertyIdentifier,
+      publicValueAllowlist: null,
+    },
+    p75SampleCountCompanion: null,
+  };
+}
+
+function fullCoordinate({ dimensionIds = [], dimensionValues = [], series }) {
+  return {
+    bucketEndedAt: WINDOW.endAt,
+    dimensionIds,
+    dimensionValues,
+    series,
+  };
+}
+
+function defaultCoordinates(queryId, requestRole) {
+  if (queryId === "telemetry-freshness") {
+    return [
+      fullCoordinate({ series: [{ index: 0, role: "population_event", aggregation: "total", value: 200 }] }),
+      fullCoordinate({
+        dimensionIds: ["browser"],
+        dimensionValues: ["Synthetic Browser"],
+        series: [{ index: 0, role: "population_event", aggregation: "total", value: 120 }],
+      }),
+    ];
+  }
+  if (queryId === "route-health") {
+    return [
+      fullCoordinate({ series: [
+        { index: 0, role: "route_attempt_population", aggregation: "unique_session", value: 200 },
+        { index: 1, role: "route_success_population", aggregation: "unique_session", value: 180 },
+      ] }),
+      fullCoordinate({
+        dimensionIds: ["os"],
+        dimensionValues: ["Synthetic OS"],
+        series: [
+          { index: 0, role: "route_attempt_population", aggregation: "unique_session", value: 100 },
+          { index: 1, role: "route_success_population", aggregation: "unique_session", value: 80 },
+        ],
+      }),
+    ];
+  }
+  if (queryId === "funnel-discovery") {
+    return [fullCoordinate({ series: [
+      { index: 0, role: "discovery_surface_view", aggregation: "total", value: 200 },
+      { index: 1, role: "place_detail_view_from_discovery", aggregation: "total", value: 80 },
+    ] })];
+  }
+  if (queryId === "funnel-place-detail") {
+    return [fullCoordinate({ series: [
+      { index: 0, role: "place_detail_view", aggregation: "total", value: 200 },
+      { index: 1, role: "place_detail_primary_action", aggregation: "total", value: 50 },
+    ] })];
+  }
+  if (queryId === "js-exception-rate:fingerprint") {
+    return [fullCoordinate({
+      dimensionIds: ["exception_fingerprint"],
+      dimensionValues: ["opaque-synthetic-fingerprint"],
+      series: [{
+        index: 0,
+        role: "exception_session_population",
+        aggregation: "unique_session",
+        value: 24,
+      }],
+    })];
+  }
+  if (queryId === "js-exception-rate") {
+    return [fullCoordinate({ series: [
+      { index: 0, role: "eligible_session_population", aggregation: "unique_session", value: 200 },
+      { index: 1, role: "exception_session_population", aggregation: "unique_session", value: 40 },
+    ] })];
+  }
+  if (queryId === "web-vitals-lcp-p75" && requestRole === "sample_count") {
+    return [
+      fullCoordinate({
+        dimensionIds: ["browser"],
+        dimensionValues: ["Synthetic Browser"],
+        series: [{ index: 0, role: "vital_measurement", aggregation: "total", value: 100 }],
+      }),
+      fullCoordinate({
+        series: [{ index: 0, role: "vital_measurement", aggregation: "total", value: 200 }],
+      }),
+    ];
+  }
+  if (queryId === "web-vitals-lcp-p75") {
+    return [
+      fullCoordinate({
+        series: [{ index: 0, role: "vital_measurement", aggregation: "p75", value: 2100.5 }],
+      }),
+      fullCoordinate({
+        dimensionIds: ["browser"],
+        dimensionValues: ["Synthetic Browser"],
+        series: [{ index: 0, role: "vital_measurement", aggregation: "p75", value: 2050.25 }],
+      }),
+    ];
+  }
+  throw new Error(`No synthetic coordinates for ${queryId}:${requestRole}`);
+}
+
+function requestIdentity(queryHash, accessLock) {
+  for (const [queryId, approved] of Object.entries(accessLock.approvedQueryHashes)) {
+    if (approved.primary === queryHash) return { queryId, requestRole: "primary" };
+    if (approved.sampleCount === queryHash) return { queryId, requestRole: "sample_count" };
+    if (approved.auxiliary?.exceptionFingerprint === queryHash) {
+      return { queryId: `${queryId}:fingerprint`, requestRole: "exception_fingerprint" };
+    }
+  }
+  return { queryId: ".invalid", requestRole: ".invalid" };
+}
+
+function resultKindFor(queryId) {
+  return queryId.startsWith("funnel-") ? "funnel" : "series";
+}
+
+function makeAuthorizedProvider(accessLock, mutate = (envelope) => envelope) {
+  const calls = [];
+  const provider = {
+    postJsonWithHostSecret: async (request) => {
+      calls.push(clone(request));
+      const queryHash = digestStructuredPostHogQuery(request.body.query);
+      const identity = requestIdentity(queryHash, accessLock);
+      const envelope = {
+        status: 200,
+        redirected: false,
+        payload: {
+          schemaVersion: 1,
+          queryId: identity.queryId,
+          queryHash,
+          windowDigest: WINDOW_DIGEST,
+          resultKind: resultKindFor(identity.queryId),
+          coordinates: defaultCoordinates(identity.queryId, identity.requestRole),
+        },
+      };
+      return mutate(envelope, identity, calls.length, request);
+    },
+  };
+  return { provider, calls };
+}
+
+function makeDeferredAuthorizedProvider(accessLock) {
+  const calls = [];
+  const frozenQueries = [];
+  let releaseGate;
+  const gate = new Promise((resolve) => { releaseGate = resolve; });
+  const provider = {
+    postJsonWithHostSecret: async (request) => {
+      await gate;
+      calls.push(clone(request));
+      frozenQueries.push(Object.isFrozen(request.body.query));
+      const queryHash = digestStructuredPostHogQuery(request.body.query);
+      const identity = requestIdentity(queryHash, accessLock);
+      return {
+        status: 200,
+        redirected: false,
+        payload: {
+          schemaVersion: 1,
+          queryId: identity.queryId,
+          queryHash,
+          windowDigest: WINDOW_DIGEST,
+          resultKind: resultKindFor(identity.queryId),
+          coordinates: defaultCoordinates(identity.queryId, identity.requestRole),
+        },
+      };
+    },
+  };
+  return { provider, calls, frozenQueries, release: releaseGate };
+}
+
+function makeSystem({
+  accessLock = fixtures().accessLock,
+  schemaFacts = fixtures().schemaFacts,
+  queryManifest = fixtures().queryManifest,
+  mutateEnvelope,
+  now = () => NOW,
+} = {}) {
+  const { provider, calls } = makeAuthorizedProvider(accessLock, mutateEnvelope);
+  const transport = createExactPostHogTransport({
+    accessLock,
+    queryManifest,
+    schemaFacts,
+    window: WINDOW,
+    authorizedPostProvider: provider,
+    now: () => NOW,
+  });
+  const adapter = createPostHogReadAdapter({
+    accessLock,
+    queryManifest,
+    schemaFacts,
+    window: WINDOW,
+    transport,
+    now,
+  });
+  return { adapter, transport, provider, calls };
+}
+
+function assertBlockedCandidate(candidate, limitation) {
+  assert.equal(candidate.status, "BLOCKED");
+  assert.ok(candidate.limitations.includes(limitation));
+  assert.equal(candidate.aggregate, null);
+  assert.deepEqual(candidate.breakdowns, []);
+  assert.equal(candidate.p75Pairing, null);
+}
+
+test("rejects an incomplete or unknown effective capability matrix", async () => {
+  for (const mutate of [
+    (lock) => { delete lock.effectiveCapabilities.writes.members; },
+    (lock) => { lock.effectiveCapabilities.targetProjectResourceLevels.query = "unknown"; },
+    (lock) => { lock.effectiveCapabilities.inventory.visibleCapabilitiesComplete = false; },
+  ]) {
+    const { accessLock } = fixtures();
+    mutate(accessLock);
+    assert.throws(() => validatePostHogAccessLock(accessLock), /capabilit|complete|unknown/i);
+  }
+});
+
+test("never infers capability from displayed role or a readOnly boolean", async () => {
+  const { accessLock } = fixtures();
+  accessLock.displayedRole = "Owner";
+  accessLock.readOnly = true;
+  accessLock.effectiveCapabilities.query.aggregateStructuredRead = "unknown";
+  assert.throws(() => validatePostHogAccessLock(accessLock), /keys|capabilit|unknown/i);
+});
+
+test("accepts only exact organization visibility resource and capability enums", async () => {
+  const { accessLock } = fixtures();
+  assert.deepEqual(validatePostHogAccessLock(accessLock), { ok: true, authorized: true });
+  for (const mutate of [
+    (lock) => { lock.effectiveCapabilities.organizationMembershipLevel = ".invalid"; },
+    (lock) => { lock.effectiveCapabilities.accessibleProjects[0].defaultVisibility = ".invalid"; },
+    (lock) => { lock.effectiveCapabilities.accessibleProjects[0].resourceLevel = ".invalid"; },
+    (lock) => { lock.effectiveCapabilities.memberManagement.inviteMembers = ".invalid"; },
+  ]) {
+    const invalid = fixtures().accessLock;
+    mutate(invalid);
+    assert.throws(() => validatePostHogAccessLock(invalid), /enum|access|membership|visibility|level/i);
+  }
+});
+
+test("requires exact host project resource and query endpoint path", async () => {
+  for (const mutate of [
+    (lock) => { lock.host = "http://posthog.synthetic.invalid"; },
+    (lock) => { lock.host = "https://posthog.synthetic.invalid/path"; },
+    (lock) => { lock.targetProjectResourceId = "other.invalid"; },
+    (lock) => {
+      lock.targetProjectResourceId = "..";
+      lock.queryEndpointPath = "/api/projects/../query/";
+      lock.effectiveCapabilities.accessibleProjects[0].resourceId = "..";
+    },
+    (lock) => { lock.queryEndpointPath = "/api/projects/424242/query/?redirect=.invalid"; },
+  ]) {
+    const invalid = fixtures().accessLock;
+    mutate(invalid);
+    assert.throws(() => validatePostHogAccessLock(invalid), /host|project|path|resource/i);
+  }
+});
+
+test("requires every schema fact status including all nine metric IDs", async () => {
+  const { accessLock, schemaFacts } = fixtures();
+  assert.deepEqual(POSTHOG_QUERY_IDS, Object.keys(POSTHOG_QUERY_BUILDERS));
+  for (const mutate of [
+    (facts) => { facts.metrics.pop(); },
+    (facts) => { facts.metrics[0].metricId = ".invalid"; },
+    (facts) => { facts.metrics[0].status = ".invalid"; },
+    (facts) => { facts.breakdowns.pop(); },
+  ]) {
+    const invalid = clone(schemaFacts);
+    mutate(invalid);
+    assert.throws(
+      () => validatePostHogSchemaFacts({ accessLock, schemaFacts: invalid, now: NOW }),
+      /metric|status|breakdown|order|digest/i,
+    );
+  }
+});
+
+test("rejects stale future digest-mismatched or mixed-preflight schema facts", async () => {
+  const base = fixtures();
+  const stale = clone(base.schemaFacts);
+  const staleLock = clone(base.accessLock);
+  const staleManifest = clone(base.queryManifest);
+  staleLock.acceptedAt = "2026-08-25T23:29:00.000Z";
+  staleLock.effectiveCapabilities.inventory.observedAt = "2026-08-25T23:30:00.000Z";
+  stale.observation.observedAt = "2026-08-25T23:31:00.000Z";
+  sealSchemaFacts(stale, staleManifest, staleLock);
+  assert.throws(
+    () => validatePostHogSchemaFacts({ accessLock: staleLock, schemaFacts: stale, now: NOW }),
+    /stale|age/i,
+  );
+
+  const future = clone(base.schemaFacts);
+  const futureLock = clone(base.accessLock);
+  const futureManifest = clone(base.queryManifest);
+  future.observation.observedAt = "2026-08-26T00:06:00.000Z";
+  sealSchemaFacts(future, futureManifest, futureLock);
+  assert.throws(
+    () => validatePostHogSchemaFacts({ accessLock: futureLock, schemaFacts: future, now: NOW }),
+    /future|observed/i,
+  );
+
+  const digestMismatch = clone(base.schemaFacts);
+  digestMismatch.hostScope.propertyIdentifier = "napp_test_other_host";
+  assert.throws(
+    () => validatePostHogSchemaFacts({ accessLock: base.accessLock, schemaFacts: digestMismatch, now: NOW }),
+    /digest/i,
+  );
+
+  const mixed = clone(base.schemaFacts);
+  const mixedLock = clone(base.accessLock);
+  const mixedManifest = clone(base.queryManifest);
+  mixed.observation.preflightId = "napp-posthog-preflight-22222222-2222-4222-8222-222222222222";
+  sealSchemaFacts(mixed, mixedManifest, mixedLock);
+  assert.throws(
+    () => validatePostHogSchemaFacts({ accessLock: mixedLock, schemaFacts: mixed, now: NOW }),
+    /preflight/i,
+  );
+});
+
+test("proves schema freshness in the read layer rather than the builder", async () => {
+  const { accessLock, schemaFacts, queryManifest } = fixtures();
+  const binding = bindingForManifest(queryManifest, queryManifest.bindings[0]);
+  assert.doesNotThrow(() => buildStructuredPostHogQuery({
+    queryId: "telemetry-freshness",
+    binding,
+    window: WINDOW,
+  }));
+  assert.throws(
+    () => validatePostHogSchemaFacts({
+      accessLock,
+      schemaFacts,
+      now: "2026-08-26T01:00:00.000Z",
+    }),
+    /stale|age/i,
+  );
+});
+
+test("rejects AVAILABLE p75 when its value aggregation or population proof is absent", async () => {
+  for (const mutate of [
+    (facts) => { facts.metrics[6].valuePropertyIdentifier = null; },
+    (facts) => { facts.metrics[6].exactPopulationSemanticsEvidenceDigest = null; },
+  ]) {
+    const { accessLock, schemaFacts } = fixtures();
+    mutate(schemaFacts);
+    assert.throws(
+      () => validatePostHogSchemaFacts({ accessLock, schemaFacts, now: NOW }),
+      /p75|value|population|digest/i,
+    );
+  }
+});
+
+test("manifest omits NOT_INSTRUMENTED and contains every AVAILABLE or UNAVAILABLE ID", async () => {
+  const data = fixtures();
+  const validation = validatePostHogQueryManifest({ ...data, window: WINDOW, now: NOW });
+  assert.deepEqual(validation.publicValueAllowlists, {
+    browser: ["Synthetic Browser"],
+  });
+  assert.deepEqual(
+    data.queryManifest.bindings.map((binding) => binding.queryId),
+    [
+      "telemetry-freshness",
+      "route-health",
+      "funnel-discovery",
+      "funnel-place-detail",
+      "js-exception-rate",
+      "web-vitals-lcp-p75",
+      "web-vitals-cls-p75",
+    ],
+  );
+});
+
+test("rejects empty partial reordered or status-bearing executable bindings", async () => {
+  for (const mutate of [
+    (manifest) => { manifest.bindings = []; },
+    (manifest) => { manifest.bindings[0].eventIdentifiers = []; },
+    (manifest) => { manifest.bindings.reverse(); },
+    (manifest) => { manifest.bindings[0].status = "AVAILABLE"; },
+  ]) {
+    const data = fixtures();
+    mutate(data.queryManifest);
+    assert.throws(
+      () => validatePostHogQueryManifest({ ...data, window: WINDOW, now: NOW }),
+      /binding|order|keys|status|event/i,
+    );
+  }
+});
+
+test("derives public mode only from an exact reviewed dimension allowlist", async () => {
+  const data = fixtures();
+  const result = validatePostHogQueryManifest({ ...data, window: WINDOW, now: NOW });
+  assert.deepEqual(result.publicValueAllowlists.browser, ["Synthetic Browser"]);
+  assert.equal(Object.hasOwn(result.publicValueAllowlists, "release"), false);
+  assert.ok(Object.isFrozen(result.publicValueAllowlists));
+});
+
+test("read validation rejects sensitive scalars in unused schema identifiers and public allowlists", async () => {
+  const unusedFact = fixtures();
+  unusedFact.schemaFacts.breakdowns[4].propertyIdentifier = "napp_test_session_marker";
+  sealSchemaFacts(unusedFact.schemaFacts, unusedFact.queryManifest, unusedFact.accessLock);
+  assert.throws(
+    () => validatePostHogQueryManifest({ ...unusedFact, window: WINDOW, now: NOW }),
+    /identifier|sensitive|schema/i,
+  );
+
+  const publicValue = fixtures();
+  publicValue.queryManifest.bindings[0].breakdown.publicValueAllowlist = [
+    "person@example.invalid",
+  ];
+  assert.throws(
+    () => validatePostHogQueryManifest({ ...publicValue, window: WINDOW, now: NOW }),
+    /allowlist|sensitive|invalid/i,
+  );
+});
+
+test("rejects conflicting public allowlists instead of changing persistence mode", async () => {
+  const data = fixtures();
+  data.queryManifest.bindings[5].breakdown.publicValueAllowlist = ["Other Synthetic Browser"];
+  assert.throws(
+    () => validatePostHogQueryManifest({ ...data, window: WINDOW, now: NOW }),
+    /allowlist|conflict/i,
+  );
+});
+
+test("omits a null-allowlist dimension from public mode for random-ID normalization", async () => {
+  const data = fixtures();
+  const result = validatePostHogQueryManifest({ ...data, window: WINDOW, now: NOW });
+  assert.equal(Object.hasOwn(result.publicValueAllowlists, "os"), false);
+  assert.equal(Object.hasOwn(result.publicValueAllowlists, "device"), false);
+});
+
+test("a private manifest cannot contain request body query columns status or window", async () => {
+  for (const field of ["request", "body", "query", "columns", "status", "window"]) {
+    const data = fixtures();
+    data.queryManifest.bindings[0][field] = ".invalid";
+    assert.throws(
+      () => validatePostHogQueryManifest({ ...data, window: WINDOW, now: NOW }),
+      /keys|binding|manifest/i,
+    );
+  }
+});
+
+test("requires the exact immutable approved window and window-dependent hashes", async () => {
+  const data = fixtures();
+  assert.equal(data.accessLock.approvedWindow.windowDigest, WINDOW_DIGEST);
+  assert.equal(data.queryManifest.schemaObservation.schemaFactsDigest, SCHEMA_FACTS_DIGEST);
+  assert.equal(data.accessLock.approvedQueryHashes["web-vitals-lcp-p75"].primary, LCP_PRIMARY_HASH);
+  assert.equal(data.accessLock.approvedQueryHashes["web-vitals-lcp-p75"].sampleCount, LCP_COUNT_HASH);
+  assert.equal(data.accessLock.approvedQueryHashes["web-vitals-lcp-p75"].pairDigest, LCP_PAIR_DIGEST);
+  assert.throws(
+    () => validatePostHogQueryManifest({
+      ...data,
+      window: {
+        startAt: "2026-08-24T00:00:00.000Z",
+        endAt: "2026-08-25T00:00:00.000Z",
+        interval: "day",
+      },
+      now: NOW,
+    }),
+    /window|digest|approved/i,
+  );
+});
+
+test("blocks an approved future window without deriving a replacement", async () => {
+  const system = makeSystem({ now: () => "2026-08-25T23:59:59.000Z" });
+  const result = await system.adapter.readMetric({ queryId: "telemetry-freshness" });
+  assertBlockedCandidate(result.candidate, "STRUCTURED_QUERY_BLOCKED");
+  assert.equal(result.candidate.queryHash, fixtures().accessLock.approvedQueryHashes["telemetry-freshness"].primary);
+  assert.equal(system.calls.length, 0);
+});
+
+test("accepts only POST through the injected host-secret provider", async () => {
+  const system = makeSystem();
+  await system.adapter.readMetric({ queryId: "telemetry-freshness" });
+  assert.equal(system.calls.length, 1);
+  assert.deepEqual(Object.keys(system.calls[0]).sort(), ["body", "host", "path"]);
+  assert.equal(system.calls[0].host, "https://posthog.synthetic.invalid");
+  assert.equal(system.calls[0].path, "/api/projects/424242/query/");
+  assert.deepEqual(Object.keys(system.calls[0].body), ["query"]);
+});
+
+test("transport snapshots validated destination and bindings before caller mutation", async () => {
+  const data = fixtures();
+  const { provider, calls } = makeAuthorizedProvider(data.accessLock);
+  const transport = createExactPostHogTransport({
+    ...data,
+    window: WINDOW,
+    authorizedPostProvider: provider,
+    now: () => NOW,
+  });
+  const binding = bindingForManifest(data.queryManifest, data.queryManifest.bindings[0]);
+  const query = buildStructuredPostHogQuery({
+    queryId: "telemetry-freshness",
+    binding,
+    window: WINDOW,
+  });
+  const queryHash = digestStructuredPostHogQuery(query);
+
+  data.accessLock.host = "https://changed.synthetic.invalid";
+  data.accessLock.queryEndpointPath = "/api/projects/changed/query/";
+  data.queryManifest.bindings[0].eventIdentifiers[0] = "changed_event";
+
+  const result = await transport.postStructuredQuery({
+    queryId: "telemetry-freshness",
+    queryHash,
+    query,
+    window: WINDOW,
+  });
+  assert.equal(result.status, "OK");
+  assert.equal(calls[0].host, "https://posthog.synthetic.invalid");
+  assert.equal(calls[0].path, "/api/projects/424242/query/");
+});
+
+test("transport snapshots and deep-freezes a normal query before deferred provider use", async () => {
+  const data = fixtures();
+  const deferred = makeDeferredAuthorizedProvider(data.accessLock);
+  const transport = createExactPostHogTransport({
+    ...data,
+    window: WINDOW,
+    authorizedPostProvider: deferred.provider,
+    now: () => NOW,
+  });
+  const binding = bindingForManifest(data.queryManifest, data.queryManifest.bindings[0]);
+  const query = clone(buildStructuredPostHogQuery({
+    queryId: "telemetry-freshness",
+    binding,
+    window: WINDOW,
+  }));
+  const originalEvent = query.series[0].event;
+  const pending = transport.postStructuredQuery({
+    queryId: "telemetry-freshness",
+    queryHash: digestStructuredPostHogQuery(query),
+    query,
+    window: WINDOW,
+  });
+
+  query.series[0].event = "napp_test_mutated_event";
+  deferred.release();
+  const result = await pending;
+
+  assert.equal(result.status, "OK");
+  assert.equal(deferred.calls[0].body.query.series[0].event, originalEvent);
+  assert.deepEqual(deferred.frozenQueries, [true]);
+});
+
+test("transport snapshots and deep-freezes both p75 queries before deferred provider use", async () => {
+  const data = fixtures();
+  const deferred = makeDeferredAuthorizedProvider(data.accessLock);
+  const transport = createExactPostHogTransport({
+    ...data,
+    window: WINDOW,
+    authorizedPostProvider: deferred.provider,
+    now: () => NOW,
+  });
+  const manifestBinding = data.queryManifest.bindings.find(
+    (binding) => binding.queryId === "web-vitals-lcp-p75",
+  );
+  const binding = bindingForManifest(data.queryManifest, manifestBinding);
+  const pair = clone(buildP75PostHogQueryPair({
+    metricId: "web-vitals-lcp-p75",
+    binding,
+    window: WINDOW,
+  }).pairBundle);
+  const originalEvent = pair.percentileQuery.series[0].event;
+  const pending = transport.postStructuredP75Pair({
+    metricId: "web-vitals-lcp-p75",
+    pair,
+    window: WINDOW,
+  });
+
+  pair.percentileQuery.series[0].event = "napp_test_mutated_percentile";
+  pair.sampleCountQuery.series[0].event = "napp_test_mutated_count";
+  deferred.release();
+  const result = await pending;
+
+  assert.equal(result.status, "OK");
+  assert.ok(deferred.calls.every(
+    (call) => call.body.query.series[0].event === originalEvent,
+  ));
+  assert.deepEqual(deferred.frozenQueries, [true, true]);
+});
+
+test("adapter snapshots validated artifacts before caller mutation", async () => {
+  const data = fixtures();
+  const system = makeSystem(data);
+  data.schemaFacts.metrics[0].status = "NOT_INSTRUMENTED";
+  data.schemaFacts.metrics[0].events = [];
+  data.queryManifest.bindings[0].eventIdentifiers[0] = "changed_event";
+
+  const result = await system.adapter.readMetric({ queryId: "telemetry-freshness" });
+  assert.equal(result.candidate.status, "AVAILABLE");
+  assert.equal(system.calls.length, 1);
+});
+
+test("rejects every forbidden structured query fixture before the provider call", async () => {
+  const data = fixtures();
+  const binding = bindingForManifest(data.queryManifest, data.queryManifest.bindings[0]);
+  const query = clone(buildStructuredPostHogQuery({
+    queryId: "telemetry-freshness",
+    binding,
+    window: WINDOW,
+  }));
+  query.kind = "HogQLQuery";
+  const system = makeSystem(data);
+  await assert.rejects(
+    system.transport.postStructuredQuery({
+      queryId: "telemetry-freshness",
+      queryHash: data.accessLock.approvedQueryHashes["telemetry-freshness"].primary,
+      query,
+      window: WINDOW,
+    }),
+    /kind|HogQL/i,
+  );
+  assert.equal(system.calls.length, 0);
+});
+
+test("rejects caller URL path project headers credential and body fields", async () => {
+  const data = fixtures();
+  const binding = bindingForManifest(data.queryManifest, data.queryManifest.bindings[0]);
+  const query = buildStructuredPostHogQuery({
+    queryId: "telemetry-freshness",
+    binding,
+    window: WINDOW,
+  });
+  for (const field of ["url", "path", "project", "headers", "credential", "body"]) {
+    const system = makeSystem(data);
+    await assert.rejects(
+      system.transport.postStructuredQuery({
+        queryId: "telemetry-freshness",
+        queryHash: digestStructuredPostHogQuery(query),
+        query,
+        window: WINDOW,
+        [field]: ".invalid",
+      }),
+      /keys|caller|input/i,
+    );
+    assert.equal(system.calls.length, 0);
+  }
+});
+
+test("rebuilds validates and hashes the structured query before transport", async () => {
+  const data = fixtures();
+  const system = makeSystem(data);
+  const result = await system.adapter.readMetric({ queryId: "telemetry-freshness" });
+  assert.equal(result.candidate.queryHash, "96a05975ae642f7ed989cee6296bd7daecdb04da679cca859c952a0b91aab9dd");
+  assert.equal(
+    digestStructuredPostHogQuery(system.calls[0].body.query),
+    result.candidate.queryHash,
+  );
+});
+
+test("rejects a complete query hash absent from the approved allowlist", async () => {
+  const data = fixtures();
+  delete data.accessLock.approvedQueryHashes["telemetry-freshness"];
+  const { provider, calls } = makeAuthorizedProvider(data.accessLock);
+  assert.throws(
+    () => createExactPostHogTransport({
+      ...data,
+      window: WINDOW,
+      authorizedPostProvider: provider,
+      now: () => NOW,
+    }),
+    /approved|hash|binding/i,
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("validates both p75 queries and pair digest before the first POST", async () => {
+  const data = fixtures();
+  data.accessLock.approvedQueryHashes["web-vitals-lcp-p75"].pairDigest =
+    "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+  const { provider, calls } = makeAuthorizedProvider(data.accessLock);
+  assert.throws(
+    () => createExactPostHogTransport({
+      ...data,
+      window: WINDOW,
+      authorizedPostProvider: provider,
+      now: () => NOW,
+    }),
+    /pair|digest|approved/i,
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("pairs p75 and total count by metric bucket and dimensions not response order", async () => {
+  const system = makeSystem();
+  const result = await system.adapter.readMetric({ queryId: "web-vitals-lcp-p75" });
+  assert.equal(result.candidate.status, "AVAILABLE");
+  assert.deepEqual(result.candidate.aggregate, {
+    sampleSize: 200,
+    count: null,
+    rate: null,
+    p75: 2100.5,
+  });
+  assert.deepEqual(result.candidate.breakdowns, [{
+    dimension: "browser",
+    value: "Synthetic Browser",
+    sampleSize: 100,
+    count: null,
+    rate: null,
+    p75: 2050.25,
+  }]);
+});
+
+test("emits P75_COUNT_PAIR_MISMATCH for missing extra or mismatched full join keys", async () => {
+  for (const mutate of [
+    (envelope, identity) => {
+      if (identity.requestRole === "sample_count") envelope.payload.coordinates.pop();
+      return envelope;
+    },
+    (envelope, identity) => {
+      if (identity.requestRole === "sample_count") {
+        envelope.payload.coordinates.push(fullCoordinate({
+          dimensionIds: ["browser"],
+          dimensionValues: ["Extra Synthetic Browser"],
+          series: [{ index: 0, role: "vital_measurement", aggregation: "total", value: 20 }],
+        }));
+      }
+      return envelope;
+    },
+    (envelope, identity) => {
+      if (identity.requestRole === "sample_count") {
+        envelope.payload.coordinates[0].dimensionValues[0] = "Mismatch Synthetic Browser";
+      }
+      return envelope;
+    },
+  ]) {
+    const system = makeSystem({ mutateEnvelope: mutate });
+    const result = await system.adapter.readMetric({ queryId: "web-vitals-lcp-p75" });
+    assert.equal(result.candidate.status, "UNAVAILABLE");
+    assert.deepEqual(result.candidate.limitations, ["P75_COUNT_PAIR_MISMATCH"]);
+    assert.equal(result.candidate.queryHash, LCP_PRIMARY_HASH);
+  }
+});
+
+test("allows duplicate coordinates structurally only in p75 primary and count envelopes", async () => {
+  const system = makeSystem({
+    mutateEnvelope: (envelope, identity) => {
+      if (identity.queryId === "web-vitals-lcp-p75") {
+        envelope.payload.coordinates.push(clone(envelope.payload.coordinates[0]));
+      }
+      return envelope;
+    },
+  });
+  const result = await system.adapter.readMetric({ queryId: "web-vitals-lcp-p75" });
+  assert.equal(result.candidate.status, "UNAVAILABLE");
+  assert.deepEqual(result.candidate.limitations, ["P75_COUNT_PAIR_AMBIGUOUS"]);
+  assert.equal(system.calls.length, 2);
+});
+
+test("response fields cannot opt a non-p75 or auxiliary envelope into p75 duplicate allowance", async () => {
+  const system = makeSystem({
+    mutateEnvelope: (envelope, identity) => {
+      if (identity.queryId === "telemetry-freshness") {
+        envelope.payload.queryId = "web-vitals-lcp-p75";
+        envelope.payload.coordinates.push(clone(envelope.payload.coordinates[0]));
+      }
+      return envelope;
+    },
+  });
+  const result = await system.adapter.readMetric({ queryId: "telemetry-freshness" });
+  assertBlockedCandidate(result.candidate, "HTTP_PROVIDER_BLOCKED");
+});
+
+test("emits P75_COUNT_PAIR_AMBIGUOUS after duplicate p75 full join keys pass envelope validation", async () => {
+  const system = makeSystem({
+    mutateEnvelope: (envelope, identity) => {
+      if (identity.requestRole === "sample_count") {
+        envelope.payload.coordinates.push(clone(envelope.payload.coordinates[0]));
+      }
+      return envelope;
+    },
+  });
+  const result = await system.adapter.readMetric({ queryId: "web-vitals-lcp-p75" });
+  assert.equal(result.candidate.status, "UNAVAILABLE");
+  assert.equal(result.candidate.queryHash, LCP_PRIMARY_HASH);
+  assert.equal(result.candidate.p75Pairing, null);
+  assert.deepEqual(result.candidate.limitations, ["P75_COUNT_PAIR_AMBIGUOUS"]);
+});
+
+test("maps duplicate non-p75 primary coordinates to HTTP_PROVIDER_BLOCKED with zero candidate", async () => {
+  const system = makeSystem({
+    mutateEnvelope: (envelope, identity) => {
+      if (identity.queryId === "route-health") {
+        envelope.payload.coordinates.push(clone(envelope.payload.coordinates[0]));
+      }
+      return envelope;
+    },
+  });
+  const result = await system.adapter.readMetric({ queryId: "route-health" });
+  assertBlockedCandidate(result.candidate, "HTTP_PROVIDER_BLOCKED");
+  assert.equal(result.candidate.queryHash, fixtures().accessLock.approvedQueryHashes["route-health"].primary);
+});
+
+test("duplicate exception auxiliary coordinates discard primary and auxiliary with zero candidate", async () => {
+  const system = makeSystem({
+    mutateEnvelope: (envelope, identity) => {
+      if (identity.requestRole === "exception_fingerprint") {
+        envelope.payload.coordinates.push(clone(envelope.payload.coordinates[0]));
+      }
+      return envelope;
+    },
+  });
+  const result = await system.adapter.readMetric({ queryId: "js-exception-rate" });
+  assertBlockedCandidate(result.candidate, "HTTP_PROVIDER_BLOCKED");
+  assert.equal(system.calls.length, 2);
+});
+
+test("p75 candidate bucketEndedAt equals the exact canonical window end", async () => {
+  const result = await makeSystem().adapter.readMetric({ queryId: "web-vitals-lcp-p75" });
+  assert.equal(result.candidate.bucketEndedAt, WINDOW.endAt);
+  assert.ok(result.candidate.breakdowns.every((entry) => entry.sampleSize > 0));
+});
+
+test("never infers p75 sample size from rows buckets quantile shape or metadata", async () => {
+  const system = makeSystem({
+    mutateEnvelope: (envelope, identity) => {
+      if (identity.requestRole === "sample_count") {
+        envelope.payload.coordinates = [];
+        envelope.payload.rows = 999;
+      }
+      return envelope;
+    },
+  });
+  const result = await system.adapter.readMetric({ queryId: "web-vitals-lcp-p75" });
+  assertBlockedCandidate(result.candidate, "HTTP_PROVIDER_BLOCKED");
+  assert.notEqual(result.candidate.aggregate?.sampleSize, 999);
+});
+
+test("emits an exact joined p75 candidate with no raw provider coordinates", async () => {
+  const result = await makeSystem().adapter.readMetric({ queryId: "web-vitals-lcp-p75" });
+  assert.deepEqual(Object.keys(result.candidate), [
+    "queryId",
+    "queryHash",
+    "p75Pairing",
+    "metricId",
+    "status",
+    "capturedAt",
+    "bucketEndedAt",
+    "aggregate",
+    "breakdowns",
+    "exceptionGroups",
+    "providerExceptionFingerprintAttestation",
+    "limitations",
+  ]);
+  assert.equal("coordinates" in result.candidate, false);
+  assert.equal("payload" in result.candidate, false);
+  assert.equal(result.candidate.p75Pairing.sampleSizeSource, "independent_total_count");
+});
+
+test("emits unavailable with primary queryHash and null pairing on invalid count join", async () => {
+  const system = makeSystem({
+    mutateEnvelope: (envelope, identity) => {
+      if (identity.requestRole === "sample_count") envelope.payload.coordinates = [];
+      return envelope;
+    },
+  });
+  const result = await system.adapter.readMetric({ queryId: "web-vitals-lcp-p75" });
+  assert.equal(result.candidate.status, "UNAVAILABLE");
+  assert.equal(result.candidate.queryHash, LCP_PRIMARY_HASH);
+  assert.equal(result.candidate.p75Pairing, null);
+  assert.equal(result.candidate.aggregate, null);
+});
+
+test("discards both p75 responses when either companion request fails", async () => {
+  const system = makeSystem({
+    mutateEnvelope: (envelope, identity) => identity.requestRole === "sample_count"
+      ? { status: 503, redirected: false, payload: null }
+      : envelope,
+  });
+  const result = await system.adapter.readMetric({ queryId: "web-vitals-lcp-p75" });
+  assertBlockedCandidate(result.candidate, "HTTP_PROVIDER_BLOCKED");
+  assert.equal(system.calls.length, 2);
+  assert.equal("coordinates" in result.candidate, false);
+});
+
+test("unsupported p75 count companion retains primary queryHash and makes no provider call", async () => {
+  const result = await makeSystem().adapter.readMetric({ queryId: "web-vitals-cls-p75" });
+  assert.equal(result.candidate.status, "UNAVAILABLE");
+  assert.equal(result.candidate.queryHash, "a421abc5a1ba574476786c74c7407200b710b3e516181ce9891ecd93f0b7d494");
+  assert.equal(result.candidate.p75Pairing, null);
+  assert.deepEqual(result.candidate.limitations, ["P75_COUNT_COMPANION_UNAVAILABLE"]);
+});
+
+test("emits null queryHash only before a complete query exists", async () => {
+  const system = makeSystem();
+  const result = await system.adapter.readMetric({ queryId: "funnel-search" });
+  assert.equal(result.candidate.status, "NOT_INSTRUMENTED");
+  assert.equal(result.candidate.queryHash, null);
+  assert.equal(system.calls.length, 0);
+});
+
+test("retains queryHash for unavailable and post-query blocked candidates", async () => {
+  const unavailable = await makeSystem().adapter.readMetric({ queryId: "web-vitals-cls-p75" });
+  assert.match(unavailable.candidate.queryHash, /^[0-9a-f]{64}$/);
+  const blockedSystem = makeSystem({
+    mutateEnvelope: () => ({ status: 429, redirected: false, payload: null }),
+  });
+  const blocked = await blockedSystem.adapter.readMetric({ queryId: "telemetry-freshness" });
+  assert.match(blocked.candidate.queryHash, /^[0-9a-f]{64}$/);
+});
+
+test("uses exact count denominator and first-step origins for every non-p75 metric", async () => {
+  const expectations = {
+    "telemetry-freshness": { sampleSize: 200, count: 200, rate: null },
+    "route-health": { sampleSize: 200, count: null, rate: 0.9 },
+    "funnel-discovery": { sampleSize: 200, count: null, rate: 0.4 },
+    "funnel-place-detail": { sampleSize: 200, count: null, rate: 0.25 },
+    "js-exception-rate": { sampleSize: 200, count: null, rate: 0.2 },
+  };
+  for (const [queryId, expected] of Object.entries(expectations)) {
+    const result = await makeSystem().adapter.readMetric({ queryId });
+    assert.equal(result.candidate.aggregate.sampleSize, expected.sampleSize);
+    assert.equal(result.candidate.aggregate.count, expected.count);
+    assert.equal(result.candidate.aggregate.rate, expected.rate);
+  }
+});
+
+test("rejects reordered missing extra zero or impossible non-p75 populations", async () => {
+  for (const mutation of [
+    (series) => { series.reverse(); },
+    (series) => { series.pop(); },
+    (series) => { series.push(clone(series[0])); },
+    (series) => { series[0].value = 0; },
+    (series) => { series[1].value = series[0].value + 1; },
+  ]) {
+    const system = makeSystem({
+      mutateEnvelope: (envelope, identity) => {
+        if (identity.queryId === "route-health") mutation(envelope.payload.coordinates[0].series);
+        return envelope;
+      },
+    });
+    const result = await system.adapter.readMetric({ queryId: "route-health" });
+    assertBlockedCandidate(result.candidate, "HTTP_PROVIDER_BLOCKED");
+  }
+});
+
+test("exception fingerprint query is exclusive with a normal breakdown", async () => {
+  const data = fixtures();
+  data.queryManifest.bindings[4].breakdown = {
+    dimension: "browser",
+    propertyIdentifier: "napp_test_browser",
+    publicValueAllowlist: ["Synthetic Browser"],
+  };
+  assert.throws(
+    () => validatePostHogQueryManifest({ ...data, window: WINDOW, now: NOW }),
+    /exception|exclusive|breakdown/i,
+  );
+});
+
+test("emits safe fingerprint aggregates only after fresh proven-opaque schema agreement", async () => {
+  const result = await makeSystem().adapter.readMetric({ queryId: "js-exception-rate" });
+  assert.deepEqual(result.candidate.exceptionGroups, [{
+    providerFingerprint: "opaque-synthetic-fingerprint",
+    sampleSize: 24,
+    count: 24,
+    rate: 0.12,
+  }]);
+  assert.deepEqual(result.candidate.providerExceptionFingerprintAttestation, {
+    propertyIdentifier: "napp_test_exception_fingerprint",
+    officialSchemaEvidenceDigest: "0707070707070707070707070707070707070707070707070707070707070707",
+  });
+});
+
+test("retains aggregate exceptions but emits FIELD_NOT_PROVEN when proof is absent", async () => {
+  const data = fixtures();
+  data.schemaFacts.exceptionFingerprint = {
+    status: "FIELD_NOT_PROVEN",
+    propertyIdentifier: null,
+    officialSchemaEvidenceDigest: null,
+  };
+  data.queryManifest.bindings[4].exceptionFingerprintQuery = null;
+  data.accessLock.approvedQueryHashes["js-exception-rate"].auxiliary = null;
+  sealSchemaFacts(data.schemaFacts, data.queryManifest, data.accessLock);
+  const system = makeSystem(data);
+  const result = await system.adapter.readMetric({ queryId: "js-exception-rate" });
+  assert.equal(result.candidate.status, "AVAILABLE");
+  assert.equal(result.candidate.aggregate.rate, 0.2);
+  assert.deepEqual(result.candidate.exceptionGroups, []);
+  assert.equal(result.candidate.providerExceptionFingerprintAttestation, null);
+  assert.deepEqual(result.candidate.limitations, ["FIELD_NOT_PROVEN", "NO_REVIEWED_THRESHOLD"]);
+  assert.equal(system.calls.length, 1);
+});
+
+test("normalizes and discards the success response before returning", async () => {
+  const result = await makeSystem().adapter.readMetric({ queryId: "telemetry-freshness" });
+  const serialized = JSON.stringify(result);
+  assert.equal(serialized.includes("coordinates"), false);
+  assert.equal(serialized.includes("payload"), false);
+  assert.equal(serialized.includes("napp_test_population_event"), false);
+});
+
+test("maps 401 403 429 and 5xx to BLOCKED without retaining response data", async () => {
+  const cases = [
+    [401, "HTTP_AUTH_BLOCKED"],
+    [403, "HTTP_AUTH_BLOCKED"],
+    [429, "HTTP_RATE_LIMIT_BLOCKED"],
+    [500, "HTTP_PROVIDER_BLOCKED"],
+    [502, "HTTP_PROVIDER_BLOCKED"],
+    [503, "HTTP_PROVIDER_BLOCKED"],
+    [504, "HTTP_PROVIDER_BLOCKED"],
+  ];
+  for (const [status, limitation] of cases) {
+    const system = makeSystem({
+      mutateEnvelope: () => ({ status, redirected: false, payload: null }),
+    });
+    const result = await system.adapter.readMetric({ queryId: "telemetry-freshness" });
+    assertBlockedCandidate(result.candidate, limitation);
+    assert.equal(JSON.stringify(result).includes("response"), false);
+  }
+});
+
+test("maps malformed envelope shape types bounds redirect status and forbidden duplicates to HTTP_PROVIDER_BLOCKED", async () => {
+  const mutations = [
+    (envelope) => ({ ...envelope, extra: ".invalid" }),
+    (envelope) => ({ ...envelope, redirected: true }),
+    (envelope) => ({ ...envelope, status: 418, payload: null }),
+    (envelope) => { envelope.payload.coordinates[0].series[0].value = -1; return envelope; },
+    (envelope) => { envelope.payload.coordinates[0].dimensionValues = ["x".repeat(129)]; return envelope; },
+    (envelope) => { envelope.payload.coordinates.push(clone(envelope.payload.coordinates[0])); return envelope; },
+  ];
+  for (const mutateEnvelope of mutations) {
+    const system = makeSystem({ mutateEnvelope });
+    const result = await system.adapter.readMetric({ queryId: "telemetry-freshness" });
+    assertBlockedCandidate(result.candidate, "HTTP_PROVIDER_BLOCKED");
+  }
+});
+
+test("rejects unknown envelope fields raw rows and invalid coordinate types or bounds", async () => {
+  const mutations = [
+    (envelope) => { envelope.payload.rawRows = []; return envelope; },
+    (envelope) => { envelope.payload.coordinates[0].persons = []; return envelope; },
+    (envelope) => { envelope.payload.coordinates[0].dimensionIds = [".invalid"]; return envelope; },
+    (envelope) => { envelope.payload.coordinates[0].series[0].index = 99; return envelope; },
+    (envelope) => { envelope.payload.coordinates = new Array(1001).fill(envelope.payload.coordinates[0]); return envelope; },
+  ];
+  for (const mutateEnvelope of mutations) {
+    const system = makeSystem({ mutateEnvelope });
+    const result = await system.adapter.readMetric({ queryId: "telemetry-freshness" });
+    assertBlockedCandidate(result.candidate, "HTTP_PROVIDER_BLOCKED");
+  }
+});
+
+test("browser invite session is never accepted as query authentication", async () => {
+  const data = fixtures();
+  assert.throws(
+    () => createExactPostHogTransport({
+      ...data,
+      window: WINDOW,
+      authorizedPostProvider: {
+        browserSession: ".invalid",
+        postJsonWithHostSecret: async () => ({ status: 401, redirected: false, payload: null }),
+      },
+      now: () => NOW,
+    }),
+    /provider|keys|browser|secret/i,
+  );
+});
+
+test("missing scoped query credential or connector blocks only telemetry", async () => {
+  const data = fixtures();
+  data.accessLock.effectiveCapabilities.query.scopedQueryCredential = "missing";
+  const system = makeSystem(data);
+  const result = await system.adapter.readMetric({ queryId: "telemetry-freshness" });
+  assertBlockedCandidate(result.candidate, "SCOPED_TRANSPORT_BLOCKED");
+  assert.equal(result.candidate.queryHash, null);
+  assert.equal(system.calls.length, 0);
+});
+
+test("records NOT_INSTRUMENTED without invoking the secret provider", async () => {
+  const system = makeSystem();
+  const result = await system.adapter.readMetric({ queryId: "funnel-search" });
+  assert.deepEqual(result, {
+    capturedAt: NOW,
+    candidate: {
+      queryId: "funnel-search",
+      queryHash: null,
+      p75Pairing: null,
+      metricId: "funnel-search",
+      status: "NOT_INSTRUMENTED",
+      capturedAt: NOW,
+      bucketEndedAt: null,
+      aggregate: null,
+      breakdowns: [],
+      exceptionGroups: [],
+      providerExceptionFingerprintAttestation: null,
+      limitations: ["EVENT_NOT_PROVEN"],
+    },
+    publicValueAllowlists: {
+      browser: ["Synthetic Browser"],
+    },
+  });
+  assert.equal(system.calls.length, 0);
+});
+
+test("readAvailableMetrics samples one clock and returns exact candidate unions", async () => {
+  let samples = 0;
+  const system = makeSystem({ now: () => {
+    samples += 1;
+    return NOW;
+  } });
+  const result = await system.adapter.readAvailableMetrics();
+  assert.equal(samples, 1);
+  assert.equal(result.capturedAt, NOW);
+  assert.equal(result.candidates.length, POSTHOG_QUERY_IDS.length);
+  assert.ok(result.candidates.every((candidate) => candidate.capturedAt === NOW));
+  assert.deepEqual(result.candidates.map((candidate) => candidate.metricId), POSTHOG_QUERY_IDS);
+});
+
+test("requires the final capability inventory to be observed after invitation acceptance", () => {
+  const accessLock = fixtures().accessLock;
+  accessLock.acceptedAt = "2026-08-26T00:01:00.000Z";
+  assert.deepEqual(validatePostHogAccessLock(accessLock), { ok: true, authorized: true });
+  accessLock.acceptedAt = accessLock.effectiveCapabilities.inventory.observedAt;
+  assert.throws(() => validatePostHogAccessLock(accessLock), /accept|inventory|observ/i);
+  accessLock.acceptedAt = "2026-08-26T00:03:00.000Z";
+  assert.throws(() => validatePostHogAccessLock(accessLock), /accept|inventory|observ/i);
+});
+
+test("direct transport remains blocked without an available scoped host-secret provider", async () => {
+  const data = fixtures();
+  data.accessLock.acceptedAt = "2026-08-26T00:01:00.000Z";
+  data.accessLock.effectiveCapabilities.query.scopedQueryCredential = "missing";
+  const transport = createExactPostHogTransport({
+    ...data,
+    window: WINDOW,
+    authorizedPostProvider: null,
+    now: () => NOW,
+  });
+  const binding = bindingForManifest(data.queryManifest, data.queryManifest.bindings[0]);
+  const query = buildStructuredPostHogQuery({
+    queryId: "telemetry-freshness",
+    binding,
+    window: WINDOW,
+  });
+  const result = await transport.postStructuredQuery({
+    queryId: "telemetry-freshness",
+    queryHash: digestStructuredPostHogQuery(query),
+    query,
+    window: WINDOW,
+  });
+  assert.deepEqual(result, { status: "BLOCKED", limitation: "SCOPED_TRANSPORT_BLOCKED" });
+});
+
+test("direct transport revalidates thirty-minute schema freshness at action time", async () => {
+  const data = fixtures();
+  const { provider, calls } = makeAuthorizedProvider(data.accessLock);
+  let capturedAt = NOW;
+  const transport = createExactPostHogTransport({
+    ...data,
+    window: WINDOW,
+    authorizedPostProvider: provider,
+    now: () => capturedAt,
+  });
+  const binding = bindingForManifest(data.queryManifest, data.queryManifest.bindings[0]);
+  const query = buildStructuredPostHogQuery({
+    queryId: "telemetry-freshness",
+    binding,
+    window: WINDOW,
+  });
+
+  capturedAt = "2026-08-26T01:00:00.000Z";
+  const result = await transport.postStructuredQuery({
+    queryId: "telemetry-freshness",
+    queryHash: digestStructuredPostHogQuery(query),
+    query,
+    window: WINDOW,
+  });
+
+  assert.deepEqual(result, { status: "BLOCKED", limitation: "ACCESS_BLOCKED" });
+  assert.equal(calls.length, 0);
+});
+
+test("generic structured transport cannot execute a standalone p75 primary", async () => {
+  const data = fixtures();
+  data.accessLock.acceptedAt = "2026-08-26T00:01:00.000Z";
+  const { provider, calls } = makeAuthorizedProvider(data.accessLock);
+  const transport = createExactPostHogTransport({
+    ...data,
+    window: WINDOW,
+    authorizedPostProvider: provider,
+    now: () => NOW,
+  });
+  const manifestBinding = data.queryManifest.bindings.find(
+    (binding) => binding.queryId === "web-vitals-lcp-p75",
+  );
+  const binding = bindingForManifest(data.queryManifest, manifestBinding);
+  const pair = buildP75PostHogQueryPair({
+    metricId: "web-vitals-lcp-p75",
+    binding,
+    window: WINDOW,
+  }).pairBundle;
+  await assert.rejects(
+    transport.postStructuredQuery({
+      queryId: "web-vitals-lcp-p75",
+      queryHash: LCP_PRIMARY_HASH,
+      query: pair.percentileQuery,
+      window: WINDOW,
+    }),
+    /p75|pair/i,
+  );
+  assert.equal(calls.length, 0);
+});
+
+test("provider exceptions become opaque HTTP_PROVIDER_BLOCKED telemetry", async () => {
+  const data = fixtures();
+  data.accessLock.acceptedAt = "2026-08-26T00:01:00.000Z";
+  let calls = 0;
+  const transport = createExactPostHogTransport({
+    ...data,
+    window: WINDOW,
+    authorizedPostProvider: {
+      postJsonWithHostSecret: async () => {
+        calls += 1;
+        throw new Error("synthetic-sensitive-provider-detail.invalid");
+      },
+    },
+    now: () => NOW,
+  });
+  const adapter = createPostHogReadAdapter({
+    ...data,
+    window: WINDOW,
+    transport,
+    now: () => NOW,
+  });
+  const result = await adapter.readMetric({ queryId: "telemetry-freshness" });
+  assertBlockedCandidate(result.candidate, "HTTP_PROVIDER_BLOCKED");
+  assert.equal(JSON.stringify(result).includes("synthetic-sensitive-provider-detail.invalid"), false);
+  assert.equal(calls, 1);
+});
+
+test("exception auxiliary requires an exact fingerprint coordinate and bounded population", async () => {
+  for (const mutateEnvelope of [
+    (envelope, identity) => {
+      if (identity.requestRole === "exception_fingerprint") {
+        envelope.payload.coordinates[0].dimensionIds = [];
+        envelope.payload.coordinates[0].dimensionValues = [];
+      }
+      return envelope;
+    },
+    (envelope, identity) => {
+      if (identity.requestRole === "exception_fingerprint") {
+        envelope.payload.coordinates[0].series[0].value = 201;
+      }
+      return envelope;
+    },
+  ]) {
+    const system = makeSystem({ mutateEnvelope });
+    const result = await system.adapter.readMetric({ queryId: "js-exception-rate" });
+    assertBlockedCandidate(result.candidate, "HTTP_PROVIDER_BLOCKED");
+  }
+});
+
+test("rejects exception fingerprint property collision with host scope before transport", () => {
+  const data = fixtures();
+  data.schemaFacts.exceptionFingerprint.propertyIdentifier = data.schemaFacts.hostScope.propertyIdentifier;
+  data.queryManifest.bindings[4].exceptionFingerprintQuery.propertyIdentifier =
+    data.schemaFacts.hostScope.propertyIdentifier;
+  sealSchemaFacts(data.schemaFacts, data.queryManifest, data.accessLock);
+  const binding = auxiliaryBinding(data.queryManifest, data.queryManifest.bindings[4]);
+  const query = buildStructuredPostHogQuery({
+    queryId: "js-exception-rate:fingerprint",
+    binding,
+    window: WINDOW,
+  });
+  data.accessLock.approvedQueryHashes["js-exception-rate"].auxiliary.exceptionFingerprint =
+    digestStructuredPostHogQuery(query);
+  assert.throws(
+    () => validatePostHogQueryManifest({ ...data, window: WINDOW, now: NOW }),
+    /collision|reuse|host|fingerprint/i,
+  );
+});
+
+test("empty or overall-missing p75 pairs are unavailable rather than throwing", async () => {
+  for (const mutateEnvelope of [
+    (envelope, identity) => {
+      if (identity.queryId === "web-vitals-lcp-p75") envelope.payload.coordinates = [];
+      return envelope;
+    },
+    (envelope, identity) => {
+      if (identity.queryId === "web-vitals-lcp-p75") {
+        envelope.payload.coordinates = envelope.payload.coordinates.filter(
+          (coordinate) => coordinate.dimensionIds.length !== 0,
+        );
+      }
+      return envelope;
+    },
+  ]) {
+    const system = makeSystem({ mutateEnvelope });
+    const result = await system.adapter.readMetric({ queryId: "web-vitals-lcp-p75" });
+    assert.equal(result.candidate.status, "UNAVAILABLE");
+    assert.equal(result.candidate.queryHash, LCP_PRIMARY_HASH);
+    assert.equal(result.candidate.p75Pairing, null);
+    assert.deepEqual(result.candidate.limitations, ["P75_COUNT_PAIR_MISMATCH"]);
+  }
+});

@@ -1,0 +1,1080 @@
+import { createHash } from "node:crypto";
+
+const NODE_KINDS = new Set([
+  "file",
+  "requirement",
+  "flow",
+  "route",
+  "manual_test",
+  "automated_test",
+  "invariant",
+  "ticket",
+]);
+const EDGE_TYPES = new Set(["implements", "affects", "verifies", "always_run", "verified_by"]);
+
+const REQUIREMENT = /^- \[ \] ([A-G]\d+)\. (.*)$/;
+const CASE_ID_SOURCE = String.raw`TC-(?:[\p{Lu}\p{N}]+-)*[\p{Lu}\p{N}]+[\p{Ll}]?`;
+const REAL_MANUAL_CASE = new RegExp(`^### №(\\d+) · \\[(У[012])\\] · \\[([^\\]]+)\\] · (${CASE_ID_SOURCE}) — (.+)$`, "u");
+const LEGACY_MANUAL_CASE = new RegExp(`^### №(\\d+) · \\[(У[012])\\] · \\[(${CASE_ID_SOURCE})\\] · ([^—]+?) — (.+)$`, "u");
+const CASE_REFERENCE = new RegExp(`(?<![\\p{L}\\p{N}-])(${CASE_ID_SOURCE})(?![\\p{L}\\p{N}-])|№(\\d+)`, "gu");
+const PRIORITY = /^\*\*Приоритет:\*\* (P[0-2])$/m;
+const INVARIANT_IDS = new Map([
+  ["No product entitlement is shown as successful before its provider fulfillment is confirmed.", "no-early-entitlement"],
+  ["Every external payment creation is idempotent and protected from duplicate concurrent submission.", "payment-creation-idempotency"],
+  ["Unknown, stale, or failed payment/subscription reads fail closed and never enable a second charge.", "fail-closed-payment-state"],
+  ["Card and SBP provider errors remain visible and retryable; only an explicit PAYMENT_CHECKOUT_DISABLED response may use a deliberate legacy fallback.", "explicit-payment-fallback-only"],
+  ["An expired or definitively failed invoice can be cleared and replaced; an active or review invoice blocks duplicate payment.", "invoice-replacement-safety"],
+  ["Wallet, invoice, card transaction, and inbox histories refresh their newest page while preserving cursor correctness.", "history-refresh-cursor-correctness"],
+  ["Card issue and card top-up keep progress visible until provider state and local projections converge.", "card-operation-progress"],
+  ["Card transactions come from backend/provider projections, not client-side fabricated history.", "provider-backed-card-history"],
+  ["A VIP tokenized card is visible only with an active VIP benefit grant, an admin profile, a POSTED non-card VPN/eSIM/virtual-number purchase, or an active referral attribution; failed product operations, card operations and voided referrals do not unlock it.", "vip-card-entitlement-gate"],
+  ["USDT TRC20 and USDC ERC20 deposits generate addresses for their own network and callbacks credit the matching asset only.", "deposit-network-asset-match"],
+  ["TMA authentication trusts verified Telegram initData and preserves both launchPath and startTarget routing semantics.", "tma-initdata-routing"],
+  ["Provider, environment, and account boundaries never silently fall back across production and staging.", "environment-account-boundary-isolation"],
+]);
+
+export const FREELAND_V1_CORPUS_GUARD = Object.freeze({
+  nodes: { requirements: 136, manualCases: 89, flows: 18, routes: 22, invariants: 12 },
+  coverage: { full: 57, partial: 16, gap: 2, manual_excluded: 61 },
+  relations: { flowToManual: 54, routeToManual: 37 },
+  tiers: { u0: 5, u1Additional: 17, u2: 67 },
+  actors: { agent: 48, agentMoney: 10, together: 23, human: 8 },
+  priorities: { p0: 35, p1: 46, p2: 8 },
+  catalog: { productTests: 271, setupDependencies: ["freeland-staging-setup"] },
+});
+
+export function canonicalJson(value) {
+  return JSON.stringify(normalizeCanonical(value, new Set(), "$"));
+}
+
+export function digestCanonical(value) {
+  return `sha256:${createHash("sha256").update(canonicalJson(value)).digest("hex")}`;
+}
+
+const PRODUCT_CI_RUN_STATUSES = new Set(["passed", "failed", "skipped", "not_run"]);
+
+export function buildProductTestCatalog({ sourceSha, tests }) {
+  assertGitSha(sourceSha, "product test catalog source SHA");
+  if (!Array.isArray(tests)) throw new TypeError("product test catalog requires tests");
+  const normalizedTests = tests.map(normalizeProductTestRow).sort((left, right) => compareText(left.id, right.id));
+  assertUnique(normalizedTests.map(row => row.id), "product test ID");
+  const body = { schemaVersion: 2, sourceSha, tests: normalizedTests };
+  return { ...body, catalogDigest: digestCanonical(body) };
+}
+
+export function validateProductTestCatalog(catalog) {
+  assertExactKeys(catalog, ["schemaVersion", "sourceSha", "tests", "catalogDigest"], "product test catalog");
+  if (catalog.schemaVersion !== 2) throw new TypeError("product test catalog schema version is invalid");
+  const rebuilt = buildProductTestCatalog({
+    sourceSha: catalog.sourceSha,
+    tests: catalog.tests.map(row => {
+      assertExactKeys(row, ["bindings", "file", "id", "runner", "selector"], "product test row");
+      if (row.runner !== "product_ci") throw new TypeError("product test runner is invalid");
+      const expectedId = productCiTestId(row.file, row.selector);
+      if (row.id !== expectedId) throw new TypeError("product test ID does not match its selector");
+      return { file: row.file, selector: row.selector, bindings: row.bindings };
+    }),
+  });
+  if (canonicalJson(catalog) !== canonicalJson(rebuilt)) throw new TypeError("product test catalog digest or ordering is invalid");
+  return rebuilt;
+}
+
+export function buildProductCiRun({ catalog, state, observedAt, rows, blockerCode, execution }) {
+  const validatedCatalog = validateProductTestCatalog(catalog);
+  if (!new Set(["completed", "blocked"]).has(state)) throw new TypeError("product CI run state is invalid");
+  assertIsoDate(observedAt, "product CI run observedAt");
+  let normalizedRows;
+  if (state === "blocked") {
+    if (!String(blockerCode ?? "").trim()) throw new TypeError("blocked product CI run requires blockerCode");
+    if (rows !== undefined) throw new TypeError("blocked product CI run derives not-run rows from the catalog");
+    normalizedRows = validatedCatalog.tests.map(row => ({ id: row.id, status: "not_run" }));
+  } else {
+    if (blockerCode !== undefined) throw new TypeError("completed product CI run cannot carry blockerCode");
+    if (!Array.isArray(rows)) throw new TypeError("completed product CI run requires rows");
+    normalizedRows = rows.map(normalizeProductCiRunRow).sort((left, right) => compareText(left.id, right.id));
+  }
+  assertUnique(normalizedRows.map(row => row.id), "product CI run row ID");
+  const selectedIds = validatedCatalog.tests.map(row => row.id);
+  if (canonicalJson(normalizedRows.map(row => row.id)) !== canonicalJson(selectedIds)) {
+    throw new TypeError("product CI run must account for every selected test exactly once");
+  }
+  if (state === "completed" && normalizedRows.some(row => row.status !== "passed")) {
+    throw new TypeError("all selected product CI tests must pass before a completed run can be sealed");
+  }
+  const counts = productCiRunCounts(normalizedRows);
+  assertExactKeys(execution, ["command", "exitCode", "selectionVerified", "sourceTreeClean"], "product CI execution");
+  if (execution.command !== "pnpm test:ci") throw new TypeError("product CI execution command is invalid");
+  if (!Number.isInteger(execution.exitCode) || execution.exitCode < 0) throw new TypeError("product CI execution exitCode is invalid");
+  if (execution.selectionVerified !== true || execution.sourceTreeClean !== true) {
+    throw new TypeError("product CI execution is not fully verified");
+  }
+  if (state === "completed" && execution.exitCode !== 0) throw new TypeError("completed product CI execution must be green");
+  const body = {
+    schemaVersion: 2,
+    state,
+    candidateSha: validatedCatalog.sourceSha,
+    catalogDigest: validatedCatalog.catalogDigest,
+    observedAt,
+    execution,
+    ...(state === "blocked" ? { blockerCode: blockerCode.trim() } : {}),
+    rows: normalizedRows,
+    counts,
+  };
+  return { ...body, runDigest: digestCanonical(body) };
+}
+
+export function validateProductCiRun({ run, catalog }) {
+  const validatedCatalog = validateProductTestCatalog(catalog);
+  const commonKeys = ["schemaVersion", "state", "candidateSha", "catalogDigest", "observedAt", "execution", "rows", "counts", "runDigest"];
+  const expectedKeys = run?.state === "blocked" ? [...commonKeys, "blockerCode"] : commonKeys;
+  assertExactKeys(run, expectedKeys, "product CI run");
+  if (run.schemaVersion !== 2) throw new TypeError("product CI run schema version is invalid");
+  if (run.candidateSha !== validatedCatalog.sourceSha || run.catalogDigest !== validatedCatalog.catalogDigest) {
+    throw new TypeError("product CI run is not bound to the catalog candidate");
+  }
+  if (!Array.isArray(run.rows)) throw new TypeError("product CI run rows are invalid");
+  for (const row of run.rows) assertExactKeys(row, ["id", "status"], "product CI run row");
+  assertExactKeys(run.counts, ["selected", "passed", "failed", "skipped", "notRun"], "product CI run counts");
+  const rebuilt = buildProductCiRun({
+    catalog: validatedCatalog,
+    state: run.state,
+    observedAt: run.observedAt,
+    execution: run.execution,
+    ...(run.state === "blocked" ? { blockerCode: run.blockerCode } : { rows: run.rows }),
+  });
+  if (canonicalJson(run) !== canonicalJson(rebuilt)) throw new TypeError("product CI run digest, counts, or ordering is invalid");
+  return rebuilt;
+}
+
+function normalizeProductTestRow(row) {
+  if (!row || typeof row !== "object" || Array.isArray(row)) throw new TypeError("product test row is invalid");
+  assertExactKeys(row, ["bindings", "file", "selector"], "product test input row");
+  const file = String(row.file ?? "").trim();
+  const selector = String(row.selector ?? "").trim();
+  if (!isSafeRelativePath(file)) throw new TypeError("product test file path is unsafe");
+  if (!selector) throw new TypeError("product test selector is required");
+  if (!Array.isArray(row.bindings) || row.bindings.length === 0) throw new TypeError("product test row requires typed owners");
+  const bindings = row.bindings.map(binding => {
+    assertExactKeys(binding, ["coverage", "nodeId"], "product test binding");
+    const nodeId = String(binding.nodeId ?? "");
+    const coverage = String(binding.coverage ?? "");
+    if (!/^(?:req|flow|route|invariant):[A-Za-z0-9._-]+$/.test(nodeId)) {
+      throw new TypeError("product test owner is invalid");
+    }
+    if (!new Set(["full", "partial", "detection"]).has(coverage)) {
+      throw new TypeError("product test coverage is invalid");
+    }
+    return { nodeId, coverage };
+  }).sort((left, right) => compareText(canonicalJson(left), canonicalJson(right)));
+  assertUnique(bindings.map(binding => `${binding.nodeId}\u0000${binding.coverage}`), "product test binding");
+  return {
+    id: productCiTestId(file, selector),
+    runner: "product_ci",
+    file,
+    selector,
+    bindings,
+  };
+}
+
+function normalizeProductCiRunRow(row) {
+  assertExactKeys(row, ["id", "status"], "product CI run row");
+  if (!String(row.id ?? "").startsWith("product-ci:")) throw new TypeError("product CI run row ID is invalid");
+  if (!PRODUCT_CI_RUN_STATUSES.has(row.status)) throw new TypeError("product CI run row status is invalid");
+  return { id: row.id, status: row.status };
+}
+
+function productCiRunCounts(rows) {
+  const counts = { selected: rows.length, passed: 0, failed: 0, skipped: 0, notRun: 0 };
+  for (const row of rows) {
+    if (row.status === "not_run") counts.notRun += 1;
+    else counts[row.status] += 1;
+  }
+  return counts;
+}
+
+function productCiTestId(file, selector) {
+  return `product-ci:${file}#${selector}`;
+}
+
+function assertGitSha(value, label) {
+  if (!/^[a-f0-9]{40}$/.test(String(value ?? ""))) throw new TypeError(`${label} is invalid`);
+}
+
+function assertIsoDate(value, label) {
+  if (typeof value !== "string" || new Date(value).toISOString() !== value) throw new TypeError(`${label} is invalid`);
+}
+
+function assertExactKeys(value, expectedKeys, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`${label} must be an object`);
+  const actual = Object.keys(value).sort(compareText);
+  const expected = [...expectedKeys].sort(compareText);
+  if (canonicalJson(actual) !== canonicalJson(expected)) throw new TypeError(`${label} keys are invalid`);
+}
+
+function assertUnique(values, label) {
+  if (new Set(values).size !== values.length) throw new TypeError(`${label} must be unique`);
+}
+
+function isSafeRelativePath(value) {
+  return Boolean(value)
+    && !value.startsWith("/")
+    && !value.includes("\\")
+    && !value.includes("\0")
+    && !value.split("/").some(segment => !segment || segment === "." || segment === "..");
+}
+
+export function assertFreelandCorpusGuards({ corpus, catalog }, expected = FREELAND_V1_CORPUS_GUARD) {
+  const nodes = corpus?.nodes ?? [];
+  const nodeById = new Map(nodes.map(node => [node.id, node]));
+  const manual = nodes.filter(node => node.kind === "manual_test");
+  const relationCount = kind => new Set((corpus?.edges ?? [])
+    .filter(edge => edge.type === "verifies" && nodeById.get(edge.from)?.kind === "manual_test" && nodeById.get(edge.to)?.kind === kind)
+    .map(edge => `${edge.from}\u0000${edge.to}`)).size;
+  const actual = {
+    nodes: {
+      requirements: nodes.filter(node => node.kind === "requirement").length,
+      manualCases: manual.length,
+      flows: nodes.filter(node => node.kind === "flow").length,
+      routes: nodes.filter(node => node.kind === "route").length,
+      invariants: nodes.filter(node => node.kind === "invariant").length,
+    },
+    coverage: { full: 0, partial: 0, gap: 0, manual_excluded: 0, ...(corpus?.summary?.coverage ?? {}) },
+    relations: { flowToManual: relationCount("flow"), routeToManual: relationCount("route") },
+    tiers: {
+      u0: manual.filter(node => node.tier === "У0").length,
+      u1Additional: manual.filter(node => node.tier === "У1").length,
+      u2: manual.filter(node => node.tier === "У2").length,
+    },
+    actors: {
+      agent: manual.filter(node => node.actor === "АГЕНТ").length,
+      agentMoney: manual.filter(node => node.actor === "АГЕНТ+ДЕНЬГИ").length,
+      together: manual.filter(node => node.actor === "ВМЕСТЕ").length,
+      human: manual.filter(node => node.actor === "ЧЕЛОВЕК").length,
+    },
+    priorities: {
+      p0: manual.filter(node => node.priority === "P0").length,
+      p1: manual.filter(node => node.priority === "P1").length,
+      p2: manual.filter(node => node.priority === "P2").length,
+    },
+    catalog: {
+      productTests: catalog?.catalogCount ?? catalog?.tests?.length ?? 0,
+      setupDependencies: [...(catalog?.setupDependencies ?? [])].sort(),
+    },
+  };
+  if (canonicalJson(actual) !== canonicalJson(expected)) {
+    throw new Error(`FREELAND_CORPUS_GUARD_MISMATCH: expected=${canonicalJson(expected)} actual=${canonicalJson(actual)}`);
+  }
+  return actual;
+}
+
+export function parseCorpus({ productMap, coverageMap, manualCases, baseline, aliases }) {
+  const normalizedAliases = normalizeAliases(aliases);
+  const nodes = new Map();
+  const edges = [];
+  const sourceLocators = [];
+  const unresolved = [];
+  const caseNodes = parseManualCases(manualCases, nodes);
+
+  for (const invariant of normalizeInvariants(baseline?.businessInvariants ?? [])) {
+    addNode(nodes, {
+      id: `invariant:${invariant.id}`,
+      kind: "invariant",
+      title: invariant.title,
+    });
+  }
+
+  for (const section of requirementSections(productMap)) {
+    for (const { text, line } of section.lines) {
+      const match = text.match(REQUIREMENT);
+      if (!match) continue;
+      const id = `req:${match[1]}`;
+      addNode(nodes, { id, kind: "requirement", requirementId: match[1], title: match[2] });
+      sourceLocators.push(...extractSourceLocators(match[2], id, line));
+    }
+  }
+
+  const flowSection = numberedSection(productMap, 3);
+  if (flowSection) {
+    for (const table of scanTables(flowSection)) {
+      for (const row of table.rows) {
+        const product = field(row, ["product", "продукт"]);
+        const action = field(row, ["action", "действие"]);
+        const evidence = field(row, ["evidence", "evidence / конфликты", "источник", "sources"]);
+        if (!product || !action) continue;
+        const ownerIds = resolveFlowAliases(product, action, normalizedAliases, unresolved);
+        if (!ownerIds.length) {
+          sourceLocators.push(...extractSourceLocators(
+            evidence,
+            unresolvedOwnerId("flow", `${product.trim()} — ${action.trim()}`),
+            row.line,
+          ));
+        }
+        for (const ownerNodeId of ownerIds) {
+          addNode(nodes, { id: ownerNodeId, kind: "flow", product, action: action.trim() });
+          sourceLocators.push(...extractSourceLocators(evidence, ownerNodeId, row.line));
+        }
+      }
+    }
+  }
+
+  const routeSection = numberedSection(productMap, 5);
+  if (routeSection) {
+    for (const table of scanTables(routeSection)) {
+      for (const row of table.rows) {
+        const label = field(row, ["route / gate", "route", "gate", "маршрут", "роут"]);
+        const evidence = field(row, ["evidence", "источник", "sources"]);
+        if (!label) continue;
+        const ownerNodeId = resolveRouteAlias(label, normalizedAliases, unresolved);
+        if (!ownerNodeId) {
+          sourceLocators.push(...extractSourceLocators(evidence, unresolvedOwnerId("route", label), row.line));
+          continue;
+        }
+        addNode(nodes, { id: ownerNodeId, kind: "route", label: label.trim() });
+        sourceLocators.push(...extractSourceLocators(evidence, ownerNodeId, row.line));
+      }
+    }
+  }
+
+  const coverageSummary = { full: 0, partial: 0, gap: 0, manual_excluded: 0 };
+  const coverageSections = sections(coverageMap);
+  for (const section of coverageSections) {
+    const number = sectionNumber(section.heading);
+    if (number >= 1 && number <= 7) {
+      for (const table of scanTables(section)) {
+        for (const row of table.rows) {
+          const requirement = requirementIdFromRow(row);
+          const coverage = field(row, ["coverage", "покрытие", "classification"]);
+          const cases = fields(row, ["cases", "case", "кейсы", "кейс"]);
+          if (!requirement || !/^[A-G]\d+$/.test(requirement.trim())) continue;
+          const status = normalizeCoverageStatus(coverage);
+          if (status) coverageSummary[status] += 1;
+          const requirementId = `req:${requirement.trim()}`;
+          if (!nodes.has(requirementId)) {
+            unresolved.push({ kind: "requirement", label: requirement.trim(), context: "coverage" });
+            continue;
+          }
+          if (status) nodes.set(requirementId, { ...nodes.get(requirementId), coverageStatus: status });
+          if (status === "full" || status === "partial") {
+            for (const reference of extractCaseReferences(cases)) {
+              addVerification(edges, caseNodes, reference, requirementId, `coverage:${status}`, unresolved);
+            }
+          }
+        }
+      }
+    }
+    if (number === 8) {
+      for (const table of scanTables(section)) {
+        for (const row of table.rows) {
+          const label = field(row, ["flow", "payment flow", "поток", "продукт × действие"]);
+          const cases = fields(row, ["cases", "case", "кейсы", "кейс"]);
+          if (!label) continue;
+          if (row.cells.some(cell => cell.includes("⛔"))) continue;
+          if (normalizeCoverageStatus(field(row, ["coverage", "покрытие", "classification"])) === "manual_excluded") continue;
+          const flowIds = resolveFlowLabel(label, normalizedAliases, unresolved);
+          if (!flowIds.length) diagnoseCaseReferences(caseNodes, extractCaseReferences(cases), `flow:${label.trim()}`, unresolved);
+          for (const flowId of flowIds) {
+            addNode(nodes, { id: flowId, kind: "flow", label: label.trim() });
+            for (const reference of extractCaseReferences(cases)) addVerification(edges, caseNodes, reference, flowId, "coverage:flow", unresolved);
+          }
+        }
+      }
+    }
+    if (number === 9) {
+      for (const table of scanTables(section)) {
+        for (const row of table.rows) {
+          const label = field(row, ["route", "route / gate", "gate", "маршрут", "маршрут / гейт"]);
+          const cases = fields(row, ["cases", "case", "кейсы", "кейс"]);
+          if (!label) continue;
+          if (row.cells.some(cell => cell.includes("⛔"))) continue;
+          if (normalizeCoverageStatus(field(row, ["coverage", "покрытие", "classification"])) === "manual_excluded") continue;
+          const routeId = resolveRouteAlias(label, normalizedAliases, unresolved);
+          if (!routeId) {
+            diagnoseCaseReferences(caseNodes, extractCaseReferences(cases), `route:${label.trim()}`, unresolved);
+            continue;
+          }
+          addNode(nodes, { id: routeId, kind: "route", label: label.trim() });
+          for (const reference of extractCaseReferences(cases)) addVerification(edges, caseNodes, reference, routeId, "coverage:route", unresolved);
+        }
+      }
+    }
+  }
+
+  return {
+    nodes: sortedNodes(nodes.values()),
+    edges: sortedEdges(edges),
+    sourceLocators: sortedLocators(sourceLocators),
+    unresolved: sortedRecords(unresolved),
+    summary: { coverage: coverageSummary },
+  };
+}
+
+export function buildGraph({
+  corpus,
+  mappings = {},
+  sourceFiles = [],
+  sourceSha,
+  catalog = {},
+  productCatalog,
+  coverageOwnership,
+  provenance = {},
+  importGuard,
+  sourceReviewsByKey = new Map(),
+}) {
+  const nodes = new Map(corpus.nodes.map(node => [node.id, { ...node }]));
+  const edges = [...corpus.edges];
+  const sourceFileSet = new Set(sourceFiles);
+  const validatedProductCatalog = productCatalog === undefined ? null : validateProductTestCatalog(productCatalog);
+  if (validatedProductCatalog && validatedProductCatalog.sourceSha !== sourceSha) {
+    throw new TypeError("product test catalog candidate does not match graph source SHA");
+  }
+
+  for (const semantic of mappings.semanticNodes ?? []) {
+    if (!semantic?.id || !new Set(["flow", "route", "invariant"]).has(semantic.kind)) {
+      throw new TypeError("semantic node requires an ID and supported semantic kind");
+    }
+    if (!semantic.id.startsWith(`${semantic.kind}:`) || !String(semantic.title ?? "").trim() || !String(semantic.reason ?? "").trim()) {
+      throw new TypeError("semantic node requires a namespaced ID, title, and review reason");
+    }
+    if (nodes.has(semantic.id)) throw new TypeError("semantic node duplicates an existing node");
+    addNode(nodes, {
+      id: semantic.id,
+      kind: semantic.kind,
+      title: semantic.title.trim(),
+      reviewReason: semantic.reason.trim(),
+    });
+  }
+
+  for (const ticket of mappings.verifiedTickets ?? []) {
+    const identifier = String(ticket?.id ?? "").trim();
+    const title = String(ticket?.title ?? "").trim();
+    const verification = ticket?.verification ?? {};
+    const issueUrl = String(verification.issueUrl ?? "").trim();
+    const evidence = String(verification.evidence ?? "").trim();
+    const nodeIds = ticket?.nodeIds;
+    const accepted = /^FREEL-\d+$/.test(identifier)
+      && title
+      && verification.verdict === "qa_accepted"
+      && verification.state === "Ready for prod"
+      && issueUrl === `https://flow.nuanu.com/freeland/browse/${identifier}/`
+      && /^[a-f0-9]{40}$/.test(String(verification.verifiedOnReleaseSha ?? ""))
+      && evidence
+      && Array.isArray(nodeIds)
+      && nodeIds.length > 0
+      && nodeIds.every(nodeId => nodes.has(nodeId));
+    if (!accepted) throw new TypeError(`VERIFIED_TICKET_REQUIRED: ${identifier || "missing"}`);
+    const ticketId = `ticket:${identifier}`;
+    addNode(nodes, {
+      id: ticketId,
+      kind: "ticket",
+      identifier,
+      title,
+      verification: {
+        verdict: verification.verdict,
+        state: verification.state,
+        issueUrl,
+        verifiedOnReleaseSha: verification.verifiedOnReleaseSha,
+        evidence,
+      },
+    });
+    for (const nodeId of nodeIds) addEdge(edges, {
+      type: "verified_by",
+      from: nodeId,
+      to: ticketId,
+      evidence: `Nuanu Flow ${identifier}: QA accepted and Ready for prod read back`,
+    });
+  }
+
+  const sourceLocators = corpus.sourceLocators.map(locator => {
+    const resolverToken = resolverTokenFor(locator.rawToken);
+    const ownerExists = nodes.has(locator.ownerNodeId);
+    const review = sourceReviewsByKey.get(`${locator.ownerNodeId}\u0000${locator.rawToken}`);
+    const suffixMatches = sourceFiles.filter(path => path.endsWith(`/${resolverToken}`) || path === resolverToken);
+    const reviewedPath = sourceFileSet.has(review?.path) ? review.path : undefined;
+    const path = ownerExists ? reviewedPath : undefined;
+    const disposition = !ownerExists
+      ? "unresolved"
+      : path
+      ? "resolved"
+      : suffixMatches.length >= 1
+        ? "review_required"
+        : "unresolved";
+    const record = { ...locator, resolverToken, disposition };
+    if (path) {
+      record.path = path;
+      record.proof = {
+        sourceSha: review.sourceSha,
+        lines: review.lines,
+        fileBlobOid: review.fileBlobOid,
+        contentSha256: review.contentSha256,
+        assertions: review.assertions,
+        rationale: review.rationale,
+      };
+      const fileId = `file:${path}`;
+      addNode(nodes, { id: fileId, kind: "file", path });
+      addEdge(edges, { type: "implements", from: fileId, to: locator.ownerNodeId, evidence: locator.rawToken });
+    }
+    if (disposition === "review_required") record.candidates = [...suffixMatches].sort();
+    return record;
+  });
+
+  for (const affect of mappings.affects ?? []) {
+    if (!affect?.from || !affect?.to) continue;
+    addEdge(edges, { type: "affects", from: affect.from, to: affect.to, evidence: affect.evidence ?? "mapping:affects" });
+  }
+  for (const shared of mappings.sharedSources ?? []) {
+    if (!shared?.path || !Array.isArray(shared.nodeIds)) continue;
+    const fileId = `file:${shared.path}`;
+    addNode(nodes, { id: fileId, kind: "file", path: shared.path });
+    for (const nodeId of shared.nodeIds) {
+      if (!nodes.has(nodeId)) continue;
+      addEdge(edges, { type: "implements", from: fileId, to: nodeId, evidence: shared.reason });
+    }
+  }
+  for (const automated of mappings.automatedTests ?? catalog.tests ?? []) {
+    const autoId = automated.id ?? automatedTestId(automated);
+    if (!autoId) continue;
+    addNode(nodes, {
+      id: autoId,
+      kind: "automated_test",
+      runner: "staging_playwright",
+      selector: automated.selector ?? automated,
+    });
+    for (const nodeId of automated.nodeIds ?? []) addEdge(edges, {
+      type: "verifies",
+      from: autoId,
+      to: nodeId,
+      evidence: "mapping:automated",
+      coverage: "full",
+    });
+    for (const binding of automated.alwaysRun ?? []) {
+      if (!binding || typeof binding !== "object" || Array.isArray(binding)) {
+        throw new TypeError("automated alwaysRun requires an invariant binding object");
+      }
+      const invariantId = String(binding.invariantId ?? "").startsWith("invariant:")
+        ? binding.invariantId
+        : `invariant:${binding.invariantId ?? ""}`;
+      if (!nodes.has(invariantId) || nodes.get(invariantId).kind !== "invariant") {
+        throw new TypeError("automated alwaysRun requires an existing invariant target");
+      }
+      if (!String(binding.reason ?? "").trim()) {
+        throw new TypeError("automated alwaysRun requires an explicit reason");
+      }
+      addEdge(edges, {
+        type: "always_run",
+        from: autoId,
+        to: invariantId,
+        evidence: "mapping:always-run",
+        reason: binding.reason,
+      });
+    }
+  }
+  for (const automated of validatedProductCatalog?.tests ?? []) {
+    for (const binding of automated.bindings) {
+      if (!nodes.has(binding.nodeId) || !new Set(["requirement", "flow", "route", "invariant"]).has(nodes.get(binding.nodeId).kind)) {
+        throw new TypeError(`product test references an unknown semantic owner: ${binding.nodeId}`);
+      }
+    }
+    addNode(nodes, {
+      id: automated.id,
+      kind: "automated_test",
+      runner: "product_ci",
+      selector: { file: automated.file, title: automated.selector },
+    });
+    for (const binding of automated.bindings) addEdge(edges, {
+      type: "verifies",
+      from: automated.id,
+      to: binding.nodeId,
+      evidence: "mapping:product-ci",
+      coverage: binding.coverage,
+    });
+  }
+  for (const manual of mappings.alwaysRun ?? []) {
+    const manualId = manual?.testId?.startsWith("manual:") ? manual.testId : `manual:${manual?.testId ?? ""}`;
+    const invariantId = manual?.invariantId?.startsWith("invariant:")
+      ? manual.invariantId
+      : `invariant:${manual?.invariantId ?? ""}`;
+    if (!nodes.has(manualId) || !nodes.has(invariantId) || !manual?.reason) continue;
+    addEdge(edges, {
+      type: "always_run",
+      from: manualId,
+      to: invariantId,
+      evidence: "mapping:always-run",
+      reason: manual.reason,
+    });
+  }
+  for (const row of coverageOwnership?.rows ?? []) {
+    if (!nodes.has(row.nodeId)) throw new TypeError(`coverage ownership references an unknown semantic node: ${row.nodeId}`);
+    nodes.set(row.nodeId, { ...nodes.get(row.nodeId), coverageClassification: row.classification });
+    for (const binding of row.bindings ?? []) {
+      if (binding.testId.startsWith("graph-meta:")) addNode(nodes, {
+        id: binding.testId,
+        kind: "automated_test",
+        runner: "graph_meta",
+        selector: { check: "known-coverage-gap", nodeId: row.nodeId },
+      });
+      if (!nodes.has(binding.testId)) throw new TypeError(`coverage ownership references an unknown test: ${binding.testId}`);
+      addEdge(edges, {
+        type: "verifies",
+        from: binding.testId,
+        to: row.nodeId,
+        evidence: "proof:coverage-ownership",
+        coverage: binding.coverage,
+      });
+    }
+  }
+
+  const graph = {
+    schemaVersion: "1.0.0-lean",
+    generatedFrom: {
+      sourceSha: sourceSha ?? null,
+      ...provenance,
+      ...(coverageOwnership?.ownershipDigest ? { coverageOwnershipDigest: coverageOwnership.ownershipDigest } : {}),
+    },
+    nodes: sortedNodes(nodes.values()),
+    edges: sortedEdges(edges),
+    sourceLocators: sortedLocators(sourceLocators),
+    unresolved: sortedRecords(corpus.unresolved ?? []),
+    ...(importGuard ? { importGuard } : {}),
+  };
+  graph.semanticDigest = digestCanonical({
+    schemaVersion: graph.schemaVersion,
+    generatedFrom: graph.generatedFrom,
+    nodes: graph.nodes,
+    edges: graph.edges,
+    sourceLocators: graph.sourceLocators,
+    unresolved: graph.unresolved,
+    ...(graph.importGuard ? { importGuard: graph.importGuard } : {}),
+  });
+  return graph;
+}
+
+export function validateGraph(graph, expected = {}) {
+  const issues = [];
+  const nodes = graph?.nodes ?? [];
+  const edges = graph?.edges ?? [];
+  const locators = graph?.sourceLocators ?? [];
+  const nodeIds = new Set(nodes.map(node => node.id));
+  if (!isSorted(nodes, (left, right) => compareText(left.id, right.id))) issues.push({ code: "NODES_NOT_SORTED" });
+  if (!isSorted(edges, compareEdges)) issues.push({ code: "EDGES_NOT_SORTED" });
+  for (const node of nodes) if (!NODE_KINDS.has(node.kind)) issues.push({ code: "INVALID_NODE_KIND", id: node.id, kind: node.kind });
+  for (const node of nodes.filter(node => node.kind === "automated_test" && node.runner !== undefined)) {
+    if (!new Set(["staging_playwright", "product_ci", "graph_meta"]).has(node.runner)) {
+      issues.push({ code: "INVALID_AUTOMATED_TEST_RUNNER", id: node.id, runner: node.runner });
+    }
+  }
+  for (const edge of edges) if (!EDGE_TYPES.has(edge.type)) issues.push({ code: "INVALID_EDGE_TYPE", type: edge.type });
+  if (nodeIds.size !== nodes.length) issues.push({ code: "DUPLICATE_NODE_ID" });
+  for (const edge of edges) {
+    if (!nodeIds.has(edge.from)) issues.push({ code: "DANGLING_EDGE_FROM", edgeType: edge.type, from: edge.from, to: edge.to });
+    if (!nodeIds.has(edge.to)) issues.push({ code: "DANGLING_EDGE_TO", edgeType: edge.type, from: edge.from, to: edge.to });
+  }
+  for (const locator of locators) {
+    if (!locator.ownerNodeId || !locator.rawToken || !Array.isArray(locator.displayLines)) {
+      issues.push({ code: "INVALID_SOURCE_LOCATOR", rawToken: locator.rawToken ?? null });
+    }
+    if (!new Set(["resolved", "review_required", "unresolved"]).has(locator.disposition)) {
+      issues.push({ code: "INVALID_SOURCE_DISPOSITION", rawToken: locator.rawToken ?? null });
+    }
+  }
+  if (expected.nodeCount !== undefined && nodes.length !== expected.nodeCount) issues.push({ code: "NODE_COUNT_MISMATCH", expected: expected.nodeCount, actual: nodes.length });
+  if (expected.edgeCount !== undefined && edges.length !== expected.edgeCount) issues.push({ code: "EDGE_COUNT_MISMATCH", expected: expected.edgeCount, actual: edges.length });
+  if (expected.sourceLocatorCount !== undefined && locators.length !== expected.sourceLocatorCount) issues.push({ code: "SOURCE_LOCATOR_COUNT_MISMATCH", expected: expected.sourceLocatorCount, actual: locators.length });
+  if (expected.requireResolved) {
+    const count = locators.filter(locator => locator.disposition === "unresolved").length;
+    if (count) issues.push({ code: "UNRESOLVED_SOURCE_LOCATORS", count });
+  }
+  if (expected.requireNoUnresolved && graph.unresolved?.length) issues.push({ code: "UNRESOLVED_LABELS", count: graph.unresolved.length });
+  if (expected.strictReleaseCoverage) {
+    const nodeById = new Map(nodes.map(node => [node.id, node]));
+    const verifies = edges.filter(edge => edge.type === "verifies");
+    const hasTestOwner = (nodeId, kind) => verifies.some(edge =>
+      edge.to === nodeId && edge.coverage !== "partial" && edge.coverage !== "detection"
+      && (!kind || nodeById.get(edge.from)?.kind === kind)
+    );
+    const semantic = nodes.filter(node => ["requirement", "flow", "route", "invariant"].includes(node.kind));
+    const typedOwnership = semantic.some(node => node.coverageClassification !== undefined);
+    if (typedOwnership) {
+      for (const node of semantic) {
+        if (!node.coverageClassification) issues.push({ code: "COVERAGE_CLASSIFICATION_MISSING", id: node.id });
+        else if (node.coverageClassification === "gap_detected") issues.push({ code: "KNOWN_COVERAGE_GAP", id: node.id });
+        else if (node.coverageClassification === "fully_automated" && !hasTestOwner(node.id, "automated_test")) {
+          issues.push({ code: "FULL_AUTOMATION_OWNER_MISSING", id: node.id });
+        } else if (new Set(["manual", "partially_automated"]).has(node.coverageClassification)
+          && !hasTestOwner(node.id, "manual_test")) {
+          issues.push({ code: "MANUAL_OWNER_MISSING", id: node.id });
+        }
+      }
+    } else {
+      for (const node of nodes.filter(node => node.kind === "requirement")) {
+        if (!hasTestOwner(node.id)) issues.push({ code: "REQUIREMENT_WITHOUT_TEST_OWNER", id: node.id });
+        if (node.coverageStatus === "gap") issues.push({ code: "REQUIREMENT_COVERAGE_GAP", id: node.id });
+        if (node.coverageStatus === "manual_excluded" && !hasTestOwner(node.id, "automated_test")) {
+          issues.push({ code: "EXCLUDED_REQUIREMENT_WITHOUT_AUTOMATION", id: node.id });
+        }
+      }
+    }
+    for (const locator of locators.filter(locator =>
+      locator.disposition === "unresolved" && isCodeSourceLocator(locator)
+    )) {
+      issues.push({
+        code: "UNRESOLVED_CODE_SOURCE_LOCATOR",
+        ownerNodeId: locator.ownerNodeId,
+        rawToken: locator.rawToken,
+      });
+    }
+    for (const node of typedOwnership ? [] : nodes.filter(node => ["flow", "route", "invariant"].includes(node.kind))) {
+      const bound = hasTestOwner(node.id)
+        || edges.some(edge => edge.type === "always_run" && edge.to === node.id);
+      if (!bound) issues.push({ code: "ORPHAN_SEMANTIC_NODE", id: node.id, kind: node.kind });
+    }
+  }
+  if (graph?.semanticDigest !== undefined) {
+    const actual = digestCanonical({
+      schemaVersion: graph.schemaVersion,
+      generatedFrom: graph.generatedFrom,
+      nodes,
+      edges,
+      sourceLocators: locators,
+      unresolved: graph.unresolved ?? [],
+      ...(graph.importGuard ? { importGuard: graph.importGuard } : {}),
+    });
+    if (graph.semanticDigest !== actual) issues.push({ code: "SEMANTIC_DIGEST_MISMATCH", expected: graph.semanticDigest, actual });
+  }
+  return { ok: issues.length === 0, issues };
+}
+
+function isCodeSourceLocator(locator) {
+  const token = String(locator?.resolverToken ?? locator?.rawToken ?? "")
+    .trim()
+    .replace(/:(\d+)(?:[-–]\d+)?$/, "")
+    .replace(/#L\d+(?:-L?\d+)?$/i, "")
+    .replaceAll("\\|", "|");
+  return /(?:^|\/)[^/]+\.(?:[cm]?[jt]sx?|sql|json|ya?ml|toml|sh|py|go|rs|java|kt|swift|css|scss|html|astro|vue|svelte)$/i.test(token);
+}
+
+function normalizeCanonical(value, seen, path) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new TypeError("canonical JSON requires finite numbers");
+    return value;
+  }
+  if (typeof value !== "object") throw new TypeError(`canonical JSON does not support ${typeof value} at ${path}`);
+  if (seen.has(value)) throw new TypeError("canonical JSON does not support cycles");
+  seen.add(value);
+  const normalized = Array.isArray(value)
+    ? value.map((item, index) => normalizeCanonical(item, seen, `${path}[${index}]`))
+    : Object.fromEntries(Object.keys(value).sort().map(key => [key, normalizeCanonical(value[key], seen, `${path}.${key}`)]));
+  seen.delete(value);
+  return normalized;
+}
+
+function sections(markdown) {
+  const result = [];
+  let current = { heading: "", lines: [] };
+  for (const [index, text] of String(markdown ?? "").split(/\r?\n/).entries()) {
+    if (/^#{1,6}\s+/.test(text)) {
+      if (current.heading || current.lines.length) result.push(current);
+      current = { heading: text.replace(/^#{1,6}\s+/, "").trim(), lines: [] };
+    } else current.lines.push({ text, line: index + 1 });
+  }
+  if (current.heading || current.lines.length) result.push(current);
+  return result;
+}
+
+function numberedSection(markdown, number) {
+  const lines = String(markdown ?? "").split(/\r?\n/);
+  const heading = new RegExp(`^(#{1,6})\\s+(?:§\\s*)?${number}(?:\\.|\\b)`);
+  const start = lines.findIndex(line => heading.test(line));
+  if (start < 0) return null;
+  const level = lines[start].match(/^#+/)?.[0].length ?? 1;
+  const scopedLines = [];
+  for (let index = start + 1; index < lines.length; index += 1) {
+    const childLevel = lines[index].match(/^(#{1,6})\s+/)?.[1].length;
+    if (childLevel && childLevel <= level) break;
+    scopedLines.push({ text: lines[index], line: index + 1 });
+  }
+  return { heading: lines[start], lines: scopedLines };
+}
+
+function scanTables(section) {
+  const tables = [];
+  const lines = section.lines;
+  for (let index = 0; index < lines.length - 1; index += 1) {
+    if (!isTableLine(lines[index].text) || !isSeparatorLine(lines[index + 1].text)) continue;
+    const headers = splitTableRow(lines[index].text).map(cell => normalizeHeader(cell));
+    const rows = [];
+    index += 2;
+    while (index < lines.length && isTableLine(lines[index].text)) {
+      const cells = splitTableRow(lines[index].text);
+      if (cells.length === headers.length) rows.push({ headers, cells, line: lines[index].line });
+      index += 1;
+    }
+    tables.push({ headers, rows });
+    index -= 1;
+  }
+  return tables;
+}
+
+function splitTableRow(text) {
+  const source = text.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells = [];
+  let cell = "";
+  let escaped = false;
+  for (const character of source) {
+    if (escaped) {
+      cell += `\\${character}`;
+      escaped = false;
+    } else if (character === "\\") escaped = true;
+    else if (character === "|") {
+      cells.push(cell.trim());
+      cell = "";
+    } else cell += character;
+  }
+  if (escaped) cell += "\\";
+  cells.push(cell.trim());
+  return cells;
+}
+
+function isTableLine(text) { return /^\s*\|/.test(text) && /\|\s*$/.test(text); }
+function isSeparatorLine(text) { return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(text); }
+function normalizeHeader(value) { return value.replaceAll("`", "").trim().toLowerCase(); }
+function field(row, names) {
+  for (const name of names) {
+    const index = row.headers.indexOf(name);
+    if (index >= 0) return row.cells[index] ?? "";
+  }
+  return "";
+}
+function fields(row, names) {
+  return row.cells.filter((cell, index) => names.some(name =>
+    row.headers[index] === name || row.headers[index].startsWith(`${name} `)
+  )).join(" ");
+}
+function requirementIdFromRow(row) {
+  const values = row.cells.filter((cell, index) => ["requirement", "требование", "№", "no"].includes(row.headers[index]));
+  return values.find(value => /^[A-G]\d+$/.test(value.trim())) ?? "";
+}
+
+function requirementSections(markdown) {
+  const current = numberedSection(markdown, 6);
+  if (current) return [current];
+  return sections(markdown).filter(section => isRequirementSection(section));
+}
+function isRequirementSection(section) { return /(?:§\s*[1-2]\b|requirements|требован)/i.test(section.heading); }
+function sectionNumber(heading) { return Number(heading.match(/(?:§\s*)?(\d+)(?:\.|\b)/)?.[1] ?? 0); }
+
+function parseManualCases(markdown, nodes) {
+  const caseNodes = { semantic: new Map(), ordinal: new Map() };
+  const lines = String(markdown ?? "").split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const real = lines[index].match(REAL_MANUAL_CASE);
+    const legacy = lines[index].match(LEGACY_MANUAL_CASE);
+    const match = real ?? legacy;
+    if (!match) continue;
+    let end = index + 1;
+    while (end < lines.length && !lines[end].startsWith("### ")) end += 1;
+    const block = lines.slice(index, end).join("\n");
+    const priority = block.match(PRIORITY)?.[1];
+    if (!priority) continue;
+    const node = {
+      id: `manual:${real ? real[4] : legacy[3]}`,
+      kind: "manual_test",
+      number: Number(match[1]),
+      tier: match[2],
+      ...(real ? { actor: real[3], caseId: real[4], title: real[5] } : { caseId: legacy[3], product: legacy[4].trim(), title: legacy[5] }),
+      priority,
+    };
+    addNode(nodes, node);
+    caseNodes.semantic.set(node.caseId, node.id);
+    caseNodes.ordinal.set(node.number, node.id);
+    index = end - 1;
+  }
+  return caseNodes;
+}
+
+function normalizeAliases(aliases) {
+  for (const flow of aliases?.flows ?? []) {
+    if (!flow?.product || !flow?.action || !(flow?.id || flow?.ids?.length)) throw new TypeError("closed flow alias records require product, action, and id");
+  }
+  for (const route of aliases?.routes ?? []) {
+    if (!route?.label || !route?.id) throw new TypeError("closed route alias records require label and id");
+  }
+  for (const flow of aliases?.flowLabels ?? []) {
+    if (!flow?.label || !(flow?.id || flow?.ids?.length)) throw new TypeError("closed flow label aliases require label and id");
+  }
+  return {
+    flows: normalizedAliasMap(aliases?.flows ?? [], {
+      kind: "flow",
+      key: flow => `${normalize(flow.product)}\u0000${normalize(flow.action)}`,
+      targets: flow => flow.ids ?? [flow.id],
+    }),
+    flowLabels: normalizedAliasMap(aliases?.flowLabels ?? [], {
+      kind: "flow label",
+      key: flow => normalize(flow.label),
+      targets: flow => flow.ids ?? [flow.id],
+    }),
+    routes: new Map([...normalizedAliasMap(aliases?.routes ?? [], {
+      kind: "route",
+      key: route => normalize(route.label),
+      targets: route => [route.id],
+    })].map(([key, targets]) => [key, targets[0]])),
+  };
+}
+
+function normalizedAliasMap(records, { kind, key, targets }) {
+  const result = new Map();
+  for (const record of records) {
+    const normalizedKey = key(record);
+    const normalizedTargets = [...new Set(targets(record).filter(Boolean).map(String))].sort(compareText);
+    const existing = result.get(normalizedKey);
+    if (existing && canonicalJson(existing) !== canonicalJson(normalizedTargets)) {
+      throw new TypeError(`conflicting normalized ${kind} alias key: ${normalizedKey}`);
+    }
+    if (!existing) result.set(normalizedKey, normalizedTargets);
+  }
+  return result;
+}
+
+function normalizeInvariants(invariants) {
+  const explicit = [];
+  const implicit = new Map();
+  for (const invariant of invariants) {
+    if (typeof invariant === "string" && invariant.trim()) implicit.set(invariant, invariant);
+    else if (invariant?.id) explicit.push({ id: String(invariant.id), title: invariant.title ?? String(invariant.id) });
+  }
+  const titles = [...implicit.keys()].sort(compareText);
+  const pinned = titles.filter(title => INVARIANT_IDS.has(title)).map(title => ({ id: INVARIANT_IDS.get(title), title }));
+  const unknown = titles.filter(title => !INVARIANT_IDS.has(title)).map(title => ({ title, candidate: invariantSlug(title) }));
+  const counts = new Map();
+  for (const item of unknown) counts.set(item.candidate, (counts.get(item.candidate) ?? 0) + 1);
+  const usedIds = new Set([...explicit.map(item => item.id), ...INVARIANT_IDS.values()]);
+  return [
+    ...explicit,
+    ...pinned,
+    ...unknown.map(item => {
+      const needsDigest = counts.get(item.candidate) > 1 || usedIds.has(item.candidate);
+      const id = needsDigest ? collisionSafeInvariantId(item.candidate, item.title, usedIds) : item.candidate;
+      usedIds.add(id);
+      return { id, title: item.title };
+    }),
+  ];
+}
+
+function invariantSlug(title) {
+  const normalized = String(title).toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  return normalized.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "invariant";
+}
+
+function collisionSafeInvariantId(candidate, title, usedIds) {
+  const digest = createHash("sha256").update(String(title)).digest("hex");
+  for (let length = 10; length <= digest.length; length += 2) {
+    const id = `${candidate}-${digest.slice(0, length)}`;
+    if (!usedIds.has(id)) return id;
+  }
+  throw new TypeError(`unable to allocate invariant id for ${title}`);
+}
+
+function normalizeCoverageStatus(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (/^(?:✅|full\b)/.test(normalized)) return "full";
+  if (/^(?:🟡|partial\b)/.test(normalized)) return "partial";
+  if (/^(?:❌|gap\b)/.test(normalized)) return "gap";
+  if (/^(?:⛔|manual_excluded\b)/.test(normalized)) return "manual_excluded";
+  return null;
+}
+
+function resolveFlowAliases(product, action, aliases, unresolved) {
+  const exact = aliases.flows.get(`${normalize(product)}\u0000${normalize(action)}`);
+  if (exact) return exact;
+  const actionParts = action.split("/").map(value => value.trim()).filter(Boolean);
+  if (actionParts.length > 1) {
+    const resolved = actionParts.map(part => aliases.flows.get(`${normalize(product)}\u0000${normalize(part)}`));
+    if (resolved.every(Boolean)) return [...new Set(resolved.flat())].sort();
+  }
+  unresolved.push({ kind: "flow", label: `${product.trim()} — ${action.trim()}` });
+  return [];
+}
+
+function resolveFlowLabel(label, aliases, unresolved) {
+  const exact = aliases.flowLabels.get(normalize(label));
+  if (exact) return exact;
+  const parts = label.split(/\s+—\s+/);
+  if (parts.length < 2) {
+    unresolved.push({ kind: "flow", label: label.trim() });
+    return [];
+  }
+  return resolveFlowAliases(parts[0], parts.slice(1).join(" — "), aliases, unresolved);
+}
+
+function resolveRouteAlias(label, aliases, unresolved) {
+  const id = aliases.routes.get(normalize(label));
+  if (!id) unresolved.push({ kind: "route", label: label.trim() });
+  return id;
+}
+
+function normalize(value) { return String(value).replaceAll("`", "").replace(/\s+/g, " ").trim().toLowerCase(); }
+function unresolvedOwnerId(kind, label) {
+  return `unresolved:${kind}:${normalize(label).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
+
+export function extractSourceLocators(value, ownerNodeId, line) {
+  const locators = [];
+  const text = String(value ?? "");
+  const pathPattern = /(?:(?:[\w@.-]+\/)+)?[\w@.-]+\.(?:json|ya?ml|toml|astro|svelte|scss|html|conf|swift|java|[cm]?[jt]sx?|sql|sh|py|go|rs|kt|css|vue)(?=:\d|\b)(?::\d+(?:[-–]\d+)?(?:,\d+(?:[-–]\d+)?)*)?/gi;
+  const candidates = [...text.matchAll(pathPattern)].flatMap(match => {
+    const token = match[0];
+    const location = token.match(/^(.*?):(\d+(?:[-–]\d+)?(?:,\d+(?:[-–]\d+)?)*)$/);
+    if (!location) return [token];
+    return location[2].split(",").map(range => `${location[1]}:${range}`);
+  });
+  for (const rawToken of candidates.map(token => token.trim()).filter(Boolean)) {
+    locators.push({ ownerNodeId, rawToken, displayLines: displayLines(rawToken, line) });
+  }
+  return locators;
+}
+
+function displayLines(rawToken, fallbackLine) {
+  const match = rawToken.match(/:(\d+)(?:[-–](\d+))?$/) ?? rawToken.match(/#L(\d+)(?:-L?(\d+))?$/i);
+  return match ? [Number(match[1]), ...(match[2] ? [Number(match[2])] : [])] : [fallbackLine];
+}
+
+function resolverTokenFor(rawToken) {
+  return rawToken
+    .replace(/:(\d+)(?:[-–]\d+)?$/, "")
+    .replace(/#L\d+(?:-L?\d+)?$/i, "")
+    .replaceAll("\\|", "|");
+}
+
+function extractCaseReferences(value) {
+  const result = [];
+  for (const match of String(value ?? "").matchAll(CASE_REFERENCE)) result.push(match[1] ? { caseId: match[1] } : { ordinal: Number(match[2]) });
+  return result;
+}
+function addVerification(edges, caseNodes, reference, nodeId, evidence, unresolved) {
+  const from = reference.caseId ? caseNodes.semantic.get(reference.caseId) : caseNodes.ordinal.get(reference.ordinal);
+  const coverage = evidence === "coverage:partial" ? "partial" : "full";
+  if (from) addEdge(edges, { type: "verifies", from, to: nodeId, evidence, coverage });
+  else unresolved.push({ kind: "manual_case", label: reference.caseId ?? `№${reference.ordinal}`, context: nodeId });
+}
+function diagnoseCaseReferences(caseNodes, references, context, unresolved) {
+  for (const reference of references) {
+    const known = reference.caseId ? caseNodes.semantic.has(reference.caseId) : caseNodes.ordinal.has(reference.ordinal);
+    if (!known) unresolved.push({ kind: "manual_case", label: reference.caseId ?? `№${reference.ordinal}`, context });
+  }
+}
+function addNode(nodes, node) { if (!nodes.has(node.id)) nodes.set(node.id, node); }
+function addEdge(edges, edge) {
+  if (!edges.some(item => item.type === edge.type && item.from === edge.from && item.to === edge.to && item.evidence === edge.evidence)) edges.push(edge);
+}
+function compareText(left, right) { return left < right ? -1 : left > right ? 1 : 0; }
+function sortedNodes(nodes) { return [...nodes].sort((left, right) => compareText(left.id, right.id)); }
+function compareEdges(left, right) { return compareText([left.type, left.from, left.to, left.evidence].join("\u0000"), [right.type, right.from, right.to, right.evidence].join("\u0000")); }
+function sortedEdges(edges) { return [...edges].sort(compareEdges); }
+function sortedLocators(locators) { return [...locators].sort((left, right) => compareText(canonicalJson(left), canonicalJson(right))); }
+function sortedRecords(records) { return [...new Map(records.map(record => [canonicalJson(record), record])).values()].sort((left, right) => compareText(canonicalJson(left), canonicalJson(right))); }
+function isSorted(values, compare) { return values.every((value, index) => index === 0 || compare(values[index - 1], value) <= 0); }
+function automatedTestId(automated) {
+  const selector = automated.selector ?? automated;
+  if (!selector.file) return null;
+  return `auto:${selector.file}#${(selector.titlePath ?? []).join(" > ")}`;
+}

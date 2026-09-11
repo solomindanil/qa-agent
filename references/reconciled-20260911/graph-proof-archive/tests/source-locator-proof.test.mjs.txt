@@ -1,0 +1,45 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { readFile } from "node:fs/promises";
+
+import { extractSourceLocators, parseCorpus } from "../src/model.mjs";
+import { isCodeSourceLocator, sourceLocatorReviewKey } from "../src/proof.mjs";
+
+test("canonical corpus has one review key per code source locator", async () => {
+  const mappings = JSON.parse(await readFile(new URL("../mappings/mappings.v1.json", import.meta.url), "utf8"));
+  const corpus = parseCorpus({
+    productMap: await readFile(new URL("../contracts/PRODUCT-MAP.md", import.meta.url), "utf8"),
+    coverageMap: await readFile(new URL("../contracts/COVERAGE-MAP.md", import.meta.url), "utf8"),
+    manualCases: await readFile(new URL("../contracts/MANUAL-TEST-CASES.md", import.meta.url), "utf8"),
+    baseline: JSON.parse(await readFile(new URL("../contracts/baseline.manifest.json", import.meta.url), "utf8")),
+    aliases: mappings.aliases,
+  });
+  const locators = corpus.sourceLocators.filter(isCodeSourceLocator);
+  assert.equal(new Set(locators.map(sourceLocatorReviewKey)).size, locators.length);
+});
+
+test("source locator extraction ignores contract facts and keeps code evidence outside backticks", () => {
+  const value = [
+    "`?promo=CODE` is stored as `freeland.pendingPromoCode`.",
+    "Implementation: StorePage.tsx:237-277.",
+    "Allowed host is `go.mf0.online`; fee is `3.2`.",
+  ].join(" ");
+  assert.deepEqual(extractSourceLocators(value, "req:A1", 10), [
+    {
+      ownerNodeId: "req:A1",
+      rawToken: "StorePage.tsx:237-277",
+      displayLines: [237, 277],
+    },
+  ]);
+});
+
+test("source locator extraction does not truncate json paths to a js extension", () => {
+  assert.deepEqual(
+    extractSourceLocators("config/environments/production.json:42; variables.json:10", "req:G2", 10),
+    [
+      { ownerNodeId: "req:G2", rawToken: "config/environments/production.json:42", displayLines: [42] },
+      { ownerNodeId: "req:G2", rawToken: "variables.json:10", displayLines: [10] },
+    ],
+  );
+});

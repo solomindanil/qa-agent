@@ -1,0 +1,781 @@
+import { digestJson } from "./model.mjs";
+import {
+  P75_METRIC_IDS,
+  TELEMETRY_DIMENSIONS,
+  createP75PairDigestInput,
+  digestP75Pair,
+} from "./telemetry-contract.mjs";
+
+export const TARGET_APP_HOST = "app.nuanu.com";
+export const ALLOWED_ROOT_QUERY_KINDS = Object.freeze(["TrendsQuery", "FunnelsQuery"]);
+export const ALLOWED_SERIES_KINDS = Object.freeze(["EventsNode"]);
+export const ALLOWED_AGGREGATIONS = Object.freeze(["total", "unique_session", "p75"]);
+export const ALLOWED_PROPERTY_OPERATORS = Object.freeze(["exact"]);
+export const POSTHOG_WINDOW_INTERVAL = "day";
+export const POSTHOG_WINDOW_DURATION_HOURS = 24;
+
+const MAX_IDENTIFIER_BYTES = 256;
+const DAY_MILLISECONDS = POSTHOG_WINDOW_DURATION_HOURS * 60 * 60 * 1_000;
+const CANONICAL_UTC_MIDNIGHT = /^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/;
+const P75_METRIC_ID_SET = new Set(P75_METRIC_IDS);
+const TELEMETRY_DIMENSION_SET = new Set(TELEMETRY_DIMENSIONS);
+const UNSAFE_SCALAR_CONTROLS = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+const SENSITIVE_SCALAR_TOKENS = new Set([
+  "accesskey",
+  "apikey",
+  "authorization",
+  "authorisation",
+  "bearer",
+  "clientsecret",
+  "contact",
+  "contacts",
+  "cookie",
+  "cookies",
+  "credential",
+  "credentials",
+  "device",
+  "devices",
+  "distinct",
+  "email",
+  "href",
+  "jwt",
+  "opaque",
+  "passwd",
+  "password",
+  "path",
+  "pathname",
+  "person",
+  "persons",
+  "phone",
+  "privatekey",
+  "query",
+  "querystring",
+  "secret",
+  "secrets",
+  "session",
+  "sessions",
+  "token",
+  "tokens",
+  "uri",
+  "url",
+]);
+const SENSITIVE_COMPACT_MARKERS = Object.freeze([
+  "authorization",
+  "accesstoken",
+  "apikey",
+  "bearer",
+  "clientsecret",
+  "codevariables",
+  "contact",
+  "cookie",
+  "credential",
+  "currenturl",
+  "device",
+  "deviceid",
+  "distinctid",
+  "email",
+  "exacturl",
+  "exceptionmessage",
+  "geolocation",
+  "gps",
+  "ipaddress",
+  "latitude",
+  "longitude",
+  "opaque",
+  "passwd",
+  "password",
+  "path",
+  "person",
+  "personid",
+  "phone",
+  "privatekey",
+  "query",
+  "queryvalue",
+  "requestbody",
+  "requestheaders",
+  "responsebody",
+  "searchquery",
+  "searchterm",
+  "searchtext",
+  "secret",
+  "session",
+  "sessionid",
+  "stacktrace",
+  "token",
+  "url",
+]);
+const RAW_SCALAR_URL_SCHEME = /^[a-z][a-z0-9+.-]*:/iu;
+const RAW_SCALAR_HOST = /(?:^|\s)(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:$|[/:?#\s])/iu;
+const RAW_SCALAR_EMAIL = /[^\s@]+@[^\s@]+/u;
+const RAW_SCALAR_PHONE = /^\+?(?:[\s().-]*\d){7,}[\s().-]*$/u;
+const RAW_SCALAR_PHONE_WITH_EXTENSION = /^\+?(?=(?:.*\d){7,})[\d\s().-]+(?:x|ext\.?)\s*\d+$/iu;
+const EMBEDDED_PHONE_DIGITS = /(?:\d[\s().-]*){7,}/u;
+const OPAQUE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+const OPAQUE_HEX = /^[0-9a-f]{32,}$/iu;
+const OPAQUE_JWT = /^[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}$/u;
+const OPAQUE_LOWER_ALPHANUMERIC = /^(?=.{32,}$)(?=.*[a-z])(?=.*\d)[a-z0-9]+$/u;
+const OPAQUE_BASE_N = /^(?=.{32,}$)[A-Za-z0-9_-]+$/u;
+
+function deepFreeze(value, seen = new WeakSet()) {
+  if (value === null || typeof value !== "object" || seen.has(value)) return value;
+  seen.add(value);
+  for (const child of Object.values(value)) deepFreeze(child, seen);
+  return Object.freeze(value);
+}
+
+const QUERY_BUILDER_DEFINITIONS = {
+  "telemetry-freshness": {
+    builderId: "trends-total-v1",
+    queryKind: "TrendsQuery",
+    series: [{ role: "population_event", aggregation: "total" }],
+    durableValue: "count",
+    sampleSizeOrigin: "sole_total",
+  },
+  "route-health": {
+    builderId: "trends-route-health-rate-v1",
+    queryKind: "TrendsQuery",
+    series: [
+      { role: "route_attempt_population", aggregation: "unique_session" },
+      { role: "route_success_population", aggregation: "unique_session" },
+    ],
+    durableValue: "rate",
+    sampleSizeOrigin: "ordered_denominator",
+  },
+  "funnel-discovery": {
+    builderId: "funnels-discovery-v1",
+    queryKind: "FunnelsQuery",
+    series: [
+      { role: "discovery_surface_view", aggregation: "total" },
+      { role: "place_detail_view_from_discovery", aggregation: "total" },
+    ],
+    durableValue: "rate",
+    sampleSizeOrigin: "funnel_first_step",
+  },
+  "funnel-search": {
+    builderId: "funnels-search-v1",
+    queryKind: "FunnelsQuery",
+    series: [
+      { role: "search_submit", aggregation: "total" },
+      { role: "search_results_view", aggregation: "total" },
+      { role: "place_detail_view_from_search", aggregation: "total" },
+    ],
+    durableValue: "rate",
+    sampleSizeOrigin: "funnel_first_step",
+  },
+  "funnel-place-detail": {
+    builderId: "funnels-place-detail-v1",
+    queryKind: "FunnelsQuery",
+    series: [
+      { role: "place_detail_view", aggregation: "total" },
+      { role: "place_detail_primary_action", aggregation: "total" },
+    ],
+    durableValue: "rate",
+    sampleSizeOrigin: "funnel_first_step",
+  },
+  "js-exception-rate": {
+    builderId: "trends-exception-session-rate-v1",
+    queryKind: "TrendsQuery",
+    series: [
+      { role: "eligible_session_population", aggregation: "unique_session" },
+      { role: "exception_session_population", aggregation: "unique_session" },
+    ],
+    durableValue: "rate",
+    sampleSizeOrigin: "ordered_denominator",
+  },
+  "web-vitals-lcp-p75": {
+    builderId: "trends-p75-v1",
+    queryKind: "TrendsQuery",
+    series: [{ role: "vital_measurement", aggregation: "p75" }],
+    durableValue: "p75",
+    sampleSizeOrigin: "independent_total_count",
+  },
+  "web-vitals-cls-p75": {
+    builderId: "trends-p75-v1",
+    queryKind: "TrendsQuery",
+    series: [{ role: "vital_measurement", aggregation: "p75" }],
+    durableValue: "p75",
+    sampleSizeOrigin: "independent_total_count",
+  },
+  "web-vitals-inp-p75": {
+    builderId: "trends-p75-v1",
+    queryKind: "TrendsQuery",
+    series: [{ role: "vital_measurement", aggregation: "p75" }],
+    durableValue: "p75",
+    sampleSizeOrigin: "independent_total_count",
+  },
+};
+
+export const POSTHOG_QUERY_BUILDERS = deepFreeze(QUERY_BUILDER_DEFINITIONS);
+export const POSTHOG_AUXILIARY_QUERY_BUILDERS = deepFreeze({
+  "js-exception-rate:fingerprint": {
+    builderId: "trends-exception-fingerprint-breakdown-v1",
+    queryKind: "TrendsQuery",
+    series: [{ role: "exception_session_population", aggregation: "unique_session" }],
+  },
+});
+
+function builderError(message, path = "$") {
+  const error = new Error(message);
+  error.code = "STRUCTURED_QUERY_BLOCKED";
+  error.path = path;
+  return error;
+}
+
+function fail(message, path = "$") {
+  throw builderError(message, path);
+}
+
+function compareCodeUnits(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+export function getPostHogSensitiveScalarViolation(value, maximumBytes = MAX_IDENTIFIER_BYTES) {
+  if (
+    !Number.isSafeInteger(maximumBytes) ||
+    maximumBytes <= 0 ||
+    typeof value !== "string" ||
+    value.length === 0 ||
+    Buffer.byteLength(value, "utf8") > maximumBytes
+  ) {
+    return "unbounded";
+  }
+  if (value.trim() !== value || value.normalize("NFKC") !== value) return "non-canonical";
+  if (UNSAFE_SCALAR_CONTROLS.test(value)) return "control";
+  if (!/^[\x20-\x7e]+$/u.test(value)) return "non-ascii";
+  if (
+    value.includes("/") ||
+    value.includes("\\") ||
+    value.includes("?") ||
+    value.includes("#") ||
+    value.includes("=") ||
+    value.includes("&") ||
+    /%[0-9a-f]{2}/iu.test(value) ||
+    RAW_SCALAR_URL_SCHEME.test(value) ||
+    RAW_SCALAR_HOST.test(value)
+  ) {
+    return "url-path-query";
+  }
+  if (RAW_SCALAR_EMAIL.test(value)) return "email";
+  if (
+    RAW_SCALAR_PHONE.test(value) ||
+    RAW_SCALAR_PHONE_WITH_EXTENSION.test(value) ||
+    EMBEDDED_PHONE_DIGITS.test(value)
+  ) {
+    return "phone";
+  }
+
+  const tokenSource = value.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+  const tokens = tokenSource.split(/[^a-z0-9]+/u).filter(Boolean);
+  if (tokens.some((token) => SENSITIVE_SCALAR_TOKENS.has(token))) return "sensitive-marker";
+  const compact = tokenSource.replace(/[^a-z0-9]/gu, "");
+  if (SENSITIVE_COMPACT_MARKERS.some((marker) => compact.includes(marker))) {
+    return "sensitive-marker";
+  }
+  if (
+    OPAQUE_UUID.test(value) ||
+    OPAQUE_HEX.test(value) ||
+    OPAQUE_JWT.test(value) ||
+    OPAQUE_LOWER_ALPHANUMERIC.test(value) ||
+    (OPAQUE_BASE_N.test(value) && value.split(/[-_]/u).some((segment) => segment.length >= 16))
+  ) {
+    return "opaque";
+  }
+  if (
+    value.length >= 24 &&
+    /^[A-Za-z0-9+/_=-]+$/u.test(value) &&
+    (value.endsWith("=") || (/[a-z]/u.test(value) && /[A-Z]/u.test(value) && /\d/u.test(value)))
+  ) {
+    return "opaque";
+  }
+  return null;
+}
+
+function assertExactPlainObject(value, keys, path) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    fail(`${path} must be a plain object`, path);
+  }
+  if (Object.getPrototypeOf(value) !== Object.prototype) {
+    fail(`${path} must use the plain object prototype`, path);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail(`${path} must not contain symbols`, path);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  for (const [key, descriptor] of Object.entries(descriptors)) {
+    if (!descriptor.enumerable || !("value" in descriptor)) {
+      fail(`${path}.${key} must be an enumerable data property`, `${path}.${key}`);
+    }
+  }
+  const actual = Object.keys(value).sort(compareCodeUnits);
+  const expected = [...keys].sort(compareCodeUnits);
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    fail(`${path} has missing or extra keys`, path);
+  }
+}
+
+function assertDensePlainArray(value, path, maximum = 10_000) {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+    fail(`${path} must be a plain array`, path);
+  }
+  if (!Number.isSafeInteger(value.length) || value.length > maximum) {
+    fail(`${path} exceeds its bounded array length`, path);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail(`${path} must not contain symbols`, path);
+  }
+  const names = Object.getOwnPropertyNames(value);
+  if (names.length !== value.length + 1 || !names.includes("length")) {
+    fail(`${path} must be dense and contain no extra keys`, path);
+  }
+  for (let index = 0; index < value.length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
+      fail(`${path}[${index}] must be an enumerable data entry`, `${path}[${index}]`);
+    }
+  }
+}
+
+function assertJsonTree(value, path = "$", seen = new WeakSet()) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || Object.is(value, -0)) {
+      fail(`${path} must be a finite JSON number`, path);
+    }
+    return;
+  }
+  if (typeof value !== "object") fail(`${path} must contain JSON values only`, path);
+  if (seen.has(value)) fail(`${path} must not contain cycles or shared references`, path);
+  seen.add(value);
+  if (Array.isArray(value)) {
+    assertDensePlainArray(value, path);
+    value.forEach((entry, index) => assertJsonTree(entry, `${path}[${index}]`, seen));
+    return;
+  }
+  if (Object.getPrototypeOf(value) !== Object.prototype) {
+    fail(`${path} must use the plain object prototype`, path);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) fail(`${path} contains symbols`, path);
+  for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
+    if (!descriptor.enumerable || !("value" in descriptor)) {
+      fail(`${path}.${key} must be an enumerable data property`, `${path}.${key}`);
+    }
+    assertJsonTree(descriptor.value, `${path}.${key}`, seen);
+  }
+}
+
+function assertIdentifier(value, path) {
+  const violation = getPostHogSensitiveScalarViolation(value, MAX_IDENTIFIER_BYTES);
+  if (violation !== null) fail(`${path} is not a safe bounded provider identifier`, path);
+}
+
+function assertCanonicalWindowTimestamp(value, path) {
+  if (typeof value !== "string" || !CANONICAL_UTC_MIDNIGHT.test(value)) {
+    fail(`${path} must be a canonical UTC-midnight timestamp`, path);
+  }
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
+    fail(`${path} must be a valid canonical UTC timestamp`, path);
+  }
+  return parsed.getTime();
+}
+
+export function validateAndFreezePostHogWindow(window) {
+  assertExactPlainObject(window, ["startAt", "endAt", "interval"], "window");
+  if (window.interval !== POSTHOG_WINDOW_INTERVAL) {
+    fail("window.interval must be day", "window.interval");
+  }
+  const start = assertCanonicalWindowTimestamp(window.startAt, "window.startAt");
+  const end = assertCanonicalWindowTimestamp(window.endAt, "window.endAt");
+  if (end - start !== DAY_MILLISECONDS) {
+    fail("window must be exactly one positive 24-hour UTC day", "window");
+  }
+  return Object.freeze({
+    startAt: window.startAt,
+    endAt: window.endAt,
+    interval: POSTHOG_WINDOW_INTERVAL,
+  });
+}
+
+function validateBreakdown(breakdown, path, { allowExceptionFingerprint = false } = {}) {
+  if (breakdown === null) return null;
+  assertExactPlainObject(
+    breakdown,
+    ["dimension", "propertyIdentifier", "publicValueAllowlist"],
+    path,
+  );
+  if (
+    !TELEMETRY_DIMENSION_SET.has(breakdown.dimension) &&
+    !(allowExceptionFingerprint && breakdown.dimension === "exception_fingerprint")
+  ) {
+    fail(`${path}.dimension is not reviewed`, `${path}.dimension`);
+  }
+  assertIdentifier(breakdown.propertyIdentifier, `${path}.propertyIdentifier`, { property: true });
+  if (breakdown.publicValueAllowlist !== null) {
+    assertDensePlainArray(breakdown.publicValueAllowlist, `${path}.publicValueAllowlist`, 100);
+    if (breakdown.publicValueAllowlist.length === 0) {
+      fail(`${path}.publicValueAllowlist must not be empty`, `${path}.publicValueAllowlist`);
+    }
+    let previous = null;
+    for (const [index, value] of breakdown.publicValueAllowlist.entries()) {
+      if (getPostHogSensitiveScalarViolation(value, 128) !== null) {
+        fail(`${path}.publicValueAllowlist[${index}] is invalid`, `${path}.publicValueAllowlist[${index}]`);
+      }
+      if (previous !== null && compareCodeUnits(previous, value) >= 0) {
+        fail(`${path}.publicValueAllowlist must be sorted and unique`, `${path}.publicValueAllowlist`);
+      }
+      previous = value;
+    }
+  }
+  return breakdown;
+}
+
+function getDefinition(queryId) {
+  const definition = POSTHOG_QUERY_BUILDERS[queryId] ?? POSTHOG_AUXILIARY_QUERY_BUILDERS[queryId];
+  if (!definition) fail(`Unknown code-owned query ID ${String(queryId)}`, "queryId");
+  return definition;
+}
+
+function validateBinding(binding, queryId) {
+  assertJsonTree(binding, "binding");
+  assertExactPlainObject(
+    binding,
+    [
+      "queryId",
+      "builderId",
+      "eventIdentifiers",
+      "valuePropertyIdentifier",
+      "hostPropertyIdentifier",
+      "breakdown",
+      "p75SampleCountCompanion",
+    ],
+    "binding",
+  );
+  if (binding.queryId !== queryId) fail("binding.queryId does not match queryId", "binding.queryId");
+  const definition = getDefinition(queryId);
+  if (binding.builderId !== definition.builderId) {
+    fail("binding.builderId does not match the code-owned builder", "binding.builderId");
+  }
+  assertDensePlainArray(binding.eventIdentifiers, "binding.eventIdentifiers", definition.series.length);
+  if (binding.eventIdentifiers.length !== definition.series.length) {
+    fail("binding.eventIdentifiers has the wrong arity", "binding.eventIdentifiers");
+  }
+  binding.eventIdentifiers.forEach((identifier, index) =>
+    assertIdentifier(identifier, `binding.eventIdentifiers[${index}]`));
+  assertIdentifier(binding.hostPropertyIdentifier, "binding.hostPropertyIdentifier", { property: true });
+  const isP75 = P75_METRIC_ID_SET.has(queryId);
+  if (isP75) {
+    assertIdentifier(binding.valuePropertyIdentifier, "binding.valuePropertyIdentifier", { property: true });
+    if (binding.p75SampleCountCompanion !== null) {
+      assertExactPlainObject(
+        binding.p75SampleCountCompanion,
+        ["builderId", "exactPopulationSemanticsEvidenceDigest"],
+        "binding.p75SampleCountCompanion",
+      );
+      if (binding.p75SampleCountCompanion.builderId !== "trends-total-sample-size-v1") {
+        fail("p75 companion builder ID is not code-owned", "binding.p75SampleCountCompanion.builderId");
+      }
+      if (!/^[0-9a-f]{64}$/.test(binding.p75SampleCountCompanion.exactPopulationSemanticsEvidenceDigest)) {
+        fail(
+          "p75 companion population evidence digest is invalid",
+          "binding.p75SampleCountCompanion.exactPopulationSemanticsEvidenceDigest",
+        );
+      }
+    }
+  } else {
+    if (binding.valuePropertyIdentifier !== null) {
+      fail("non-p75 binding requires null valuePropertyIdentifier", "binding.valuePropertyIdentifier");
+    }
+    if (binding.p75SampleCountCompanion !== null) {
+      fail("non-p75 binding cannot contain a sample-count companion", "binding.p75SampleCountCompanion");
+    }
+  }
+  validateBreakdown(binding.breakdown, "binding.breakdown", {
+    allowExceptionFingerprint: queryId === "js-exception-rate:fingerprint",
+  });
+  if (definition.queryKind === "FunnelsQuery" && binding.breakdown !== null) {
+    fail("funnel breakdowns are forbidden under locked V1", "binding.breakdown");
+  }
+  return definition;
+}
+
+function buildHostPredicate(binding) {
+  return {
+    type: "event",
+    key: binding.hostPropertyIdentifier,
+    operator: "exact",
+    value: TARGET_APP_HOST,
+  };
+}
+
+function buildSeries(definition, binding) {
+  return definition.series.map((series, index) => {
+    const node = {
+      kind: "EventsNode",
+      event: binding.eventIdentifiers[index],
+      math: series.aggregation,
+    };
+    if (series.aggregation === "p75") node.math_property = binding.valuePropertyIdentifier;
+    return node;
+  });
+}
+
+function buildBreakdownFilter(binding) {
+  if (binding.breakdown === null) return undefined;
+  return {
+    breakdowns: [{
+      type: "event",
+      property: binding.breakdown.propertyIdentifier,
+    }],
+  };
+}
+
+function createStructuredQuery(queryId, binding, window) {
+  const definition = getDefinition(queryId);
+  const base = {
+    kind: definition.queryKind,
+    series: buildSeries(definition, binding),
+    dateRange: { date_from: window.startAt, date_to: window.endAt },
+    properties: [buildHostPredicate(binding)],
+  };
+  if (definition.queryKind === "FunnelsQuery") {
+    return {
+      ...base,
+      funnelsFilter: {
+        layout: "vertical",
+        funnelVizType: "steps",
+        funnelWindowInterval: 24,
+        funnelWindowIntervalUnit: "hour",
+      },
+    };
+  }
+  const breakdownFilter = buildBreakdownFilter(binding);
+  return {
+    ...base,
+    interval: POSTHOG_WINDOW_INTERVAL,
+    ...(breakdownFilter === undefined ? {} : { breakdownFilter }),
+    trendsFilter: { display: "ActionsLineGraph" },
+  };
+}
+
+function validateHostPredicate(query, binding) {
+  assertDensePlainArray(query.properties, "query.properties", 1);
+  if (query.properties.length !== 1) fail("query requires exactly one host predicate", "query.properties");
+  const predicate = query.properties[0];
+  assertExactPlainObject(predicate, ["type", "key", "operator", "value"], "query.properties[0]");
+  if (
+    predicate.type !== "event" ||
+    predicate.key !== binding.hostPropertyIdentifier ||
+    predicate.operator !== "exact" ||
+    predicate.value !== TARGET_APP_HOST
+  ) {
+    fail("query host predicate must be one exact app.nuanu.com equality", "query.properties[0]");
+  }
+}
+
+function validateBreakdownFilter(query, binding) {
+  const hasBreakdown = Object.hasOwn(query, "breakdownFilter");
+  if (binding.breakdown === null) {
+    if (hasBreakdown) fail("query has an unbound breakdown", "query.breakdownFilter");
+    return;
+  }
+  if (!hasBreakdown) fail("query is missing its bound breakdown", "query.breakdownFilter");
+  assertExactPlainObject(query.breakdownFilter, ["breakdowns"], "query.breakdownFilter");
+  assertDensePlainArray(query.breakdownFilter.breakdowns, "query.breakdownFilter.breakdowns", 1);
+  if (query.breakdownFilter.breakdowns.length !== 1) {
+    fail("query requires exactly one bound breakdown", "query.breakdownFilter.breakdowns");
+  }
+  const breakdown = query.breakdownFilter.breakdowns[0];
+  assertExactPlainObject(breakdown, ["type", "property"], "query.breakdownFilter.breakdowns[0]");
+  if (breakdown.type !== "event" || breakdown.property !== binding.breakdown.propertyIdentifier) {
+    fail("query breakdown does not match its binding", "query.breakdownFilter.breakdowns[0]");
+  }
+}
+
+function validateSeries(query, definition, binding, { companion = false } = {}) {
+  assertDensePlainArray(query.series, "query.series", definition.series.length);
+  if (query.series.length !== definition.series.length) fail("query series arity is invalid", "query.series");
+  query.series.forEach((node, index) => {
+    const expectedAggregation = companion ? "total" : definition.series[index].aggregation;
+    const keys = expectedAggregation === "p75"
+      ? ["kind", "event", "math", "math_property"]
+      : ["kind", "event", "math"];
+    assertExactPlainObject(node, keys, `query.series[${index}]`);
+    if (node.kind !== "EventsNode") fail("Only EventsNode series are allowed", `query.series[${index}].kind`);
+    if (node.event !== binding.eventIdentifiers[index]) {
+      fail("query event does not match its binding position", `query.series[${index}].event`);
+    }
+    if (node.math !== expectedAggregation || !ALLOWED_AGGREGATIONS.includes(node.math)) {
+      fail("query series aggregation is invalid", `query.series[${index}].math`);
+    }
+    if (expectedAggregation === "p75" && node.math_property !== binding.valuePropertyIdentifier) {
+      fail("p75 value property does not match its binding", `query.series[${index}].math_property`);
+    }
+  });
+}
+
+function validateStructuredQueryInternal(query, binding, window, { companion = false } = {}) {
+  assertJsonTree(query, "query");
+  const definition = getDefinition(binding.queryId);
+  const trendKeys = [
+    "kind",
+    "series",
+    "dateRange",
+    "interval",
+    "properties",
+    "trendsFilter",
+    ...(binding.breakdown === null ? [] : ["breakdownFilter"]),
+  ];
+  const funnelKeys = ["kind", "series", "dateRange", "properties", "funnelsFilter"];
+  assertExactPlainObject(
+    query,
+    definition.queryKind === "TrendsQuery" ? trendKeys : funnelKeys,
+    "query",
+  );
+  if (query.kind !== definition.queryKind || !ALLOWED_ROOT_QUERY_KINDS.includes(query.kind)) {
+    fail("query root kind is not the code-owned kind", "query.kind");
+  }
+  assertExactPlainObject(query.dateRange, ["date_from", "date_to"], "query.dateRange");
+  if (query.dateRange.date_from !== window.startAt || query.dateRange.date_to !== window.endAt) {
+    fail("query date range does not match its exact window", "query.dateRange");
+  }
+  validateHostPredicate(query, binding);
+  validateSeries(query, definition, binding, { companion });
+  if (definition.queryKind === "TrendsQuery") {
+    if (query.interval !== POSTHOG_WINDOW_INTERVAL) fail("query interval must be day", "query.interval");
+    assertExactPlainObject(query.trendsFilter, ["display"], "query.trendsFilter");
+    if (query.trendsFilter.display !== "ActionsLineGraph") {
+      fail("query trends display is not code-owned", "query.trendsFilter.display");
+    }
+    validateBreakdownFilter(query, binding);
+  } else {
+    assertExactPlainObject(
+      query.funnelsFilter,
+      ["layout", "funnelVizType", "funnelWindowInterval", "funnelWindowIntervalUnit"],
+      "query.funnelsFilter",
+    );
+    if (
+      query.funnelsFilter.layout !== "vertical" ||
+      query.funnelsFilter.funnelVizType !== "steps" ||
+      query.funnelsFilter.funnelWindowInterval !== 24 ||
+      query.funnelsFilter.funnelWindowIntervalUnit !== "hour"
+    ) {
+      fail("query funnel settings are not code-owned", "query.funnelsFilter");
+    }
+  }
+}
+
+export function buildStructuredPostHogQuery(input) {
+  assertExactPlainObject(input, ["queryId", "binding", "window"], "buildStructuredPostHogQuery input");
+  const window = validateAndFreezePostHogWindow(input.window);
+  validateBinding(input.binding, input.queryId);
+  const query = createStructuredQuery(input.queryId, input.binding, window);
+  validateStructuredQueryInternal(query, input.binding, window);
+  return deepFreeze(query);
+}
+
+export function validateStructuredPostHogQuery(input) {
+  assertExactPlainObject(input, ["query", "binding", "window"], "validateStructuredPostHogQuery input");
+  const window = validateAndFreezePostHogWindow(input.window);
+  assertJsonTree(input.binding, "binding");
+  validateBinding(input.binding, input.binding.queryId);
+  validateStructuredQueryInternal(input.query, input.binding, window);
+  return { ok: true };
+}
+
+export function digestStructuredPostHogQuery(query) {
+  assertJsonTree(query, "query");
+  return digestJson(query);
+}
+
+function comparePairQueries(percentileQuery, sampleCountQuery) {
+  for (const field of ["kind", "dateRange", "interval", "properties", "breakdownFilter", "trendsFilter"]) {
+    const left = Object.hasOwn(percentileQuery, field) ? percentileQuery[field] : undefined;
+    const right = Object.hasOwn(sampleCountQuery, field) ? sampleCountQuery[field] : undefined;
+    const matches = left === undefined || right === undefined
+      ? left === right
+      : digestJson(left) === digestJson(right);
+    if (!matches) {
+      fail(`p75 pair ${field} does not match`, `pair.${field}`);
+    }
+  }
+  if (percentileQuery.series[0].event !== sampleCountQuery.series[0].event) {
+    fail("p75 pair event population does not match", "pair.series.event");
+  }
+}
+
+function dimensionsForBinding(binding) {
+  return binding.breakdown === null ? [] : [binding.breakdown.dimension];
+}
+
+export function buildP75PostHogQueryPair(input) {
+  assertExactPlainObject(input, ["metricId", "binding", "window"], "buildP75PostHogQueryPair input");
+  if (!P75_METRIC_ID_SET.has(input.metricId)) fail("metricId is not a p75 metric", "metricId");
+  const window = validateAndFreezePostHogWindow(input.window);
+  validateBinding(input.binding, input.metricId);
+  const percentileQuery = createStructuredQuery(input.metricId, input.binding, window);
+  validateStructuredQueryInternal(percentileQuery, input.binding, window);
+  const queryHash = digestStructuredPostHogQuery(percentileQuery);
+  if (input.binding.p75SampleCountCompanion === null) {
+    return deepFreeze({
+      status: "UNAVAILABLE",
+      queryHash,
+      pairBundle: null,
+      limitation: "P75_COUNT_COMPANION_UNAVAILABLE",
+    });
+  }
+  const sampleCountQuery = structuredClone(percentileQuery);
+  sampleCountQuery.series[0].math = "total";
+  delete sampleCountQuery.series[0].math_property;
+  validateStructuredQueryInternal(sampleCountQuery, input.binding, window, { companion: true });
+  comparePairQueries(percentileQuery, sampleCountQuery);
+  const sampleCountQueryHash = digestStructuredPostHogQuery(sampleCountQuery);
+  const p75PairDigestInput = createP75PairDigestInput({
+    metricId: input.metricId,
+    dimensions: dimensionsForBinding(input.binding),
+    percentileQueryHash: queryHash,
+    sampleCountQueryHash,
+  });
+  const pairBundle = {
+    p75PairDigestInput,
+    pairDigest: digestP75Pair(p75PairDigestInput),
+    percentileQuery,
+    sampleCountQuery,
+  };
+  validateP75PostHogQueryPair({ pair: pairBundle, binding: input.binding, window });
+  return deepFreeze({ status: "READY", queryHash, pairBundle, limitation: null });
+}
+
+export function validateP75PostHogQueryPair(input) {
+  assertExactPlainObject(input, ["pair", "binding", "window"], "validateP75PostHogQueryPair input");
+  const window = validateAndFreezePostHogWindow(input.window);
+  assertJsonTree(input.binding, "binding");
+  const definition = validateBinding(input.binding, input.binding.queryId);
+  if (definition.sampleSizeOrigin !== "independent_total_count") {
+    fail("binding is not a p75 pair binding", "binding.queryId");
+  }
+  assertJsonTree(input.pair, "pair");
+  assertExactPlainObject(
+    input.pair,
+    ["p75PairDigestInput", "pairDigest", "percentileQuery", "sampleCountQuery"],
+    "pair",
+  );
+  validateStructuredQueryInternal(input.pair.percentileQuery, input.binding, window);
+  validateStructuredQueryInternal(input.pair.sampleCountQuery, input.binding, window, { companion: true });
+  comparePairQueries(input.pair.percentileQuery, input.pair.sampleCountQuery);
+  const percentileQueryHash = digestStructuredPostHogQuery(input.pair.percentileQuery);
+  const sampleCountQueryHash = digestStructuredPostHogQuery(input.pair.sampleCountQuery);
+  const expectedInput = createP75PairDigestInput({
+    metricId: input.binding.queryId,
+    dimensions: dimensionsForBinding(input.binding),
+    percentileQueryHash,
+    sampleCountQueryHash,
+  });
+  if (digestJson(input.pair.p75PairDigestInput) !== digestJson(expectedInput)) {
+    fail("p75 pair digest input does not match its queries and roles", "pair.p75PairDigestInput");
+  }
+  const expectedDigest = digestP75Pair(expectedInput);
+  if (input.pair.pairDigest !== expectedDigest) {
+    fail("p75 pair digest does not match its canonical input", "pair.pairDigest");
+  }
+  return { ok: true };
+}

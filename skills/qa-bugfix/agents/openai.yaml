@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA Bugfix"
+  short_description: "Prepare product-aware fix prompts"
+  default_prompt: "Use $qa-bugfix to resolve the product pack and prepare evidence-based fix prompts; keep developer handoff separate from QA acceptance and respect report-only scope."

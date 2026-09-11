@@ -1,0 +1,784 @@
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { createJsonIo, PRIVATE_ROOT } from "./io.mjs";
+import { normalizeRuntimeObservation } from "./runtime.mjs";
+
+const PRODUCT_ID = "nuanu-app";
+const BASE_URL = "https://app.nuanu.com";
+const MAX_EVIDENCE_AGE_MS = 30 * 60 * 1000;
+const MAX_RUNTIME_ARTIFACT_BYTES = 4 * 1024 * 1024;
+const MAX_OBSERVATION_BYTES = 64 * 1024;
+const MAX_BINDINGS_BYTES = 64 * 1024;
+const MAX_RECORDS = 64;
+const MAX_INVENTORY_ITEMS = 50;
+const MAX_EVIDENCE_URL_INPUT_BYTES = 2048;
+const MAX_EVIDENCE_URL_BYTES = 500;
+const MAX_EVIDENCE_METHOD_BYTES = 32;
+const MAX_PERCENT_DECODE_PASSES = 4;
+const HEX_DIGEST = /^[a-f0-9]{64}$/;
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
+const SECRET_WORD = /credential|token|cookie|authorization|password|secret|api[\s_-]?key|callback|session|bearer/i;
+const JWT_LIKE = /[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/;
+const OPAQUE_HEX = /^[a-f0-9]{32,}$/i;
+const OPAQUE_MIXED = /^[A-Za-z0-9+/_=-]{32,}$/;
+const INVALID_PERCENT_ESCAPE = /%(?![a-f0-9]{2})/i;
+const PERCENT_ESCAPE = /%[a-f0-9]{2}/i;
+const EVIDENCE_METHOD_TOKEN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+const PROHIBITED_INTERACTION = /\b(?:call|reset|apple|google|location|consent|booking|payment|register|registration|pay|purchase|checkout|book|reserve)\b|\b(?:delete|deletion|remove|removal)\b.{0,40}\baccount\b|\baccount\b.{0,40}\b(?:delete|deletion|remove|removal)\b|\b(?:save|update)\b.{0,40}\bprofile\b|\bprofile\b.{0,40}\b(?:save|update|mutation)\b|\b(?:submit|submission)\b.{0,40}\bsign[\s-]?up\b|\bsign[\s-]?up\b.{0,40}\b(?:submit|submission)\b/i;
+const SAFE_EVIDENCE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const CANONICAL_EVIDENCE_METHODS = new Set([
+  ...SAFE_EVIDENCE_METHODS,
+  "POST", "PUT", "PATCH", "DELETE", "OTHER",
+]);
+const MISSING_ARTIFACT_CODES = new Set([
+  "ENOENT", "MISSING_ARTIFACT", "MISSING_PRIVATE_ROOT", "MISSING_PARENT_DIRECTORY",
+]);
+
+export const RUNTIME_SELECTOR_KEYS = Object.freeze([
+  "applicationShell",
+  "searchInput",
+  "openNowControl",
+  "placesNavigation",
+  "mapNavigation",
+  "profileNavigation",
+  "mapSurface",
+  "mapMarker",
+  "placeList",
+  "placeCard",
+  "categoryGroup",
+  "collectionGroup",
+  "placeDetail",
+  "placeDetailClose",
+  "showOnMapAction",
+  "callAction",
+  "authEntry",
+  "updatePrompt",
+  "signUpAction",
+  "signInAction",
+  "emailInput",
+  "passwordInput",
+  "forgotPasswordAction",
+  "appleProviderAction",
+  "googleProviderAction",
+  "privacyAction",
+]);
+
+export const RUNTIME_ROLES = Object.freeze([
+  "application", "article", "banner", "button", "checkbox", "combobox",
+  "dialog", "group", "img", "link", "list", "listitem", "main",
+  "navigation", "option", "region", "search", "searchbox", "switch",
+  "tab", "tabpanel", "textbox",
+]);
+
+export const RUNTIME_SELECTOR_REASONS = Object.freeze([
+  "ACCESSIBLE_ROLE_NAME_UNAVAILABLE",
+  "STATE_NOT_OBSERVED",
+  "AMBIGUOUS_ROLE_NAME",
+  "PROHIBITED_INTERACTION_REQUIRED",
+]);
+
+const SELECTOR_KEY_SET = new Set(RUNTIME_SELECTOR_KEYS);
+const ROLE_SET = new Set(RUNTIME_ROLES);
+const SELECTOR_REASON_SET = new Set(RUNTIME_SELECTOR_REASONS);
+const STATE_SET = new Set(["root", "places", "map", "place_detail", "auth_entry", "update_prompt"]);
+const PURPOSE_SET = new Set([
+  "open_places", "open_map", "open_profile_entry", "open_place_detail",
+  "close_place_detail", "show_on_map",
+]);
+
+const QA_ROOT = resolve(fileURLToPath(new URL("../..", import.meta.url)));
+const PRODUCT_GRAPH_ROOT = resolve(QA_ROOT, "docs/local/nuanu-app/product-graph");
+const FIXED_PATHS = Object.freeze({
+  contract: resolve(PRODUCT_GRAPH_ROOT, "current/runtime-contract.v1.json"),
+  catalog: resolve(PRODUCT_GRAPH_ROOT, "current/runtime-catalog.json"),
+  observation: resolve(PRODUCT_GRAPH_ROOT, "current/runtime-selector-observation.v1.json"),
+  capturePlan: resolve(PRODUCT_GRAPH_ROOT, "selector-capture-plan.v1.json"),
+  bindings: resolve(PRODUCT_GRAPH_ROOT, "selector-bindings.v1.json"),
+});
+const fixedJsonIo = createJsonIo({
+  privateRoot: PRIVATE_ROOT,
+  trustedRoot: QA_ROOT,
+  maxBytes: MAX_RUNTIME_ARTIFACT_BYTES,
+});
+
+function contractError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function fail(code = "RUNTIME_CONTRACT_SCHEMA_MISMATCH") {
+  throw contractError(code, code);
+}
+
+function isObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function keysEqual(value, expected) {
+  return isObject(value) &&
+    Object.keys(value).length === expected.length &&
+    expected.every((key) => Object.hasOwn(value, key));
+}
+
+function exactKeys(value, expected, code = "RUNTIME_CONTRACT_SCHEMA_MISMATCH") {
+  if (!keysEqual(value, expected)) fail(code);
+}
+
+function compare(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (!isObject(value)) return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
+}
+
+export function canonicalDigest(value) {
+  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
+}
+
+function without(value, key) {
+  return Object.fromEntries(Object.entries(value).filter(([candidate]) => candidate !== key));
+}
+
+function assertDigest(value, code = "RUNTIME_CONTRACT_SCHEMA_MISMATCH") {
+  if (typeof value !== "string" || !HEX_DIGEST.test(value)) fail(code);
+}
+
+function assertCanonicalInstant(value, code = "RUNTIME_CONTRACT_SCHEMA_MISMATCH") {
+  if (typeof value !== "string") fail(code);
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf()) || parsed.toISOString() !== value) fail(code);
+}
+
+function isSecretLike(value) {
+  if (typeof value !== "string") return false;
+  if (SECRET_WORD.test(value) || JWT_LIKE.test(value) || OPAQUE_HEX.test(value)) return true;
+  return OPAQUE_MIXED.test(value) && /[A-Z]/.test(value) && /[a-z]/.test(value) && /\d/.test(value);
+}
+
+function decodeEvidenceSegment(rawSegment) {
+  if (rawSegment === "[redacted]") return rawSegment;
+  if (rawSegment.length > MAX_EVIDENCE_URL_BYTES || INVALID_PERCENT_ESCAPE.test(rawSegment)) return null;
+
+  let decoded = rawSegment;
+  for (let pass = 0; pass < MAX_PERCENT_DECODE_PASSES; pass += 1) {
+    let next;
+    try {
+      next = decodeURIComponent(decoded);
+    } catch {
+      return null;
+    }
+    if (next === decoded) break;
+    decoded = next;
+  }
+  if (PERCENT_ESCAPE.test(decoded) || INVALID_PERCENT_ESCAPE.test(decoded)) return null;
+  if (
+    CONTROL_CHARACTER.test(decoded) || decoded.includes("/") || decoded.includes("\\") ||
+    isSecretLike(decoded)
+  ) return null;
+  return decoded;
+}
+
+export function sanitizeEvidenceUrl(raw) {
+  if (
+    typeof raw !== "string" || raw.length < 1 ||
+    Buffer.byteLength(raw) > MAX_EVIDENCE_URL_INPUT_BYTES || CONTROL_CHARACTER.test(raw)
+  ) return null;
+
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) return null;
+  if (
+    isSecretLike(url.hostname) ||
+    url.hostname.split(".").some((label) => decodeEvidenceSegment(label) === null)
+  ) return null;
+
+  const safeSegments = url.pathname.split("/").map((rawSegment) => {
+    if (rawSegment === "") return "";
+    const decoded = decodeEvidenceSegment(rawSegment);
+    if (decoded === null || decoded === "[redacted]") return "[redacted]";
+    return encodeURIComponent(decoded);
+  });
+  const sanitized = `${url.origin}${safeSegments.join("/") || "/"}`;
+  return Buffer.byteLength(sanitized) <= MAX_EVIDENCE_URL_BYTES ? sanitized : null;
+}
+
+export function sanitizeEvidenceMethod(raw) {
+  if (
+    typeof raw !== "string" || raw.length < 1 ||
+    Buffer.byteLength(raw) > MAX_EVIDENCE_METHOD_BYTES || CONTROL_CHARACTER.test(raw) ||
+    isSecretLike(raw) || !EVIDENCE_METHOD_TOKEN.test(raw)
+  ) return null;
+
+  const normalized = raw.toUpperCase();
+  if (isSecretLike(normalized)) return null;
+  return CANONICAL_EVIDENCE_METHODS.has(normalized) ? normalized : "OTHER";
+}
+
+export function isSafeEvidenceMethod(method) {
+  return SAFE_EVIDENCE_METHODS.has(method);
+}
+
+function assertName(value) {
+  if (
+    typeof value !== "string" || value.length < 1 || value.length > 200 ||
+    value !== value.trim().replace(/\s+/g, " ") || CONTROL_CHARACTER.test(value) ||
+    isSecretLike(value)
+  ) fail();
+}
+
+function assertRole(value) {
+  if (!ROLE_SET.has(value)) fail();
+}
+
+function assertRoleName(value) {
+  exactKeys(value, ["role", "name"]);
+  assertRole(value.role);
+  assertName(value.name);
+}
+
+function assertSingleton(value) {
+  if (value !== 1) fail();
+}
+
+function assertBoundedCount(value, minimum = 1) {
+  if (!Number.isSafeInteger(value) || value < minimum || value > 65535) fail();
+}
+
+function assertSortedUnique(values, identity) {
+  const identities = values.map(identity);
+  if (new Set(identities).size !== identities.length) fail();
+  if (identities.some((value, index) => index > 0 && compare(identities[index - 1], value) > 0)) fail();
+}
+
+function assertProductEnvelope(value) {
+  if (value.schemaVersion !== 1 || value.productId !== PRODUCT_ID || value.baseUrl !== BASE_URL) fail();
+}
+
+export function assertRuntimeCatalog(catalog) {
+  if (!isObject(catalog) || catalog.productId !== PRODUCT_ID) fail();
+  assertCanonicalInstant(catalog.capturedAt);
+  assertDigest(catalog.runtimeDigest);
+  let rebuilt;
+  try {
+    rebuilt = normalizeRuntimeObservation({
+      capturedAt: catalog.capturedAt,
+      routes: catalog.routes,
+      rootCandidates: catalog.rootCandidates,
+      probe: catalog.probe,
+      apiHosts: catalog.apiHosts,
+      dependencies: catalog.dependencies,
+      metadata: catalog.metadata,
+      manifest: catalog.pwa,
+    });
+  } catch {
+    fail();
+  }
+  if (
+    JSON.stringify(canonicalize(without(catalog, "runtimeDigest"))) !==
+    JSON.stringify(canonicalize(without(rebuilt, "runtimeDigest")))
+  ) fail();
+  if (catalog.runtimeDigest !== rebuilt.runtimeDigest) {
+    fail("RUNTIME_CONTRACT_DIGEST_MISMATCH");
+  }
+  return catalog;
+}
+
+export function assertCapturePlan(plan) {
+  exactKeys(plan, ["schemaVersion", "productId", "baseUrl", "steps", "capturePlanDigest"]);
+  assertProductEnvelope(plan);
+  assertDigest(plan.capturePlanDigest);
+  if (plan.capturePlanDigest !== canonicalDigest(without(plan, "capturePlanDigest"))) {
+    fail("RUNTIME_CONTRACT_DIGEST_MISMATCH");
+  }
+  if (!Array.isArray(plan.steps) || plan.steps.length < 1 || plan.steps.length > 12) fail();
+  const initial = plan.steps[0];
+  if (initial?.kind !== "observe" || initial.state !== "root") fail();
+
+  let activationCount = 0;
+  const postconditionByState = new Map();
+  const stateByPostcondition = new Map();
+  const targets = new Set();
+  const transitions = new Set();
+  const reached = new Set();
+  let currentState = null;
+  for (const [index, step] of plan.steps.entries()) {
+    if (step?.kind === "observe") {
+      exactKeys(step, ["kind", "state", "postcondition"]);
+      if (index !== 0 || step.state !== "root" || !STATE_SET.has(step.state)) fail();
+      assertRoleName(step.postcondition);
+      if (PROHIBITED_INTERACTION.test(step.postcondition.name)) fail();
+      reached.add(step.state);
+      currentState = step.state;
+      bindPostcondition(step.state, step.postcondition);
+      continue;
+    }
+    if (step?.kind !== "activate") fail();
+    exactKeys(step, ["kind", "fromState", "toState", "purpose", "target", "postcondition"]);
+    activationCount += 1;
+    if (activationCount > 8 || !STATE_SET.has(step.fromState) || !STATE_SET.has(step.toState) ||
+      step.fromState !== currentState || step.fromState === step.toState ||
+      !PURPOSE_SET.has(step.purpose) || !reached.has(step.fromState)) fail();
+    assertRoleName(step.target);
+    assertRoleName(step.postcondition);
+    if (PROHIBITED_INTERACTION.test(step.target.name) || PROHIBITED_INTERACTION.test(step.postcondition.name)) fail();
+    const targetKey = `${step.target.role}\u0000${step.target.name}`;
+    if (targets.has(targetKey)) fail();
+    targets.add(targetKey);
+    const transitionKey = `${step.fromState}\u0000${step.toState}`;
+    if (transitions.has(transitionKey) || reached.has(step.toState)) fail();
+    transitions.add(transitionKey);
+    reached.add(step.toState);
+    currentState = step.toState;
+    bindPostcondition(step.toState, step.postcondition);
+  }
+
+  function bindPostcondition(state, postcondition) {
+    const identity = `${postcondition.role}\u0000${postcondition.name}`;
+    const existing = postconditionByState.get(state);
+    if (existing && existing !== identity) fail();
+    const existingState = stateByPostcondition.get(identity);
+    if (existingState && existingState !== state) fail();
+    postconditionByState.set(state, identity);
+    stateByPostcondition.set(identity, state);
+  }
+  return plan;
+}
+
+function planPostconditions(plan) {
+  const result = new Map();
+  for (const step of plan.steps) {
+    const state = step.kind === "observe" ? step.state : step.toState;
+    result.set(state, step.postcondition);
+  }
+  return result;
+}
+
+function assertEvidenceRecord(record, ownerState) {
+  exactKeys(record, ["evidenceId", "state", "role", "name", "matchCount"]);
+  assertDigest(record.evidenceId);
+  if (record.state !== ownerState || !STATE_SET.has(record.state)) fail();
+  assertRole(record.role);
+  assertName(record.name);
+  assertBoundedCount(record.matchCount);
+  const expected = canonicalDigest({
+    state: record.state,
+    role: record.role,
+    name: record.name,
+    matchCount: record.matchCount,
+  });
+  if (record.evidenceId !== expected) fail("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+}
+
+function assertOriginAndPath(value) {
+  if (sanitizeEvidenceUrl(value) !== value) fail();
+}
+
+export function assertSelectorObservation(observation, { catalog, capturePlan, now } = {}) {
+  exactKeys(observation, [
+    "schemaVersion", "productId", "baseUrl", "observedAt", "runtimeDigest",
+    "capturePlanDigest", "states", "ambiguities", "mutationLedger", "limitations",
+    "observationDigest",
+  ]);
+  assertProductEnvelope(observation);
+  if (Buffer.byteLength(JSON.stringify(observation)) > MAX_OBSERVATION_BYTES) fail();
+  assertCanonicalInstant(observation.observedAt);
+  assertDigest(observation.runtimeDigest);
+  assertDigest(observation.capturePlanDigest);
+  assertDigest(observation.observationDigest);
+  if (observation.observationDigest !== canonicalDigest(without(observation, "observationDigest"))) {
+    fail("RUNTIME_CONTRACT_DIGEST_MISMATCH");
+  }
+  if (!catalog || !capturePlan) fail();
+  assertRuntimeCatalog(catalog);
+  assertCapturePlan(capturePlan);
+  if (observation.runtimeDigest !== catalog.runtimeDigest ||
+    observation.capturePlanDigest !== capturePlan.capturePlanDigest) {
+    fail("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+  }
+  if (now !== undefined) {
+    const instant = now instanceof Date ? now : now();
+    if (!(instant instanceof Date) || Number.isNaN(instant.valueOf())) fail();
+    const age = instant.valueOf() - new Date(observation.observedAt).valueOf();
+    if (age < 0 || age > MAX_EVIDENCE_AGE_MS) fail("RUNTIME_SELECTOR_OBSERVATION_STALE");
+  }
+
+  if (!Array.isArray(observation.states) || observation.states.length > 6) fail();
+  if (!Array.isArray(observation.ambiguities) || !Array.isArray(observation.limitations)) fail();
+  assertSortedUnique(observation.states, (state) => String(state?.state));
+  assertSortedUnique(observation.ambiguities, (entry) =>
+    [entry?.attemptedState, entry?.role, entry?.name, entry?.matchCount, entry?.evidenceId].join("\u0000"));
+  assertSortedUnique(observation.limitations, (entry) =>
+    [entry?.state, entry?.reason, entry?.evidenceId ?? "", entry?.matchCount ?? ""].join("\u0000"));
+
+  const expectedPostconditions = planPostconditions(capturePlan);
+  const recordById = new Map();
+  const ambiguityById = new Map();
+  let recordCount = observation.ambiguities.length;
+  for (const state of observation.states) {
+    exactKeys(state, ["state", "postcondition", "records"]);
+    if (!STATE_SET.has(state.state) || !Array.isArray(state.records)) fail();
+    const reviewed = expectedPostconditions.get(state.state);
+    if (!reviewed) fail("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+    exactKeys(state.postcondition, ["role", "name", "evidenceId", "matchCount"]);
+    assertRole(state.postcondition.role);
+    assertName(state.postcondition.name);
+    assertDigest(state.postcondition.evidenceId);
+    assertSingleton(state.postcondition.matchCount);
+    if (state.postcondition.role !== reviewed.role || state.postcondition.name !== reviewed.name) {
+      fail("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+    }
+    assertSortedUnique(state.records, (record) =>
+      [record?.state, record?.role, record?.name, record?.matchCount, record?.evidenceId].join("\u0000"));
+    for (const record of state.records) {
+      assertEvidenceRecord(record, state.state);
+      if (recordById.has(record.evidenceId)) fail();
+      recordById.set(record.evidenceId, record);
+      recordCount += 1;
+    }
+    const postconditionRecord = recordById.get(state.postcondition.evidenceId);
+    if (!postconditionRecord || postconditionRecord.state !== state.state || postconditionRecord.matchCount !== 1 ||
+      postconditionRecord.role !== state.postcondition.role || postconditionRecord.name !== state.postcondition.name) {
+      fail("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+    }
+  }
+  if (recordCount > MAX_RECORDS) fail();
+
+  for (const ambiguity of observation.ambiguities) {
+    exactKeys(ambiguity, ["evidenceId", "attemptedState", "role", "name", "matchCount"]);
+    if (!STATE_SET.has(ambiguity.attemptedState)) fail();
+    assertRole(ambiguity.role);
+    assertName(ambiguity.name);
+    assertBoundedCount(ambiguity.matchCount, 2);
+    assertDigest(ambiguity.evidenceId);
+    const expected = canonicalDigest({
+      state: ambiguity.attemptedState,
+      role: ambiguity.role,
+      name: ambiguity.name,
+      matchCount: ambiguity.matchCount,
+    });
+    if (ambiguity.evidenceId !== expected || ambiguityById.has(ambiguity.evidenceId)) fail();
+    ambiguityById.set(ambiguity.evidenceId, ambiguity);
+  }
+
+  const ambiguityLimitations = new Set();
+  for (const limitation of observation.limitations) {
+    if (limitation?.reason === "AMBIGUOUS_ROLE_NAME") {
+      exactKeys(limitation, ["state", "reason", "evidenceId", "matchCount"]);
+      if (!STATE_SET.has(limitation.state)) fail();
+      assertDigest(limitation.evidenceId);
+      assertBoundedCount(limitation.matchCount, 2);
+      const ambiguity = ambiguityById.get(limitation.evidenceId);
+      if (!ambiguity || ambiguity.attemptedState !== limitation.state || ambiguity.matchCount !== limitation.matchCount) fail();
+      ambiguityLimitations.add(limitation.evidenceId);
+    } else {
+      exactKeys(limitation, ["state", "reason"]);
+      if (!STATE_SET.has(limitation.state) || ![
+        "ACCESSIBLE_ROLE_NAME_UNAVAILABLE", "STATE_NOT_OBSERVED", "PROHIBITED_INTERACTION_REQUIRED",
+      ].includes(limitation.reason)) fail();
+    }
+  }
+  if ([...ambiguityById.keys()].some((id) => !ambiguityLimitations.has(id))) fail();
+  for (const record of recordById.values()) {
+    if (record.matchCount > 1 && !ambiguityById.has(record.evidenceId)) fail();
+  }
+
+  exactKeys(observation.mutationLedger, ["records", "overflowed"]);
+  if (!Array.isArray(observation.mutationLedger.records) || observation.mutationLedger.records.length > 25 ||
+    typeof observation.mutationLedger.overflowed !== "boolean") fail();
+  for (const record of observation.mutationLedger.records) {
+    exactKeys(record, ["method", "originAndPath"]);
+    const canonicalMethod = sanitizeEvidenceMethod(record.method);
+    if (canonicalMethod === null || canonicalMethod !== record.method ||
+      isSafeEvidenceMethod(canonicalMethod)) fail();
+    assertOriginAndPath(record.originAndPath);
+  }
+  return observation;
+}
+
+function evidenceIndex(observation) {
+  return new Map(observation.states.flatMap((state) => state.records).map((record) => [record.evidenceId, record]));
+}
+
+export function assertSelectorBindings(bindings, { observation, capturePlan } = {}) {
+  exactKeys(bindings, [
+    "schemaVersion", "productId", "baseUrl", "observationDigest",
+    "capturePlanDigest", "selectors", "inventory", "bindingDigest",
+  ]);
+  assertProductEnvelope(bindings);
+  if (Buffer.byteLength(JSON.stringify(bindings)) > MAX_BINDINGS_BYTES) fail();
+  assertDigest(bindings.observationDigest);
+  assertDigest(bindings.capturePlanDigest);
+  assertDigest(bindings.bindingDigest);
+  if (bindings.bindingDigest !== canonicalDigest(without(bindings, "bindingDigest"))) {
+    fail("RUNTIME_CONTRACT_DIGEST_MISMATCH");
+  }
+  if (!observation || !capturePlan) fail();
+  if (bindings.observationDigest !== observation.observationDigest ||
+    bindings.capturePlanDigest !== capturePlan.capturePlanDigest) {
+    fail("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+  }
+  exactKeys(bindings.selectors, RUNTIME_SELECTOR_KEYS, "RUNTIME_SELECTOR_MISSING");
+  const records = evidenceIndex(observation);
+  const selectorEvidence = new Set();
+  for (const key of RUNTIME_SELECTOR_KEYS) {
+    const selector = bindings.selectors[key];
+    if (selector?.status === "AVAILABLE") {
+      exactKeys(selector, ["status", "evidenceId", "matchCount"]);
+      assertDigest(selector.evidenceId);
+      assertSingleton(selector.matchCount);
+      const record = records.get(selector.evidenceId);
+      if (!record || record.matchCount !== 1 || selectorEvidence.has(selector.evidenceId)) {
+        fail("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+      }
+      selectorEvidence.add(selector.evidenceId);
+    } else if (selector?.status === "UNVERIFIED") {
+      exactKeys(selector, ["status", "reason"]);
+      if (!SELECTOR_REASON_SET.has(selector.reason)) fail();
+    } else {
+      fail();
+    }
+  }
+
+  exactKeys(bindings.inventory, ["categories", "collections"]);
+  const inventoryEvidence = new Set();
+  for (const key of ["categories", "collections"]) {
+    const items = bindings.inventory[key];
+    if (!Array.isArray(items) || items.length > MAX_INVENTORY_ITEMS) fail();
+    assertSortedUnique(items, (item) => String(item?.evidenceId));
+    for (const item of items) {
+      exactKeys(item, ["evidenceId", "matchCount"]);
+      assertDigest(item.evidenceId);
+      assertSingleton(item.matchCount);
+      const record = records.get(item.evidenceId);
+      if (!record || record.matchCount !== 1 || inventoryEvidence.has(item.evidenceId)) {
+        fail("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+      }
+      inventoryEvidence.add(item.evidenceId);
+    }
+  }
+  return bindings;
+}
+
+function resolveContract({ catalog, capturePlan, observation, bindings }) {
+  const records = evidenceIndex(observation);
+  const selectors = Object.fromEntries(RUNTIME_SELECTOR_KEYS.map((key) => {
+    const binding = bindings.selectors[key];
+    if (binding.status === "UNVERIFIED") return [key, { ...binding }];
+    const record = records.get(binding.evidenceId);
+    return [key, {
+      status: "AVAILABLE",
+      role: record.role,
+      name: record.name,
+      evidenceId: record.evidenceId,
+      matchCount: 1,
+    }];
+  }));
+  const inventory = Object.fromEntries(["categories", "collections"].map((key) => [
+    key,
+    bindings.inventory[key].map((binding) => {
+      const record = records.get(binding.evidenceId);
+      return { role: record.role, name: record.name, evidenceId: record.evidenceId, matchCount: 1 };
+    }),
+  ]));
+  return {
+    schemaVersion: 1,
+    productId: PRODUCT_ID,
+    baseUrl: BASE_URL,
+    observedAt: catalog.capturedAt,
+    observationDigest: catalog.runtimeDigest,
+    selectorEvidence: {
+      observedAt: observation.observedAt,
+      observationDigest: observation.observationDigest,
+      capturePlanDigest: capturePlan.capturePlanDigest,
+      bindingDigest: bindings.bindingDigest,
+    },
+    selectors,
+    inventory,
+  };
+}
+
+function assertContractShape(contract) {
+  exactKeys(contract, [
+    "schemaVersion", "productId", "baseUrl", "observedAt", "observationDigest",
+    "selectorEvidence", "selectors", "inventory",
+  ]);
+  assertProductEnvelope(contract);
+  assertCanonicalInstant(contract.observedAt);
+  assertDigest(contract.observationDigest);
+  exactKeys(contract.selectorEvidence, ["observedAt", "observationDigest", "capturePlanDigest", "bindingDigest"]);
+  assertCanonicalInstant(contract.selectorEvidence.observedAt);
+  assertDigest(contract.selectorEvidence.observationDigest);
+  assertDigest(contract.selectorEvidence.capturePlanDigest);
+  assertDigest(contract.selectorEvidence.bindingDigest);
+  exactKeys(contract.selectors, RUNTIME_SELECTOR_KEYS, "RUNTIME_SELECTOR_MISSING");
+
+  const selectorTuples = new Set();
+  const selectorEvidence = new Set();
+  for (const key of RUNTIME_SELECTOR_KEYS) {
+    if (!SELECTOR_KEY_SET.has(key)) fail();
+    const selector = contract.selectors[key];
+    if (selector?.status === "AVAILABLE") {
+      exactKeys(selector, ["status", "role", "name", "evidenceId", "matchCount"]);
+      assertRole(selector.role);
+      assertName(selector.name);
+      assertDigest(selector.evidenceId);
+      assertSingleton(selector.matchCount);
+      const tuple = `${selector.role}\u0000${selector.name}`;
+      if (selectorTuples.has(tuple) || selectorEvidence.has(selector.evidenceId)) fail();
+      selectorTuples.add(tuple);
+      selectorEvidence.add(selector.evidenceId);
+    } else if (selector?.status === "UNVERIFIED") {
+      exactKeys(selector, ["status", "reason"]);
+      if (!SELECTOR_REASON_SET.has(selector.reason)) fail();
+    } else {
+      fail();
+    }
+  }
+
+  exactKeys(contract.inventory, ["categories", "collections"]);
+  const inventoryEvidence = new Set();
+  for (const key of ["categories", "collections"]) {
+    const items = contract.inventory[key];
+    if (!Array.isArray(items) || items.length > MAX_INVENTORY_ITEMS) fail();
+    assertSortedUnique(items, (item) => String(item?.evidenceId));
+    for (const item of items) {
+      exactKeys(item, ["role", "name", "evidenceId", "matchCount"]);
+      assertRole(item.role);
+      assertName(item.name);
+      assertDigest(item.evidenceId);
+      assertSingleton(item.matchCount);
+      if (inventoryEvidence.has(item.evidenceId)) fail();
+      inventoryEvidence.add(item.evidenceId);
+    }
+  }
+  return contract;
+}
+
+export function buildReviewedRuntimeContract({ catalog, capturePlan, observation, bindings }) {
+  assertRuntimeCatalog(catalog);
+  assertCapturePlan(capturePlan);
+  assertSelectorObservation(observation, { catalog, capturePlan });
+  assertSelectorBindings(bindings, { observation, capturePlan });
+  return assertContractShape(resolveContract({ catalog, capturePlan, observation, bindings }));
+}
+
+export function assertReviewedRuntimeContract(contract, {
+  catalog, capturePlan, observation, bindings, now,
+} = {}) {
+  assertContractShape(contract);
+  assertRuntimeCatalog(catalog);
+  assertCapturePlan(capturePlan);
+  assertSelectorObservation(observation, { catalog, capturePlan, now });
+  assertSelectorBindings(bindings, { observation, capturePlan });
+
+  if (contract.observedAt !== catalog.capturedAt ||
+    contract.selectorEvidence.observedAt !== observation.observedAt) {
+    fail("RUNTIME_CONTRACT_TIME_MISMATCH");
+  }
+  if (contract.observationDigest !== catalog.runtimeDigest ||
+    contract.selectorEvidence.observationDigest !== observation.observationDigest ||
+    contract.selectorEvidence.capturePlanDigest !== capturePlan.capturePlanDigest ||
+    contract.selectorEvidence.bindingDigest !== bindings.bindingDigest) {
+    fail("RUNTIME_CONTRACT_DIGEST_MISMATCH");
+  }
+  const expected = resolveContract({ catalog, capturePlan, observation, bindings });
+  if (JSON.stringify(canonicalize(contract)) !== JSON.stringify(canonicalize(expected))) {
+    fail("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+  }
+  return contract;
+}
+
+function gateReason(error) {
+  if (error?.code === "RUNTIME_SELECTOR_MISSING") return "RUNTIME_SELECTOR_MISSING";
+  if (error?.code === "RUNTIME_CONTRACT_DIGEST_MISMATCH") return "RUNTIME_CONTRACT_DIGEST_MISMATCH";
+  if (error?.code === "RUNTIME_CONTRACT_TIME_MISMATCH") return "RUNTIME_CONTRACT_TIME_MISMATCH";
+  if (error?.code === "RUNTIME_SELECTOR_OBSERVATION_STALE") return "RUNTIME_SELECTOR_OBSERVATION_STALE";
+  if (error?.code === "RUNTIME_SELECTOR_OBSERVATION_MISSING") return "RUNTIME_SELECTOR_OBSERVATION_MISSING";
+  if (error?.code === "RUNTIME_SELECTOR_OBSERVATION_MISMATCH") return "RUNTIME_SELECTOR_OBSERVATION_MISMATCH";
+  return "RUNTIME_CONTRACT_SCHEMA_MISMATCH";
+}
+
+async function parseSibling({ readFile, readJson }, path, kind) {
+  try {
+    if (readJson) return await readJson(path);
+    const source = await readFile(path, "utf8");
+    try {
+      return JSON.parse(source);
+    } catch {
+      if (kind === "contract") {
+        throw contractError("RUNTIME_CONTRACT_MALFORMED_JSON", "RUNTIME_CONTRACT_MALFORMED_JSON");
+      }
+      throw contractError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH", "RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+    }
+  } catch (error) {
+    if (kind === "contract") {
+      if (error?.code === "INVALID_JSON_ARTIFACT") {
+        throw contractError("RUNTIME_CONTRACT_MALFORMED_JSON", "RUNTIME_CONTRACT_MALFORMED_JSON");
+      }
+      throw error;
+    }
+    if (kind === "observation" && MISSING_ARTIFACT_CODES.has(error?.code)) {
+      throw contractError("RUNTIME_SELECTOR_OBSERVATION_MISSING", "RUNTIME_SELECTOR_OBSERVATION_MISSING");
+    }
+    throw contractError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH", "RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+  }
+}
+
+export function createRuntimeContractLoader(dependencies = {}) {
+  if (!isObject(dependencies)) fail();
+  const { readFile, readJson, now = () => new Date() } = dependencies;
+  if (
+    (readFile !== undefined && typeof readFile !== "function") ||
+    (readJson !== undefined && typeof readJson !== "function") ||
+    (readFile && readJson) || typeof now !== "function"
+  ) fail();
+  const reader = readFile
+    ? { readFile }
+    : { readJson: readJson ?? ((path) => fixedJsonIo.readJson(path)) };
+
+  return async function loadFixedContract() {
+    let contract;
+    try {
+      contract = await parseSibling(reader, FIXED_PATHS.contract, "contract");
+    } catch (error) {
+      if (MISSING_ARTIFACT_CODES.has(error?.code)) {
+        return { status: "BLOCKED", reason: "RUNTIME_CONTRACT_MISSING" };
+      }
+      if (error?.code === "RUNTIME_CONTRACT_MALFORMED_JSON") {
+        return { status: "UNVERIFIED", reason: "RUNTIME_CONTRACT_MALFORMED_JSON" };
+      }
+      return { status: "BLOCKED", reason: "RUNTIME_CONTRACT_UNREADABLE" };
+    }
+
+    try {
+      const [catalog, observation, capturePlan, bindings] = await Promise.all([
+        parseSibling(reader, FIXED_PATHS.catalog, "catalog"),
+        parseSibling(reader, FIXED_PATHS.observation, "observation"),
+        parseSibling(reader, FIXED_PATHS.capturePlan, "capturePlan"),
+        parseSibling(reader, FIXED_PATHS.bindings, "bindings"),
+      ]);
+      assertReviewedRuntimeContract(contract, {
+        catalog, capturePlan, observation, bindings, now: now(),
+      });
+      return { status: "READY", contract };
+    } catch (error) {
+      return { status: "UNVERIFIED", reason: gateReason(error) };
+    }
+  };
+}
+
+const fixedLoader = createRuntimeContractLoader();
+
+export async function loadReviewedRuntimeContract() {
+  return fixedLoader();
+}

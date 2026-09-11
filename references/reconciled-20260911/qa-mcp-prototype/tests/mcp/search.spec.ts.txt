@@ -1,0 +1,20 @@
+import { test, expect, TOOLS } from '../fixtures/mcp-client';
+import { hasMcpEnv } from '../fixtures/env';
+
+test.skip(!hasMcpEnv, 'MCP_SERVER_URL не настроен (.env)');
+
+// TODO(product): уточнить схему аргументов search после прогона handshake.spec.ts
+test('поиск по валидному запросу возвращает результаты @smoke', async ({ mcp }) => {
+  const result = await mcp.callTool({ name: TOOLS.search, arguments: { query: 'usb cable' } });
+  expect(result.isError ?? false).toBe(false);
+  expect(result.content).toBeDefined();
+});
+
+test('пустой запрос возвращает ошибку инструмента, а не падение сервера', async ({ mcp }) => {
+  await mcp
+    .callTool({ name: TOOLS.search, arguments: { query: '' } })
+    .catch(() => undefined); // ошибка допустима, обрыв соединения — нет
+
+  const followUp = await mcp.listTools();
+  expect(followUp.tools.length).toBeGreaterThan(0);
+});

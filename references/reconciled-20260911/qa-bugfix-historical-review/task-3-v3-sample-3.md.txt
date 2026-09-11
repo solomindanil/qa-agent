@@ -1,0 +1,61 @@
+# Task 3 — fix-prompt artifact rehearsal
+
+## A — ORCH-14: prepare-only developer prompt
+
+### Chosen workflow / tracker
+
+- Workflow: use the registered Orchard product pack and `qa-bugfix` in prepare-only mode. The old generic QA repository in the current working directory is not the product checkout and must not be edited.
+- Tracker: Nuanu Flow, workspace `orchard`, project `ORCH`, via the official Flow plugin if a later separately authorized tracker action is requested. Linear is not selected or available for this case.
+- Current authority: produce text only. No product changes, tracker writes, comments, attachments, or state transitions.
+- State role: `Ready for prod` is the QA-qualified handoff and is not a developer-completion shortcut.
+
+Other target/bug sections, summarized: the source clause "The readable registered Orchard pack selects Nuanu Flow workspace orchard/project ORCH" establishes product `Orchard`; ticket `ORCH-14` concerns the confirmed `first-link-email` defect on staging candidate source `v7`, with the supplied screenshot and API response as evidence; no registration locator is supplied, so the registered checkout is unresolved and all implementation guidance remains checkout-neutral until it is resolved.
+
+### Acceptance criteria
+
+- [ ] On the fixed deployed candidate, a fresh Telegram-created account with no user email can enter and link its first user email without being required to confirm through the inaccessible old synthetic email inbox.
+- [ ] The confirmation flow does not display or enforce the old synthetic-email confirmation requirement for this first-link case.
+- [ ] The user can complete the observable first-email-linking flow under the original preconditions, using authorized test data and without relying on omitted real identities or credentials.
+- [ ] Adjacent email-linking behavior for accounts that already have a reachable user email remains correct according to the Orchard pack/contract; do not infer additional business rules from this issue.
+- [ ] Relevant project checks are reported with exact commands, candidate, results, and anything not run.
+- [ ] Before treating the existing QA regression as evidence, inspect its fixture and assertions against the original scenario. An unexpected expected-failure PASS is only an investigation signal; do not weaken assertions or remove an expected-failure marker merely to obtain green.
+- [ ] Developer completion returns implementation evidence to QA; `Ready for prod` requires fresh deployed original-scenario evidence plus an authorized QA transition and persisted-state readback.
+
+### Recommended workflow
+
+- Resolve the intended Orchard product checkout from the registered pack/registration locator before any edit; do not use the current old generic QA repository as the product checkout.
+- In that resolved checkout, inspect the first-link-email implementation and the supplied screenshot/API evidence, reproduce with an authorized fresh Telegram-created test account, and distinguish the confirmed symptom from any root-cause hypothesis.
+- Make the smallest focused change that removes the inaccessible synthetic-inbox confirmation requirement only for the confirmed first-user-email linking contract; avoid unrelated refactoring or guessed account rules.
+- Review the existing regression fixture and assertions, then run the relevant focused checks and adjacent email-linking checks. Record the exact implementation candidate, commands, results, and unrun or unresolved checks.
+- Return the implementation evidence to QA without changing `ORCH-14`. Do not claim deployed verification or move it to `Ready for prod`; those require a separate authorized QA run against the deployed fixed candidate.
+- Reconcile `Orchard`, `ORCH-14`, staging source `v7`, Nuanu Flow workspace `orchard`/project `ORCH`, and literal state `Ready for prod` against the supplied pack/snapshot before delivery.
+
+### Setup or human input
+
+No human input or credential disclosure is needed to prepare this prompt. Before implementation, the executor must resolve the registered Orchard checkout locator. If the resolved pack does not provide an authorized fresh Telegram-created test account or a supported way to create one, request only that concrete capability; keep verification pending rather than requesting personal credentials or inventing account data.
+
+## B — LYNX-7: deployed-fix verification decision
+
+### Present conclusion
+
+`LYNX-7` is **not verified fixed**. The message “Expected to fail, but passed” is invalid as deployed-fix evidence because the test only checks that the page has a title; it neither submits the RU reset request nor observes the backend-rejection error branch from the original defect. There is no current original-scenario evidence, so `Done` is not justified.
+
+### Exact next action
+
+1. Inspect the test source, fixture, and available trace read-only to confirm the missing reset-form submission and error-branch assertion.
+2. With the controlled test account on the known current deployed candidate, execute the original scenario in RU: submit a valid reset request, cause/observe the backend rejection, and capture the actual localized UI response plus candidate/environment identity.
+3. Add or correct a focused regression so it asserts the original branch and expected RU behavior, then run it and relevant adjacent reset-flow checks without weakening assertions.
+4. Only if the fresh deployed run demonstrates the correct RU result and the strengthened regression is valid may authorized QA transition `LYNX-7` to literal state `Done`, followed by persisted-state readback. Otherwise report still-broken, partial, blocked, or unassessed evidence explicitly.
+
+### Mutations now
+
+No tracker mutation is justified now: do not move `LYNX-7` to `Done` or add a fix-verification claim. No regression-marker change is justified from the unexpected PASS alone: do not remove `test.fail()` until the test actually exercises the original scenario and the fresh evidence supports changing the marker.
+
+## C — LYNX-8: implementation handoff / QA acceptance excerpt
+
+### Implementation handoff / QA acceptance
+
+- **Developer completion:** the required code changes and relevant local tests are complete under the current scoped execution authority. The implementing agent may attach the implementation summary to `LYNX-8` and move it from literal state `In Progress` to literal state `QA queue`. After each authorized write, read back the saved attachment/comment and persisted issue state; if the outcome is unknown, reconcile before retrying.
+- **QA acceptance:** do not move `LYNX-8` to `Done`. In this pack, `Done` means QA-verified original scenario and requires fresh deployed verification, which has not occurred. Local test success and entry into `QA queue` are developer handoff evidence, not deployed QA acceptance.
+- **Evidence to return:** exact implementation candidate/commit; concise changed scope and affected files/components; exact local test commands and results; the regression fixture/assertions checked against the confirmed original reproduction; adjacent checks run; checks not run and unresolved risks; deployment status and an explicit statement that deployed original-scenario verification remains pending; and readback evidence for the implementation summary plus the `In Progress` → `QA queue` transition.
+- **Invalid actions:** no `Done` transition, no claim that the defect is QA-verified or deployed-fixed, no weakening of assertions or expected-failure markers to obtain green, and no authority inherited from the unrelated earlier prepare-only request.

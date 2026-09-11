@@ -1,0 +1,38 @@
+{
+  "capturedAt": "2026-08-26T00:00:00.000Z",
+  "deploymentCommitSha": null,
+  "routes": ["/", "/__napp_runtime_probe__", "/?token=should-not-survive#fragment"],
+  "rootCandidates": {
+    "state": "root",
+    "route": "/",
+    "surfaces": [
+      { "name": "Navigation", "role": "navigation", "capturedAt": "2026-08-26T00:00:00.000Z" },
+      { "name": "Search", "role": "search" },
+      { "name": "Filter", "role": "region" }
+    ],
+    "controls": [
+      { "name": "Search places", "role": "searchbox", "value": "private typed input" },
+      { "name": "Open taxonomy", "role": "button" },
+      { "name": "token=should-not-survive", "role": "button" },
+      { "name": "A deliberately long generic public accessible name that proves retained names are bounded before a runtime catalog is persisted and should be truncated safely without retaining excess text", "role": "link" }
+    ],
+    "taxonomy": ["Category alpha", "Category beta"]
+  },
+  "probe": {
+    "route": "/__napp_runtime_probe__",
+    "status": 404
+  },
+  "manifest": {
+    "name": "Nuanu App",
+    "shortName": "N App",
+    "startUrl": "/?callback=should-not-survive",
+    "themeColor": "#112233",
+    "credential": "should-not-survive"
+  },
+  "apiHosts": ["https://API.example.test/catalog?token=should-not-survive", "api.example.test"],
+  "dependencies": ["https://cdn.example.test/app.js#fragment", "https://maps.example.test/loader.js"],
+  "requestHeaders": { "Authorization": "should-not-survive" },
+  "cookies": ["session=should-not-survive"],
+  "localStorage": { "private": "should-not-survive" },
+  "responseBodies": ["should-not-survive"]
+}

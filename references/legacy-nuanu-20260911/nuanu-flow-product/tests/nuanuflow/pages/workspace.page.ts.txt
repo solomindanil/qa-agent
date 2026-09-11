@@ -1,0 +1,58 @@
+import { type Locator, type Page } from '@playwright/test';
+import { type AuthenticatedRoute } from '../routes';
+import { SANDBOX } from '../fixtures/sandbox-data';
+
+export class WorkspacePage {
+  readonly workspaceSwitcher: Locator;
+  readonly workspaceIdentity: Locator;
+  readonly commandSearch: Locator;
+  readonly mainSidebar: Locator;
+  readonly sidebarToggle: Locator;
+  readonly notifications: Locator;
+  readonly aiToggle: Locator;
+
+  constructor(readonly page: Page) {
+    this.workspaceSwitcher = page.getByRole('button', {
+      name: 'Open workspace switcher',
+      exact: true,
+    });
+    this.workspaceIdentity = this.workspaceSwitcher.getByRole('heading', {
+      name: SANDBOX.workspaceName,
+      exact: true,
+    });
+    this.commandSearch = page.getByRole('textbox', {
+      name: 'Search commands...',
+      exact: true,
+    });
+    this.mainSidebar = page.getByRole('complementary', {
+      name: 'Main sidebar',
+      exact: true,
+    });
+    this.sidebarToggle = page.locator(
+      'button:has(svg.lucide-panel-left), button:has(svg.lucide-panel-left-close), button:has(svg.lucide-panel-left-open)',
+    );
+    this.notifications = page.locator(
+      `a[href="/${SANDBOX.workspaceSlug}/notifications/"]`,
+    );
+    this.aiToggle = page.locator(
+      'button:has(svg.lucide-message-square)',
+    );
+  }
+
+  async goto(path: string) {
+    await this.page.goto(path, { waitUntil: 'domcontentloaded' });
+  }
+
+  async gotoProject(path: string) {
+    await this.goto(
+      `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}${path}`,
+    );
+  }
+
+  routeReady(route: AuthenticatedRoute): Locator {
+    return this.page.getByRole(route.ready.role, {
+      name: route.ready.name,
+      exact: true,
+    });
+  }
+}

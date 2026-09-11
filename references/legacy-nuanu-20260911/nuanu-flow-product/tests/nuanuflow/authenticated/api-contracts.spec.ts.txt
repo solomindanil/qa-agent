@@ -1,0 +1,131 @@
+import { expect, type APIResponse } from '@playwright/test';
+import { test } from '../fixtures/authenticated.fixture';
+import { SANDBOX } from '../fixtures/sandbox-data';
+import {
+  classifyResponseContentType,
+  collectSafeApiErrorEvidence,
+  readJsonWithoutRawError,
+  redactUrlQuery,
+  validateSafeApiErrorEvidence,
+} from '../cross-cutting';
+import { AUTHENTICATED_ROUTES } from '../routes';
+
+const MAX_ERROR_BODY_BYTES = 16_384;
+const API_ROOT = `/be/api/workspaces/${SANDBOX.workspaceSlug}`;
+
+const routeNamed = (name: string) => {
+  const route = AUTHENTICATED_ROUTES.find((candidate) => candidate.name === name);
+  if (!route) throw new Error(`Missing authenticated route: ${name}`);
+  return route;
+};
+
+const expectObservedArray = async (response: APIResponse) => {
+  expect(response.status()).toBe(200);
+  expect(
+    classifyResponseContentType(response.headers()['content-type']),
+  ).toBe('json');
+  const body = await readJsonWithoutRawError(response);
+  expect(Array.isArray(body)).toBe(true);
+  if (!Array.isArray(body)) throw new Error('Observed collection was not an array.');
+  return body;
+};
+
+test.describe('Nuanu Flow authenticated read-only API contracts', () => {
+  test('sandbox project collection exposes the exact configured project', async ({
+    page,
+    assertSandbox,
+    workspacePage,
+  }) => {
+    const route = routeNamed('Projects');
+    await workspacePage.goto(route.path);
+    await expect(workspacePage.routeReady(route)).toBeVisible({ timeout: 15_000 });
+    await assertSandbox();
+
+    const rows = await expectObservedArray(
+      await page.request.get(`${API_ROOT}/projects/`, {
+        failOnStatusCode: false,
+        maxRedirects: 0,
+      }),
+    );
+    expect(
+      rows.some(
+        (row) =>
+          typeof row === 'object' &&
+          row !== null &&
+          (row as Record<string, unknown>).id === SANDBOX.projectId,
+      ),
+    ).toBe(true);
+  });
+
+  for (const contract of [
+    {
+      name: 'work-item collection',
+      route: 'Work items',
+      path: `${API_ROOT}/projects/${SANDBOX.projectId}/issues/`,
+    },
+    {
+      name: 'process collection',
+      route: 'Processes',
+      path: `${API_ROOT}/process-templates/`,
+    },
+    {
+      name: 'meeting collection',
+      route: 'Home',
+      path: `${API_ROOT}/meetings/`,
+    },
+  ] as const) {
+    test(`${contract.name} preserves its observed array shape`, async ({
+      page,
+      assertSandbox,
+      workspacePage,
+    }) => {
+      const route = routeNamed(contract.route);
+      await workspacePage.goto(route.path);
+      await expect(workspacePage.routeReady(route)).toBeVisible({
+        timeout: 15_000,
+      });
+      await assertSandbox();
+
+      await expectObservedArray(
+        await page.request.get(contract.path, {
+          failOnStatusCode: false,
+          maxRedirects: 0,
+        }),
+      );
+    });
+  }
+
+  test('unknown process detail returns a bounded leak-free error', async ({
+    page,
+    assertSandbox,
+    workspacePage,
+  }, testInfo) => {
+    const route = routeNamed('Processes');
+    await workspacePage.goto(route.path);
+    await expect(workspacePage.routeReady(route)).toBeVisible({ timeout: 15_000 });
+    await assertSandbox();
+    const path = `${API_ROOT}/process-templates/00000000-0000-4000-8000-000000000001/`;
+    const response = await page.request.get(path, {
+      failOnStatusCode: false,
+      maxRedirects: 0,
+    });
+    const evidence = await collectSafeApiErrorEvidence(
+      response,
+      MAX_ERROR_BODY_BYTES,
+    );
+    testInfo.annotations.push({
+      type: 'sanitized authenticated API error',
+      description: JSON.stringify({
+        status: response.status(),
+        path: redactUrlQuery(response.url()),
+        ...evidence,
+      }),
+    });
+
+    expect(response.status()).toBe(404);
+    expect(response.status()).toBeLessThan(500);
+    expect(
+      validateSafeApiErrorEvidence(evidence, MAX_ERROR_BODY_BYTES),
+    ).toEqual([]);
+  });
+});

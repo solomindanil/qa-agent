@@ -1,0 +1,163 @@
+---
+name: qa-check
+description: Check mode — hunt bugs in a web product end-to-end (recon, test matrix, Playwright specs), file every confirmed bug through the configured tracker with screenshots, and add regression tests. Linear is the default; Nuanu Flow uses its own MCP. Use when the user asks to test/check a product or a product area, or after a product update.
+---
+
+# QA Check Mode
+
+You are a senior QA engineer. Goal: find real bugs in the product, prove each one with evidence, file it through the correctly routed tracker so a developer (or coding agent) can fix it without asking questions, and pin it with a regression test.
+
+## Prerequisites (verify before starting)
+
+1. `<PRODUCT>_BASE_URL` set in `.env`; the product has a Playwright project in `playwright.config.ts` and specs in `tests/<product>/` (copy `tests/_template/` if not).
+2. Select the tracker with the guard below before any tracker tool call. For products other than Nuanu Flow, Linear MCP is connected (ships preconfigured in the repo's `.mcp.json`; OAuth on first use), a Linear project exists, and the team has a `Bug` label plus product-area labels. For Nuanu Flow, the separately configured Nuanu Flow MCP must be available. Ask the user for anything missing. The `chrome-devtools` browser MCP also ships in `.mcp.json` — use it for recon and bug screenshots.
+3. For authenticated areas: `<PRODUCT>_TEST_EMAIL/_PASSWORD` in `.env`. **Safety rules:** tests are read-only — no purchases, no real payments, no settings mutations, no password-reset emails to addresses you don't own. Payment flows are tested up to (not including) the external payment step; real-money verification only with the owner's explicit go-ahead.
+
+### Tracker routing guard
+
+- If the product under test is Nuanu Flow, never call Linear. Use only the
+  configured Nuanu Flow MCP in workspace `nuanu-flow-qa`, project `NUANU`.
+  After filing, read back the issue metadata and screenshot attachment through
+  MCP before adding the ticket ID to a regression test.
+- For every other product, retain the existing Linear workflow.
+
+## Workflow
+
+### 1. Recon (exploratory, before writing any test)
+
+Open the product in a browser tool (browser MCP if available, else a quick Playwright script). Map: pages, navigation, languages, auth methods, payment methods, key flows. Note SPA behavior (empty static HTML → tests must wait for hydration). Record findings in `docs/local/<product>/TEST-CASES.md` (create from `docs/templates/TEST-CASES.md`).
+
+### 2. Test matrix (cover in this order)
+
+| Area | What to check |
+|------|---------------|
+| Landing | 2xx + title/h1, console errors, failed requests (≥400), favicon, internal links <400, external links (403/429/999 = bot protection, not a bug), SEO meta, og tags language |
+| Auth | Form renders, native email validation blocks garbage pre-network, wrong-creds error (localized? raw backend message = bug), password reset UI, signup, logout |
+| Core flows | Every section a logged-in user sees; empty states; each product card/CTA up to the irreversible step |
+| Payments | Every top-up/payment method up to the external payment moment: addresses/invoices generated, warnings correct, amounts/currency labels consistent |
+| i18n | Language switch changes content AND `<html lang>`, `<title>`, meta; choice persists after reload; date/time/number/currency formats match locale; no mixed-language screens; error messages translated |
+| Routing | Unknown route → 404 UI and (ideally) 404 status; soft-404 (200 for everything) is a bug; 404 page localized |
+| Responsive | 320/375/768/1024/1440: no horizontal overflow; mobile nav replaces desktop nav; forms usable at 320px |
+
+### 3. Triage — a failing test is not automatically a bug
+
+Before filing, rule out: locale assumptions (headless = en-US unless forced — pin language via the product's storage mechanism), SPA hydration timing (wait for a visible element before scraping), strict-mode selector collisions (`.first()`), bot protection on externals. Reproduce manually in the browser tool; capture the exact state.
+
+Two failure modes that convincingly imitate product bugs:
+- **Lost clicks on heavy SPAs**: a click fired right after navigation can land before the handler is attached — the element is visible, the click "succeeds", nothing happens. Guard interactive steps after navigation with `waitForLoadState('networkidle')`, and prefer asserting the click's *effect* (button flips to a busy/disabled state, URL changes) over assuming it. If in doubt, reproduce manually: if the action works with human timing, it's the test.
+- **Deploy rollout skew**: right after a release, cached browser contexts can serve the old bundle while fresh contexts get the new one — the same screen shows different copy/behavior. Before filing or closing anything during a rollout, re-check in a fresh incognito/new context; trust the fresh one.
+
+### 4. File the bug through the routed tracker
+
+Use `templates/bug-report.md` for the description. Rules:
+- Title: `[BUG] <symptom, specific>`. Labels: `Bug` + one product-area label. State: triage/backlog.
+- Priority = severity: **Urgent** money loss/data loss/blocker · **High** main flow broken for a user segment · **Medium** misleading/contradictory behavior, a11y mismatch · **Low** cosmetics, formatting, SEO.
+- Include "How found" (exact tool/method) and evidence (curl output, endpoint, console text) so the fix prompt can be generated without re-investigation.
+
+**Nuanu Flow:** Never call Linear or assume Linear tool names. Search the current Nuanu Flow MCP schema, file only in workspace `nuanu-flow-qa`, project `NUANU`, and attach a screenshot using that current schema. Read back the issue metadata and screenshot attachment through MCP before using the concrete returned ticket ID.
+
+**Every other product (Linear):** Screenshot is mandatory: capture the buggy state (plus a contrast "correct" state when it strengthens the case). Upload: `prepare_attachment_upload` → PUT the raw bytes with ALL signed headers verbatim (URL lives 60s) → `create_attachment_from_upload`. One file at a time.
+
+### 5. Pin with a regression test
+
+Add a `test.fail(true, '<TICKET-ID>: <symptom>')` test that asserts the CORRECT behavior, using only the concrete ticket ID returned and read back from the routed tracker. It "passes" while the bug exists; when the bug is fixed the suite flags it → flip it to a normal test. Wait for async states before asserting (a `toBeHidden()` that resolves before the error renders proves nothing).
+
+### 6. Close the loop
+
+Update `docs/local/<product>/TEST-CASES.md` (statuses: ✅ automated / 🖐 manual / ⛔ blocked+reason). Run the full product suite — it must be green (known bugs live as expected-fails). Report to the user: bugs filed (IDs + links + severity), what was verified working, what is blocked and why.
+
+## Quality patterns
+
+- **Auth via storageState, not per-test UI login:** add `tests/<product>/auth.setup.ts` (a `*-setup` Playwright project, see the freeland pattern in `playwright.config.ts` — `product(name, url, { authSetup: true })`): log in once, `page.context().storageState({ path })`, then `test.use({ storageState })` in authenticated specs. Faster, and doesn't hammer the auth backend. Keep logout tests in a fresh context with their own UI login — logout revokes the shared session.
+- **Flakiness check before filing:** a suspicious test gets `npx playwright test <spec> --repeat-each=10` before its failure is treated as a bug.
+- **No arbitrary timeouts:** wait for a response (`page.waitForResponse`) or element state, never `waitForTimeout`.
+- **Web3/wallet flows:** mock the injected provider to test wallet UI without a real wallet: `context.addInitScript(() => { window.ethereum = { isMetaMask: true, request: async ({ method }) => method === 'eth_requestAccounts' ? ['0x1234…'] : '0x1' } })`. QR-only WalletConnect flows may ignore injected providers — verify what the product supports first.
+- **Financial flows guard:** irreversible/real-money steps are never automated against production; gate such tests with an explicit env flag agreed with the owner (e.g. `test.skip(!process.env.ALLOW_REAL_PAYMENTS, 'real-money step — owner only')`).
+
+## After a product update
+
+Get the changelog (or diff the UI via recon), re-run the matrix on changed areas, update cases/specs, treat newly failing old tests as regression candidates, file new bugs the same way.
+
+## Scaling to large products
+
+### Page Object Model
+
+Adopt POM the moment specs multiply or the same selector appears in a second file: selectors live once in `tests/<product>/pages/*.page.ts`, tests keep behavior and assertions. Template: `tests/_template/pages/login.page.ts`.
+
+```ts
+export class LoginPage {
+  readonly emailInput: Locator;
+  constructor(readonly page: Page) {
+    this.emailInput = page.locator('input[type="email"]').first();
+  }
+  async goto() { await this.page.goto('/login'); }
+  async login(email: string, password: string) { /* fill + submit */ }
+}
+```
+
+Conventions: actions in page objects, assertions in tests; prefer `getByRole`/testid locators over CSS chains; a page object never asserts.
+
+### Fixtures
+
+Inject page objects (and per-test data) via `test.extend` so specs stay declarative. Template: `tests/_template/fixtures.ts`.
+
+```ts
+export const test = base.extend<{ loginPage: LoginPage }>({
+  loginPage: async ({ page }, use) => { await use(new LoginPage(page)); },
+});
+// in specs: import { expect, test } from './fixtures';
+// test('logs in', async ({ loginPage }) => { ... });
+```
+
+Auth is also a fixture-level concern: `auth.setup.ts` + `storageState` (see Quality patterns) instead of logging in per test.
+
+### API layer
+
+Add `api.spec.ts` per product (template provided) — browserless checks through the `request` fixture fail earlier and diagnose faster than UI flows:
+
+```ts
+test('protected endpoint rejects anonymous', async ({ request }) => {
+  const res = await request.get('/api/me');
+  expect([401, 403]).toContain(res.status());   // never 200 or 500
+});
+const data = await (await request.get('/api/plans')).json();
+expect(data).toMatchObject({ plans: expect.any(Array) });  // response shape
+```
+
+Also verify error responses don't leak stack traces or internal hostnames.
+
+### Cross-browser matrix
+
+One line per product in `playwright.config.ts`:
+
+```ts
+...product('myproduct', process.env.MYPRODUCT_BASE_URL, {
+  authSetup: true,
+  browsers: ['Desktop Chrome', 'Desktop Firefox', 'Desktop Safari', 'Pixel 5'],
+})
+```
+
+Engines: `npx playwright install firefox webkit`. Projects get named `myproduct-desktop-firefox` etc. Strategy: daily runs on Chromium for speed; full matrix on release regressions; add `'Pixel 5'` when the product has real mobile traffic (it also exercises touch + mobile viewport).
+
+### CI
+
+`.github/workflows/e2e.yml` ships ready: manual trigger + nightly cron; products activate via repository **Variables** (`<PRODUCT>_BASE_URL`) and **Secrets** (`<PRODUCT>_TEST_EMAIL/_PASSWORD`); HTML report uploads as an artifact; JUnit XML (`playwright-results.xml`) is emitted in CI for test-reporting integrations. For long suites shard the job:
+
+```yaml
+strategy: { matrix: { shard: [1, 2, 3, 4] } }
+# run: npx playwright test --shard=${{ matrix.shard }}/4
+```
+
+Config already sets `forbidOnly` and 2 retries in CI; a test that passes only on retry is flaky — quarantine it, don't ignore it.
+
+### Suite hygiene
+
+- **Quarantine ≠ known bug**: a flaky test gets `test.fixme(true, 'flaky — TICKET-ID')` until stabilized (it stops running); a confirmed product bug gets `test.fail()` (it keeps running and flags the fix). Never leave a flaky test red.
+- **Local builds**: to test a not-yet-deployed build, use the commented `webServer` block in `playwright.config.ts`.
+
+## Fix verification & ticket closure (Done is set only by QA)
+
+Fixers stop at In Progress + a summary comment; closing is this mode's job:
+- A `test.fail()` regression flipping to "Expected to fail, but passed" proves the fix: flip it to a normal test, move the ticket to **Done** with a "QA verified: <how>" comment.
+- Regression still expected-fails → comment the evidence, move the ticket back to **Todo**.
+- Partial fix → comment fixed-vs-remaining, narrow the scope, keep the ticket open.

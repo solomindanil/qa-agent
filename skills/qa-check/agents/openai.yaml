@@ -1,0 +1,4 @@
+interface:
+  display_name: "QA Check"
+  short_description: "Run evidence-first web QA checks"
+  default_prompt: "Use $qa-check to resolve the product and owner, run evidence-first QA, and report verified, failed, blocked, and unassessed scope before any authorized tracker writes."

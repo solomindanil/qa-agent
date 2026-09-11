@@ -1,0 +1,785 @@
+import { randomBytes } from "node:crypto";
+import {
+  constants,
+  link as fsLink,
+  lstat,
+  mkdir,
+  open,
+  realpath,
+  rename as fsRename,
+  unlink as fsUnlink,
+} from "node:fs/promises";
+import { basename, dirname, isAbsolute, parse, relative, resolve, sep } from "node:path";
+import { TextDecoder } from "node:util";
+import { fileURLToPath } from "node:url";
+
+const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+export const PRIVATE_ROOT = resolve(REPOSITORY_ROOT, "docs/local/nuanu-app");
+const DEFAULT_MAX_BYTES = 4 * 1024 * 1024;
+const READ_CHUNK_BYTES = 64 * 1024;
+const NO_FOLLOW = constants.O_NOFOLLOW ?? 0;
+const ROOT_QUEUES = new Map();
+
+// Portable Node does not expose openat/renameat. Each observable phase is
+// serialized and re-attested from the filesystem root through the destination,
+// but this local QA-state API assumes no hostile same-UID peer can write those
+// ancestors inside the unobservable interval between an attestation and its
+// immediately following pathname syscall.
+
+const CONTROLLED_IO_CODES = new Set([
+  "INVALID_PRIVATE_ROOT",
+  "INVALID_PRIVATE_PATH",
+  "PATH_OUTSIDE_PRIVATE_ROOT",
+  "MISSING_PRIVATE_ROOT",
+  "MISSING_PARENT_DIRECTORY",
+  "SYMLINK_PATH_REJECTED",
+  "NON_DIRECTORY_PATH",
+  "NON_REGULAR_FILE",
+  "PATH_RACE_DETECTED",
+  "JSON_ARTIFACT_TOO_LARGE",
+  "INVALID_JSON_ARTIFACT",
+]);
+
+function ioError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function isContained(path, root) {
+  const result = relative(root, path);
+  return result === "" || (
+    result !== ".." &&
+    !result.startsWith(`..${sep}`) &&
+    !isAbsolute(result)
+  );
+}
+
+function inode(stat) {
+  return `${stat.dev}:${stat.ino}`;
+}
+
+function sameInode(left, right) {
+  return Boolean(left && right && left.dev === right.dev && left.ino === right.ino);
+}
+
+function sameStableMetadata(left, right) {
+  return sameInode(left, right) &&
+    left.size === right.size &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs;
+}
+
+function cleanFsMessage(code) {
+  if (code === "ENOENT") return "Required private artifact does not exist";
+  if (code === "EEXIST") return "Private artifact already exists";
+  return "Private artifact I/O failed";
+}
+
+function pathPrefixes(path) {
+  const normalized = resolve(path);
+  const root = parse(normalized).root;
+  const segments = normalized.slice(root.length).split(sep).filter(Boolean);
+  const prefixes = [root];
+  let current = root;
+  for (const segment of segments) {
+    current = resolve(current, segment);
+    prefixes.push(current);
+  }
+  return prefixes;
+}
+
+async function serializeRoot(root, operation) {
+  const previous = ROOT_QUEUES.get(root) ?? Promise.resolve();
+  let release;
+  const gate = new Promise((resolveGate) => { release = resolveGate; });
+  const tail = previous.catch(() => {}).then(() => gate);
+  ROOT_QUEUES.set(root, tail);
+  await previous.catch(() => {});
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (ROOT_QUEUES.get(root) === tail) ROOT_QUEUES.delete(root);
+  }
+}
+
+export function createJsonIo({
+  privateRoot,
+  trustedRoot,
+  maxBytes = DEFAULT_MAX_BYTES,
+  onEvent = () => {},
+  operations = {},
+} = {}) {
+  if (typeof privateRoot !== "string" || !isAbsolute(privateRoot)) {
+    throw ioError("INVALID_PRIVATE_ROOT", "privateRoot must be an absolute path");
+  }
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) {
+    throw ioError("INVALID_PRIVATE_ROOT", "maxBytes must be a positive safe integer");
+  }
+
+  const approvedRoot = resolve(privateRoot);
+  const approvedTrustedRoot = trustedRoot === undefined
+    ? dirname(approvedRoot)
+    : typeof trustedRoot === "string" && isAbsolute(trustedRoot)
+      ? resolve(trustedRoot)
+      : null;
+  if (
+    approvedTrustedRoot === null ||
+    !isContained(approvedRoot, approvedTrustedRoot)
+  ) {
+    throw ioError(
+      "INVALID_PRIVATE_ROOT",
+      "privateRoot must be contained by the trusted root",
+    );
+  }
+  const renameOperation = operations.rename ?? (async (from, to) => fsRename(from, to));
+  const linkOperation = operations.link ?? (async (from, to) => fsLink(from, to));
+  const syncDirectoryOperation = operations.syncDirectory ?? (
+    async (handle) => handle.sync()
+  );
+
+  async function emit(type, details = {}) {
+    await onEvent({ type, ...details });
+  }
+
+  function approvedPath(filePath) {
+    if (typeof filePath !== "string" || !isAbsolute(filePath)) {
+      throw ioError("INVALID_PRIVATE_PATH", "Private artifact path must be absolute");
+    }
+    const normalized = resolve(filePath);
+    if (!isContained(normalized, approvedRoot)) {
+      throw ioError("PATH_OUTSIDE_PRIVATE_ROOT", "Artifact path is outside the approved private root");
+    }
+    return normalized;
+  }
+
+  async function statEntry(path, { missing = false } = {}) {
+    try {
+      return await lstat(path, { bigint: true });
+    } catch (error) {
+      if (missing && error?.code === "ENOENT") return null;
+      throw error;
+    }
+  }
+
+  async function attestDirectoryChain(directoryPath, { missingCode = "MISSING_PARENT_DIRECTORY" } = {}) {
+    const attestations = new Map();
+    for (const path of pathPrefixes(directoryPath)) {
+      const stat = await statEntry(path, { missing: true });
+      if (!stat) {
+        throw ioError(
+          missingCode,
+          missingCode === "MISSING_PRIVATE_ROOT"
+            ? "Approved private root does not exist"
+            : "Private artifact parent directory does not exist",
+        );
+      }
+      if (stat.isSymbolicLink()) {
+        throw ioError("SYMLINK_PATH_REJECTED", "Symbolic links are not allowed in private artifact paths");
+      }
+      if (!stat.isDirectory()) {
+        throw ioError("NON_DIRECTORY_PATH", "Private artifact ancestor must be a directory");
+      }
+      attestations.set(path, stat);
+    }
+    return attestations;
+  }
+
+  async function reattestDirectories(attestations) {
+    for (const [path, expected] of attestations) {
+      const current = await statEntry(path, { missing: true });
+      if (
+        !current || current.isSymbolicLink() || !current.isDirectory() ||
+        !sameInode(current, expected)
+      ) {
+        throw ioError("PATH_RACE_DETECTED", "Private artifact ancestor changed during I/O");
+      }
+    }
+  }
+
+  async function attestRoot() {
+    const attestations = await attestDirectoryChain(approvedRoot, {
+      missingCode: "MISSING_PRIVATE_ROOT",
+    });
+    return attestations.get(approvedRoot);
+  }
+
+  async function attestDirectories(parentPath) {
+    approvedPath(parentPath);
+    return attestDirectoryChain(parentPath);
+  }
+
+  async function targetState(targetPath, { allowMissing = true } = {}) {
+    const stat = await statEntry(targetPath, { missing: allowMissing });
+    if (!stat) return null;
+    if (stat.isSymbolicLink()) {
+      throw ioError("SYMLINK_PATH_REJECTED", "Symbolic link artifact targets are not allowed");
+    }
+    if (!stat.isFile()) {
+      throw ioError("NON_REGULAR_FILE", "Private artifact target must be a regular file");
+    }
+    return stat;
+  }
+
+  async function reattestTarget(targetPath, expected, { metadata = false } = {}) {
+    const current = await targetState(targetPath, { allowMissing: true });
+    const matches = expected === null
+      ? current === null
+      : current !== null && (metadata ? sameStableMetadata(expected, current) : sameInode(expected, current));
+    if (!matches) {
+      throw ioError("PATH_RACE_DETECTED", "Private artifact target changed during I/O");
+    }
+    return current;
+  }
+
+  async function openAttestedDirectory(parentPath, parentAttestations) {
+    await reattestDirectories(parentAttestations);
+    const handle = await open(parentPath, constants.O_RDONLY | NO_FOLLOW);
+    const opened = await handle.stat({ bigint: true });
+    const expected = parentAttestations.get(parentPath);
+    if (!opened.isDirectory() || !sameInode(opened, expected)) {
+      await handle.close().catch(() => {});
+      throw ioError("PATH_RACE_DETECTED", "Private artifact directory changed before fsync");
+    }
+    return handle;
+  }
+
+  async function fsyncDirectory(parentPath, parentAttestations, fileName) {
+    const handle = await openAttestedDirectory(parentPath, parentAttestations);
+    try {
+      await emit("directory-syncing", { directoryName: basename(parentPath), fileName });
+      await reattestDirectories(parentAttestations);
+      if (!sameInode(await handle.stat({ bigint: true }), parentAttestations.get(parentPath))) {
+        throw ioError("PATH_RACE_DETECTED", "Private artifact directory changed before fsync");
+      }
+      await syncDirectoryOperation(handle, async () => handle.sync());
+      await emit("directory-synced", { directoryName: basename(parentPath), fileName });
+      await reattestDirectories(parentAttestations);
+      if (!sameInode(await handle.stat({ bigint: true }), parentAttestations.get(parentPath))) {
+        throw ioError("PATH_RACE_DETECTED", "Private artifact directory changed during fsync");
+      }
+    } finally {
+      await handle.close();
+    }
+  }
+
+  async function fsyncDirectoryRecovery(parentPath, parentAttestations) {
+    const handle = await openAttestedDirectory(parentPath, parentAttestations);
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await reattestDirectories(parentAttestations);
+  }
+
+  async function ensureRootInternal() {
+    await attestDirectoryChain(approvedTrustedRoot);
+    const rootSegments = relative(approvedTrustedRoot, approvedRoot)
+      .split(sep)
+      .filter(Boolean);
+    let current = approvedTrustedRoot;
+
+    for (const segment of rootSegments) {
+      const parentAttestations = await attestDirectoryChain(current);
+      const next = resolve(current, segment);
+      if (
+        !isContained(next, approvedTrustedRoot) ||
+        !isContained(approvedRoot, next)
+      ) {
+        throw ioError("INVALID_PRIVATE_ROOT", "Private root bootstrap path is invalid");
+      }
+      const existing = await statEntry(next, { missing: true });
+      let createdHere = false;
+      if (!existing) {
+        await reattestDirectories(parentAttestations);
+        try {
+          await mkdir(next, { mode: 0o700 });
+          createdHere = true;
+        } catch (error) {
+          if (error?.code !== "EEXIST") throw error;
+        }
+        if (createdHere) {
+          await emit("directory-created", { directoryName: basename(next) });
+        }
+      }
+      await reattestDirectories(parentAttestations);
+      const created = await statEntry(next, { missing: true });
+      if (!created) {
+        throw ioError("PATH_RACE_DETECTED", "Private root ancestor disappeared during bootstrap");
+      }
+      if (created.isSymbolicLink()) {
+        throw ioError("SYMLINK_PATH_REJECTED", "Symbolic links are not allowed in private artifact paths");
+      }
+      if (!created.isDirectory()) {
+        throw ioError("NON_DIRECTORY_PATH", "Private artifact ancestor must be a directory");
+      }
+      await reattestDirectories(parentAttestations);
+      const confirmed = await statEntry(next, { missing: true });
+      if (
+        !confirmed || confirmed.isSymbolicLink() || !confirmed.isDirectory() ||
+        !sameInode(confirmed, created)
+      ) {
+        throw ioError("PATH_RACE_DETECTED", "Private root ancestor changed during bootstrap");
+      }
+      current = next;
+    }
+
+    await attestRoot();
+  }
+
+  async function ensureDirectoryInternal(relativePath = "") {
+    if (
+      typeof relativePath !== "string" || isAbsolute(relativePath) || relativePath.includes("\\")
+    ) {
+      throw ioError("INVALID_PRIVATE_PATH", "Private directory must be relative to the approved root");
+    }
+    const segments = relativePath === "" ? [] : relativePath.split("/");
+    if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
+      throw ioError("INVALID_PRIVATE_PATH", "Private directory must be relative to the approved root");
+    }
+
+    await ensureRootInternal();
+    let current = approvedRoot;
+    for (const segment of segments) {
+      const parentAttestations = await attestDirectories(current);
+      const next = approvedPath(resolve(current, segment));
+      const existing = await statEntry(next, { missing: true });
+      if (!existing) {
+        await reattestDirectories(parentAttestations);
+        try {
+          await mkdir(next, { mode: 0o700 });
+        } catch (error) {
+          if (error?.code !== "EEXIST") throw error;
+        }
+        await emit("directory-created", { directoryName: basename(next) });
+      }
+      await reattestDirectories(parentAttestations);
+      const created = await statEntry(next, { missing: true });
+      if (!created || created.isSymbolicLink()) {
+        throw ioError("SYMLINK_PATH_REJECTED", "Symbolic links are not allowed in private artifact paths");
+      }
+      if (!created.isDirectory()) {
+        throw ioError("NON_DIRECTORY_PATH", "Private artifact ancestor must be a directory");
+      }
+      current = next;
+    }
+    await attestDirectoryChain(current);
+    return current;
+  }
+
+  async function preflightWriteInternal(filePath) {
+    const targetPath = approvedPath(filePath);
+    const parentPath = dirname(targetPath);
+    await attestDirectories(parentPath);
+    await targetState(targetPath, { allowMissing: true });
+    return targetPath;
+  }
+
+  function transactionPath(parentPath, targetPath, token, suffix) {
+    return approvedPath(resolve(
+      parentPath,
+      `.${basename(targetPath)}.${process.pid}.${token}.${suffix}`,
+    ));
+  }
+
+  async function removeOwned(path, expected, parentAttestations) {
+    if (!path || !expected) return;
+    await reattestDirectories(parentAttestations);
+    const current = await statEntry(path, { missing: true });
+    if (!current) return;
+    if (!sameInode(current, expected)) {
+      throw ioError("PATH_RACE_DETECTED", "Private transaction file changed during cleanup");
+    }
+    await fsUnlink(path);
+  }
+
+  async function rollbackTransaction({
+    committed,
+    originalTarget,
+    parentPath,
+    parentAttestations,
+    rollbackPath,
+    rollbackStat,
+    targetPath,
+    tempPath,
+    tempStat,
+  }) {
+    await reattestDirectories(parentAttestations);
+    if (committed) {
+      if (originalTarget) {
+        const saved = await targetState(rollbackPath, { allowMissing: false });
+        if (!sameInode(saved, rollbackStat) || !sameInode(saved, originalTarget)) {
+          throw ioError("PATH_RACE_DETECTED", "Private rollback artifact changed during recovery");
+        }
+        await fsRename(rollbackPath, targetPath);
+        rollbackPath = null;
+        await reattestDirectories(parentAttestations);
+        await reattestTarget(targetPath, originalTarget);
+      } else {
+        const current = await statEntry(targetPath, { missing: true });
+        if (current) {
+          if (current.isDirectory()) {
+            throw ioError("PATH_RACE_DETECTED", "Private transaction target became a directory");
+          }
+          await fsUnlink(targetPath);
+        }
+      }
+      await fsyncDirectoryRecovery(parentPath, parentAttestations);
+    }
+
+    await removeOwned(tempPath, tempStat, parentAttestations);
+    if (rollbackPath) await removeOwned(rollbackPath, rollbackStat, parentAttestations);
+  }
+
+  async function resolveCommitOutcome({
+    attempt,
+    originalTarget,
+    parentAttestations,
+    rollbackPath,
+    rollbackStat,
+    targetPath,
+    tempPath,
+    tempStat,
+  }) {
+    await reattestDirectories(parentAttestations);
+    const target = await statEntry(targetPath, { missing: true });
+    const temp = await statEntry(tempPath, { missing: true });
+    const rollback = rollbackPath
+      ? await statEntry(rollbackPath, { missing: true })
+      : null;
+    const targetIsTemp = Boolean(
+      target && !target.isSymbolicLink() && target.isFile() && sameInode(target, tempStat)
+    );
+    const tempIsOwned = Boolean(
+      temp && !temp.isSymbolicLink() && temp.isFile() && sameInode(temp, tempStat)
+    );
+    const targetIsOriginal = originalTarget
+      ? Boolean(
+        target && !target.isSymbolicLink() && target.isFile() && sameInode(target, originalTarget)
+      )
+      : target === null;
+    const rollbackIsOwned = originalTarget
+      ? Boolean(
+        rollback && !rollback.isSymbolicLink() && rollback.isFile() &&
+        sameInode(rollback, rollbackStat) && sameInode(rollback, originalTarget)
+      )
+      : rollbackPath === null && rollbackStat === null;
+
+    if (!rollbackIsOwned) {
+      throw ioError("PATH_RACE_DETECTED", "Atomic rollback identity could not be attested");
+    }
+
+    if (attempt === "rename") {
+      if (temp === null && targetIsTemp) return true;
+      if (tempIsOwned && targetIsOriginal) return false;
+    } else if (attempt === "link") {
+      if (tempIsOwned && targetIsTemp) return true;
+      if (tempIsOwned && targetIsOriginal) return false;
+    }
+    throw ioError("PATH_RACE_DETECTED", "Atomic commit outcome could not be attested");
+  }
+
+  async function writeInternal(filePath, value, { exclusive }) {
+    const serialized = `${JSON.stringify(value, null, 2)}\n`;
+    const bytes = Buffer.byteLength(serialized);
+    if (bytes > maxBytes) {
+      throw ioError("JSON_ARTIFACT_TOO_LARGE", "Serialized private artifact exceeds the size limit");
+    }
+
+    const targetPath = approvedPath(filePath);
+    const parentPath = dirname(targetPath);
+    const fileName = basename(targetPath);
+    const parentAttestations = await attestDirectories(parentPath);
+    const originalTarget = await targetState(targetPath, { allowMissing: true });
+    if (exclusive && originalTarget) return false;
+
+    const token = randomBytes(16).toString("hex");
+    const tempPath = transactionPath(parentPath, targetPath, token, "tmp");
+    const rollbackCandidate = transactionPath(parentPath, targetPath, token, "rollback");
+    let handle = null;
+    let tempStat = null;
+    let rollbackPath = null;
+    let rollbackStat = null;
+    let committed = false;
+    let commitAttempt = null;
+
+    try {
+      handle = await open(
+        tempPath,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | NO_FOLLOW,
+        0o600,
+      );
+      tempStat = await handle.stat({ bigint: true });
+      if (!tempStat.isFile()) throw ioError("NON_REGULAR_FILE", "Atomic temporary file is not regular");
+      await emit("temp-opened", { tempPath, fileName });
+      await reattestDirectories(parentAttestations);
+      await reattestTarget(tempPath, tempStat);
+      await handle.writeFile(serialized, "utf8");
+      await handle.sync();
+      const syncedTemp = await handle.stat({ bigint: true });
+      if (!sameInode(tempStat, syncedTemp)) {
+        throw ioError("PATH_RACE_DETECTED", "Atomic temporary file changed while open");
+      }
+      tempStat = syncedTemp;
+      await emit("file-synced", { fileName });
+      await reattestDirectories(parentAttestations);
+      await reattestTarget(tempPath, tempStat);
+      await handle.close();
+      handle = null;
+      await emit("file-closed", { fileName });
+      await reattestDirectories(parentAttestations);
+      await reattestTarget(tempPath, tempStat);
+
+      await reattestDirectories(parentAttestations);
+      await emit("parent-reattested", { fileName });
+      await reattestDirectories(parentAttestations);
+      await reattestTarget(targetPath, originalTarget);
+      await emit("target-reattested", { fileName });
+      await reattestDirectories(parentAttestations);
+      await reattestTarget(targetPath, originalTarget);
+
+      if (originalTarget) {
+        rollbackPath = rollbackCandidate;
+        try {
+          await fsLink(targetPath, rollbackPath);
+        } catch (error) {
+          rollbackPath = null;
+          throw error;
+        }
+        rollbackStat = await statEntry(rollbackPath);
+        if (
+          rollbackStat.isSymbolicLink() || !rollbackStat.isFile() ||
+          !sameInode(rollbackStat, originalTarget)
+        ) {
+          throw ioError("PATH_RACE_DETECTED", "Private rollback artifact has the wrong identity");
+        }
+        await emit("rollback-created", { fileName });
+        await reattestDirectories(parentAttestations);
+        await reattestTarget(targetPath, originalTarget);
+        await reattestTarget(rollbackPath, originalTarget);
+      }
+
+      if (exclusive) {
+        commitAttempt = "link";
+        try {
+          await linkOperation(tempPath, targetPath, fsLink);
+        } catch (error) {
+          if (error?.code === "EEXIST") {
+            await reattestDirectories(parentAttestations);
+            const destination = await targetState(targetPath, { allowMissing: false });
+            if (sameInode(destination, tempStat)) {
+              committed = true;
+              throw error;
+            }
+            await removeOwned(tempPath, tempStat, parentAttestations);
+            return false;
+          }
+          throw error;
+        }
+        committed = true;
+        await emit("linked", { fileName });
+      } else {
+        commitAttempt = "rename";
+        await renameOperation(tempPath, targetPath, fsRename);
+        committed = true;
+        await emit("renamed", { fileName });
+      }
+
+      await reattestDirectories(parentAttestations);
+      const destination = await targetState(targetPath, { allowMissing: false });
+      if (!sameInode(destination, tempStat)) {
+        throw ioError("PATH_RACE_DETECTED", "Atomic destination does not match the temporary file");
+      }
+      await reattestDirectories(parentAttestations);
+      const resolvedTarget = await realpath(targetPath);
+      const resolvedRoot = await realpath(approvedRoot);
+      if (!isContained(resolvedTarget, resolvedRoot)) {
+        throw ioError("PATH_OUTSIDE_PRIVATE_ROOT", "Atomic destination escaped the approved private root");
+      }
+      await emit("destination-reattested", { fileName, inode: inode(destination) });
+      await reattestDirectories(parentAttestations);
+      await reattestTarget(targetPath, tempStat);
+      if (exclusive) await removeOwned(tempPath, tempStat, parentAttestations);
+      await fsyncDirectory(parentPath, parentAttestations, fileName);
+      await reattestDirectories(parentAttestations);
+      await reattestTarget(targetPath, tempStat);
+
+      if (rollbackPath) await removeOwned(rollbackPath, rollbackStat, parentAttestations);
+      return true;
+    } catch (error) {
+      if (handle) {
+        await handle.close().catch(() => {});
+        handle = null;
+      }
+      let recoveryError = error;
+      let recoveryStateKnown = true;
+      if (!committed && commitAttempt) {
+        try {
+          committed = await resolveCommitOutcome({
+            attempt: commitAttempt,
+            originalTarget,
+            parentAttestations,
+            rollbackPath,
+            rollbackStat,
+            targetPath,
+            tempPath,
+            tempStat,
+          });
+        } catch (outcomeError) {
+          recoveryError = outcomeError;
+          recoveryStateKnown = false;
+        }
+      }
+      if (recoveryStateKnown) {
+        try {
+          await rollbackTransaction({
+            committed,
+            originalTarget,
+            parentPath,
+            parentAttestations,
+            rollbackPath,
+            rollbackStat,
+            targetPath,
+            tempPath,
+            tempStat,
+          });
+        } catch {
+          if (
+            recoveryError?.code !== "PATH_RACE_DETECTED" &&
+            recoveryError?.code !== "SYMLINK_PATH_REJECTED"
+          ) {
+            throw ioError("ATOMIC_WRITE_FAILED", "Private artifact recovery failed");
+          }
+        }
+      }
+      if (CONTROLLED_IO_CODES.has(recoveryError?.code)) throw recoveryError;
+      throw ioError("ATOMIC_WRITE_FAILED", cleanFsMessage(recoveryError?.code));
+    } finally {
+      if (handle) await handle.close().catch(() => {});
+    }
+  }
+
+  async function readBounded(handle) {
+    const chunks = [];
+    let position = 0;
+    while (position <= maxBytes) {
+      const length = Math.min(READ_CHUNK_BYTES, maxBytes + 1 - position);
+      if (length <= 0) break;
+      const buffer = Buffer.allocUnsafe(length);
+      const { bytesRead } = await handle.read(buffer, 0, length, position);
+      if (bytesRead === 0) break;
+      chunks.push(buffer.subarray(0, bytesRead));
+      position += bytesRead;
+      if (position > maxBytes) {
+        throw ioError("JSON_ARTIFACT_TOO_LARGE", "Private artifact exceeds the size limit");
+      }
+    }
+    return Buffer.concat(chunks, position);
+  }
+
+  async function readJsonInternal(filePath) {
+    const targetPath = approvedPath(filePath);
+    const fileName = basename(targetPath);
+    let parentAttestations;
+    let before;
+    let handle;
+    try {
+      parentAttestations = await attestDirectories(dirname(targetPath));
+      before = await targetState(targetPath, { allowMissing: false });
+      handle = await open(targetPath, constants.O_RDONLY | NO_FOLLOW);
+      const opened = await handle.stat({ bigint: true });
+      if (!opened.isFile() || !sameStableMetadata(before, opened)) {
+        throw ioError("PATH_RACE_DETECTED", "Private artifact changed before it was opened");
+      }
+      if (opened.size > BigInt(maxBytes)) {
+        throw ioError("JSON_ARTIFACT_TOO_LARGE", "Private artifact exceeds the size limit");
+      }
+      await emit("read-opened", { fileName });
+      await reattestDirectories(parentAttestations);
+      await reattestTarget(targetPath, opened);
+
+      const first = await readBounded(handle);
+      await emit("read-pass-complete", { fileName, pass: 1, totalBytes: first.length });
+      await reattestDirectories(parentAttestations);
+      await reattestTarget(targetPath, opened);
+      const afterFirst = await handle.stat({ bigint: true });
+      if (!sameStableMetadata(opened, afterFirst)) {
+        throw ioError("PATH_RACE_DETECTED", "Private artifact changed while it was read");
+      }
+
+      const second = await readBounded(handle);
+      await emit("read-pass-complete", { fileName, pass: 2, totalBytes: second.length });
+      await reattestDirectories(parentAttestations);
+      await reattestTarget(targetPath, afterFirst);
+      const afterSecond = await handle.stat({ bigint: true });
+      if (!sameStableMetadata(afterFirst, afterSecond) || !first.equals(second)) {
+        throw ioError("PATH_RACE_DETECTED", "Private artifact content changed while it was read");
+      }
+
+      await reattestDirectories(parentAttestations);
+      const after = await targetState(targetPath, { allowMissing: false });
+      if (!sameStableMetadata(before, after)) {
+        throw ioError("PATH_RACE_DETECTED", "Private artifact changed while it was read");
+      }
+      await handle.close();
+      handle = null;
+      try {
+        const decoded = new TextDecoder("utf-8", {
+          fatal: true,
+          ignoreBOM: true,
+        }).decode(first);
+        return JSON.parse(decoded);
+      } catch {
+        throw ioError("INVALID_JSON_ARTIFACT", "Private artifact is not valid JSON");
+      }
+    } catch (error) {
+      if (CONTROLLED_IO_CODES.has(error?.code)) throw error;
+      throw ioError(
+        ["ENOENT", "MISSING_PARENT_DIRECTORY", "MISSING_PRIVATE_ROOT"].includes(error?.code)
+          ? "MISSING_ARTIFACT"
+          : "JSON_READ_FAILED",
+        cleanFsMessage(error?.code === "MISSING_PARENT_DIRECTORY" ? "ENOENT" : error?.code),
+      );
+    } finally {
+      if (handle) await handle.close().catch(() => {});
+    }
+  }
+
+  return {
+    privateRoot: approvedRoot,
+    ensureDirectory: (relativePath) => serializeRoot(
+      approvedRoot,
+      () => ensureDirectoryInternal(relativePath),
+    ),
+    preflightWrite: (filePath) => serializeRoot(
+      approvedRoot,
+      () => preflightWriteInternal(filePath),
+    ),
+    readJson: (filePath) => serializeRoot(approvedRoot, () => readJsonInternal(filePath)),
+    writeJsonAtomic: (filePath, value) => serializeRoot(
+      approvedRoot,
+      () => writeInternal(filePath, value, { exclusive: false }),
+    ),
+    writeJsonExclusive: (filePath, value) => serializeRoot(
+      approvedRoot,
+      () => writeInternal(filePath, value, { exclusive: true }),
+    ),
+  };
+}
+
+const productionIo = createJsonIo({
+  privateRoot: PRIVATE_ROOT,
+  trustedRoot: REPOSITORY_ROOT,
+});
+
+export async function writeJsonAtomic(filePath, value) {
+  return productionIo.writeJsonAtomic(filePath, value);
+}
+
+export async function readJson(filePath) {
+  return productionIo.readJson(filePath);
+}

@@ -1,0 +1,110 @@
+import { test } from '../fixtures/authenticated.fixture';
+import { SANDBOX } from '../fixtures/sandbox-data';
+import { KnowledgeFeaturesPage } from '../pages/knowledge-features.page';
+
+const MUTATING_TEST_TIMEOUT_MS = 120_000;
+
+test.describe.configure({ mode: 'serial' });
+
+test.describe('Nuanu Flow owned artifacts and decisions', () => {
+  test('persists and isolates an exact workspace artifact', async ({
+    page,
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const knowledge = new KnowledgeFeaturesPage(page, assertSandbox);
+    const name = `${ownedName('workspace artifact')}.txt`;
+
+    const artifact = await knowledge.uploadArtifact(
+      {
+        name,
+        scope: 'private',
+        payload: {
+          name,
+          mimeType: 'text/plain',
+          buffer: Buffer.from(
+            'Synthetic QA workspace artifact; no private data.\n',
+          ),
+        },
+      },
+      (created) => {
+        cleanupLedger.register({
+          kind: 'workspace-artifact',
+          id: created.id,
+          name: created.name,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: () => knowledge.cleanupOwnedArtifact(created),
+        });
+      },
+    );
+    await knowledge.assertWorkspaceArtifactIsolation(artifact);
+    await knowledge.cleanupOwnedArtifact(artifact);
+  });
+
+  test('persists and isolates an exact project artifact', async ({
+    page,
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const knowledge = new KnowledgeFeaturesPage(page, assertSandbox);
+    const name = `${ownedName('project artifact')}.txt`;
+
+    const artifact = await knowledge.uploadArtifact(
+      {
+        name,
+        scope: 'project',
+        payload: {
+          name,
+          mimeType: 'text/plain',
+          buffer: Buffer.from(
+            'Synthetic QA project artifact; no private data.\n',
+          ),
+        },
+      },
+      (created) => {
+        cleanupLedger.register({
+          kind: 'project-artifact',
+          id: created.id,
+          name: created.name,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: () => knowledge.cleanupOwnedArtifact(created),
+        });
+      },
+    );
+    await knowledge.assertProjectArtifactIsolation(artifact);
+    await knowledge.cleanupOwnedArtifact(artifact);
+  });
+
+  test('shows exact decision tabs and empty-state explanation', async ({
+    page,
+    assertSandbox,
+  }) => {
+    const knowledge = new KnowledgeFeaturesPage(page, assertSandbox);
+    await knowledge.assertDecisionInventory();
+  });
+
+  test('creates, edits, filters, and deletes an owned decision', async () => {
+    test.fixme(
+      true,
+      'The workspace Decisions surface exposes no create/add action, form, or permission explanation; no supported mutation endpoint was observed, so the lifecycle must not guess one.',
+    );
+  });
+
+  test('explains artifact upload permission denial exactly', async () => {
+    test.fixme(
+      true,
+      'The QA account is allowed to upload in both scopes; no permission-gated state or exact denial explanation was available to verify.',
+    );
+  });
+
+  test('persists artifact folder hierarchy without scope leakage', async () => {
+    test.fixme(
+      true,
+      'Artifact recon exposed no create-folder or move action; hierarchy mutation remains blocked rather than guessed.',
+    );
+  });
+});

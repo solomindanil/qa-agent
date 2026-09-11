@@ -1,0 +1,57 @@
+import { test } from '../fixtures/authenticated.fixture';
+import { NuanuFlowMcpClient } from '../fixtures/mcp-client';
+
+const createSandboxMcpClient = () =>
+  new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => process.env.FLOW_API_KEY ?? '',
+  });
+
+void createSandboxMcpClient;
+
+test.describe.configure({ mode: 'serial' });
+test.use({ trace: 'off', screenshot: 'off', video: 'off' });
+
+test.describe('Nuanu Flow guarded MCP/UI work-item parity', () => {
+  test('captures the authenticated MCP schema catalog before execution authority exists', async () => {
+    test.fixme(
+      true,
+      'Blocked: no authenticated read-only MCP schema capture has proven the exact protocol offer/ack, search wrapper, work-item tool names, argument keys, result paths, or schema fingerprints; the compiled execution catalog is intentionally empty.',
+    );
+  });
+
+  test('uses a process-only FLOW_API_KEY without storing or exposing it', async () => {
+    test.fixme(
+      true,
+      'Blocked: FLOW_API_KEY has not been supplied through the approved interactive process-only environment flow; no token may be copied from conversation history, files, commands, reports, or browser state.',
+    );
+  });
+
+  test('uses only an approved gitignored Playwright authenticated state', async () => {
+    test.fixme(
+      true,
+      'Blocked: NUANUFLOW_STORAGE_STATE does not identify an owner-approved gitignored playwright/.auth/*.json state for this campaign; Chrome cookies or storage must not be exported.',
+    );
+  });
+
+  test('shows one response-owned MCP-created work item in the direct UI route and cleans it by exact ID', async () => {
+    test.fixme(
+      true,
+      'Blocked: the exact create/get/delete schema, canonical create result path, exact-ID absence semantics, direct UI reference, and server-supported correlation/idempotency recovery contract are unproven; live MCP create remains disabled.',
+    );
+  });
+
+  test('shows UI create/update and guarded backend teardown through exact MCP reads', async () => {
+    test.fixme(
+      true,
+      'Blocked: exact-ID MCP get/delete result contracts and the compiled read/delete catalog are unproven, and the approved Playwright auth state plus process-only FLOW_API_KEY are unavailable.',
+    );
+  });
+
+  test('shows a true visible UI delete confirmation as MCP absence', async () => {
+    test.fixme(
+      true,
+      'Blocked: WorkItemsPage.deleteOwned() is guarded first-party API teardown, not a visible UI delete; the product UI confirmation, cancel path, exact DELETE response ownership, MCP absence read, and cleanup fallback are not independently proven.',
+    );
+  });
+});

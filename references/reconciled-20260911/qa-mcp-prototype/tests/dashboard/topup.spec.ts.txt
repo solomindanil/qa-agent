@@ -1,0 +1,16 @@
+import { test, expect } from '@playwright/test';
+import { hasDashboardEnv } from '../fixtures/env';
+import { TopupPage } from '../pages/topup.page';
+
+test.skip(!hasDashboardEnv, 'дашборд-env не настроен (.env)');
+
+// Первая итерация: проверяем только отображение флоу пополнения.
+// Реальные testnet-транзакции добавим отдельной итерацией (см. GUARDRAILS.md).
+test('страница пополнения показывает адрес депозита @smoke', async ({ page }) => {
+  const topup = new TopupPage(page);
+  await topup.goto();
+
+  await expect(topup.depositAddress).toBeVisible();
+  const address = (await topup.depositAddress.textContent())?.trim() ?? '';
+  expect(address.length).toBeGreaterThan(10);
+});

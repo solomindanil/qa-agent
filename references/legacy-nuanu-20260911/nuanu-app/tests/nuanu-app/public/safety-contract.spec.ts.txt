@@ -1,0 +1,238 @@
+import { expect, test } from '@playwright/test';
+import { attachObservation, observeBrowser } from '../fixtures/evidence';
+import {
+  assertMutationGuardInstalled,
+  attachMutationLedger,
+  blockUnsafeRequests,
+  sanitizeUrl,
+} from '../fixtures/safety';
+
+test('NAPP-SAFE-001 blocks non-idempotent requests before network dispatch', async ({ page }, testInfo) => {
+  expect(() => assertMutationGuardInstalled(page)).toThrow('MUTATION_GUARD_NOT_INSTALLED');
+  await page.route('https://example.test/root', (route) => route.fulfill({
+    contentType: 'text/html',
+    body: '<!doctype html><title>synthetic origin</title>',
+  }));
+  await page.goto('https://example.test/root');
+  await page.unroute('https://example.test/root');
+  const ledger = await blockUnsafeRequests(page);
+  expect(() => assertMutationGuardInstalled(page)).not.toThrow();
+
+  const unknownMethodResult = await page.evaluate(() =>
+    fetch('https://example.test/method-evidence', { method: 'REPORT' })
+      .then(() => 'resolved', () => 'rejected'));
+  const results = await page.evaluate(async () => Promise.all([
+    ...[
+      `https://${'a'.repeat(64)}.example.test/path`,
+      'https://tok%65n.example.test/path',
+    ].map((url) => fetch(url, { method: 'POST' })
+      .then(() => 'resolved', () => 'rejected')),
+    ...[
+      'tokenMethod',
+      'abcdefgh.abcdefgh.abcdefgh',
+      'a'.repeat(64),
+      'QWxhZGRpbjpvcGVuIHNlc2FtZTEyMzQ1Njc4OTA=',
+      'POST\u0000secret',
+    ].map((method) => fetch('https://example.test/method-evidence', { method })
+      .then(() => 'resolved', () => 'rejected')),
+    ...[
+      'tok%65n%3Dtop-secret',
+      '%2574oken%253Dtop-secret',
+      'a'.repeat(64),
+      'QWxhZGRpbjpvcGVuIHNlc2FtZTEyMzQ1Njc4OTA=',
+      '%2500hidden',
+      '%ZZ',
+    ].map((path) => fetch(`https://example.test/${path}`, { method: 'POST' })
+      .then(() => 'resolved', () => 'rejected')),
+    ...Array.from({ length: 20 }, async (_, index) => {
+      try {
+        await fetch(`https://example.test/write?token=secret-${index}`, { method: 'POST' });
+        return 'resolved';
+      } catch {
+        return 'rejected';
+      }
+    }),
+  ]));
+
+  expect(unknownMethodResult).toBe('rejected');
+  expect(results).toEqual(Array.from({ length: 33 }, () => 'rejected'));
+  expect(ledger.blocked).toEqual([
+    {
+      method: 'OTHER',
+      originAndPath: 'https://example.test/method-evidence',
+    },
+    ...Array.from({ length: 6 }, () => ({
+      method: 'POST',
+      originAndPath: 'https://example.test/[redacted]',
+    })),
+    ...Array.from({ length: 18 }, () => ({
+      method: 'POST',
+      originAndPath: 'https://example.test/write',
+    })),
+  ]);
+  expect(ledger.overflowed).toBe(true);
+  await attachMutationLedger(testInfo, ledger);
+  const attachment = testInfo.attachments.find((entry) => entry.name === 'mutation-ledger.json');
+  expect(JSON.parse(attachment!.body!.toString())).toEqual({
+    blocked: ledger.blocked,
+    overflowed: true,
+  });
+  expect(attachment!.body!.toString()).not.toContain('tokenMethod');
+  expect(attachment!.body!.toString()).not.toContain('abcdefgh.abcdefgh.abcdefgh');
+  expect(attachment!.body!.toString()).not.toContain('QWxhZGRpb');
+});
+
+test('NAPP-EVID-001 removes query and fragment data from evidence URLs', () => {
+  expect(sanitizeUrl('https://example.test/x?token=secret#callback')).toBe(
+    'https://example.test/x',
+  );
+  expect(sanitizeUrl('https://example.test/eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signaturevalue'))
+    .toBe('https://example.test/[redacted]');
+  for (const unsafePath of [
+    'tok%65n%3Dtop-secret',
+    '%2574oken%253Dtop-secret',
+    'a'.repeat(64),
+    'QWxhZGRpbjpvcGVuIHNlc2FtZTEyMzQ1Njc4OTA=',
+    '%2500hidden',
+    '%ZZ',
+  ]) {
+    expect(sanitizeUrl(`https://example.test/${unsafePath}`)).toBe(
+      'https://example.test/[redacted]',
+    );
+  }
+  for (const unsafeHostUrl of [
+    `https://${'a'.repeat(64)}.example.test/path`,
+    'https://tok%65n.example.test/path',
+  ]) {
+    expect(() => sanitizeUrl(unsafeHostUrl)).toThrow('UNSAFE_EVIDENCE_URL');
+  }
+  let error: Error | undefined;
+  try {
+    sanitizeUrl('https://user:top-secret@example.test/x');
+  } catch (candidate) {
+    error = candidate as Error;
+  }
+  expect(error?.message).toBe('UNSAFE_EVIDENCE_URL');
+  expect(error?.message).not.toContain('top-secret');
+});
+
+test('NAPP-SAFE-002 disables artifacts for the Nuanu App runtime project', ({}, testInfo) => {
+  expect(testInfo.project.use.trace).toBe('off');
+  expect(testInfo.project.use.screenshot).toBe('off');
+  expect(testInfo.project.use.video).toBe('off');
+  expect(testInfo.project.use.serviceWorkers).toBe('block');
+});
+
+test('NAPP-EVID-002 records bounded non-sensitive console markers and attaches no raw text', async ({ page }, testInfo) => {
+  const observation = observeBrowser(page, 'https://first-party.test');
+  const rawSecret = `https://first-party.test/error?token=top-secret#callback ${'x'.repeat(600)}`;
+
+  await page.evaluate((message) => {
+    for (let index = 0; index < 26; index += 1) console.error(message);
+  }, rawSecret);
+
+  await expect.poll(() => observation.consoleErrorMarkers.length).toBe(25);
+  expect(observation.consoleErrorMarkers).toEqual(Array.from({ length: 25 }, () => 'console-error'));
+  expect(observation.overflowed.consoleErrorMarkers).toBe(true);
+
+  await attachObservation(testInfo, observation);
+  const attachment = testInfo.attachments.find(
+    (candidate) => candidate.name === 'browser-observation.json',
+  );
+  const attached = JSON.parse(attachment!.body!.toString());
+  expect(Object.keys(attached)).toEqual([
+    'consoleErrorMarkers', 'failedRequests', 'firstPartyServerErrors', 'overflowed',
+  ]);
+  expect(attachment?.body?.toString()).not.toContain('top-secret');
+  expect(attachment?.body?.toString()).not.toContain('token=');
+});
+
+test('NAPP-EVID-003 records at most 25 sanitized failed request URLs', async ({ page }) => {
+  const observation = observeBrowser(page, 'https://first-party.test');
+  await page.route('**/*', (route) => route.abort());
+
+  await page.evaluate(async () => {
+    await Promise.all([
+      fetch(`https://${'a'.repeat(64)}.example.test/path`).catch(() => undefined),
+      fetch('https://tok%65n.example.test/path').catch(() => undefined),
+      ...[
+        'tok%65n%3Dtop-secret',
+        '%2574oken%253Dtop-secret',
+        'a'.repeat(64),
+        'QWxhZGRpbjpvcGVuIHNlc2FtZTEyMzQ1Njc4OTA=',
+        '%2500hidden',
+        '%ZZ',
+      ].map((path) => fetch(`https://failed.test/${path}`).catch(() => undefined)),
+      ...Array.from({ length: 20 }, (_, index) =>
+        fetch(`https://failed.test/request?token=top-secret-${index}#callback`).catch(() => undefined),
+      ),
+    ]);
+  });
+
+  await expect.poll(() => observation.failedRequests.length).toBe(25);
+  expect(observation.failedRequests).toEqual([
+    ...Array.from({ length: 6 }, () => 'https://failed.test/[redacted]'),
+    ...Array.from({ length: 19 }, () => 'https://failed.test/request'),
+  ]);
+  expect(observation.overflowed.failedRequests).toBe(true);
+});
+
+test('NAPP-EVID-004 records only first-party HTTP 500-599 responses and caps them', async ({ page }) => {
+  const observation = observeBrowser(page, 'https://first-party.test');
+  const opaqueHostObservation = observeBrowser(
+    page,
+    `https://${'a'.repeat(64)}.example.test`,
+  );
+  const tokenHostObservation = observeBrowser(page, 'https://token.example.test');
+  await page.route('**/*', async (route) => {
+    const url = new URL(route.request().url());
+    const status = Number(url.searchParams.get('status') ?? url.pathname.slice(1));
+    await route.fulfill({ status, body: '' });
+  });
+
+  await page.goto(`https://${'a'.repeat(64)}.example.test/path?status=500`);
+  await page.goto('https://tok%65n.example.test/path?status=500');
+  for (const unsafePath of [
+    'tok%65n%3Dtop-secret',
+    '%2574oken%253Dtop-secret',
+    'a'.repeat(64),
+    'QWxhZGRpbjpvcGVuIHNlc2FtZTEyMzQ1Njc4OTA=',
+    '%2500hidden',
+    '%ZZ',
+  ]) {
+    await page.goto(`https://first-party.test/${unsafePath}?status=500`);
+  }
+  await page.goto('https://first-party.test/499?token=top-secret');
+  await page.goto('https://first-party.test/500?token=top-secret');
+  await page.goto('https://first-party.test/599?token=top-secret');
+  await page.goto('https://first-party.test/600?token=top-secret');
+  await page.goto('https://third-party.test/500?token=top-secret');
+  for (let index = 0; index < 18; index += 1) {
+    await page.goto('https://first-party.test/500?token=top-secret');
+  }
+
+  await expect.poll(() => observation.firstPartyServerErrors.length).toBe(25);
+  expect(observation.firstPartyServerErrors.slice(0, 6)).toEqual(
+    Array.from({ length: 6 }, () => ({
+      status: 500,
+      originAndPath: 'https://first-party.test/[redacted]',
+    })),
+  );
+  expect(observation.firstPartyServerErrors[6]).toEqual({
+    status: 500,
+    originAndPath: 'https://first-party.test/500',
+  });
+  expect(observation.firstPartyServerErrors[7]).toEqual({
+    status: 599,
+    originAndPath: 'https://first-party.test/599',
+  });
+  expect(observation.firstPartyServerErrors.slice(8)).toEqual(
+    Array.from({ length: 17 }, () => ({
+      status: 500,
+      originAndPath: 'https://first-party.test/500',
+    })),
+  );
+  expect(observation.overflowed.firstPartyServerErrors).toBe(true);
+  expect(opaqueHostObservation.firstPartyServerErrors).toEqual([]);
+  expect(tokenHostObservation.firstPartyServerErrors).toEqual([]);
+});

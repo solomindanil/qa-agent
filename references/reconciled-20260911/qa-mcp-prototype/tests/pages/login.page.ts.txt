@@ -1,0 +1,28 @@
+import type { Locator, Page } from '@playwright/test';
+
+// TODO(product): уточнить реальные роуты и подписи полей после первого
+// прогона против staging (npm run codegen поможет снять локаторы).
+export class LoginPage {
+  readonly page: Page;
+  readonly emailInput: Locator;
+  readonly passwordInput: Locator;
+  readonly submitButton: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    this.emailInput = page.getByLabel(/email/i);
+    this.passwordInput = page.getByLabel(/password|пароль/i);
+    this.submitButton = page.getByRole('button', { name: /sign in|log in|войти/i });
+  }
+
+  async goto(): Promise<void> {
+    await this.page.goto('/login');
+  }
+
+  async login(email: string, password: string): Promise<void> {
+    await this.goto();
+    await this.emailInput.fill(email);
+    await this.passwordInput.fill(password);
+    await this.submitButton.click();
+  }
+}

@@ -1,0 +1,896 @@
+import { createHash } from "node:crypto";
+
+const PRODUCT_ID = "nuanu-app";
+const RUNTIME_ORIGIN = "https://app.nuanu.com";
+const RUNTIME_ROOT = `${RUNTIME_ORIGIN}/`;
+const RUNTIME_PROBE = `${RUNTIME_ORIGIN}/__napp_runtime_probe__`;
+const RUNTIME_PROBE_ROUTE = "/__napp_runtime_probe__";
+const ROOT_CANDIDATE_STATE = "root";
+const ROOT_CANDIDATE_ROUTE = "/";
+const MAX_ROOT_CANDIDATES = 64;
+const MAX_SNAPSHOT_BYTES = 16_384;
+const SETTLE_INTERVAL_MS = 250;
+const SETTLE_SAMPLE_LIMIT = 20;
+const SETTLE_DEADLINE_MS = 5_000;
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const RUNTIME_ROLES = new Set([
+  "application", "article", "banner", "button", "checkbox", "combobox",
+  "dialog", "group", "img", "link", "list", "listitem", "main",
+  "navigation", "option", "region", "search", "searchbox", "switch",
+  "tab", "tabpanel", "textbox",
+]);
+const SECRET_LIKE_KEYWORD = /credential|token|cookie|authorization|password|secret|api[\s_-]?key|callback|session|bearer/i;
+const JWT_LIKE = /[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/;
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+const TIMESTAMP_FIELD = /(?:timestamp|generatedat|createdat|updatedat|observedat|capturedat|collectedat|fetchedat|checkedat|seenat|timeobserved|observationtime)$/i;
+const MAX_DECODE_PASSES = 4;
+const SESSION_NAVIGATION_LATCH = new WeakMap();
+
+/** @typedef {import("playwright").Browser} PlaywrightBrowser */
+/** @typedef {import("playwright").BrowserContext} PlaywrightBrowserContext */
+/** @typedef {import("playwright").Page} PlaywrightPage */
+/**
+ * @typedef {Readonly<{
+ *   surfaces: readonly unknown[],
+ *   controls: readonly unknown[],
+ *   taxonomy: readonly unknown[],
+ * }>} RuntimeSnapshotProjection
+ */
+/**
+ * @typedef {Readonly<{
+ *   root: Readonly<{
+ *     projection: RuntimeSnapshotProjection,
+ *     settle: Readonly<{
+ *       status: "STABLE_NONEMPTY" | "STABLE_EMPTY" | "LATE_HYDRATION" | "NEVER_SETTLES",
+ *       sampleCount: number,
+ *       initialSnapshotEmpty: boolean,
+ *       candidateSnapshotDigest: string | null,
+ *     }>,
+ *     metadata: Readonly<{ title?: string }>,
+ *   }>,
+ *   manifest: Readonly<{
+ *     name?: string,
+ *     shortName?: string,
+ *     startUrl?: string,
+ *     themeColor?: string,
+ *     display?: string,
+ *     icons?: readonly Readonly<{ src: string, sizes?: string, type?: string }>[],
+ *   }>,
+ *   probe: Readonly<{ route: "/__napp_runtime_probe__", status: number }>,
+ *   requestEvidence: Readonly<{ apiHosts: readonly string[], dependencies: readonly string[] }>,
+ *   overflow: Readonly<{ candidateRecords: boolean, snapshotBytes: boolean }>,
+ * }>} RuntimeObservationSessionResult
+ */
+
+function runtimeError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function isObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (!isObject(value)) return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]));
+}
+
+function digest(value) {
+  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
+}
+
+function tupleDigest(tuple) {
+  return createHash("sha256").update(JSON.stringify(tuple)).digest("hex").slice(0, 16);
+}
+
+function withoutTimestamps(value) {
+  if (Array.isArray(value)) return value.map(withoutTimestamps);
+  if (!isObject(value)) return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "runtimeDigest" && !TIMESTAMP_FIELD.test(key.replace(/[^a-z0-9]/gi, "")))
+      .map(([key, child]) => [key, withoutTimestamps(child)]),
+  );
+}
+
+function compare(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function uniqueSorted(values) {
+  return [...new Set(values)].sort(compare);
+}
+
+function isTokenLike(value) {
+  if (typeof value !== "string") return false;
+  if (SECRET_LIKE_KEYWORD.test(value) || JWT_LIKE.test(value)) return true;
+  const compact = value.replace(/\s/g, "");
+  if (/^[a-f0-9]{32,}$/i.test(compact)) return true;
+  return /^[A-Za-z0-9+/_=-]{32,}$/.test(compact) &&
+    /[A-Z]/.test(compact) && /[a-z]/.test(compact) && /\d/.test(compact);
+}
+
+function safeText(value) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().replace(/\s+/g, " ");
+  if (!trimmed || isTokenLike(trimmed)) return null;
+  return trimmed.slice(0, 200);
+}
+
+function slug(value) {
+  return value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "unknown";
+}
+
+function validPathname(pathname) {
+  return pathname.split("/").every((segment) => {
+    try {
+      let decoded = segment;
+      for (let pass = 0; pass < MAX_DECODE_PASSES; pass += 1) {
+        if (isTokenLike(decoded)) return false;
+        const next = decodeURIComponent(decoded);
+        if (next === decoded) return !isTokenLike(decoded);
+        decoded = next;
+      }
+      return decodeURIComponent(decoded) === decoded && !isTokenLike(decoded);
+    } catch {
+      return false;
+    }
+  });
+}
+
+function normalizeRoute(value, { rejectQuery = false } = {}) {
+  if (typeof value !== "string") return null;
+  try {
+    const parsed = new URL(value, RUNTIME_ORIGIN);
+    if (
+      parsed.origin !== RUNTIME_ORIGIN ||
+      (rejectQuery && (parsed.search || parsed.hash)) ||
+      !validPathname(parsed.pathname)
+    ) return null;
+    return parsed.pathname || "/";
+  } catch {
+    return null;
+  }
+}
+
+function normalizeHost(value) {
+  if (typeof value !== "string") return null;
+  try {
+    const parsed = new URL(value.includes("://") ? value : `https://${value}`);
+    return parsed.hostname.toLowerCase() || null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeCaptureTime(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string" || !ISO_INSTANT.test(value)) {
+    throw runtimeError("INVALID_CAPTURE_TIME", "capturedAt must be an ISO-8601 UTC instant");
+  }
+  const instant = new Date(value);
+  if (Number.isNaN(instant.valueOf())) {
+    throw runtimeError("INVALID_CAPTURE_TIME", "capturedAt must be an ISO-8601 UTC instant");
+  }
+  return instant.toISOString();
+}
+
+function sortedRecords(records, keys) {
+  const deduplicated = new Map();
+  for (const record of records) {
+    const key = keys.map((field) => record[field] ?? "").join("\u0000");
+    if (!deduplicated.has(key)) deduplicated.set(key, record);
+  }
+  return [...deduplicated.values()].sort((left, right) =>
+    compare(keys.map((key) => left[key] ?? "").join("\u0000"), keys.map((key) => right[key] ?? "").join("\u0000")));
+}
+
+function runtimeNode(prefix, kind, label, tuple, runtimeAttribution) {
+  const node = {
+    id: `${PRODUCT_ID}:${prefix}:${slug(label)}-${tupleDigest(tuple)}`,
+    kind,
+    label,
+    provenance: "runtime",
+    sourceImpact: "UNVERIFIED",
+  };
+  if (runtimeAttribution) node.runtimeAttribution = runtimeAttribution;
+  return node;
+}
+
+function collectNodes({ routes, rootCandidates, apiHosts, dependencies, pwa }) {
+  const rootNode = { id: `${PRODUCT_ID}:route:root`, kind: "route", label: "/", provenance: "runtime", sourceImpact: "UNVERIFIED" };
+  const runtimeAttribution = { state: ROOT_CANDIDATE_STATE, route: ROOT_CANDIDATE_ROUTE };
+  const nodes = [
+    ...routes.map((route) => route === "/" ? rootNode : runtimeNode("route", "route", route, ["route", route])),
+    ...rootCandidates.surfaces.map((surface) => runtimeNode(
+      "surface", "surface", surface.name, ["surface", surface.name, surface.role ?? ""], runtimeAttribution,
+    )),
+    ...rootCandidates.controls.map((control) => runtimeNode(
+      "capability", "capability", control.name, ["control", control.name, control.role ?? ""], runtimeAttribution,
+    )),
+    ...rootCandidates.taxonomy.map((value) => runtimeNode(
+      "surface", "surface", value, ["taxonomy", value], runtimeAttribution,
+    )),
+    ...apiHosts.map((host) => runtimeNode("api-contract", "api_contract", host, ["api", host])),
+    ...dependencies.map((host) => runtimeNode("external-dependency", "external_dependency", host, ["dependency", host])),
+    ...Object.keys(pwa).filter((field) => field !== "icons").map((field) => runtimeNode("platform", "platform", field, ["pwa", field, pwa[field]])),
+    ...(pwa.icons ?? []).map((icon) => runtimeNode("platform", "platform", icon.src, ["pwa-icon", icon])),
+  ];
+  const ids = new Set();
+  for (const node of nodes) {
+    if (ids.has(node.id)) throw runtimeError("DUPLICATE_RUNTIME_NODE_ID", `Runtime node ID collision: ${node.id}`);
+    ids.add(node.id);
+  }
+  return nodes.sort((left, right) => compare(left.id, right.id));
+}
+
+function normalizeIcon(value) {
+  if (!isObject(value)) return null;
+  const src = normalizeRoute(value.src, { rejectQuery: true });
+  const sizes = safeText(value.sizes);
+  const type = safeText(value.type);
+  if (!src) return null;
+  const icon = { src };
+  if (sizes) icon.sizes = sizes;
+  if (type) icon.type = type;
+  return icon;
+}
+
+function normalizePwa(value) {
+  const raw = isObject(value) ? value : {};
+  const pwa = {};
+  const name = safeText(raw.name ?? raw.manifestName);
+  const shortName = safeText(raw.shortName ?? raw.short_name);
+  const startUrl = normalizeRoute(raw.startUrl ?? raw.start_url);
+  const themeColor = safeText(raw.themeColor ?? raw.theme_color);
+  const display = safeText(raw.display);
+  const icons = sortedRecords((Array.isArray(raw.icons) ? raw.icons : []).map(normalizeIcon).filter(Boolean), ["src", "sizes", "type"]);
+  if (name) pwa.name = name;
+  if (shortName) pwa.shortName = shortName;
+  if (startUrl) pwa.startUrl = startUrl;
+  if (themeColor) pwa.themeColor = themeColor;
+  if (display) pwa.display = display;
+  if (icons.length > 0) pwa.icons = icons;
+  return pwa;
+}
+
+function normalizeMetadata(value) {
+  const title = safeText(isObject(value) ? value.title : null);
+  return title ? { title } : {};
+}
+
+function normalizeAccessibleRecord(value) {
+  if (!isObject(value)) return null;
+  const role = typeof value.role === "string" ? value.role.trim().toLowerCase() : "";
+  const name = safeText(value.name);
+  return RUNTIME_ROLES.has(role) && name ? { name, role } : null;
+}
+
+function exactKeys(value, expected) {
+  return isObject(value) && Object.keys(value).length === expected.length &&
+    expected.every((key) => Object.hasOwn(value, key));
+}
+
+function assertCandidateRecordAttribution(value) {
+  if (!isObject(value)) return;
+  for (const key of Object.keys(value)) {
+    if (/attribution|scope|candidate.*state|candidate.*route/i.test(key)) {
+      throw runtimeError(
+        "INVALID_RUNTIME_CANDIDATE_ATTRIBUTION",
+        "Runtime selector candidates require the closed root attribution",
+      );
+    }
+  }
+  if ((Object.hasOwn(value, "state") && value.state !== ROOT_CANDIDATE_STATE) ||
+    (Object.hasOwn(value, "route") && value.route !== ROOT_CANDIDATE_ROUTE)) {
+    throw runtimeError(
+      "INVALID_RUNTIME_CANDIDATE_ATTRIBUTION",
+      "Runtime selector candidates require the closed root attribution",
+    );
+  }
+}
+
+function normalizeRootCandidates(raw, envelope) {
+  if (Object.keys(envelope).some((key) => key !== "rootCandidates" &&
+    /candidate.*(?:scope|state|route)|attribution/i.test(key))) {
+    throw runtimeError(
+      "INVALID_RUNTIME_CANDIDATE_ATTRIBUTION",
+      "Unknown runtime selector candidate attribution is not accepted",
+    );
+  }
+  if (["surfaces", "controls", "taxonomy"].some((key) => Object.hasOwn(envelope, key))) {
+    throw runtimeError(
+      "INVALID_RUNTIME_CANDIDATE_ATTRIBUTION",
+      "Flattened runtime selector candidates are not accepted",
+    );
+  }
+  if (!exactKeys(raw, ["state", "route", "surfaces", "controls", "taxonomy"]) ||
+    raw.state !== ROOT_CANDIDATE_STATE || raw.route !== ROOT_CANDIDATE_ROUTE ||
+    !Array.isArray(raw.surfaces) || !Array.isArray(raw.controls) || !Array.isArray(raw.taxonomy)) {
+    throw runtimeError(
+      "INVALID_RUNTIME_CANDIDATE_ATTRIBUTION",
+      "Runtime selector candidates require the closed root attribution",
+    );
+  }
+  const rawCount = raw.surfaces.length + raw.controls.length + raw.taxonomy.length;
+  if (rawCount > MAX_ROOT_CANDIDATES) {
+    throw runtimeError("RUNTIME_ROOT_CANDIDATE_OVERFLOW", "Root selector candidates exceed the fixed bound");
+  }
+  for (const candidate of [...raw.surfaces, ...raw.controls]) assertCandidateRecordAttribution(candidate);
+  if (raw.taxonomy.some((candidate) => typeof candidate !== "string")) {
+    throw runtimeError(
+      "INVALID_RUNTIME_CANDIDATE_ATTRIBUTION",
+      "Runtime taxonomy candidates require the closed root attribution",
+    );
+  }
+  const surfaces = sortedRecords(raw.surfaces.map(normalizeAccessibleRecord).filter(Boolean), ["name", "role"]);
+  const controls = sortedRecords(raw.controls.map(normalizeAccessibleRecord).filter(Boolean), ["name", "role"]);
+  const taxonomy = uniqueSorted(raw.taxonomy.map(safeText).filter(Boolean));
+  return {
+    state: ROOT_CANDIDATE_STATE,
+    route: ROOT_CANDIDATE_ROUTE,
+    surfaces,
+    controls,
+    taxonomy,
+  };
+}
+
+function canonicalSnapshotBytes(projection) {
+  return Buffer.from(JSON.stringify({
+    surfaces: projection.surfaces,
+    controls: projection.controls,
+    taxonomy: projection.taxonomy,
+  }), "utf8");
+}
+
+function assertSnapshotProjection(value) {
+  if (!exactKeys(value, ["surfaces", "controls", "taxonomy"]) ||
+    !Array.isArray(value.surfaces) || !Array.isArray(value.controls) || !Array.isArray(value.taxonomy)) {
+    throw runtimeError("INVALID_RUNTIME_SNAPSHOT", "Runtime snapshots require the closed candidate projection");
+  }
+  const count = value.surfaces.length + value.controls.length + value.taxonomy.length;
+  if (count > MAX_ROOT_CANDIDATES) {
+    throw runtimeError("RUNTIME_ROOT_CANDIDATE_OVERFLOW", "Root selector candidates exceed the fixed bound");
+  }
+  const bytes = canonicalSnapshotBytes(value);
+  if (bytes.length > MAX_SNAPSHOT_BYTES) {
+    throw runtimeError("RUNTIME_ROOT_SNAPSHOT_BYTES_OVERFLOW", "Root selector candidates exceed the fixed byte bound");
+  }
+  return { projection: value, bytes };
+}
+
+function normalizeSnapshotProjection(value) {
+  if (!isObject(value) || !Array.isArray(value.surfaces) || !Array.isArray(value.controls) || !Array.isArray(value.taxonomy)) {
+    throw runtimeError("INVALID_RUNTIME_SNAPSHOT", "Runtime snapshots require closed candidate arrays");
+  }
+  const projection = {
+    surfaces: sortedRecords(value.surfaces.map(normalizeAccessibleRecord).filter(Boolean), ["name", "role"]),
+    controls: sortedRecords(value.controls.map(normalizeAccessibleRecord).filter(Boolean), ["name", "role"]),
+    taxonomy: uniqueSorted(value.taxonomy.map(safeText).filter(Boolean)),
+  };
+  return assertSnapshotProjection(projection).projection;
+}
+
+function normalizeSettle(value, projection) {
+  if (!exactKeys(value, ["status", "sampleCount", "initialSnapshotEmpty", "candidateSnapshotDigest"]) ||
+    !["STABLE_NONEMPTY", "STABLE_EMPTY", "LATE_HYDRATION", "NEVER_SETTLES"].includes(value.status) ||
+    !Number.isSafeInteger(value.sampleCount) || value.sampleCount < 2 || value.sampleCount > SETTLE_SAMPLE_LIMIT ||
+    typeof value.initialSnapshotEmpty !== "boolean") {
+    throw runtimeError("INVALID_RUNTIME_SETTLE", "Runtime settle metadata is invalid");
+  }
+  const empty = projection.surfaces.length + projection.controls.length + projection.taxonomy.length === 0;
+  if (value.status === "STABLE_NONEMPTY" && (empty || value.initialSnapshotEmpty)) {
+    throw runtimeError("INVALID_RUNTIME_SETTLE", "Stable nonempty snapshots require a nonempty initial projection");
+  }
+  if (value.status === "STABLE_EMPTY" && !empty || value.status === "LATE_HYDRATION" && (empty || !value.initialSnapshotEmpty) ||
+    value.status === "NEVER_SETTLES" && !empty) {
+    throw runtimeError("INVALID_RUNTIME_SETTLE", "Runtime settle status does not match its selected projection");
+  }
+  if (value.status === "NEVER_SETTLES") {
+    if (value.candidateSnapshotDigest !== null) throw runtimeError("INVALID_RUNTIME_SETTLE", "Never-settled snapshots have no candidate digest");
+  } else {
+    const expected = createHash("sha256").update(canonicalSnapshotBytes(projection)).digest("hex");
+    if (typeof value.candidateSnapshotDigest !== "string" || !/^[a-f0-9]{64}$/.test(value.candidateSnapshotDigest)) {
+      throw runtimeError("INVALID_RUNTIME_SETTLE", "Runtime settle snapshot digest is invalid");
+    }
+    if (value.candidateSnapshotDigest !== expected) {
+      throw runtimeError("INVALID_RUNTIME_SETTLE", "Runtime settle snapshot digest must match the selected projection");
+    }
+  }
+  return {
+    status: value.status,
+    sampleCount: value.sampleCount,
+    initialSnapshotEmpty: value.initialSnapshotEmpty,
+    candidateSnapshotDigest: value.candidateSnapshotDigest,
+  };
+}
+
+function normalizeProbe(value) {
+  if (isObject(value) && ["surfaces", "controls", "taxonomy", "rootCandidates"]
+    .some((key) => Object.hasOwn(value, key))) {
+    throw runtimeError(
+      "INVALID_RUNTIME_CANDIDATE_ATTRIBUTION",
+      "Runtime probe cannot contain selector candidates",
+    );
+  }
+  if (!exactKeys(value, ["route", "status"]) || value.route !== RUNTIME_PROBE_ROUTE ||
+    !Number.isSafeInteger(value.status) || value.status < 100 || value.status > 599) {
+    throw runtimeError("INVALID_RUNTIME_PROBE", "Runtime probe requires the fixed route and a bounded HTTP status");
+  }
+  return { route: RUNTIME_PROBE_ROUTE, status: value.status };
+}
+
+export function normalizeRuntimeObservation(observation = {}) {
+  const raw = isObject(observation) ? observation : {};
+  const routes = uniqueSorted((Array.isArray(raw.routes) ? raw.routes : []).map(normalizeRoute).filter(Boolean));
+  const rootCandidates = normalizeRootCandidates(raw.rootCandidates, raw);
+  const settle = normalizeSettle(raw.settle, {
+    surfaces: rootCandidates.surfaces,
+    controls: rootCandidates.controls,
+    taxonomy: rootCandidates.taxonomy,
+  });
+  const probe = normalizeProbe(raw.probe);
+  if (routes.length !== 2 || routes[0] !== ROOT_CANDIDATE_ROUTE || routes[1] !== RUNTIME_PROBE_ROUTE) {
+    throw runtimeError("INVALID_RUNTIME_PROBE", "Runtime routes must be exactly the root and fixed probe");
+  }
+  const apiHosts = uniqueSorted((Array.isArray(raw.apiHosts) ? raw.apiHosts : []).map(normalizeHost).filter(Boolean));
+  const dependencies = uniqueSorted((Array.isArray(raw.dependencies) ? raw.dependencies : []).map(normalizeHost).filter(Boolean));
+  const catalog = {
+    productId: PRODUCT_ID,
+    capturedAt: normalizeCaptureTime(raw.capturedAt),
+    deployment: { status: "UNVERIFIED", commitSha: null },
+    metadata: normalizeMetadata(raw.metadata ?? raw.manifest),
+    routes, rootCandidates, settle, probe, apiHosts, dependencies,
+    pwa: normalizePwa(raw.manifest),
+  };
+  catalog.nodes = collectNodes(catalog);
+  catalog.runtimeDigest = digest(withoutTimestamps(catalog));
+  return catalog;
+}
+
+function normalizeBaseUrl(baseUrl) {
+  if (baseUrl !== RUNTIME_ORIGIN && baseUrl !== RUNTIME_ROOT) {
+    throw runtimeError("INVALID_RUNTIME_BASE_URL", "baseUrl must be exactly https://app.nuanu.com with an optional trailing slash");
+  }
+  return RUNTIME_ROOT;
+}
+
+function manifestUrl(value) {
+  if (typeof value !== "string") return null;
+  try {
+    const parsed = new URL(value, RUNTIME_ORIGIN);
+    if (parsed.origin !== RUNTIME_ORIGIN || parsed.search || parsed.hash || !validPathname(parsed.pathname)) return null;
+    return `${RUNTIME_ORIGIN}${parsed.pathname || "/"}`;
+  } catch {
+    return null;
+  }
+}
+
+function classifyRequest(request, apiHosts, dependencies) {
+  try {
+    const url = new URL(request.url().split(/[?#]/, 1)[0]);
+    const resourceType = typeof request.resourceType === "function" ? request.resourceType().toLowerCase() : "";
+    if (url.pathname.startsWith("/api/") || resourceType === "fetch" || resourceType === "xhr") apiHosts.add(url.hostname.toLowerCase());
+    else if (url.origin !== RUNTIME_ORIGIN) dependencies.add(url.hostname.toLowerCase());
+  } catch {
+    // Malformed request URLs are never retained.
+  }
+}
+
+function captureNow(now) {
+  const value = now === undefined ? new Date() : now();
+  if (!(value instanceof Date) || Number.isNaN(value.valueOf())) throw runtimeError("INVALID_CAPTURE_TIME", "now must return a valid Date");
+  return value.toISOString();
+}
+
+/** @param {PlaywrightPage} page */
+function publicSnapshot(page) {
+  return page.locator("html").evaluate((maxCandidates) => {
+    const allowedRoles = new Set([
+      "application", "article", "banner", "button", "checkbox", "combobox",
+      "dialog", "group", "img", "link", "list", "listitem", "main",
+      "navigation", "option", "region", "search", "searchbox", "switch",
+      "tab", "tabpanel", "textbox",
+    ]);
+    const nativeRole = (element) => {
+      const tag = element.tagName.toLowerCase();
+      if (tag === "a" && element.hasAttribute("href")) return "link";
+      if (tag === "button") return "button";
+      if (tag === "article") return "article";
+      if (tag === "header") return "banner";
+      if (tag === "main") return "main";
+      if (tag === "nav") return "navigation";
+      if (tag === "img") return "img";
+      if (tag === "ul" || tag === "ol") return "list";
+      if (tag === "li") return "listitem";
+      if (tag === "select") return "combobox";
+      if (tag === "textarea") return "textbox";
+      if (tag === "input") {
+        const type = (element.getAttribute("type") || "text").toLowerCase();
+        if (type === "search") return "searchbox";
+        if (type === "checkbox") return "checkbox";
+        if (["text", "email", "password"].includes(type)) return "textbox";
+      }
+      return "";
+    };
+    const roleOf = (element) => {
+      const explicit = (element.getAttribute("role") || "").toLowerCase();
+      const role = explicit || nativeRole(element);
+      return allowedRoles.has(role) ? role : "";
+    };
+    const editableRoles = new Set(["textbox", "searchbox", "combobox"]);
+    const isEditable = (element) => {
+      const contentEditable = element.getAttribute("contenteditable");
+      return element.isContentEditable ||
+      (contentEditable !== null && ["true", "", "plaintext-only"].includes(contentEditable.toLowerCase())) ||
+      editableRoles.has(roleOf(element)) || ["INPUT", "SELECT", "TEXTAREA"].includes(element.tagName);
+    };
+    const associatedLabel = (element) => {
+      const label = element.labels?.[0]?.textContent;
+      if (label) return label;
+      const id = element.getAttribute("id");
+      if (!id) return "";
+      const escaped = globalThis.CSS?.escape ? globalThis.CSS.escape(id) : id.replace(/["\\]/g, "\\$&");
+      return document.querySelector(`label[for="${escaped}"]`)?.textContent || "";
+    };
+    const readableName = (element, role) => {
+      const ariaLabel = element.getAttribute("aria-label");
+      if (ariaLabel) return ariaLabel;
+      const label = associatedLabel(element);
+      if (label) return label;
+      const title = element.getAttribute("title");
+      if (title) return title;
+      if (role === "button" || role === "link") return element.textContent || "";
+      return "";
+    };
+    const safeTaxonomyText = (value) => {
+      if (typeof value !== "string") return "";
+      const text = value.trim().replace(/\s+/g, " ");
+      const opaque = /^[A-Za-z0-9+/_=-]{32,}$/.test(text) && /[A-Z]/.test(text) && /[a-z]/.test(text) && /\d/.test(text);
+      if (!text || text.length > 200 ||
+        /credential|token|cookie|authorization|password|secret|api[\s_-]?key|callback|session|bearer/i.test(text) ||
+        /[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/.test(text) ||
+        /^[a-f0-9]{32,}$/i.test(text) || opaque) return "";
+      return text;
+    };
+    const taxonomyIdentity = (element) => {
+      if (isEditable(element) || element.querySelector("input, select, textarea, [contenteditable], [role=textbox], [role=searchbox], [role=combobox], [role=spinbutton]")) return "";
+      const explicit = element.getAttribute("data-taxonomy") || element.getAttribute("aria-label");
+      if (explicit) return safeTaxonomyText(explicit);
+      if (element.children.length !== 0) return "";
+      return safeTaxonomyText(element.textContent);
+    };
+    let candidateCount = 0;
+    let candidateOverflowed = false;
+    const boundedMap = (elements, map) => {
+      const records = [];
+      for (const element of elements) {
+        if (candidateCount >= maxCandidates) {
+          candidateOverflowed = true;
+          break;
+        }
+        candidateCount += 1;
+        records.push(map(element));
+      }
+      return records;
+    };
+    return {
+      metadata: { title: document.title, manifestHref: document.querySelector('link[rel="manifest"]')?.getAttribute("href") || "" },
+      surfaces: boundedMap(document.querySelectorAll("main, nav, header, footer, [role]"), (element) => {
+        const role = roleOf(element);
+        return { name: readableName(element, role), role };
+      }),
+      controls: boundedMap(document.querySelectorAll("a, button, input, select, textarea, [role=button], [role=link], [role=searchbox], [contenteditable]"), (element) => {
+        const role = roleOf(element);
+        return { name: readableName(element, role), role };
+      }),
+      taxonomy: boundedMap(document.querySelectorAll("[data-taxonomy]"), (element) => taxonomyIdentity(element)),
+      candidateOverflowed,
+    };
+  }, MAX_ROOT_CANDIDATES);
+}
+
+function defaultClock() {
+  return { now: () => performance.now() };
+}
+
+function defaultScheduler(clock) {
+  return (deadline) => {
+    let timer;
+    const promise = new Promise((resolve) => {
+      timer = setTimeout(resolve, Math.max(0, deadline - clock.now()));
+    });
+    promise.cancel = () => {
+      if (timer !== undefined) clearTimeout(timer);
+    };
+    return promise;
+  };
+}
+
+function armDeadlineWatch({ readMonotonicNow, scheduler, deadline, message }) {
+  let cancelled = false;
+  let activeWait = null;
+  const promise = (async () => {
+    let previousNow = readMonotonicNow();
+    while (!cancelled) {
+      activeWait = scheduler(deadline);
+      await activeWait;
+      if (cancelled) return;
+      const now = readMonotonicNow();
+      if (now >= deadline) {
+        throw runtimeError("RUNTIME_SETTLE_DEADLINE_EXCEEDED", message);
+      }
+      if (now <= previousNow) {
+        throw runtimeError("INVALID_RUNTIME_SETTLE", "Runtime settle scheduler resolved before its deadline without monotonic progress");
+      }
+      previousNow = now;
+    }
+  })();
+  return {
+    promise,
+    cancel() {
+      cancelled = true;
+      if (typeof activeWait?.cancel === "function") activeWait.cancel();
+    },
+  };
+}
+
+/**
+ * @param {{ clock: { now: () => number }, scheduler: (deadline: number) => Promise<void>, collectSnapshot: () => Promise<RuntimeSnapshotProjection>, assertBoundary: () => void }} options
+ */
+export async function settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary }) {
+  if (!clock || typeof clock.now !== "function" || typeof scheduler !== "function" ||
+    typeof collectSnapshot !== "function" || typeof assertBoundary !== "function") {
+    throw runtimeError("INVALID_RUNTIME_SETTLE", "Runtime settle requires clock, scheduler, collector, and boundary guard");
+  }
+  let lastNow = Number.NEGATIVE_INFINITY;
+  const readMonotonicNow = () => {
+    const value = clock.now();
+    if (!Number.isFinite(value) || value < lastNow) {
+      throw runtimeError("INVALID_RUNTIME_SETTLE", "Runtime settle clock must be monotonic");
+    }
+    lastNow = value;
+    return value;
+  };
+  const startedAt = readMonotonicNow();
+  const initialDeadline = startedAt + SETTLE_DEADLINE_MS;
+  assertBoundary();
+  const initialWatch = armDeadlineWatch({
+    readMonotonicNow,
+    scheduler,
+    deadline: initialDeadline,
+    message: "Runtime snapshot could not finish before its deadline",
+  });
+  let initial;
+  try {
+    initial = assertSnapshotProjection(await Promise.race([collectSnapshot(), initialWatch.promise]));
+  } finally {
+    initialWatch.cancel();
+  }
+  if (readMonotonicNow() >= initialDeadline) {
+    throw runtimeError("RUNTIME_SETTLE_DEADLINE_EXCEEDED", "Runtime snapshot could not finish before its deadline");
+  }
+  assertBoundary();
+  const t0 = readMonotonicNow();
+  const hardDeadline = t0 + SETTLE_DEADLINE_MS;
+  const initialEmpty = initial.projection.surfaces.length + initial.projection.controls.length + initial.projection.taxonomy.length === 0;
+  let previous = initial;
+  for (let sampleCount = 2; sampleCount <= SETTLE_SAMPLE_LIMIT; sampleCount += 1) {
+    const deadline = t0 + (sampleCount - 1) * SETTLE_INTERVAL_MS;
+    if (deadline >= hardDeadline) break;
+    let previousNow = readMonotonicNow();
+    while (true) {
+      await scheduler(deadline);
+      const now = readMonotonicNow();
+      if (now >= hardDeadline) {
+        throw runtimeError("RUNTIME_SETTLE_DEADLINE_EXCEEDED", "Runtime snapshot could not begin before its deadline");
+      }
+      if (now >= deadline) break;
+      if (now <= previousNow) {
+        throw runtimeError("INVALID_RUNTIME_SETTLE", "Runtime settle scheduler resolved before its deadline without monotonic progress");
+      }
+      previousNow = now;
+    }
+    assertBoundary();
+    const sampleWatch = armDeadlineWatch({
+      readMonotonicNow,
+      scheduler,
+      deadline: hardDeadline,
+      message: "Runtime snapshot could not finish before its deadline",
+    });
+    let current;
+    try {
+      current = assertSnapshotProjection(await Promise.race([collectSnapshot(), sampleWatch.promise]));
+    } finally {
+      sampleWatch.cancel();
+    }
+    if (readMonotonicNow() >= hardDeadline) {
+      throw runtimeError("RUNTIME_SETTLE_DEADLINE_EXCEEDED", "Runtime snapshot could not finish before its deadline");
+    }
+    assertBoundary();
+    if (current.bytes.equals(previous.bytes)) {
+      const empty = current.projection.surfaces.length + current.projection.controls.length + current.projection.taxonomy.length === 0;
+      return {
+        projection: current.projection,
+        settle: {
+          status: empty ? "STABLE_EMPTY" : initialEmpty ? "LATE_HYDRATION" : "STABLE_NONEMPTY",
+          sampleCount,
+          initialSnapshotEmpty: initialEmpty,
+          candidateSnapshotDigest: createHash("sha256").update(current.bytes).digest("hex"),
+        },
+      };
+    }
+    previous = current;
+  }
+  return {
+    projection: { surfaces: [], controls: [], taxonomy: [] },
+    settle: {
+      status: "NEVER_SETTLES",
+      sampleCount: SETTLE_SAMPLE_LIMIT,
+      initialSnapshotEmpty: initialEmpty,
+      candidateSnapshotDigest: null,
+    },
+  };
+}
+
+/**
+ * @param {{ context: PlaywrightBrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options
+ * @returns {Promise<RuntimeObservationSessionResult>}
+ */
+async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {
+  const allowedNavigations = new Set([rootUrl, RUNTIME_PROBE]);
+  const apiHosts = new Set();
+  const dependencies = new Set();
+  let requestPhase = "none";
+  const navigation = { rejected: false };
+  let unexpectedNavigationError = null;
+  /** @type {PlaywrightPage | undefined} */
+  let page;
+  const markUnexpectedNavigation = () => {
+    if (!unexpectedNavigationError) {
+      navigation.rejected = true;
+      unexpectedNavigationError = runtimeError("UNAPPROVED_RUNTIME_NAVIGATION", "Runtime observation attempted an unapproved navigation");
+    }
+    return unexpectedNavigationError;
+  };
+  const rejectNavigation = () => {
+    throw markUnexpectedNavigation();
+  };
+  const assertRootBoundary = () => {
+    if (unexpectedNavigationError || page?.url() !== rootUrl) {
+      throw unexpectedNavigationError ?? runtimeError("UNAPPROVED_RUNTIME_NAVIGATION", "Runtime observation attempted an unapproved navigation");
+    }
+  };
+  async function readManifest(href) {
+    const url = manifestUrl(href);
+    if (!url) return {};
+    const response = await context.request.get(url, { maxRedirects: 0 });
+    if (!response.ok() || response.status() < 200 || response.status() >= 300 || response.url() !== url) {
+      throw runtimeError("MANIFEST_OBSERVATION_FAILED", "Manifest request did not remain on the approved origin");
+    }
+    try {
+      return normalizePwa(JSON.parse(await response.text()));
+    } catch (error) {
+      if (error?.code) throw error;
+      throw runtimeError("MANIFEST_OBSERVATION_FAILED", "Manifest response was not valid JSON");
+    }
+  }
+  try {
+    context.on("page", (observedPage) => { if (page && observedPage !== page) rejectNavigation(); });
+    await context.route("**/*", async (route) => {
+      const request = route.request();
+      const method = request.method().toUpperCase();
+      if (!SAFE_METHODS.has(method)) return route.abort();
+      if (request.isNavigationRequest?.() && !allowedNavigations.has(request.url())) {
+        markUnexpectedNavigation();
+        return route.abort();
+      }
+      return route.continue();
+    });
+    page = await context.newPage();
+    page.on("request", (request) => {
+      if (requestPhase === "root") classifyRequest(request, apiHosts, dependencies);
+    });
+    page.on("popup", rejectNavigation);
+    page.on("framenavigated", (frame) => {
+      if (!allowedNavigations.has(frame.url())) rejectNavigation();
+    });
+    requestPhase = "root";
+    await page.goto(rootUrl, { waitUntil: "domcontentloaded" });
+    assertRootBoundary();
+    let metadata = {};
+    let manifestHref = "";
+    const collectSnapshot = async () => {
+      const captured = await publicSnapshot(page);
+      if (captured.candidateOverflowed) {
+        throw runtimeError("RUNTIME_ROOT_CANDIDATE_OVERFLOW", "Root selector candidates exceed the fixed bound");
+      }
+      metadata = normalizeMetadata(captured.metadata);
+      manifestHref = typeof captured.metadata?.manifestHref === "string" ? captured.metadata.manifestHref : "";
+      return normalizeSnapshotProjection(captured);
+    };
+    const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: assertRootBoundary });
+    assertRootBoundary();
+    const manifest = await readManifest(manifestHref);
+    assertRootBoundary();
+    requestPhase = "probe";
+    const probeResponse = await page.goto(RUNTIME_PROBE, { waitUntil: "domcontentloaded" });
+    requestPhase = "none";
+    if (unexpectedNavigationError || page.url() !== RUNTIME_PROBE) {
+      throw unexpectedNavigationError ?? runtimeError("UNAPPROVED_RUNTIME_NAVIGATION", "Runtime observation attempted an unapproved navigation");
+    }
+    const status = typeof probeResponse?.status === "function" ? probeResponse.status() : null;
+    if (!Number.isSafeInteger(status) || status < 100 || status > 599) {
+      throw runtimeError("INVALID_RUNTIME_PROBE", "Runtime probe did not return a bounded HTTP status");
+    }
+    const session = {
+      root: { projection: root.projection, settle: root.settle, metadata },
+      manifest,
+      probe: { route: RUNTIME_PROBE_ROUTE, status },
+      requestEvidence: { apiHosts: [...apiHosts], dependencies: [...dependencies] },
+      overflow: { candidateRecords: false, snapshotBytes: false },
+    };
+    SESSION_NAVIGATION_LATCH.set(session, navigation);
+    return session;
+  } finally {
+    if (page) await page.close();
+    if (unexpectedNavigationError) throw unexpectedNavigationError;
+  }
+}
+
+/** @param {{ chromium: { launch: () => Promise<PlaywrightBrowser> }, baseUrl?: string, now?: () => Date, clock?: { now: () => number }, scheduler?: (deadline: number) => Promise<void> }} options */
+export async function observePublicRuntime({ chromium, baseUrl = RUNTIME_ORIGIN, now, clock, scheduler } = {}) {
+  const rootUrl = normalizeBaseUrl(baseUrl);
+  if (!chromium || typeof chromium.launch !== "function") throw runtimeError("INVALID_CHROMIUM", "A Playwright Chromium implementation is required");
+  /** @type {PlaywrightBrowser | undefined} */
+  let browser;
+  let primaryError = null;
+  now = now ?? (() => new Date());
+  clock = clock ?? defaultClock();
+  scheduler = scheduler ?? defaultScheduler(clock);
+  let session;
+  try {
+    browser = await chromium.launch();
+    const context = await browser.newContext({ serviceWorkers: "block" });
+    session = await observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler });
+    const capturedAt = captureNow(now);
+    return normalizeRuntimeObservation({
+      capturedAt,
+      routes: [rootUrl, RUNTIME_PROBE],
+      rootCandidates: {
+        state: ROOT_CANDIDATE_STATE,
+        route: ROOT_CANDIDATE_ROUTE,
+        surfaces: session.root.projection.surfaces,
+        controls: session.root.projection.controls,
+        taxonomy: session.root.projection.taxonomy,
+      },
+      settle: session.root.settle,
+      probe: session.probe,
+      metadata: session.root.metadata,
+      manifest: session.manifest,
+      apiHosts: session.requestEvidence.apiHosts,
+      dependencies: session.requestEvidence.dependencies,
+    });
+  } catch (error) {
+    primaryError = error;
+    throw error;
+  } finally {
+    const navigation = session ? SESSION_NAVIGATION_LATCH.get(session) : null;
+    try {
+      if (browser) await browser.close();
+      if (!primaryError && navigation?.rejected) {
+        throw runtimeError("UNAPPROVED_RUNTIME_NAVIGATION", "Runtime observation attempted an unapproved navigation");
+      }
+    } finally {
+      if (session) SESSION_NAVIGATION_LATCH.delete(session);
+    }
+  }
+}

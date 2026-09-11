@@ -1,0 +1,87 @@
+import AxeBuilder from '@axe-core/playwright';
+import type { AxeResults } from 'axe-core';
+import { expect, test, type Page } from '@playwright/test';
+import { AuthPage } from './pages/auth.page';
+
+const WCAG_TAGS = [
+  'wcag2a',
+  'wcag2aa',
+  'wcag21a',
+  'wcag21aa',
+  'wcag22a',
+  'wcag22aa',
+] as const;
+
+const violationFingerprints = (results: AxeResults): string[] =>
+  results.violations.flatMap((violation) =>
+    violation.nodes.map(
+      (node) =>
+        `${violation.id}|${violation.impact ?? 'unknown'}|${node.target.join(' > ')}`,
+    ),
+  );
+
+const expectNoSkippedHeadingLevel = async (page: Page) => {
+  const levels = await page
+    .locator('h1, h2, h3, h4, h5, h6')
+    .evaluateAll((headings) =>
+      headings
+        .filter((heading) => {
+          const element = heading as HTMLElement;
+          const style = window.getComputedStyle(element);
+          return (
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            element.getClientRects().length > 0
+          );
+        })
+        .map((heading) => Number(heading.tagName.slice(1))),
+    );
+  for (let index = 1; index < levels.length; index += 1) {
+    expect(levels[index]! - levels[index - 1]!).toBeLessThanOrEqual(1);
+  }
+};
+
+const expectCleanScan = async (page: Page) => {
+  const results = await new AxeBuilder({ page })
+    .withTags([...WCAG_TAGS])
+    .analyze();
+  expect(violationFingerprints(results)).toEqual([]);
+};
+
+test.describe('Nuanu Flow public accessibility', () => {
+  test('sign-in has no untracked automated A/AA violations', async ({ page }) => {
+    const auth = new AuthPage(page);
+    await auth.gotoSignIn();
+
+    await expect(page.getByRole('main')).toHaveCount(1);
+    await expect(auth.emailInput).toHaveAttribute('type', 'email');
+    await expect(auth.continueButton).toBeDisabled();
+    await expectNoSkippedHeadingLevel(page);
+    await expectCleanScan(page);
+  });
+
+  test('privacy page has no untracked automated A/AA violations', async ({
+    page,
+  }) => {
+    await page.goto('/legals/privacy-policy/', {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(
+      page.getByRole('heading', { name: 'Privacy Policy', exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    await expectNoSkippedHeadingLevel(page);
+    await expectCleanScan(page);
+  });
+
+  test('privacy page exposes exactly one main landmark', async ({ page }) => {
+    await page.goto('/legals/privacy-policy/', {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(
+      page.getByRole('heading', { name: 'Privacy Policy', exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+
+    await expect(page.getByRole('main')).toHaveCount(1);
+  });
+});

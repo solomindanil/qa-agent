@@ -2,7 +2,15 @@
 
 The north star is agent-first QA that can test products through dialogue first and later run on another host. Assembly reuses the existing implementations; it does not restart the roadmap or count source tests as product coverage.
 
-## Current execution — 2026-09-10
+## Current execution — 2026-09-11
+
+Use [current source/qualification](../qualification/current.md), the [full reconciliation](../qualification/reconciliation-20260911.md) and the [consolidated seven-slice plan](../superpowers/plans/2026-09-10-universal-qa-next-plan.md). This reconciliation updates canonical delivery/skills/portable startup and verifies existing local pipelines; it does not replace the substantive product, agent-decision, graph-learning, host or cloud exits below.
+
+Next after source adoption: consume this main workspace in a substantive authorized full/ticket product scope, preserving existing campaign owners, and turn demonstrated reusable gaps into reviewed shared changes. Actual current Claude execution and cloud remain separately unqualified.
+
+### Historical source candidate — 2026-09-10
+
+The following two paragraphs retain the former candidate and its then-next action. Neither selects an older scratch clone as current source or asks to repeat completed cold source qualification.
 
 The [reviewed-source checkpoint](../qualification/reviewed-source-chain.md) assembles Consolef3660d0 / Kernel15a067c with unchanged Freeland9c2509e and inactive reporting10d. U3 review persistence, U5 interruption fixture and trace-retention metadata are source-reviewed. Real Agentify scoped U2/U4 results, historical U3 review and a separate unsealed visual continuation remain at their existing product owner; they are not imported as new assembly PASS results. Fresh-context continuation and six bounded diagnosis samples were exercised, without a universal-learning or production-recovery claim.
 
@@ -66,6 +74,6 @@ The [approved detailed master plan](2026-09-06-master-plan.historical.md) is ret
 
 The snapshot was intentionally not rewritten. Its12 relative link occurrences (11 unique targets) are **not portable**: `../audits/` originally means NuanuFlowQA/docs/superpowers/audits; `../../local/` originally means NuanuFlowQA/docs/local, not this repository's local/ or .local/. The preceding implementation-plan link also belongs to the old plans folder. Two `/private/tmp/...` links are host-dependent. These linked documents were not automatically imported or published. Do not follow a missing link by creating a symlink or relabeling evidence.
 
-Old Console771/Kernel953 and earlier integration pins are preserved as history; current component identities are in the manifest and the2026-09-10checkpoint above. Inline code paths belong to their named component, not automatically the qa-agent root. Reporting source belongs to the non-active reference. Current status is this index plus the actual qualification report, not the old summary table.
+Old Console771/Kernel953 and earlier integration pins are preserved as history; current component identities are in the manifest and the2026-09-11checkpoint above. Inline code paths belong to their named component, not automatically the qa-agent root. Reporting source belongs to the non-active reference. Current status is this index plus the actual qualification report, not the old summary table.
 
 The complete link map/content audit is retained privately at `.local/source-audits/master-plan/REPORT.md`, SHA-256 `19ee37a15ae5226c2c21aa5a55eae314414bf7f24951191d01b9492a23ce35a9`. No credentials/private user payload were found in the snapshot; internal names/paths are retained for the approved private destination. This does not audit every linked file or authorize a public release.

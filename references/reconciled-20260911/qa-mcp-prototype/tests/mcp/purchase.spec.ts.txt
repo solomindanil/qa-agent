@@ -1,0 +1,21 @@
+import { test, expect } from '../fixtures/mcp-client';
+import { hasMcpEnv, env } from '../fixtures/env';
+
+test.skip(!hasMcpEnv, 'MCP_SERVER_URL не настроен (.env)');
+
+// Кап трат структурный: эти два теста проверяют сам guard и работают
+// без реальной покупки.
+test('buy() отклоняет покупку дороже MAX_PURCHASE_AMOUNT', async ({ buy }) => {
+  await expect(buy({ maxPrice: env.maxPurchaseAmount + 1 })).rejects.toThrow(/MAX_PURCHASE_AMOUNT/);
+});
+
+test('buy() отклоняет покупку без явного ценового лимита', async ({ buy }) => {
+  await expect(buy({ item: 'anything' })).rejects.toThrow(/без капа запрещены/);
+});
+
+// TODO(product): включить после того, как появится дешёвый тестовый SKU
+// и подтверждённая схема аргументов purchase.
+test.fixme('покупка в пределах капа проходит и уменьшает баланс', async ({ buy }) => {
+  const result = await buy({ item: 'TEST-SKU', maxPrice: 1 });
+  expect(result.isError ?? false).toBe(false);
+});

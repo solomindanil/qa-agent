@@ -1,0 +1,157 @@
+# Sati 3.0.1 (15) iPhone-proxy deep release campaign
+
+## Release verdict
+
+**NO-GO for production on 2026-09-01.**
+
+The exact TestFlight candidate is `3.0.1 (15)`, bundle
+`com.satiuniversity.sati`. The deepest safe computer-only campaign found two
+critical release defects and several high-severity configuration, acquisition,
+privacy, and push risks. The current build must not be promoted as tested for
+iPhone: the Mac portrait proxy covers React layout and anonymous logic, but it
+cannot reproduce iPhone safe areas, touch, software keyboard, suspension,
+permissions, APNs, StoreKit, HealthKit, or a signed-in product journey.
+
+The Mac-only black-screen and fullscreen defects remain real because TestFlight
+currently exposes that compatibility path, but they are no longer treated as
+evidence that a physical iPhone would fail. The broader release-scope defect is
+that an iPhone-only product declares iPad support and landscape layouts.
+
+## Evidence boundary
+
+- Distribution: exact TestFlight candidate `3.0.1 (15)` released 2026-09-01.
+- Runtime: macOS 26.2 Apple Silicon running the TestFlight iOS-on-Mac build.
+- Portrait proxy: outer Sati window approximately `516 x 893` pixels including
+  the macOS title bar. This resembles compact portrait, but the React client
+  rectangle and iPhone safe-area insets cannot be read back exactly.
+- Authentication: synthetic invalid login only. No account was created and no
+  Apple, Google, or VK provider login was submitted.
+- External writes: no purchase, subscription, reset email, HealthKit write,
+  notification permission, profile/community mutation, or production data
+  mutation was performed.
+- Public-network audit: intentional probes were GET, HEAD, and OPTIONS without a
+  cookie jar. One temporary browser load of the privacy page may have generated
+  one automatic first-party `page_hit` from the page's own tracker; no form or
+  personal data was supplied.
+
+## Confirmed release blockers
+
+| Finding | Severity | Result and impact |
+| --- | --- | --- |
+| F-007 | Critical | Product is iPhone-only, but native `UIDeviceFamily=[1,2]`, Expo `supportsTablet=true`, and iPad landscape are enabled. Untested iPad/Mac surfaces are published. |
+| F-009 | Critical | Complete GraphQL sign-in bodies, including plaintext synthetic passwords, persist in the sandboxed CFNetwork disk cache after quit/relaunch. |
+| F-002 | High | Packaged Expo update request has no channel header and receives HTTP 400 `channel-name: Required`; OTA checks cannot obtain an update. |
+| F-010 | High | The production share/acquisition link is branded `Cielo`, targets App Store ID `1513177968`, and that iOS listing returns 404. |
+| F-011 | High | Root privacy manifest declares zero collected-data types while app-owned PostHog capture/identify code is embedded; App Store labels/runtime behavior require readback. |
+| F-012 | High | Signed APNs entitlement is production while packaged OneSignal mode is development; real device push remains unproved. |
+
+These are sufficient for NO-GO without relying on the Mac-only layout defects.
+
+## Deep executed matrix
+
+| Area | Check | Result | Evidence |
+| --- | --- | --- | --- |
+| Distribution | Candidate identity/install/process | PASS | Native app and notification extension are `3.0.1 (15)`; process starts and remains stable. |
+| Build identity | Native/extension/Expo build alignment | FAIL | Native and extension build 15; embedded Expo build 14; F-008. |
+| Device scope | iPhone-only declarations | FAIL | iPad family, tablet support, iPad landscape, and non-fullscreen configuration are present; F-007. |
+| Portrait proxy | Intro, voice, player, auth chooser, email login, and signup fit | PASS WITH CAVEAT | Usable at the minimum observed portrait window after scrolling; outer window is not an exact iPhone client viewport. |
+| Startup | Cold launch without geometry workaround | FAIL (MAC) | 7/7 cold starts, including portrait and custom-scheme launch, remain black until resize/fullscreen; F-001. |
+| Fullscreen | Mac-compatible layout | FAIL (MAC) | Content remains upper-left with large black unused regions; F-003. |
+| Intro media | Play, pause, skip, female/male selection | PASS | Controls respond; male/female selection changes; displayed combined duration reached `01:21`. |
+| Background media | Switch away and return during playback | PASS (MAC PROXY) | Position advanced while backgrounded and returned without duplicate playback. Not an iOS suspension test. |
+| Registration input | Cyrillic, emoji, long email, and approximately 120-character password | PASS | No crash/overflow; password remains visually masked; no valid signup submit. |
+| Form reset | Clear controls, error dismissal, close/reopen | PASS FUNCTIONALLY | Clear actions work; modal reopen clears prior login draft. Accessibility naming fails separately. |
+| Login validation | Malformed email plus one-character password | FAIL | Request reaches backend and returns generic invalid-credentials error after about five seconds; F-015. |
+| Enumeration posture | Invalid-login response content | PASS | Generic credential error does not reveal whether the account exists. |
+| Credential persistence | Disk search after failed login and app quits | FAIL | Synthetic email/password markers and complete `signIn` bodies remain in `Cache.db-wal`; F-009. |
+| Accessibility | Roles, names, and keyboard focus | FAIL / IPHONE PENDING | Provider/submit actions are generic; chooser receives no Tab focus; signup focus skips submit; F-004. |
+| Deep links | Cold bundle-ID scheme unknown route | PASS WITH MAC DEFECT | App opens once and falls back to anonymous intro after the resize workaround; no auth state change. |
+| Deep links | Warm `exp+sati://qa/unknown` | PASS NEGATIVE | No dev launcher, packager prompt, crash, or unintended navigation was observed. Static dev residue remains F-013. |
+| Deep links | Encoded traversal-like path and duplicate query | PASS NEGATIVE | No crash or unintended route. This does not cover a real reset/referral/auth callback. |
+| Lifecycle | Ten repeated unknown-route launch requests | PASS | One Sati process/window remained, with no duplicated modal or route. |
+| OTA | Packaged update endpoint and headers | FAIL | Server consistently requires missing channel name; F-002. |
+| Share | iPhone acquisition route | FAIL | Cielo branding and unavailable iOS listing; F-010. |
+| Legal | Privacy/terms production quality | FAIL | Vite/Lovable residue, duplicate privacy heading, controller ambiguity, and automatic page-hit tracker; F-014. |
+| Bundle | Plists, signatures, sealed resources, assets | PASS WITH KNOWN EXCEPTION | 41 plists and 31 privacy manifests parse; 15 code objects share a production chain; sealed resources have 0 missing/mismatch. F-006 remains a two-icon Expo manifest collision. |
+| Secrets/debug | Common secret and debug-artifact scan | PASS | No private key, JWT/Bearer literal, common provider secret, source map, dSYM, raw JS/TS, or Mach-O DWARF found. Public SDK identifiers were intentionally not retained. |
+| Transport | Resolving first-party origins | PASS WITH RISKS | TLS verifies and main public origins respond. One referenced CloudFront hostname has DNS NODATA; runtime usage is not proven. |
+
+The reproducible manual case ledger is in
+`tests/mobile/manual/iphone-proxy-matrix.md`.
+
+## Additional confirmed defects and risks
+
+- F-005: all five camera, microphone, photo-library, and HealthKit usage
+  descriptions are English with no app-owned `InfoPlist.strings`, despite the
+  observed Russian UI.
+- F-006: Expo asset manifest declares conflicting hashes for the same clear and
+  close icon destinations.
+- F-008: Expo Constants can report build 14 inside signed build 15.
+- F-013: release bundle retains Expo development-client configuration, an
+  `exp+sati` scheme, local-network access, and dev-launcher/menu symbols. A safe
+  runtime probe did not prove the dev UI reachable.
+- F-014: public legal pages contain template residue and automatically execute a
+  first-party page-hit tracker; legal adequacy needs owner review.
+- F-015: email login lacks obvious local format/length validation.
+- `/gql` GET/HEAD returns 405 without an `Allow` header; low-severity API error
+  handling issue.
+- OneSignal Location is linked without an `NSLocation*` usage string. No
+  app-level location request was proved, so this remains conditional.
+- No Associated Domains entitlement is present. Universal-link behavior is not
+  available unless the product intentionally uses only custom schemes/web.
+- Expo Updates has no client-side code-signing certificate/metadata; TLS exists,
+  but client-enforced end-to-end OTA signing was not found.
+
+## What passed
+
+- Anonymous onboarding is visually usable in a compact portrait-shaped Mac
+  window once the cold-render workaround is applied.
+- Intro play/pause/skip and voice choice work, and background switching did not
+  duplicate audio in the proxy.
+- Long Unicode form input remains responsive and masked where expected.
+- Unknown and malformed custom URLs fail safely, and ten repeated launches keep
+  a single process/window.
+- Authentication error wording avoids obvious account enumeration.
+- ATS arbitrary loads are disabled; no first-party cleartext origin was found.
+- App/extension signing, app group, HealthKit and Apple Sign-In capabilities are
+  structurally coherent; `get-task-allow=false` and the main executable is
+  encrypted.
+- Bundled splash, Hermes program, frameworks, fonts, images, and media inventory
+  are present; the initial black screen is not explained by a missing splash or
+  missing main bundle.
+
+## Required evidence still blocked without a real iPhone/account
+
+| Lane | Missing release proof |
+| --- | --- |
+| Startup/layout | Real iPhone cold/warm launch, notch/home-indicator safe areas, touch and rotation policy. |
+| Input/accessibility | Software keyboard avoidance, AutoFill/password manager, Dynamic Type, iPhone VoiceOver rotor/gestures, Switch Control, 44-point touch targets. |
+| Lifecycle/audio | iOS suspension/jetsam, lock screen, silent switch, Siri/call/alarm interruption, route changes, Control Center/Now Playing. |
+| Auth | Positive email session, Apple/Google/VK callbacks, PKCE/state, recovery/reset, logout, token storage/revocation, account deletion. |
+| Product | Home, catalogue, practices/courses, full player/mixer, streak/history/notes, profile and community interactions. |
+| Push | APNs permission, production token, foreground/background/terminated delivery, service extension and tap routing. |
+| Permissions | HealthKit, camera, microphone and photo-library allow/deny/revoke flows with localized system sheets. |
+| Commerce | StoreKit/RevenueCat products, trial, purchase, restore, promo, sync/manage and web redemption. No real-money action is authorized. |
+| Store metadata | App Store Connect device availability, privacy labels, IAP/push configuration, phased-release settings. |
+| Upgrade | Previous-build migration and clean-install recovery. The previous TestFlight build is not available locally. |
+
+An Xcode simulator cannot run this installed TestFlight artifact as equivalent
+evidence: the distribution binary is device/TestFlight signed and no simulator
+build or source checkout was provided.
+
+## Fix and retest order
+
+1. Remove unintended iPad/Mac device availability or formally add and test those
+   surfaces; rebuild.
+2. Prevent auth request/response disk caching in both client and API, then prove
+   the synthetic password sentinel is absent after login failure and process
+   death.
+3. Align OneSignal with production APNs and pass a real-device push matrix.
+4. Add the Expo release channel, align build number 15, and remove/justify dev
+   client/local-network residue.
+5. Replace the Cielo OneLink/App Store target and verify share/unfurl on iPhone.
+6. Reconcile PostHog behavior, privacy manifest, consent, legal copy, and App
+   Store privacy labels.
+7. Localize native permission strings and resolve the duplicate icon manifest.
+8. Upload a new TestFlight build and repeat the anonymous computer proxy plus a
+   real-iPhone critical path before any production promotion.

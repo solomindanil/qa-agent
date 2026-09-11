@@ -1,0 +1,526 @@
+import AxeBuilder from '@axe-core/playwright';
+import type { AxeResults } from 'axe-core';
+import {
+  type Locator,
+  type Page,
+  type Request,
+  type TestInfo,
+} from '@playwright/test';
+import { test, expect } from '../fixtures/authenticated.fixture';
+import {
+  isMutatingFirstPartyRequest,
+  partitionVerifiedAxeFingerprints,
+  type AxeFingerprint,
+  type VerifiedAxeFingerprint,
+} from '../cross-cutting';
+import { WorkspaceOperationsPage } from '../pages/workspace-operations.page';
+import { AUTHENTICATED_ROUTES, YOUR_WORK_PATH } from '../routes';
+
+const WCAG_TAGS = [
+  'wcag2a',
+  'wcag2aa',
+  'wcag21a',
+  'wcag21aa',
+  'wcag22a',
+  'wcag22aa',
+] as const;
+const VIEWPORTS = [
+  { width: 320, height: 800 },
+  { width: 375, height: 812 },
+  { width: 768, height: 1024 },
+  { width: 1024, height: 768 },
+  { width: 1440, height: 900 },
+] as const;
+const INTERACTIVE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[contenteditable="true"]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
+const routeNamed = (name: string) => {
+  const route = AUTHENTICATED_ROUTES.find((candidate) => candidate.name === name);
+  if (!route) throw new Error(`Missing authenticated route: ${name}`);
+  return route;
+};
+
+const expectNoHorizontalOverflow = async (page: Page, label: string) => {
+  const dimensions = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(
+    dimensions.scrollWidth,
+    `${label}: document overflow ${dimensions.scrollWidth}/${dimensions.clientWidth}`,
+  ).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+};
+
+const expectInsideViewport = async (
+  locator: Locator,
+  viewport: { width: number; height: number },
+) => {
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height + 1);
+};
+
+const expectTouchTarget = async (locator: Locator) => {
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeGreaterThanOrEqual(24);
+  expect(box!.height).toBeGreaterThanOrEqual(24);
+};
+
+type AxeRouteName = 'Home' | 'Work items' | 'Integrations';
+
+// Captured read-only in signed-in Chrome on 2026-07-27. These are literal
+// route/rule/impact/axe-target tuples: a selector change is intentionally new.
+const VERIFIED_NUANU_15_AXE_FINGERPRINTS = [
+  {
+    ticket: 'NUANU-15', routeName: 'Home', control: 'ai-toggle',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.size-8.hover\\:bg-custom-background-80.hover\\:text-custom-text-200',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Home', control: 'sidebar-toggle-main',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.pt-3 > .h-full.flex-col.w-full > .px-3.gap-3.flex-col > .px-2.gap-2.justify-between > .gap-2.items-center.flex > .hover\\:text-custom-primary-100.size-6.hover\\:bg-custom-background-90:nth-child(2)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Home', control: 'sidebar-toggle-peek',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.rounded-tl-none > .h-full.flex-col.w-full > .px-3.gap-3.flex-col > .px-2.gap-2.justify-between > .gap-2.items-center.flex > .hover\\:text-custom-primary-100.size-6.hover\\:bg-custom-background-90:nth-child(2)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Home', control: 'ai-close-main',
+    ruleId: 'button-name', impact: 'critical',
+    target: 'div[aria-label="AI Chat sidebar"] > aside > .bg-custom-background-100.h-full.flex-col > .shrink-0 > .h-11.px-4.justify-between > .gap-1.items-center.flex > .size-6.hover\\:text-custom-text-200.hover\\:bg-custom-background-80:nth-child(3)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Home', control: 'ai-close-peek',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.rounded-tr-none > .bg-custom-background-100.h-full.flex-col > .shrink-0 > .h-11.px-4.justify-between > .gap-1.items-center.flex > .size-6.hover\\:text-custom-text-200.hover\\:bg-custom-background-80:nth-child(3)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Home', control: 'notifications',
+    ruleId: 'link-name', impact: 'serious', target: 'a[href$="notifications/"]',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Work items', control: 'ai-toggle',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.size-8.hover\\:text-custom-text-200.transition-colors',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Work items', control: 'sidebar-toggle-main',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.pt-3 > .flex-col.h-full.w-full > .px-3.gap-3.flex-col > .justify-between.px-2.gap-2 > .gap-2.items-center.flex > .hover\\:text-custom-primary-100.size-6.hover\\:bg-custom-background-90:nth-child(2)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Work items', control: 'sidebar-toggle-peek',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.rounded-tl-none > .flex-col.h-full.w-full > .px-3.gap-3.flex-col > .justify-between.px-2.gap-2 > .gap-2.items-center.flex > .hover\\:text-custom-primary-100.size-6.hover\\:bg-custom-background-90:nth-child(2)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Work items', control: 'ai-close-main',
+    ruleId: 'button-name', impact: 'critical',
+    target: 'div[aria-label="AI Chat sidebar"] > aside > .bg-custom-background-100.flex-col.h-full > .shrink-0 > .h-11.px-4.justify-between > .gap-1.items-center.flex > .hover\\:text-custom-text-200.size-6.justify-center:nth-child(3)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Work items', control: 'ai-close-peek',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.rounded-tr-none > .bg-custom-background-100.flex-col.h-full > .shrink-0 > .h-11.px-4.justify-between > .gap-1.items-center.flex > .hover\\:text-custom-text-200.size-6.justify-center:nth-child(3)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Work items', control: 'notifications',
+    ruleId: 'link-name', impact: 'serious', target: 'a[href$="notifications/"]',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Integrations', control: 'ai-toggle',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.size-8.hover\\:text-custom-text-200.text-custom-text-300',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Integrations', control: 'sidebar-toggle-main',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.pt-3 > .flex-col.h-full.w-full > .gap-3.px-3.flex-col > .gap-2.px-2.justify-between > .gap-2.items-center.flex > .hover\\:text-custom-primary-100.hover\\:bg-custom-background-90.size-6:nth-child(2)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Integrations', control: 'sidebar-toggle-peek',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.rounded-tl-none > .flex-col.h-full.w-full > .gap-3.px-3.flex-col > .gap-2.px-2.justify-between > .gap-2.items-center.flex > .hover\\:text-custom-primary-100.hover\\:bg-custom-background-90.size-6:nth-child(2)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Integrations', control: 'ai-close-main',
+    ruleId: 'button-name', impact: 'critical',
+    target: 'div[aria-label="AI Chat sidebar"] > aside > .bg-custom-background-100.flex-col.h-full > .shrink-0 > .h-11.px-4.justify-between > .gap-1.items-center.flex > .size-6.hover\\:text-custom-text-200.hover\\:bg-custom-background-80:nth-child(3)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Integrations', control: 'ai-close-peek',
+    ruleId: 'button-name', impact: 'critical',
+    target: '.rounded-tr-none > .bg-custom-background-100.flex-col.h-full > .shrink-0 > .h-11.px-4.justify-between > .gap-1.items-center.flex > .size-6.hover\\:text-custom-text-200.hover\\:bg-custom-background-80:nth-child(3)',
+  },
+  {
+    ticket: 'NUANU-15', routeName: 'Integrations', control: 'notifications',
+    ruleId: 'link-name', impact: 'serious', target: 'a[href$="notifications/"]',
+  },
+] as const satisfies readonly VerifiedAxeFingerprint[];
+
+const axeFindings = (results: AxeResults): AxeFingerprint[] =>
+  results.violations.flatMap((violation) =>
+    violation.nodes.map((node) => ({
+      ruleId: violation.id,
+      impact: violation.impact ?? 'unknown',
+      target: node.target.join(' > '),
+    })),
+  );
+
+const visibleDialogControls = (dialog: Locator) =>
+  dialog.locator(INTERACTIVE_SELECTOR).filter({ visible: true });
+
+const activeDialogControlIndex = (dialog: Locator) =>
+  dialog.evaluate((element, selector) => {
+    const controls = [...element.querySelectorAll<HTMLElement>(selector)].filter(
+      (control) => {
+        const style = window.getComputedStyle(control);
+        const rect = control.getBoundingClientRect();
+        return (
+          style.visibility !== 'hidden' &&
+          style.display !== 'none' &&
+          rect.width > 0 &&
+          rect.height > 0
+        );
+      },
+    );
+    return controls.indexOf(document.activeElement as HTMLElement);
+  }, INTERACTIVE_SELECTOR);
+
+const traverseEveryDialogControl = async (
+  page: Page,
+  dialog: Locator,
+  direction: 'Tab' | 'Shift+Tab',
+  interactiveCount: number,
+) => {
+  const seen = new Set<number>();
+  const initial = await activeDialogControlIndex(dialog);
+  if (initial >= 0) seen.add(initial);
+
+  for (let step = 0; step <= interactiveCount; step += 1) {
+    await page.keyboard.press(direction);
+    expect(
+      await dialog.evaluate((element) =>
+        element.contains(document.activeElement),
+      ),
+    ).toBe(true);
+    const activeIndex = await activeDialogControlIndex(dialog);
+    expect(activeIndex).toBeGreaterThanOrEqual(0);
+    seen.add(activeIndex);
+  }
+
+  expect([...seen].sort((left, right) => left - right)).toEqual(
+    Array.from({ length: interactiveCount }, (_, index) => index),
+  );
+};
+
+const expectNavigationMode = async (
+  page: Page,
+  workspacePage: { mainSidebar: Locator; sidebarToggle: Locator },
+  viewport: { width: number; height: number },
+  testInfo: TestInfo,
+) => {
+  await expect(workspacePage.mainSidebar).toHaveCount(1);
+  const sidebarWidth = await workspacePage.mainSidebar.evaluate((element) =>
+    Math.round(element.getBoundingClientRect().width),
+  );
+  const visibleToggle = workspacePage.sidebarToggle.filter({ visible: true });
+  const mode = sidebarWidth > 1 ? 'desktop-sidebar' : 'mobile-toggle';
+  testInfo.annotations.push({
+    type: 'responsive navigation mode',
+    description: `${viewport.width}x${viewport.height}:${mode}`,
+  });
+
+  if (viewport.width <= 375) expect(mode).toBe('mobile-toggle');
+  if (viewport.width >= 1024) expect(mode).toBe('desktop-sidebar');
+  if (mode === 'mobile-toggle') {
+    await expect(visibleToggle).toHaveCount(1);
+    await expectInsideViewport(visibleToggle, viewport);
+    await expectTouchTarget(visibleToggle);
+  } else {
+    await expectInsideViewport(workspacePage.mainSidebar, viewport);
+  }
+};
+
+test.describe('Nuanu Flow authenticated responsive read-only surfaces', () => {
+  for (const viewport of VIEWPORTS) {
+    test(`shell, lists, and meetings remain usable at ${viewport.width}px`, async ({
+      page,
+      assertSandbox,
+      workspacePage,
+    }, testInfo) => {
+      await page.setViewportSize(viewport);
+
+      const home = routeNamed('Home');
+      await workspacePage.goto(home.path);
+      await expect(workspacePage.routeReady(home)).toBeVisible({ timeout: 15_000 });
+      await assertSandbox();
+      await expectNoHorizontalOverflow(page, `Home@${viewport.width}`);
+      await expectInsideViewport(workspacePage.routeReady(home), viewport);
+      await expectNavigationMode(page, workspacePage, viewport, testInfo);
+
+      const workItems = routeNamed('Work items');
+      await workspacePage.goto(workItems.path);
+      await expect(workspacePage.routeReady(workItems)).toBeVisible({
+        timeout: 15_000,
+      });
+      await assertSandbox();
+      await expectNoHorizontalOverflow(page, `Work items@${viewport.width}`);
+      await expectInsideViewport(workspacePage.routeReady(workItems), viewport);
+      await expectTouchTarget(workspacePage.routeReady(workItems));
+
+      const processes = routeNamed('Processes');
+      await workspacePage.goto(processes.path);
+      await expect(workspacePage.routeReady(processes)).toBeVisible({
+        timeout: 15_000,
+      });
+      await assertSandbox();
+      await expectNoHorizontalOverflow(page, `Processes@${viewport.width}`);
+      await expectInsideViewport(workspacePage.routeReady(processes), viewport);
+      await expectTouchTarget(workspacePage.routeReady(processes));
+
+      await workspacePage.goto(home.path);
+      const addTranscript = page.getByRole('button', {
+        name: 'Add Transcript',
+        exact: true,
+      });
+      await expect(addTranscript).toBeVisible({ timeout: 15_000 });
+      await assertSandbox();
+      await expectInsideViewport(addTranscript, viewport);
+      await expectTouchTarget(addTranscript);
+    });
+
+    test(`Team dialog is contained and mutation-free at ${viewport.width}px`, async ({
+      page,
+      assertSandbox,
+    }) => {
+      await page.setViewportSize(viewport);
+      const operations = new WorkspaceOperationsPage(page);
+      const mutations: string[] = [];
+      const listener = (request: Request) => {
+        if (isMutatingFirstPartyRequest(request.method(), request.url())) {
+          mutations.push(request.method());
+        }
+      };
+      page.on('request', listener);
+      try {
+        await operations.gotoTeams();
+        await assertSandbox();
+        await expect(operations.addTeamButtons).toHaveCount(2);
+        const opener = operations.addTeamButtons.first();
+        const dialog = await operations.openTeamCreate();
+        await expect(page.getByRole('dialog')).toHaveCount(1);
+        await expect(
+          dialog.getByRole('heading', { name: 'Create team', exact: true }),
+        ).toBeVisible();
+        await expectInsideViewport(
+          dialog.getByRole('heading', { name: 'Create team', exact: true }),
+          viewport,
+        );
+
+        const controls = visibleDialogControls(dialog);
+        const interactiveCount = await controls.count();
+        expect(interactiveCount).toBeGreaterThanOrEqual(5);
+        const cancel = dialog.getByRole('button', {
+          name: 'Cancel',
+          exact: true,
+        });
+        await expect(cancel).toHaveCount(1);
+        for (const edge of [controls.first(), controls.last(), cancel]) {
+          await edge.scrollIntoViewIfNeeded();
+          await expectInsideViewport(edge, viewport);
+        }
+        await traverseEveryDialogControl(page, dialog, 'Tab', interactiveCount);
+        await traverseEveryDialogControl(
+          page,
+          dialog,
+          'Shift+Tab',
+          interactiveCount,
+        );
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeHidden();
+        await expect(opener).toBeFocused();
+      } finally {
+        page.off('request', listener);
+        expect(mutations).toEqual([]);
+      }
+    });
+  }
+
+  test('Team dialog exposes one accessible dialog name', async ({
+    page,
+    assertSandbox,
+  }) => {
+    const operations = new WorkspaceOperationsPage(page);
+    const mutations: string[] = [];
+    const listener = (request: Request) => {
+      if (isMutatingFirstPartyRequest(request.method(), request.url())) {
+        mutations.push(request.method());
+      }
+    };
+    page.on('request', listener);
+    try {
+      await operations.gotoTeams();
+      await assertSandbox();
+      const dialog = await operations.openTeamCreate();
+
+      await expect(
+        page.getByRole('dialog', { name: 'Create team', exact: true }),
+      ).toHaveCount(1);
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+    } finally {
+      page.off('request', listener);
+      expect(mutations).toEqual([]);
+    }
+  });
+
+  for (const name of ['Home', 'Work items', 'Integrations']) {
+    test(`${name} has no untracked automated A/AA violations`, async ({
+      page,
+      assertSandbox,
+      workspacePage,
+    }, testInfo) => {
+      const route = routeNamed(name);
+      await workspacePage.goto(route.path);
+      await expect(workspacePage.routeReady(route)).toBeVisible({ timeout: 15_000 });
+      await assertSandbox();
+
+      const results = await new AxeBuilder({ page })
+        .withTags([...WCAG_TAGS])
+        .analyze();
+      const routeName = name as AxeRouteName;
+      const fingerprints = partitionVerifiedAxeFingerprints(
+        routeName,
+        axeFindings(results),
+        VERIFIED_NUANU_15_AXE_FINGERPRINTS,
+      );
+      if (fingerprints.known.length > 0) {
+        testInfo.annotations.push({
+          type: 'NUANU-15 exact axe fingerprints',
+          description: fingerprints.known.join('\n'),
+        });
+      }
+      expect(fingerprints.unexpected).toEqual([]);
+    });
+  }
+
+  test('work-item detail responsive contract awaits a current-run fixture', async () => {
+    test.fixme(
+      true,
+      'Task 10 is read-only and no current-run response-owned work-item fixture is exported for the release matrix.',
+    );
+  });
+
+  test('process editor responsive contract awaits a current-run fixture', async () => {
+    test.fixme(
+      true,
+      'Task 10 is read-only and no current-run response-owned process fixture is exported for the release matrix.',
+    );
+  });
+
+  test('meeting detail responsive contract awaits a current-run fixture', async () => {
+    test.fixme(
+      true,
+      'Task 10 is read-only and no current-run response-owned meeting fixture is exported for the release matrix.',
+    );
+  });
+});
+
+test.describe('NUANU-15 exact accessible-name regressions', () => {
+  test('sidebar toggle has a nonempty accessible name', async ({
+    assertSandbox,
+    workspacePage,
+  }) => {
+    const home = routeNamed('Home');
+    await workspacePage.goto(home.path);
+    await expect(workspacePage.routeReady(home)).toBeVisible({ timeout: 15_000 });
+    await assertSandbox();
+    const toggle = workspacePage.sidebarToggle.filter({ visible: true });
+    await expect(toggle).toHaveCount(1);
+
+    test.fail(true, 'NUANU-15: sidebar toggle has no accessible name');
+    await expect(toggle).toHaveAccessibleName(/\S/u);
+  });
+
+  test('notifications link has a nonempty accessible name', async ({
+    assertSandbox,
+    workspacePage,
+  }) => {
+    const home = routeNamed('Home');
+    await workspacePage.goto(home.path);
+    await expect(workspacePage.routeReady(home)).toBeVisible({ timeout: 15_000 });
+    await assertSandbox();
+    await expect(workspacePage.notifications).toHaveCount(1);
+
+    test.fail(true, 'NUANU-15: notifications link has no accessible name');
+    await expect(workspacePage.notifications).toHaveAccessibleName(/\S/u);
+  });
+
+  test('Your work filter has a nonempty accessible name', async ({
+    page,
+    assertSandbox,
+    workspacePage,
+  }) => {
+    await workspacePage.goto(YOUR_WORK_PATH);
+    await assertSandbox();
+    const filter = page.locator('button:has(svg.lucide-list-filter)');
+    await expect(filter).toHaveCount(1, { timeout: 15_000 });
+
+    test.fail(true, 'NUANU-15: Your work filter has no accessible name');
+    await expect(filter).toHaveAccessibleName(/\S/u);
+  });
+
+  test('AI toggle has a nonempty accessible name', async ({
+    page,
+    assertSandbox,
+    workspacePage,
+  }) => {
+    const home = routeNamed('Home');
+    await workspacePage.goto(home.path);
+    await expect(workspacePage.routeReady(home)).toBeVisible({ timeout: 15_000 });
+    await assertSandbox();
+    const toggle = workspacePage.aiToggle;
+    await expect(toggle).toHaveCount(1);
+
+    test.fail(true, 'NUANU-15: AI toggle has no accessible name');
+    await expect(toggle).toHaveAccessibleName(/\S/u);
+  });
+
+  test('AI close control has a nonempty accessible name', async ({
+    page,
+    assertSandbox,
+    workspacePage,
+  }) => {
+    const home = routeNamed('Home');
+    await workspacePage.goto(home.path);
+    await expect(workspacePage.routeReady(home)).toBeVisible({ timeout: 15_000 });
+    await assertSandbox();
+    const toggle = workspacePage.aiToggle;
+    await expect(toggle).toHaveCount(1);
+    await toggle.click();
+    const sidebar = page.getByRole('complementary', {
+      name: 'AI Chat sidebar',
+      exact: true,
+    });
+    await expect(sidebar).toBeVisible();
+    const close = sidebar.locator('button:has(svg.lucide-x)');
+    await expect(close).toHaveCount(1);
+
+    test.fail(true, 'NUANU-15: AI close control has no accessible name');
+    await expect(close).toHaveAccessibleName(/\S/u);
+  });
+});

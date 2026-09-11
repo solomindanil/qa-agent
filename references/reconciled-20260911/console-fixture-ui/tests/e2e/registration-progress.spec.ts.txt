@@ -1,0 +1,122 @@
+import { expect, test, type Page } from "@playwright/test";
+
+const MOBILE = { width: 390, height: 844 };
+const WORKSPACE_PATH = "/private/tmp/qa-console-registration-progress";
+const DIGEST = `sha256:${"b".repeat(64)}`;
+
+// The intake keeps its single-request seam: /api/cli/init answers once, with a
+// final lifecycle. These stubs stand in for that answer, so the progress
+// presentation is exercised without running the real kernel.
+async function stubInit(page: Page, lifecycleState: string, nextAction: string): Promise<void> {
+  await page.route("**/api/cli/init", (route) => route.fulfill({
+    json: {
+      command: "qa-starter init",
+      exitCode: 0,
+      ok: true,
+      code: "OK",
+      durationMs: 1234,
+      envelope: { data: { lifecycleState, nextAction, workspaceDigest: DIGEST } },
+    },
+  }));
+}
+
+async function submitIntake(page: Page, workspacePath = WORKSPACE_PATH): Promise<void> {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New workspace", exact: true }).click();
+  await page.getByLabel("Product name").fill("Progress Product");
+  await page.getByLabel("Brief").fill("A product brief long enough to derive a digest from.");
+  await page.getByLabel("Workspace path").fill(workspacePath);
+  await page.getByRole("button", { name: "Create workspace" }).click();
+}
+
+test("the build pipeline renders the six accepted phases before anything is submitted", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "New workspace", exact: true }).click();
+
+  const pipeline = page.getByRole("list", { name: "Registration build phases" });
+  await expect(pipeline).toBeVisible();
+  await expect(pipeline.getByRole("listitem")).toHaveCount(6);
+  for (const phase of ["QUEUED", "INITIALIZING", "DISCOVERING", "COMPILING", "PUBLISHING", "VALIDATING"]) {
+    await expect(pipeline.getByText(phase, { exact: true })).toBeVisible();
+  }
+});
+
+test("a baseline-approval build completes the pipeline and reports no runs or verdict", async ({ page }) => {
+  await stubInit(page, "BASELINE_APPROVAL_REQUIRED", "REVIEW_BASELINE");
+  await submitIntake(page);
+
+  const main = page.locator("main");
+  // The I2 evidence flow below repeats the same honest claim; these assertions
+  // are specifically about the registration panel's own outcome chips.
+  const progress = page.locator(".registration-progress");
+  await expect(main.getByText("BASELINE_APPROVAL_REQUIRED").first()).toBeVisible();
+  await expect(progress.getByText("Runs: none", { exact: true })).toBeVisible();
+  await expect(progress.getByText("Verdict: NOT_EVALUATED", { exact: true })).toBeVisible();
+  await expect(main.getByText("6/6", { exact: true })).toBeVisible();
+  await expect(main.getByText(/baseline review/i).first()).toBeVisible();
+});
+
+test("open workspace navigates the console to the created workspace", async ({ page }) => {
+  await stubInit(page, "BASELINE_APPROVAL_REQUIRED", "REVIEW_BASELINE");
+  // Every live read the console performs after the click, so the assertion is
+  // about which directory it actually asks for — not about what it renders.
+  const requestedDirs: string[] = [];
+  await page.route("**/api/workspace?*", (route) => {
+    const dir = new URL(route.request().url()).searchParams.get("dir");
+    if (dir !== null) requestedDirs.push(dir);
+    return route.continue();
+  });
+  await submitIntake(page);
+
+  await page.getByRole("button", { name: "Open workspace" }).click();
+
+  await expect(page.getByRole("button", { name: "Overview", exact: true })).toHaveAttribute("aria-current", "page");
+  // The console is now reading that directory live, not sample data.
+  await expect(page.getByRole("button", { name: "live", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => requestedDirs).toContain(WORKSPACE_PATH);
+});
+
+test("a workspace that stops at DISCOVERING never claims baseline approval", async ({ page }) => {
+  await stubInit(page, "DISCOVERING", "RUN_DISCOVERY");
+  await submitIntake(page);
+
+  const main = page.locator("main");
+  await expect(main.getByText("DISCOVERING").first()).toBeVisible();
+  await expect(main.getByText("RUN_DISCOVERY").first()).toBeVisible();
+  await expect(main.getByText("2/6", { exact: true })).toBeVisible();
+  await expect(main).not.toContainText("BASELINE_APPROVAL_REQUIRED");
+  await expect(main).not.toContainText("Verdict: PASS");
+});
+
+test("a failed build blocks the pipeline instead of reporting a workspace", async ({ page }) => {
+  await page.route("**/api/cli/init", (route) => route.fulfill({
+    json: {
+      command: "qa-starter init",
+      exitCode: 2,
+      ok: false,
+      code: "E_WORKSPACE_EXISTS",
+      durationMs: 42,
+      envelope: { data: {} },
+    },
+  }));
+  await submitIntake(page);
+
+  const main = page.locator("main");
+  await expect(main.getByRole("alert").filter({ hasText: "E_WORKSPACE_EXISTS" })).toBeVisible();
+  await expect(main.getByRole("button", { name: "Open workspace" })).toHaveCount(0);
+});
+
+test.describe("390px registration progress", () => {
+  test.use({ viewport: MOBILE });
+
+  test("the settled progress panel does not overflow horizontally", async ({ page }) => {
+    await stubInit(page, "BASELINE_APPROVAL_REQUIRED", "REVIEW_BASELINE");
+    await submitIntake(page);
+    await expect(page.locator(".registration-progress").getByText("Runs: none", { exact: true })).toBeVisible();
+
+    // The evidence flow renders below the progress panel, so this now guards
+    // the whole settled intake screen, not just the registration column.
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow, "intake progress overflowed horizontally").toBeLessThanOrEqual(0);
+  });
+});

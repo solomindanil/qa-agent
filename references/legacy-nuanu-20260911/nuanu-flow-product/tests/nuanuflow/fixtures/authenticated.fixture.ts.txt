@@ -1,0 +1,75 @@
+import { expect, test as base } from '@playwright/test';
+import { SANDBOX, CleanupLedger, createRunId, qaName } from './sandbox-data';
+import { WorkspacePage } from '../pages/workspace.page';
+
+type AuthFixtures = {
+  runId: string;
+  ownedName: (suffix: string) => string;
+  cleanupLedger: CleanupLedger;
+  workspacePage: WorkspacePage;
+  assertSandbox: () => Promise<void>;
+};
+
+export class CleanupResidualError extends Error {
+  constructor(readonly residuals: Awaited<ReturnType<CleanupLedger['cleanupAll']>>) {
+    super(
+      `Cleanup left residual IDs: ${residuals
+        .map((entry) => `${entry.kind}:${entry.id}`)
+        .join(', ')}`,
+    );
+    this.name = 'CleanupResidualError';
+  }
+}
+
+export const cleanupRegistered = async (cleanupLedger: CleanupLedger) => {
+  const residuals = await cleanupLedger.cleanupAll();
+  if (residuals.length > 0) throw new CleanupResidualError(residuals);
+};
+
+export const requireKnownBugFailure = (behaviorFailure: unknown): unknown => {
+  if (behaviorFailure !== undefined) return behaviorFailure;
+  throw new Error('NUANU-8 unexpectedly passed after guarded cleanup.');
+};
+
+export const captureKnownBugBehavior = async (
+  assertion: () => Promise<void>,
+): Promise<unknown | undefined> => {
+  try {
+    await assertion();
+    return undefined;
+  } catch (error) {
+    return error;
+  }
+};
+
+export const test = base.extend<AuthFixtures>({
+  runId: async ({}, use, testInfo) => {
+    await use(createRunId(testInfo.workerIndex));
+  },
+  ownedName: async ({ runId }, use) => {
+    await use((suffix) => qaName(runId, suffix));
+  },
+  cleanupLedger: async ({}, use) => {
+    const cleanupLedger = new CleanupLedger();
+    await use(cleanupLedger);
+    await cleanupRegistered(cleanupLedger);
+  },
+  workspacePage: async ({ page }, use) => {
+    await use(new WorkspacePage(page));
+  },
+  assertSandbox: async ({ page, workspacePage }, use) => {
+    await use(async () => {
+      expect(new URL(page.url()).pathname).toMatch(
+        new RegExp(`^/${SANDBOX.workspaceSlug}/`),
+      );
+      await expect(workspacePage.workspaceSwitcher).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(workspacePage.workspaceIdentity).toBeVisible({
+        timeout: 15_000,
+      });
+    });
+  },
+});
+
+export { expect };

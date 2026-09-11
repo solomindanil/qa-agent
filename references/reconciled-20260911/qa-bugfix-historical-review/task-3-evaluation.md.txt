@@ -1,0 +1,19 @@
+# G0 Task 3: fix-prompt artifact rehearsal
+
+Use the assigned qa-bugfix skill and fix-prompt template. This is an offline task with fully supplied issue data, not a live tracker run. Do not access a tracker, URL, credentials, other reports or other agents. Do not edit files. Produce the requested compact fix-prompt excerpts and next actions, not a review of the skill.
+
+## A: Nuanu Flow pack, prepare only
+
+User: «Подготовь промпт разработчику для ORCH-14. Только текст, не пиши в трекер и не меняй продукт».
+
+Current cwd is an old generic QA repository. The readable registered Orchard pack selects Nuanu Flow workspace orchard/project ORCH and Ready for prod as the QA handoff. The official Flow plugin is available; Linear is not. Current issue snapshot is supplied in full: ORCH-14, first-link-email, staging candidate source v7. A fresh Telegram-created account with no user email enters its first email. Confirmation asks for the inaccessible old synthetic email as well; user cannot finish. Correct contract: first user-email linking must not require inaccessible synthetic inbox confirmation. Reproduction screenshot and API response are attached to the supplied issue snapshot; confirmed before fix. User account identities/credentials are intentionally omitted. A QA regression exists; its assertions and fixture have not yet been reviewed. Product code is outside QA ownership.
+
+Give (1) the chosen workflow/tracker, (2) the acceptance-criteria and recommended-workflow sections of the fix prompt, (3) any requested setup or human input. Other template sections can be summarized in one sentence.
+
+## B: valid Linear fix verification
+
+User: «Проверь LYNX-7 после фикса. Если действительно исправлено, QA может перевести его в Done».
+
+This separate existing product pack selects Linear project LYNX and Done after deployed original-scenario verification. It allows a scoped transition after evidence; current product/candidate identity is known. The original bug is: submitting a valid reset request in RU displays an English error when the backend rejects it. A fresh run now says “Expected to fail, but passed”. The underlying test only asserts that the page has a title; it has not submitted the reset form or observed that error branch. No current original-scenario evidence exists. Read-only source/trace inspection and a controlled test-account retest are available.
+
+Give the present conclusion, exact next action, and whether any tracker mutation or regression-marker change is justified now. This case is not related to Orchard.

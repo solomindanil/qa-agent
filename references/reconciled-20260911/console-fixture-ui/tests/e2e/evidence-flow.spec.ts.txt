@@ -1,0 +1,174 @@
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+const MOBILE = { width: 390, height: 844 };
+const WORKSPACE_PATH = "/private/tmp/qa-console-evidence-flow";
+const DIGEST = `sha256:${"d".repeat(64)}`;
+
+// The I2 routes from design §7 do not exist on the bridge yet, so the flow runs
+// on the labelled UI fixture adapter. Only /api/cli/init is stubbed here — the
+// evidence walk below makes no network call at all.
+async function stubInit(page: Page, lifecycleState: string, nextAction: string): Promise<void> {
+  await page.route("**/api/cli/init", (route) => route.fulfill({
+    json: {
+      command: "qa-starter init",
+      exitCode: 0,
+      ok: true,
+      code: "OK",
+      durationMs: 1234,
+      envelope: { data: { lifecycleState, nextAction, workspaceDigest: DIGEST } },
+    },
+  }));
+}
+
+function flowOf(page: Page): Locator {
+  return page.getByRole("region", { name: "Safe first evidence" });
+}
+
+async function register(
+  page: Page,
+  lifecycleState = "BASELINE_APPROVAL_REQUIRED",
+  nextAction = "REVIEW_BASELINE",
+): Promise<Locator> {
+  await stubInit(page, lifecycleState, nextAction);
+  await page.goto("/");
+  await page.getByRole("button", { name: "New workspace", exact: true }).click();
+  await page.getByLabel("Product name").fill("Evidence Product");
+  await page.getByLabel("Brief").fill("A product brief long enough to derive a digest from.");
+  await page.getByLabel("Workspace path").fill(WORKSPACE_PATH);
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  const flow = flowOf(page);
+  await expect(flow).toBeVisible();
+  return flow;
+}
+
+/** Baseline → dry-run scope. Resolves once the probe action is offered. */
+async function approveBaseline(flow: Locator): Promise<void> {
+  await flow.getByRole("button", { name: "Approve this exact baseline" }).click();
+  await expect(flow.getByRole("button", { name: "Run read-only probe" })).toBeVisible();
+}
+
+async function expectNoRunClaimed(flow: Locator): Promise<void> {
+  await expect(flow.getByText("Runs: none", { exact: true })).toBeVisible();
+  await expect(flow.getByText("Verdict: NOT_EVALUATED", { exact: true })).toBeVisible();
+}
+
+test("a registered baseline shows the four gates and claims no run or verdict", async ({ page }) => {
+  const flow = await register(page);
+
+  const stepper = flow.getByRole("list", { name: "Safe first evidence steps" });
+  await expect(stepper.getByRole("listitem")).toHaveCount(4);
+  for (const title of ["Exact baseline review", "Dry-run scope", "Read-only probe approval", "Terminal evidence"]) {
+    await expect(stepper.getByText(title, { exact: true })).toBeVisible();
+  }
+  await expectNoRunClaimed(flow);
+
+  // The exact digests under review, and the reason a PASS is unreachable.
+  await expect(flow.getByText("baseline-approval-receipt.v1", { exact: true })).toBeVisible();
+  await expect(flow.getByText("unresolved oracles", { exact: true })).toBeVisible();
+  // Nothing downstream is offered before the baseline is approved.
+  await expect(flow.getByRole("button", { name: "Run read-only probe" })).toHaveCount(0);
+  await expect(flow.getByRole("button", { name: "Accept release" })).toHaveCount(0);
+});
+
+test("approving the baseline compiles a bounded read-only scope and still reports no run", async ({ page }) => {
+  const flow = await register(page);
+  await approveBaseline(flow);
+
+  await expect(flow.getByText("discovery-run-plan.v1", { exact: true })).toBeVisible();
+  await expect(flow.getByText("GET", { exact: true })).toBeVisible();
+  await expect(flow.getByText("read_only", { exact: true })).toBeVisible();
+  await expect(flow.getByText("≤ 3 redirects")).toBeVisible();
+  await expect(flow.getByText("≤ 256 KiB response")).toBeVisible();
+  await expect(flow.getByText("≤ 15s timeout")).toBeVisible();
+
+  // The scope is a dry run: still no receipt, so still no run and no verdict.
+  await expectNoRunClaimed(flow);
+});
+
+test("the read-only probe produces INCONCLUSIVE, never PASS, and Accept release stays disabled", async ({ page }) => {
+  const flow = await register(page);
+  await approveBaseline(flow);
+  await flow.getByRole("button", { name: "Run read-only probe" }).click();
+
+  await expect(flow.getByText("◐ INCONCLUSIVE")).toBeVisible();
+  await expect(flow.getByText("Verdict: INCONCLUSIVE", { exact: true })).toBeVisible();
+  await expect(flow.getByText("Verdict: NOT_EVALUATED", { exact: true })).toHaveCount(0);
+  await expect(flow.getByText("Verdict: PASS")).toHaveCount(0);
+  await expect(flow.getByText("Runs: none", { exact: true })).toHaveCount(0);
+
+  // One observation, metadata only, attributed to the fixture adapter.
+  await expect(flow.getByText("discovery-run-receipt.v1", { exact: true })).toBeVisible();
+  await expect(flow.getByText("content-type", { exact: true })).toBeVisible();
+  await expect(flow.getByText("fixture:qa-console-ui", { exact: true }).first()).toBeVisible();
+  await expect(flow.getByText(/not product acceptance/i)).toBeVisible();
+
+  const accept = flow.getByRole("button", { name: "Accept release" });
+  await expect(accept).toBeVisible();
+  await expect(accept).toBeDisabled();
+});
+
+test("an environment blocker ends the run with ENV_BLOCKED and no observation", async ({ page }) => {
+  const flow = await register(page);
+  await approveBaseline(flow);
+  await flow.getByRole("button", { name: "environment refuses" }).click();
+  await flow.getByRole("button", { name: "Run read-only probe" }).click();
+
+  await expect(flow.getByText("◌ ENV_BLOCKED")).toBeVisible();
+  await expect(flow.getByText("E_TLS_HANDSHAKE", { exact: true })).toBeVisible();
+  await expect(flow.getByText("environment blocker", { exact: true })).toBeVisible();
+  // A blocked run captured nothing — the observation section must be absent.
+  await expect(flow.getByText("Observation · metadata only")).toHaveCount(0);
+  await expect(flow.getByRole("button", { name: "Accept release" })).toBeDisabled();
+});
+
+test("a harness fault ends the run with HARNESS_FAIL and no observation", async ({ page }) => {
+  const flow = await register(page);
+  await approveBaseline(flow);
+  await flow.getByRole("button", { name: "harness faults" }).click();
+  await flow.getByRole("button", { name: "Run read-only probe" }).click();
+
+  await expect(flow.getByText("✗ HARNESS_FAIL")).toBeVisible();
+  await expect(flow.getByText("E_EVIDENCE_PERSIST", { exact: true })).toBeVisible();
+  await expect(flow.getByText("Observation · metadata only")).toHaveCount(0);
+  await expect(flow.getByRole("button", { name: "Accept release" })).toBeDisabled();
+});
+
+test("a workspace short of the baseline gate offers no approval and no probe", async ({ page }) => {
+  const flow = await register(page, "DISCOVERING", "RUN_DISCOVERY");
+
+  await expect(flow.getByRole("button", { name: "Approve this exact baseline" })).toHaveCount(0);
+  await expect(flow.getByRole("button", { name: "Run read-only probe" })).toHaveCount(0);
+  await expectNoRunClaimed(flow);
+  // The gate copy names where the build actually stopped, and nothing more.
+  await expect(flow.getByText(/the build stopped at DISCOVERING/)).toBeVisible();
+  await expect(flow).not.toContainText("BASELINE_APPROVAL_REQUIRED");
+});
+
+test("the flow always names the fixture adapter it is driven by", async ({ page }) => {
+  const flow = await register(page);
+  await expect(flow.getByText("fixture", { exact: true })).toBeVisible();
+  await expect(flow.getByText(/no request leaves the browser and nothing is persisted/)).toBeVisible();
+});
+
+test.describe("390px safe first evidence", () => {
+  test.use({ viewport: MOBILE });
+
+  test("the whole walk stays usable and never overflows horizontally", async ({ page }) => {
+    const flow = await register(page);
+    const overflow = async () =>
+      page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+
+    await expectNoRunClaimed(flow);
+    expect(await overflow(), "baseline review overflowed at 390px").toBeLessThanOrEqual(0);
+
+    await approveBaseline(flow);
+    expect(await overflow(), "dry-run scope overflowed at 390px").toBeLessThanOrEqual(0);
+
+    await flow.getByRole("button", { name: "Run read-only probe" }).click();
+    await expect(flow.getByText("◐ INCONCLUSIVE")).toBeVisible();
+    expect(await overflow(), "terminal receipt overflowed at 390px").toBeLessThanOrEqual(0);
+
+    // Every action is reachable and correctly gated on a phone, too.
+    await expect(flow.getByRole("button", { name: "Accept release" })).toBeDisabled();
+  });
+});

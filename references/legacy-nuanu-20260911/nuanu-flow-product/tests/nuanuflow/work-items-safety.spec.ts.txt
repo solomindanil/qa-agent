@@ -1,0 +1,799 @@
+import { expect, test, type Page } from '@playwright/test';
+import { cleanupRegistered } from './fixtures/authenticated.fixture';
+import { CleanupLedger, SANDBOX } from './fixtures/sandbox-data';
+import {
+  assertExactVisibleOptionInventory,
+  assertExactOwnedCleanupTarget,
+  displaySectionLocator,
+  ExactPostResponseCollector,
+  reconcileExactPostCaptureFailures,
+  registerResponseOwnedWorkItems,
+  withBlockedExactPosts,
+} from './pages/work-items.page';
+
+const SYNTHETIC_ORIGIN = 'https://qa.invalid';
+const SYNTHETIC_ENDPOINT = `${SYNTHETIC_ORIGIN}/issues/`;
+const REQUESTED_NAME = 'QA E2E delayed response safety';
+
+const syntheticUuid = (number: number) =>
+  `00000000-0000-4000-8000-${number.toString().padStart(12, '0')}`;
+
+const IDS = Object.freeze({
+  delayedOne: syntheticUuid(51),
+  delayedTwo: syntheticUuid(52),
+  callbackError: syntheticUuid(61),
+  registeredAfterError: syntheticUuid(62),
+  malformed: syntheticUuid(71),
+  validAfterMalformed: syntheticUuid(72),
+  immediate: syntheticUuid(81),
+  stalled: syntheticUuid(82),
+  fast: syntheticUuid(83),
+  cancelledAction: syntheticUuid(84),
+  failedRequest: syntheticUuid(85),
+  lateAfterFormerDrain: syntheticUuid(86),
+  mismatchedName: syntheticUuid(91),
+  mismatchedProject: syntheticUuid(92),
+  cleanupTarget: syntheticUuid(93),
+  rapidOne: syntheticUuid(101),
+  rapidTwo: syntheticUuid(102),
+});
+
+const openSyntheticPage = async (page: Page) => {
+  await page.route(`${SYNTHETIC_ORIGIN}/**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<button id="save">Save</button>',
+    });
+  });
+  await page.goto(SYNTHETIC_ORIGIN);
+};
+
+const syntheticCreatedBody = (id: string, sequenceId: number) => ({
+  id,
+  name: REQUESTED_NAME,
+  project_id: SANDBOX.projectId,
+  sequence_id: sequenceId,
+  state_id: 'synthetic-state-id',
+});
+
+test('registers an immediate 201 before a long quiet window settles', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  await page.route(SYNTHETIC_ENDPOINT, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(syntheticCreatedBody(IDS.immediate, 81)),
+    });
+  });
+
+  const registeredIds: string[] = [];
+  const collector = new ExactPostResponseCollector(
+    page,
+    SYNTHETIC_ENDPOINT,
+    REQUESTED_NAME,
+    (created) => registeredIds.push(created.id),
+    { quietMs: 300, maxAdmissionMs: 600 },
+  );
+
+  await page.evaluate(
+    ({ endpoint, id }) => {
+      void fetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ id, sequenceId: 81 }),
+      });
+    },
+    { endpoint: SYNTHETIC_ENDPOINT, id: IDS.immediate },
+  );
+
+  let settled = false;
+  const settling = collector.settle({ requireAttempt: true }).then((capture) => {
+    settled = true;
+    return capture;
+  });
+
+  await expect.poll(() => registeredIds).toEqual([IDS.immediate]);
+  expect(settled).toBe(false);
+  const capture = await settling;
+  expect(capture.created.map(({ id }) => id)).toEqual([IDS.immediate]);
+});
+
+test('registers a fast second 201 while the first response is stalled', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  let releaseStalled = () => {};
+  const stalledGate = new Promise<void>((resolve) => {
+    releaseStalled = resolve;
+  });
+  await page.route(SYNTHETIC_ENDPOINT, async (route) => {
+    const { id, sequenceId } = JSON.parse(route.request().postData() ?? '{}') as {
+      id: string;
+      sequenceId: number;
+    };
+    if (id === IDS.stalled) {
+      await stalledGate;
+    }
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(syntheticCreatedBody(id, sequenceId)),
+    });
+  });
+
+  const registeredIds: string[] = [];
+  const collector = new ExactPostResponseCollector(
+    page,
+    SYNTHETIC_ENDPOINT,
+    REQUESTED_NAME,
+    (created) => registeredIds.push(created.id),
+    { quietMs: 60, maxAdmissionMs: 400 },
+  );
+
+  await page.evaluate(
+    ({ endpoint, ids }) => {
+      void fetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ id: ids.stalled, sequenceId: 82 }),
+      });
+      void fetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ id: ids.fast, sequenceId: 83 }),
+      });
+    },
+    { endpoint: SYNTHETIC_ENDPOINT, ids: IDS },
+  );
+
+  let settled = false;
+  const settling = collector.settle({ requireAttempt: true }).then((capture) => {
+    settled = true;
+    return capture;
+  });
+  try {
+    await expect.poll(() => registeredIds).toEqual([IDS.fast]);
+    expect(settled).toBe(false);
+  } finally {
+    releaseStalled();
+  }
+  const capture = await settling;
+
+  expect(registeredIds).toEqual([IDS.fast, IDS.stalled]);
+  expect(capture.created.map(({ id }) => id)).toEqual([
+    IDS.stalled,
+    IDS.fast,
+  ]);
+});
+
+test('drains a successful 201 after the triggering action times out', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  await page.route(SYNTHETIC_ENDPOINT, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(syntheticCreatedBody(IDS.cancelledAction, 84)),
+    });
+  });
+
+  const registeredIds: string[] = [];
+  const collector = new ExactPostResponseCollector(
+    page,
+    SYNTHETIC_ENDPOINT,
+    REQUESTED_NAME,
+    (created) => registeredIds.push(created.id),
+    { quietMs: 40, maxAdmissionMs: 300 },
+  );
+
+  const action = page.evaluate(
+    async ({ endpoint, id }) => {
+      await fetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ id, sequenceId: 84 }),
+      });
+    },
+    { endpoint: SYNTHETIC_ENDPOINT, id: IDS.cancelledAction },
+  );
+  let actionError: unknown;
+  try {
+    await Promise.race([
+      action,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('synthetic action timeout')), 10),
+      ),
+    ]);
+  } catch (error) {
+    actionError = error;
+  }
+
+  expect(actionError).toHaveProperty('message', 'synthetic action timeout');
+  const capture = await collector.settle({ requireAttempt: false });
+  await action;
+  expect(registeredIds).toEqual([IDS.cancelledAction]);
+  expect(capture.created.map(({ id }) => id)).toEqual([IDS.cancelledAction]);
+});
+
+test('records requestfailed without blocking a later successful 201', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  await page.route(SYNTHETIC_ENDPOINT, async (route) => {
+    const { id, sequenceId } = JSON.parse(route.request().postData() ?? '{}') as {
+      id: string;
+      sequenceId: number;
+    };
+    if (id === IDS.failedRequest) {
+      await route.abort('failed');
+      return;
+    }
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(syntheticCreatedBody(id, sequenceId)),
+    });
+  });
+
+  const registeredIds: string[] = [];
+  const collector = new ExactPostResponseCollector(
+    page,
+    SYNTHETIC_ENDPOINT,
+    REQUESTED_NAME,
+    (created) => registeredIds.push(created.id),
+    { quietMs: 50, maxAdmissionMs: 300 },
+  );
+  await page.evaluate(
+    ({ endpoint, ids }) => {
+      void fetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ id: ids.failedRequest, sequenceId: 85 }),
+      }).catch(() => {});
+      void fetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ id: ids.fast, sequenceId: 83 }),
+      });
+    },
+    { endpoint: SYNTHETIC_ENDPOINT, ids: IDS },
+  );
+
+  const capture = await collector.settle({ requireAttempt: true });
+  expect(registeredIds).toEqual([IDS.fast]);
+  expect(capture.responseCount).toBe(1);
+  expect(capture.failedAttempts).toEqual([
+    { requestOrdinal: 0, url: SYNTHETIC_ENDPOINT },
+  ]);
+});
+
+test('waits past the former drain deadline to register and clean an admitted 201', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  let releaseResponse = () => {};
+  const responseGate = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  await page.route(SYNTHETIC_ENDPOINT, async (route) => {
+    const { id, sequenceId } = JSON.parse(route.request().postData() ?? '{}') as {
+      id: string;
+      sequenceId: number;
+    };
+    await responseGate;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(syntheticCreatedBody(id, sequenceId)),
+    });
+  });
+  const cleanupLedger = new CleanupLedger();
+  const registeredIds: string[] = [];
+  const cleanedIds: string[] = [];
+  const collector = new ExactPostResponseCollector(
+    page,
+    SYNTHETIC_ENDPOINT,
+    REQUESTED_NAME,
+    (created) => {
+      registeredIds.push(created.id);
+      cleanupLedger.register({
+        kind: 'work-item',
+        id: created.id,
+        name: REQUESTED_NAME,
+        workspaceSlug: SANDBOX.workspaceSlug,
+        cleanup: async () => cleanedIds.push(created.id),
+      });
+    },
+    { quietMs: 20, maxAdmissionMs: 80 },
+  );
+  await page.evaluate(
+    ({ endpoint, id }) => {
+      void fetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ id, sequenceId: 86 }),
+      });
+    },
+    { endpoint: SYNTHETIC_ENDPOINT, id: IDS.lateAfterFormerDrain },
+  );
+
+  let settled = false;
+  const settling = collector.settle({ requireAttempt: true }).then((capture) => {
+    settled = true;
+    return capture;
+  });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 2_300));
+    expect(settled).toBe(false);
+    releaseResponse();
+    const capture = await settling;
+    expect(registeredIds).toEqual([IDS.lateAfterFormerDrain]);
+    expect(capture.attemptCount).toBe(1);
+    expect(capture.responseCount).toBe(1);
+    expect(capture.created.map(({ id }) => id)).toEqual([
+      IDS.lateAfterFormerDrain,
+    ]);
+  } finally {
+    releaseResponse();
+    await cleanupRegistered(cleanupLedger);
+  }
+  expect(cleanedIds).toEqual([IDS.lateAfterFormerDrain]);
+});
+
+test('never registers or authorizes deletion for mismatched 201 identities', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  const nonCanonicalId = 'mismatched-response-id';
+  await page.route(SYNTHETIC_ENDPOINT, async (route) => {
+    const { kind } = JSON.parse(route.request().postData() ?? '{}') as {
+      kind: 'name' | 'project' | 'id';
+    };
+    const bodies = {
+      name: {
+        ...syntheticCreatedBody(IDS.mismatchedName, 91),
+        name: 'QA E2E different pre-existing item',
+      },
+      project: {
+        ...syntheticCreatedBody(IDS.mismatchedProject, 92),
+        project_id: 'different-project-id',
+      },
+      id: syntheticCreatedBody(nonCanonicalId, 93),
+    };
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(bodies[kind]),
+    });
+  });
+
+  const registeredIds: string[] = [];
+  const collector = new ExactPostResponseCollector(
+    page,
+    SYNTHETIC_ENDPOINT,
+    REQUESTED_NAME,
+    (created) => registeredIds.push(created.id),
+    { quietMs: 50, maxAdmissionMs: 300 },
+  );
+  await page.evaluate(
+    ({ endpoint }) => {
+      for (const kind of ['name', 'project', 'id']) {
+        void fetch(endpoint, { method: 'POST', body: JSON.stringify({ kind }) });
+      }
+    },
+    { endpoint: SYNTHETIC_ENDPOINT },
+  );
+
+  const capture = await collector.settle({ requireAttempt: true });
+  expect(registeredIds).toEqual([]);
+  expect(capture.contractErrors).toHaveLength(3);
+
+  const inspectedIds: string[] = [];
+  const deletionAuthorizations: string[] = [];
+  await expect(
+    reconcileExactPostCaptureFailures(capture, async (id) => {
+      inspectedIds.push(id);
+      const fetched =
+        id === IDS.mismatchedName
+          ? {
+              id,
+              name: 'QA E2E different pre-existing item',
+              project_id: SANDBOX.projectId,
+            }
+          : { id, name: REQUESTED_NAME, project_id: 'different-project-id' };
+      assertExactOwnedCleanupTarget(fetched, id, REQUESTED_NAME);
+      deletionAuthorizations.push(id);
+    }),
+  ).rejects.toThrow('Exact POST capture failed after guarded cleanup.');
+
+  expect(inspectedIds).toEqual([
+    IDS.mismatchedProject,
+    IDS.mismatchedName,
+  ]);
+  expect(deletionAuthorizations).toEqual([]);
+});
+
+test('captures two delayed 201 IDs before a later UI failure cleanup', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  await page.route(SYNTHETIC_ENDPOINT, async (route) => {
+    const { id, sequenceId } = JSON.parse(route.request().postData() ?? '{}') as {
+      id: string;
+      sequenceId: number;
+    };
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(syntheticCreatedBody(id, sequenceId)),
+    });
+  });
+
+  const cleanupLedger = new CleanupLedger();
+  const deletedIds: string[] = [];
+  const collector = new ExactPostResponseCollector(
+    page,
+    SYNTHETIC_ENDPOINT,
+    REQUESTED_NAME,
+    (created) => {
+      cleanupLedger.register({
+        kind: 'work-item',
+        id: created.id,
+        name: created.name,
+        workspaceSlug: SANDBOX.workspaceSlug,
+        cleanup: async () => deletedIds.push(created.id),
+      });
+    },
+    { quietMs: 60, maxAdmissionMs: 300 },
+  );
+
+  await page.evaluate(
+    ({ endpoint, ids }) => {
+      void fetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ id: ids.delayedOne, sequenceId: 51 }),
+      });
+      setTimeout(() => {
+        void fetch(endpoint, {
+          method: 'POST',
+          body: JSON.stringify({ id: ids.delayedTwo, sequenceId: 52 }),
+        });
+      }, 35);
+    },
+    { endpoint: SYNTHETIC_ENDPOINT, ids: IDS },
+  );
+
+  const capture = await collector.settle({ requireAttempt: true });
+
+  expect(capture.attemptCount).toBe(2);
+  expect(capture.created.map(({ id }) => id)).toEqual([
+    IDS.delayedOne,
+    IDS.delayedTwo,
+  ]);
+  expect(capture.contractErrors).toEqual([]);
+  expect(capture.registrationErrors).toEqual([]);
+
+  try {
+    throw new Error('later dialog assertion failed');
+  } catch (error) {
+    expect(error).toHaveProperty('message', 'later dialog assertion failed');
+  } finally {
+    await cleanupRegistered(cleanupLedger);
+  }
+
+  expect(deletedIds).toEqual([IDS.delayedTwo, IDS.delayedOne]);
+});
+
+test('continues registering later 201 IDs after the first callback throws', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  await page.route(SYNTHETIC_ENDPOINT, async (route) => {
+    const { id, sequenceId } = JSON.parse(route.request().postData() ?? '{}') as {
+      id: string;
+      sequenceId: number;
+    };
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(syntheticCreatedBody(id, sequenceId)),
+    });
+  });
+
+  const observedIds: string[] = [];
+  const fixtureLedgerIds: string[] = [];
+  const collector = new ExactPostResponseCollector(
+    page,
+    SYNTHETIC_ENDPOINT,
+    REQUESTED_NAME,
+    (created) => {
+      observedIds.push(created.id);
+      if (created.id === IDS.callbackError) {
+        throw new Error('synthetic registration error');
+      }
+      fixtureLedgerIds.push(created.id);
+    },
+    { quietMs: 60, maxAdmissionMs: 300 },
+  );
+
+  await page.evaluate(
+    ({ endpoint, ids }) => {
+      void fetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ id: ids.callbackError, sequenceId: 61 }),
+      });
+      setTimeout(() => {
+        void fetch(endpoint, {
+          method: 'POST',
+          body: JSON.stringify({ id: ids.registeredAfterError, sequenceId: 62 }),
+        });
+      }, 25);
+    },
+    { endpoint: SYNTHETIC_ENDPOINT, ids: IDS },
+  );
+
+  const capture = await collector.settle({ requireAttempt: true });
+
+  expect(observedIds).toEqual([
+    IDS.callbackError,
+    IDS.registeredAfterError,
+  ]);
+  expect(capture.created.map(({ id }) => id)).toEqual(observedIds);
+  expect(fixtureLedgerIds).toEqual([IDS.registeredAfterError]);
+  expect(capture.registrationErrors).toHaveLength(1);
+  expect(capture.registrationErrors[0]?.id).toBe(IDS.callbackError);
+
+  const immediatelyCleanedIds: string[] = [];
+  await expect(
+    reconcileExactPostCaptureFailures(capture, async (id) => {
+      immediatelyCleanedIds.push(id);
+    }),
+  ).rejects.toThrow('Exact POST capture failed after guarded cleanup.');
+
+  expect(immediatelyCleanedIds).toEqual([IDS.callbackError]);
+  expect(new Set([...fixtureLedgerIds, ...immediatelyCleanedIds])).toEqual(
+    new Set(capture.created.map(({ id }) => id)),
+  );
+});
+
+test('cleans an owned exact ID from a malformed 201 before surfacing its contract error', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  await page.route(SYNTHETIC_ENDPOINT, async (route) => {
+    const { id, sequenceId } = JSON.parse(route.request().postData() ?? '{}') as {
+      id: string;
+      sequenceId: number;
+    };
+    const body = syntheticCreatedBody(id, sequenceId);
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        id === IDS.malformed
+          ? { id, sequence_id: 'not-a-number' }
+          : body,
+      ),
+    });
+  });
+
+  const fixtureLedgerIds: string[] = [];
+  const collector = new ExactPostResponseCollector(
+    page,
+    SYNTHETIC_ENDPOINT,
+    REQUESTED_NAME,
+    (created) => fixtureLedgerIds.push(created.id),
+    { quietMs: 60, maxAdmissionMs: 300 },
+  );
+
+  await page.evaluate(
+    ({ endpoint, ids }) => {
+      void fetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ id: ids.malformed, sequenceId: 71 }),
+      });
+      setTimeout(() => {
+        void fetch(endpoint, {
+          method: 'POST',
+          body: JSON.stringify({ id: ids.validAfterMalformed, sequenceId: 72 }),
+        });
+      }, 25);
+    },
+    { endpoint: SYNTHETIC_ENDPOINT, ids: IDS },
+  );
+
+  const capture = await collector.settle({ requireAttempt: true });
+
+  expect(fixtureLedgerIds).toEqual([IDS.validAfterMalformed]);
+  expect(capture.contractErrors).toHaveLength(1);
+  expect(capture.contractErrors[0]).toMatchObject({
+    exactId: IDS.malformed,
+  });
+
+  const immediatelyCleanedIds: string[] = [];
+  await expect(
+    reconcileExactPostCaptureFailures(capture, async (id) => {
+      immediatelyCleanedIds.push(id);
+    }),
+  ).rejects.toThrow('Exact POST capture failed after guarded cleanup.');
+
+  expect(immediatelyCleanedIds).toEqual([IDS.malformed]);
+  expect(new Set([...fixtureLedgerIds, ...immediatelyCleanedIds])).toEqual(
+    new Set([IDS.malformed, IDS.validAfterMalformed]),
+  );
+});
+
+test('requires exact ID, sandbox project, and full requested name before cleanup', () => {
+  const id = IDS.cleanupTarget;
+  const requestedName = 'QA E2E exact cleanup target';
+  const valid = {
+    id,
+    name: requestedName,
+    project_id: SANDBOX.projectId,
+  };
+
+  expect(assertExactOwnedCleanupTarget(valid, id, requestedName)).toEqual(valid);
+  for (const unsafe of [
+    { id, project_id: SANDBOX.projectId },
+    { id, name: requestedName },
+    { ...valid, project_id: 'wrong-project-id' },
+    { ...valid, name: 'QA E2E different pre-existing target' },
+    { ...valid, id: IDS.mismatchedName },
+  ]) {
+    expect(() =>
+      assertExactOwnedCleanupTarget(unsafe, id, requestedName),
+    ).toThrow('Refusing exact-ID cleanup without an exact ownership match.');
+  }
+});
+
+test('counts delayed blocked POSTs until the quiet window drains', async ({ page }) => {
+  await openSyntheticPage(page);
+
+  const result = await withBlockedExactPosts({
+    page,
+    endpoint: SYNTHETIC_ENDPOINT,
+    quietMs: 60,
+    maxAdmissionMs: 300,
+    action: async () => {
+      await page.evaluate(
+        ({ endpoint }) => {
+          setTimeout(() => {
+            void fetch(endpoint, { method: 'POST', body: 'first' });
+          }, 20);
+          setTimeout(() => {
+            void fetch(endpoint, { method: 'POST', body: 'second' });
+          }, 65);
+        },
+        { endpoint: SYNTHETIC_ENDPOINT },
+      );
+    },
+  });
+
+  expect(result.attemptCount).toBe(2);
+  expect(result.actionError).toBeUndefined();
+});
+
+test('scopes shared display option names to their labeled section', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <button>Priority</button>
+    <div data-popover="display">
+      <div data-section="properties">
+        <span>Display Properties</span>
+        <button>Attachment count</button>
+        <button>Priority</button>
+      </div>
+      <div data-section="group">
+        <span>Group by</span>
+        <button>States</button>
+        <button>None</button>
+      </div>
+      <div data-section="order">
+        <span>Order by</span>
+        <button>Manual</button>
+      </div>
+    </div>
+  `);
+
+  const groupSection = displaySectionLocator(page, {
+    label: 'Group by',
+    uniqueButton: 'States',
+    excludedLabel: 'Order by',
+  });
+
+  await expect(groupSection).toHaveAttribute('data-section', 'group');
+  await expect(
+    groupSection.getByRole('button', { name: 'Priority', exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('button', { name: 'Priority', exact: true }),
+  ).toHaveCount(2);
+});
+
+test('scopes an exact filter inventory to the opened visible listbox', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <div role="option">State</div>
+    <div role="listbox">
+      <div role="option">State</div>
+      <div role="option">Priority</div>
+    </div>
+  `);
+  const listbox = page.getByRole('listbox').filter({ visible: true });
+
+  await expect(listbox).toHaveCount(1);
+  await assertExactVisibleOptionInventory(listbox, ['State', 'Priority']);
+  await expect(page.getByRole('option', { name: 'State', exact: true })).toHaveCount(
+    2,
+  );
+});
+
+test('registers every rapid-submit exact ID before a later UI assertion fails', async () => {
+  const cleanupLedger = new CleanupLedger();
+  const deletedIds: string[] = [];
+  const requestedName = 'QA E2E rapid-submit safety';
+
+  const created = registerResponseOwnedWorkItems(
+    [
+      {
+        id: IDS.rapidOne,
+        name: requestedName,
+        project_id: SANDBOX.projectId,
+        sequence_id: 41,
+      },
+      {
+        id: IDS.rapidTwo,
+        name: requestedName,
+        project_id: SANDBOX.projectId,
+        sequence_id: 42,
+      },
+    ],
+    2,
+    requestedName,
+    (responseOwned) => {
+      cleanupLedger.register({
+        kind: 'work-item',
+        id: responseOwned.id,
+        name: requestedName,
+        workspaceSlug: SANDBOX.workspaceSlug,
+        cleanup: async () => deletedIds.push(responseOwned.id),
+      });
+    },
+  );
+
+  expect(created.map(({ id }) => id)).toEqual([IDS.rapidOne, IDS.rapidTwo]);
+  try {
+    throw new Error('post-create dialog assertion failed');
+  } catch (error) {
+    expect(error).toHaveProperty('message', 'post-create dialog assertion failed');
+  } finally {
+    await cleanupRegistered(cleanupLedger);
+  }
+
+  expect(deletedIds).toEqual([IDS.rapidTwo, IDS.rapidOne]);
+});
+
+test('batch registration cannot bypass exact create-response identity checks', () => {
+  const registeredIds: string[] = [];
+  for (const unsafeBody of [
+    {
+      ...syntheticCreatedBody(IDS.mismatchedName, 91),
+      name: 'QA E2E different pre-existing item',
+    },
+    {
+      ...syntheticCreatedBody(IDS.mismatchedProject, 92),
+      project_id: 'different-project-id',
+    },
+    syntheticCreatedBody('not-a-canonical-uuid', 93),
+  ]) {
+    expect(() =>
+      registerResponseOwnedWorkItems(
+        [unsafeBody],
+        1,
+        REQUESTED_NAME,
+        (created) => registeredIds.push(created.id),
+      ),
+    ).toThrow();
+  }
+  expect(registeredIds).toEqual([]);
+});

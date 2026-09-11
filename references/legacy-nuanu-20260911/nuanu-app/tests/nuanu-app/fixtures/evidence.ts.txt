@@ -1,0 +1,101 @@
+import type { Page, TestInfo } from '@playwright/test';
+import { sanitizeUrl } from './safety';
+
+const MAX_ENTRIES = 25;
+const CONSOLE_ERROR_MARKER = 'console-error';
+
+export type BrowserObservation = Readonly<{
+  consoleErrorMarkers: readonly 'console-error'[];
+  failedRequests: readonly string[];
+  firstPartyServerErrors: readonly Readonly<{
+    status: number;
+    originAndPath: string;
+  }>[];
+  overflowed: Readonly<{
+    consoleErrorMarkers: boolean;
+    failedRequests: boolean;
+    firstPartyServerErrors: boolean;
+  }>;
+}>;
+
+export function observeBrowser(page: Page, firstPartyOrigin: string): BrowserObservation {
+  const approved = new URL(firstPartyOrigin);
+  if (
+    approved.origin !== firstPartyOrigin || approved.username || approved.password ||
+    !['https:', 'http:'].includes(approved.protocol)
+  ) throw new Error('INVALID_FIRST_PARTY_ORIGIN');
+  const consoleErrorMarkers: 'console-error'[] = [];
+  const failedRequests: string[] = [];
+  const firstPartyServerErrors: Array<Readonly<{ status: number; originAndPath: string }>> = [];
+  const overflowed = {
+    consoleErrorMarkers: false,
+    failedRequests: false,
+    firstPartyServerErrors: false,
+  };
+  const addBounded = <T>(entries: T[], value: T, key: keyof typeof overflowed): void => {
+    if (entries.length < MAX_ENTRIES) entries.push(value);
+    else overflowed[key] = true;
+  };
+
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      addBounded(consoleErrorMarkers, CONSOLE_ERROR_MARKER, 'consoleErrorMarkers');
+    }
+  });
+  page.on('requestfailed', (request) => {
+    try {
+      addBounded(failedRequests, sanitizeUrl(request.url()), 'failedRequests');
+    } catch {
+      // Invalid or credential-bearing URLs do not enter evidence.
+    }
+  });
+  page.on('response', (response) => {
+    const status = response.status();
+    let url: URL;
+    try {
+      url = new URL(response.url());
+    } catch {
+      return;
+    }
+    if (status >= 500 && status < 600 && url.origin === firstPartyOrigin) {
+      try {
+        addBounded(firstPartyServerErrors, Object.freeze({
+          status,
+          originAndPath: sanitizeUrl(response.url()),
+        }), 'firstPartyServerErrors');
+      } catch {
+        // Invalid or credential-bearing URLs do not enter evidence.
+      }
+    }
+  });
+
+  return Object.freeze({
+    get consoleErrorMarkers(): readonly 'console-error'[] {
+      return Object.freeze([...consoleErrorMarkers]);
+    },
+    get failedRequests(): readonly string[] {
+      return Object.freeze([...failedRequests]);
+    },
+    get firstPartyServerErrors(): readonly Readonly<{ status: number; originAndPath: string }>[] {
+      return Object.freeze([...firstPartyServerErrors]);
+    },
+    get overflowed() {
+      return Object.freeze({ ...overflowed });
+    },
+  });
+}
+
+export async function attachObservation(
+  testInfo: TestInfo,
+  observation: BrowserObservation,
+): Promise<void> {
+  await testInfo.attach('browser-observation.json', {
+    body: JSON.stringify({
+      consoleErrorMarkers: observation.consoleErrorMarkers,
+      failedRequests: observation.failedRequests,
+      firstPartyServerErrors: observation.firstPartyServerErrors,
+      overflowed: observation.overflowed,
+    }),
+    contentType: 'application/json',
+  });
+}

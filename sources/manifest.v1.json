@@ -9,17 +9,17 @@
       "bundle": "sources/kernel.bundle",
       "sha256": "52071a93dd534aa2c38e67ab1b0778b26e09f0777d3e2655aad4f06432cedefe",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed candidate; existing private reader public re-export with scoped24/24 and build consumer proof; prior1701/1701 belongs to11d013c; source assembly is not full runtime, product or accepted-root qualification"
+      "qualification": "source-reviewed; existing private reader public re-export with scoped24/24 and build consumer proof; fresh2026-09-11 typecheck/build and270/270 selected contract/knowledge/private-store/security controls; prior1701/1701 belongs to11d013c; not full-suite, product or cloud qualification"
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "f3660d0eed9c442aec974f1b57dcaa6b7a8bcc3b",
-      "tree": "af54d7c4d1dea07a86846f9603bb4de56d93d762",
+      "commit": "718bf86f6649b1c15ae1ce1999c4a6ffd5a902ac",
+      "tree": "682c18d5a5865e62308da3dc3aee1cef60dea46b",
       "bundle": "sources/console.bundle",
-      "sha256": "6b3155cc9aebe07ac076c5caf63ef5a5ca0d159b760d5f921a59d7d7d3be5df1",
+      "sha256": "71b9f64c7ad8d9a58f39eb944d159e754feff1b215ecb0c14cd30d61a09981ab",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed candidate;1c5c502 receipt-bound attributed reviews with final CLI16/16;af832c9 interruption fixture9/9;f3660d0 additive trace event count with4RED-to-GREEN,30adapter and152compatibility tests; scopes overlap and are not product coverage; no automatic review-to-verdict promotion, production recovery, full-suite, dual-host or accepted-root qualification"
+      "qualification": "source-reviewed718bf86 portable explicit paths and no unconfigured historical receipt read; existing exact Kernel authority unchanged; fresh final120/120 compatibility,8/8 affected public-auth graph/regression records,typecheck/build0;45 other functional records retain unchanged dependency attribution from initial53/53 candidate run; existing3 lint errors and large-bundle warning remain; historical1c5c502 reviews,af832c9 interruption andf3660d0 trace counts retained; not full-suite, product, production recovery, dual-host or cloud qualification"
     },
     {
       "id": "freeland",
@@ -29,7 +29,7 @@
       "bundle": "sources/freeland.bundle",
       "sha256": "8789ca70ea15d1829ac59090e65e9408a1c26152fc101ababb25dbed39015d27",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed candidate; four stale code-locator findings repaired without new verifies/acceptance; full qa:verify2442 passed on final component bytes; source-only projection180to176 uses frozen catalog on product2981985, not fresh runtime or release acceptance; prior guest evidence remains attributed to04b771a; strict graph gaps, PAY07/PAY09 qualification and accepted-root promotion remain separate"
+      "qualification": "source-reviewed; four stale code-locator findings repaired without new verifies/acceptance; historical full qa:verify2442 on these component bytes; fresh2026-09-11 provenance/typecheck/private-binding and2369 unique selected controls, three shared-staging-lock discovery controls deliberately unrun, not a fresh full qa:verify PASS; source-only projection180to176 uses frozen catalog on product2981985, not fresh runtime or release acceptance; prior guest evidence remains attributed to04b771a; strict graph gaps and PAY07/PAY09 qualification remain separate"
     },
     {
       "id": "kernel-reporting-reference",

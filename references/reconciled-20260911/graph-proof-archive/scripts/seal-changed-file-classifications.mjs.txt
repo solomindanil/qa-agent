@@ -1,0 +1,80 @@
+import { readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+
+import {
+  buildChangedFileClassificationDocument,
+  changedFileKey,
+  validateChangedFileClassifications,
+} from "../src/impact-proof.mjs";
+
+const worksheetPath = argument("--worksheet");
+const decisionsPath = argument("--decisions");
+const overridesPath = argument("--overrides");
+const outputPath = argument("--output");
+if (!worksheetPath || !decisionsPath) throw new TypeError("--worksheet and --decisions are required");
+
+const worksheet = JSON.parse(await readFile(resolve(worksheetPath), "utf8"));
+const decisionsValue = JSON.parse(await readFile(resolve(decisionsPath), "utf8"));
+const decisions = Array.isArray(decisionsValue) ? decisionsValue : decisionsValue.classifications;
+const overridesValue = overridesPath
+  ? JSON.parse(await readFile(resolve(overridesPath), "utf8"))
+  : [];
+const overrides = Array.isArray(overridesValue) ? overridesValue : overridesValue.overrides;
+if (!Array.isArray(worksheet.changes) || !Array.isArray(decisions)) {
+  throw new TypeError("Changed-file worksheet and decisions are invalid");
+}
+if (!Array.isArray(overrides)) throw new TypeError("Changed-file overrides are invalid");
+const changeByKey = new Map(worksheet.changes.map(change => [changedFileKey(change), change]));
+const overrideByKey = new Map(overrides.map(override => [changedFileKey(override), override]));
+if (overrideByKey.size !== overrides.length) throw new TypeError("Changed-file override keys are duplicated");
+for (const key of overrideByKey.keys()) {
+  if (!changeByKey.has(key)) throw new TypeError(`Override is absent from worksheet: ${key}`);
+}
+const classifications = decisions.map(originalDecision => {
+  const override = overrideByKey.get(changedFileKey(originalDecision));
+  const decision = override ? { ...originalDecision, ...override } : originalDecision;
+  const change = changeByKey.get(changedFileKey(decision));
+  if (!change) throw new TypeError(`Decision is absent from worksheet: ${changedFileKey(decision)}`);
+  const assuranceNodeIds = Array.isArray(decision.assuranceNodeIds)
+    ? decision.assuranceNodeIds
+    : [...String(decision.assuranceImpact ?? "").matchAll(/(?:req|flow|route|invariant):[A-Za-z0-9._-]+/g)]
+        .map(match => match[0]);
+  return {
+    status: decision.status,
+    paths: decision.paths,
+    diffSha256: change.diffSha256,
+    disposition: decision.disposition,
+    nodeIds: decision.nodeIds,
+    assuranceNodeIds: [...new Set(assuranceNodeIds)],
+    reason: decision.reason,
+    assuranceImpact: String(decision.assuranceImpact ?? "").trim()
+      || `Direct product-impact classification: ${decision.reason}`,
+  };
+});
+const document = buildChangedFileClassificationDocument({
+  baselineSha: worksheet.baselineSha,
+  candidateSha: worksheet.candidateSha,
+  classifications,
+});
+const graph = JSON.parse(await readFile(new URL("../graph/current/graph.json", import.meta.url), "utf8"));
+await validateChangedFileClassifications({
+  document,
+  expectedChanges: worksheet.changes,
+  baselineSha: worksheet.baselineSha,
+  candidateSha: worksheet.candidateSha,
+  validNodeIds: new Set(graph.nodes.map(node => node.id)),
+  requireComplete: true,
+});
+const payload = `${JSON.stringify(document, null, 2)}\n`;
+if (!outputPath) process.stdout.write(payload);
+else {
+  const target = resolve(outputPath);
+  const temporary = resolve(dirname(target), `.${target.split("/").at(-1)}.tmp`);
+  await writeFile(temporary, payload, { mode: 0o600 });
+  await rename(temporary, target);
+}
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}

@@ -1,0 +1,2005 @@
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Request,
+  type Response,
+  type Route,
+} from '@playwright/test';
+import { QA_PREFIX, SANDBOX } from '../fixtures/sandbox-data';
+import {
+  type CreatedWorkItem,
+  WorkItemsPage,
+  withBlockedExactPosts,
+} from './work-items.page';
+
+export type CreatedProject = {
+  kind: 'project';
+  id: string;
+  name: string;
+  identifier: string;
+};
+
+export type CreatedCycle = {
+  kind: 'cycle';
+  id: string;
+  name: string;
+  projectId: string;
+  startDate: string;
+  endDate: string;
+};
+
+export type CreatedModule = {
+  kind: 'module';
+  id: string;
+  name: string;
+  projectId: string;
+  startDate: string;
+  targetDate: string;
+  status: 'backlog';
+};
+
+export type ResponseOwnedFeature = CreatedProject | CreatedCycle | CreatedModule;
+
+export type ResponseOwnedIdentity = {
+  kind: string;
+  id: string;
+  name: string;
+};
+
+const CANONICAL_ENTITY_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+type AssociationPayloadRequest = Pick<
+  Request,
+  'postData' | 'postDataJSON'
+>;
+
+const associationJson = (request: AssociationPayloadRequest): unknown => {
+  let body: unknown;
+  try {
+    body = request.postDataJSON();
+  } catch (error) {
+    throw new AggregateError(
+      [error],
+      'Association request did not contain a JSON payload.',
+    );
+  }
+  return body;
+};
+
+// Recon retained the exact assignment endpoints and IDs, but not the JSON key.
+// Until that key is recaptured, fail closed to one field containing only the
+// single response-owned item ID; no extra scalar, array, or UUID is admitted.
+const assertSingleOwnedItemArrayPayload = (
+  request: AssociationPayloadRequest,
+  itemId: string,
+) => {
+  const body = associationJson(request);
+  if (!isRecord(body)) {
+    throw new Error('Association payload must be a one-field JSON object.');
+  }
+  const entries = Object.entries(body);
+  const [entry] = entries;
+  if (
+    entries.length !== 1 ||
+    !entry ||
+    isCanonicalEntityId(entry[0]) ||
+    !Array.isArray(entry[1]) ||
+    entry[1].length !== 1 ||
+    entry[1][0] !== itemId ||
+    !isCanonicalEntityId(entry[1][0])
+  ) {
+    throw new Error(
+      'Association payload must contain a single response-owned work-item ID array.',
+    );
+  }
+};
+
+const assertEmptyAssociationBody = (request: AssociationPayloadRequest) => {
+  const body = request.postData();
+  if (body !== null && body.length > 0) {
+    throw new Error('Cycle removal must not include an additional request body.');
+  }
+};
+
+const assertExactModuleRemovalPayload = (
+  request: AssociationPayloadRequest,
+  moduleId: string,
+) => {
+  const body = associationJson(request);
+  if (
+    !isRecord(body) ||
+    Object.keys(body).length !== 2 ||
+    !Array.isArray(body.modules) ||
+    body.modules.length !== 0 ||
+    !Array.isArray(body.removed_modules) ||
+    body.removed_modules.length !== 1 ||
+    body.removed_modules[0] !== moduleId
+  ) {
+    throw new Error('Module removal payload did not match its exact owned schema.');
+  }
+};
+
+export const validateCycleAssignmentRequest = (
+  request: AssociationPayloadRequest,
+  itemId: string,
+) => assertSingleOwnedItemArrayPayload(request, itemId);
+
+export const validateCycleRemovalRequest = (
+  request: AssociationPayloadRequest,
+) => assertEmptyAssociationBody(request);
+
+export const validateModuleAssignmentRequest = (
+  request: AssociationPayloadRequest,
+  itemId: string,
+) => assertSingleOwnedItemArrayPayload(request, itemId);
+
+export const validateModuleRemovalRequest = (
+  request: AssociationPayloadRequest,
+  moduleId: string,
+) => assertExactModuleRemovalPayload(request, moduleId);
+
+export const isCanonicalEntityId = (value: unknown): value is string =>
+  typeof value === 'string' && CANONICAL_ENTITY_ID.test(value);
+
+type ExactResponseWaitOptions = { timeout?: number };
+
+export const waitForExactResponse = (
+  page: Page,
+  method: string,
+  endpoint: string,
+  options?: ExactResponseWaitOptions,
+): Promise<Response> =>
+  page.waitForResponse(
+    (response) =>
+      response.request().method() === method && response.url() === endpoint,
+    options,
+  );
+
+type ExactResponseObservationOutcome =
+  | { response: Response; failedRequest?: never }
+  | { response?: never; failedRequest: Request };
+
+type ExactResponseObservation = {
+  isAdmitted: () => boolean;
+  waitForAdmission: () => Promise<void>;
+  terminal: Promise<ExactResponseObservationOutcome>;
+  dispose: () => void;
+};
+
+const observeExactResponse = (
+  page: Page,
+  method: string,
+  endpoint: string,
+): ExactResponseObservation => {
+  let observedRequest: Request | undefined;
+  let terminalResolved = false;
+  let resolveAdmission = () => {};
+  let resolveTerminal = (_outcome: ExactResponseObservationOutcome) => {};
+  const admission = new Promise<void>((resolve) => {
+    resolveAdmission = resolve;
+  });
+  const terminal = new Promise<ExactResponseObservationOutcome>((resolve) => {
+    resolveTerminal = resolve;
+  });
+  const onRequest = (request: Request) => {
+    if (
+      observedRequest ||
+      request.method() !== method ||
+      request.url() !== endpoint
+    ) {
+      return;
+    }
+    observedRequest = request;
+    resolveAdmission();
+  };
+  const onResponse = (response: Response) => {
+    if (terminalResolved || response.request() !== observedRequest) return;
+    terminalResolved = true;
+    resolveTerminal({ response });
+  };
+  const onRequestFailed = (request: Request) => {
+    if (terminalResolved || request !== observedRequest) return;
+    terminalResolved = true;
+    resolveTerminal({ failedRequest: request });
+  };
+
+  page.on('request', onRequest);
+  page.on('response', onResponse);
+  page.on('requestfailed', onRequestFailed);
+  return {
+    isAdmitted: () => observedRequest !== undefined,
+    waitForAdmission: () => admission,
+    terminal,
+    dispose: () => {
+      page.off('request', onRequest);
+      page.off('response', onResponse);
+      page.off('requestfailed', onRequestFailed);
+    },
+  };
+};
+
+const waitForBoundedExactAdmission = async (
+  observation: ExactResponseObservation,
+) => {
+  const startedAt = Date.now();
+  while (!observation.isAdmitted()) {
+    const now = Date.now();
+    if (now - startedAt >= MUTATION_DRAIN_QUIET_MS) return false;
+    if (now - startedAt >= MUTATION_DRAIN_MAX_MS) return false;
+    await Promise.race([observation.waitForAdmission(), delay(25)]);
+  }
+  return true;
+};
+
+const assertOwnedRequestName = (requestedName: string) => {
+  if (!requestedName.startsWith(`${QA_PREFIX} `)) {
+    throw new Error('Feature create request name was not run-owned.');
+  }
+};
+
+export const parseCreatedProject = (
+  body: unknown,
+  requestedName: string,
+  requestedIdentifier: string,
+): CreatedProject => {
+  assertOwnedRequestName(requestedName);
+  if (!/^[A-Z0-9]{1,5}$/.test(requestedIdentifier)) {
+    throw new Error('Project create request identifier was not canonical.');
+  }
+  if (!isRecord(body)) {
+    throw new Error('Project create response was not an object.');
+  }
+  const { id, name, identifier } = body;
+  if (
+    !isCanonicalEntityId(id) ||
+    typeof name !== 'string' ||
+    typeof identifier !== 'string'
+  ) {
+    throw new Error('Project create response omitted its exact ID contract.');
+  }
+  if (name !== requestedName || identifier !== requestedIdentifier) {
+    throw new Error('Project create response identity did not match the request.');
+  }
+  return { kind: 'project', id, name, identifier };
+};
+
+export const parseCreatedCycle = (
+  body: unknown,
+  requestedName: string,
+): CreatedCycle => {
+  assertOwnedRequestName(requestedName);
+  if (!isRecord(body)) {
+    throw new Error('Cycle create response was not an object.');
+  }
+  const {
+    id,
+    name,
+    project_id: projectId,
+    start_date: startDate,
+    end_date: endDate,
+  } = body;
+  if (
+    !isCanonicalEntityId(id) ||
+    typeof name !== 'string' ||
+    typeof projectId !== 'string' ||
+    typeof startDate !== 'string' ||
+    typeof endDate !== 'string'
+  ) {
+    throw new Error('Cycle create response omitted its exact ID contract.');
+  }
+  if (name !== requestedName || projectId !== SANDBOX.projectId) {
+    throw new Error('Cycle create response identity did not match the request.');
+  }
+  return {
+    kind: 'cycle',
+    id,
+    name,
+    projectId,
+    startDate,
+    endDate,
+  };
+};
+
+export const parseCreatedModule = (
+  body: unknown,
+  requestedName: string,
+): CreatedModule => {
+  assertOwnedRequestName(requestedName);
+  if (!isRecord(body)) {
+    throw new Error('Module create response was not an object.');
+  }
+  const {
+    id,
+    name,
+    project_id: projectId,
+    start_date: startDate,
+    target_date: targetDate,
+    status,
+  } = body;
+  if (
+    !isCanonicalEntityId(id) ||
+    typeof name !== 'string' ||
+    typeof projectId !== 'string' ||
+    typeof startDate !== 'string' ||
+    typeof targetDate !== 'string' ||
+    status !== 'backlog'
+  ) {
+    throw new Error('Module create response omitted its exact ID contract.');
+  }
+  if (name !== requestedName || projectId !== SANDBOX.projectId) {
+    throw new Error('Module create response identity did not match the request.');
+  }
+  return {
+    kind: 'module',
+    id,
+    name,
+    projectId,
+    startDate,
+    targetDate,
+    status,
+  };
+};
+
+export const assertExactOwnedFeatureCleanupTarget = (
+  body: unknown,
+  owned: ResponseOwnedFeature,
+) => {
+  const projectMatches =
+    owned.kind === 'project'
+      ? isRecord(body) && body.identifier === owned.identifier
+      : isRecord(body) && body.project_id === SANDBOX.projectId;
+  if (
+    !owned.name.startsWith(`${QA_PREFIX} `) ||
+    !isCanonicalEntityId(owned.id) ||
+    !isRecord(body) ||
+    body.id !== owned.id ||
+    body.name !== owned.name ||
+    !projectMatches
+  ) {
+    throw new Error(
+      'Refusing exact-ID cleanup without an exact ownership match.',
+    );
+  }
+  return body;
+};
+
+type ExactFeaturePostContractError = {
+  requestOrdinal: number;
+  observedId?: string;
+  exactId?: string;
+  error: unknown;
+};
+
+type ExactFeaturePostRegistrationError<T extends ResponseOwnedIdentity> = {
+  requestOrdinal: number;
+  created: T;
+  error: unknown;
+};
+
+export type ExactFeaturePostCreatedEntry<T extends ResponseOwnedIdentity> = {
+  requestOrdinal: number;
+  created: T;
+};
+
+export type ExactFeaturePostCapture<T extends ResponseOwnedIdentity> = {
+  actionError?: unknown;
+  attemptCount: number;
+  responseCount: number;
+  created: T[];
+  createdEntries: Array<ExactFeaturePostCreatedEntry<T>>;
+  non201: Array<{ status: number; url: string }>;
+  contractErrors: ExactFeaturePostContractError[];
+  registrationErrors: Array<ExactFeaturePostRegistrationError<T>>;
+  failedAttempts: Array<{ requestOrdinal: number; url: string }>;
+};
+
+type CaptureExactFeaturePostsOptions<T extends ResponseOwnedIdentity> = {
+  page: Page;
+  endpoint: string;
+  action: () => Promise<unknown>;
+  waitBeforeAdmissionClose?: (
+    waitForExactAdmission: () => Promise<void>,
+    actionError: unknown,
+  ) => Promise<unknown> | undefined;
+  parse: (body: unknown) => T;
+  register: (created: T) => unknown;
+  extractResponseIdentity?: (body: unknown) => {
+    observedId?: string;
+    exactId?: string;
+  };
+  quietMs?: number;
+  maxAdmissionMs?: number;
+};
+
+type ObservedFeaturePost = {
+  requestOrdinal: number;
+  responseStarted: boolean;
+  terminalResolved: boolean;
+  terminal: Promise<void>;
+  resolveTerminal: () => void;
+};
+
+const delay = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+const MUTATION_DRAIN_QUIET_MS = 500;
+const MUTATION_DRAIN_MAX_MS = 2_000;
+const MUTATING_HTTP_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+const sortedValues = <T>(values: Map<number, T>) =>
+  [...values.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, value]) => value);
+
+const responseIdentity = (body: unknown) => {
+  if (!isRecord(body)) return {};
+  const observedId =
+    typeof body.id === 'string' && body.id.length > 0 ? body.id : undefined;
+  const exactId = isCanonicalEntityId(observedId) ? observedId : undefined;
+  return { observedId, exactId };
+};
+
+export const captureExactFeaturePosts = async <T extends ResponseOwnedIdentity>({
+  page,
+  endpoint,
+  action,
+  waitBeforeAdmissionClose,
+  parse,
+  register,
+  extractResponseIdentity = responseIdentity,
+  quietMs = 500,
+  maxAdmissionMs = 2_000,
+}: CaptureExactFeaturePostsOptions<T>): Promise<ExactFeaturePostCapture<T>> => {
+  const observed = new Map<Request, ObservedFeaturePost>();
+  const createdByOrdinal = new Map<number, T>();
+  const non201ByOrdinal = new Map<number, { status: number; url: string }>();
+  const contractErrorsByOrdinal = new Map<
+    number,
+    ExactFeaturePostContractError
+  >();
+  const registrationErrorsByOrdinal = new Map<
+    number,
+    ExactFeaturePostRegistrationError<T>
+  >();
+  const failedByOrdinal = new Map<
+    number,
+    { requestOrdinal: number; url: string }
+  >();
+  const responseOrdinals = new Set<number>();
+  let lastActivityAt = Date.now();
+  let admissionClosed = false;
+  let resolveFirstAdmission = () => {};
+  const firstAdmission = new Promise<void>((resolve) => {
+    resolveFirstAdmission = resolve;
+  });
+
+  const resolveTerminal = (entry: ObservedFeaturePost) => {
+    if (entry.terminalResolved) return;
+    entry.terminalResolved = true;
+    lastActivityAt = Date.now();
+    entry.resolveTerminal();
+  };
+
+  const processResponse = async (
+    entry: ObservedFeaturePost,
+    response: Response,
+  ) => {
+    responseOrdinals.add(entry.requestOrdinal);
+    if (response.status() !== 201) {
+      non201ByOrdinal.set(entry.requestOrdinal, {
+        status: response.status(),
+        url: response.url(),
+      });
+      return;
+    }
+
+    let body: unknown;
+    let created: T;
+    try {
+      body = await response.json();
+      created = parse(body);
+    } catch (error) {
+      contractErrorsByOrdinal.set(entry.requestOrdinal, {
+        requestOrdinal: entry.requestOrdinal,
+        ...extractResponseIdentity(body),
+        error,
+      });
+      return;
+    }
+
+    try {
+      await register(created);
+      createdByOrdinal.set(entry.requestOrdinal, created);
+    } catch (error) {
+      registrationErrorsByOrdinal.set(entry.requestOrdinal, {
+        requestOrdinal: entry.requestOrdinal,
+        created,
+        error,
+      });
+    }
+  };
+
+  const onRequest = (request: Request) => {
+    if (
+      admissionClosed ||
+      request.method() !== 'POST' ||
+      request.url() !== endpoint
+    ) {
+      return;
+    }
+    let complete = () => {};
+    const terminal = new Promise<void>((resolve) => {
+      complete = resolve;
+    });
+    observed.set(request, {
+      requestOrdinal: observed.size,
+      responseStarted: false,
+      terminalResolved: false,
+      terminal,
+      resolveTerminal: complete,
+    });
+    resolveFirstAdmission();
+    lastActivityAt = Date.now();
+  };
+
+  const onResponse = (response: Response) => {
+    const entry = observed.get(response.request());
+    if (!entry || entry.responseStarted) return;
+    entry.responseStarted = true;
+    void processResponse(entry, response)
+      .catch((error) => {
+        contractErrorsByOrdinal.set(entry.requestOrdinal, {
+          requestOrdinal: entry.requestOrdinal,
+          error,
+        });
+      })
+      .finally(() => resolveTerminal(entry));
+  };
+
+  const onRequestFailed = (request: Request) => {
+    const entry = observed.get(request);
+    if (!entry || entry.responseStarted) return;
+    entry.responseStarted = true;
+    failedByOrdinal.set(entry.requestOrdinal, {
+      requestOrdinal: entry.requestOrdinal,
+      url: request.url(),
+    });
+    resolveTerminal(entry);
+  };
+
+  page.on('request', onRequest);
+  page.on('response', onResponse);
+  page.on('requestfailed', onRequestFailed);
+
+  let actionError: unknown;
+  try {
+    try {
+      await action();
+    } catch (error) {
+      actionError = error;
+    }
+
+    try {
+      await waitBeforeAdmissionClose?.(() => firstAdmission, actionError);
+    } catch (error) {
+      actionError ??= error;
+    }
+
+    const settleStartedAt = Date.now();
+    lastActivityAt = Math.max(lastActivityAt, settleStartedAt);
+    while (true) {
+      const now = Date.now();
+      const pending = [...observed.values()].filter(
+        ({ terminalResolved }) => !terminalResolved,
+      ).length;
+      const hasRequiredAttempt = actionError !== undefined || observed.size > 0;
+      if (
+        hasRequiredAttempt &&
+        pending === 0 &&
+        now - lastActivityAt >= quietMs
+      ) {
+        break;
+      }
+      if (now - settleStartedAt >= maxAdmissionMs) break;
+      await delay(25);
+    }
+    admissionClosed = true;
+    page.off('request', onRequest);
+    await Promise.allSettled(
+      [...observed.values()].map(({ terminal }) => terminal),
+    );
+  } finally {
+    admissionClosed = true;
+    page.off('request', onRequest);
+    page.off('response', onResponse);
+    page.off('requestfailed', onRequestFailed);
+  }
+
+  return {
+    actionError,
+    attemptCount: observed.size,
+    responseCount: responseOrdinals.size,
+    created: sortedValues(createdByOrdinal),
+    createdEntries: [...createdByOrdinal.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([requestOrdinal, created]) => ({ requestOrdinal, created })),
+    non201: sortedValues(non201ByOrdinal),
+    contractErrors: sortedValues(contractErrorsByOrdinal),
+    registrationErrors: sortedValues(registrationErrorsByOrdinal),
+    failedAttempts: sortedValues(failedByOrdinal),
+  };
+};
+
+type FeatureRegistration = (created: ResponseOwnedFeature) => unknown;
+
+type OwnedFeatureRecord = {
+  created: ResponseOwnedFeature;
+  names: Set<string>;
+  deleted: boolean;
+};
+
+type FeatureRequestContext = {
+  get: (url: string) => Promise<{
+    status: () => number;
+    json: () => Promise<unknown>;
+  }>;
+  delete: (url: string) => Promise<{ status: () => number }>;
+};
+
+type AssociationMutationInput = {
+  method: 'POST' | 'DELETE';
+  path: string;
+  validate: (request: Request) => void;
+  action: () => Promise<unknown>;
+};
+
+type AssociationRouteOutcome =
+  | { response: Response; error?: never }
+  | { response?: never; error: unknown };
+
+type ProjectInput = {
+  name: string;
+  identifier: string;
+  description: string;
+};
+
+type PlanningInput = {
+  name: string;
+  description: string;
+  startDate: Date;
+  endDate: Date;
+};
+
+const PROJECTS_PATH = `/${SANDBOX.workspaceSlug}/projects/`;
+const SANDBOX_PROJECT_PATH =
+  `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}`;
+const API_ROOT = `/be/api/workspaces/${SANDBOX.workspaceSlug}`;
+const PROJECTS_API_PATH = `${API_ROOT}/projects/`;
+const SANDBOX_PROJECT_API_PATH =
+  `${PROJECTS_API_PATH}${SANDBOX.projectId}`;
+
+const ordinal = (day: number) => {
+  const mod100 = day % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${day}th`;
+  if (day % 10 === 1) return `${day}st`;
+  if (day % 10 === 2) return `${day}nd`;
+  if (day % 10 === 3) return `${day}rd`;
+  return `${day}th`;
+};
+
+const calendarName = (date: Date) => {
+  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
+  const month = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(date);
+  return `${weekday}, ${month} ${ordinal(date.getDate())}, ${date.getFullYear()}`;
+};
+
+const isoDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export class ProjectFeaturesPage {
+  readonly #owned = new Map<string, OwnedFeatureRecord>();
+
+  constructor(
+    readonly page: Page,
+    readonly assertSandbox: () => Promise<void>,
+    readonly requestContext: FeatureRequestContext = page.request,
+  ) {}
+
+  async gotoProjects() {
+    await this.page.goto(PROJECTS_PATH, { waitUntil: 'domcontentloaded' });
+    await expect(
+      this.page.getByRole('button', { name: 'Add Project', exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+  }
+
+  async gotoCycles() {
+    await this.page.goto(`${SANDBOX_PROJECT_PATH}/cycles/`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(
+      this.page.getByRole('button', { name: 'Add cycle', exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+  }
+
+  async gotoModules() {
+    await this.page.goto(`${SANDBOX_PROJECT_PATH}/modules/`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(
+      this.page.getByRole('button', { name: 'Add Module', exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+  }
+
+  async rejectEmptyProject(): Promise<number> {
+    await this.gotoProjects();
+    const dialog = await this.openProjectDialog();
+    const result = await withBlockedExactPosts({
+      page: this.page,
+      endpoint: this.absolute(PROJECTS_API_PATH),
+      action: async () => {
+        await this.assertSandbox();
+        await dialog
+          .getByRole('button', { name: 'Create project', exact: true })
+          .click();
+        await expect(
+          dialog.getByText('Name is required', { exact: true }),
+        ).toBeVisible();
+        await expect(
+          dialog.getByText('Project ID is required', { exact: true }),
+        ).toBeVisible();
+        await this.cancelDialog(dialog);
+      },
+    });
+    if (result.actionError) throw result.actionError;
+    return result.attemptCount;
+  }
+
+  async rejectOverlongProjectIdentifier(
+    name: string,
+    identifier: string,
+  ): Promise<{ attemptedPosts: number; value: string }> {
+    this.assertOwnedName(name);
+    await this.gotoProjects();
+    const dialog = await this.openProjectDialog();
+    await dialog
+      .getByRole('textbox', { name: 'Project name', exact: true })
+      .fill(name);
+    const identifierInput = dialog.getByRole('textbox', {
+      name: 'Project ID',
+      exact: true,
+    });
+    await identifierInput.fill(identifier);
+    let value = '';
+    const result = await withBlockedExactPosts({
+      page: this.page,
+      endpoint: this.absolute(PROJECTS_API_PATH),
+      action: async () => {
+        await this.assertSandbox();
+        await dialog
+          .getByRole('button', { name: 'Create project', exact: true })
+          .click();
+        await expect(
+          dialog.getByText('Project ID must at most be of 5 characters', {
+            exact: true,
+          }),
+        ).toBeVisible();
+        value = await identifierInput.inputValue();
+        await this.cancelDialog(dialog);
+      },
+    });
+    if (result.actionError) throw result.actionError;
+    return {
+      attemptedPosts: result.attemptCount,
+      value,
+    };
+  }
+
+  async projectIdentifierValueAfterInput(name: string, value: string) {
+    this.assertOwnedName(name);
+    await this.gotoProjects();
+    const dialog = await this.openProjectDialog();
+    await dialog
+      .getByRole('textbox', { name: 'Project name', exact: true })
+      .fill(name);
+    const identifierInput = dialog.getByRole('textbox', {
+      name: 'Project ID',
+      exact: true,
+    });
+    await identifierInput.fill(value);
+    const normalized = await identifierInput.inputValue();
+    await this.cancelDialog(dialog);
+    return normalized;
+  }
+
+  async rejectDuplicateProjectIdentifier(
+    name: string,
+    identifier: string,
+    register: FeatureRegistration,
+  ): Promise<void> {
+    this.assertOwnedName(name);
+    await this.gotoProjects();
+    const dialog = await this.openProjectDialog();
+    await dialog
+      .getByRole('textbox', { name: 'Project name', exact: true })
+      .fill(name);
+    await dialog
+      .getByRole('textbox', { name: 'Project ID', exact: true })
+      .fill(identifier);
+    let responsePromise: Promise<Response> | undefined;
+    const capture = await captureExactFeaturePosts({
+      page: this.page,
+      endpoint: this.absolute(PROJECTS_API_PATH),
+      parse: (body) => parseCreatedProject(body, name, identifier),
+      register: (created) =>
+        this.registerCreatedInLedgers(created, register),
+      action: async () => {
+        await this.assertSandbox();
+        responsePromise = this.waitForResponse('POST', PROJECTS_API_PATH);
+        await dialog
+          .getByRole('button', { name: 'Create project', exact: true })
+          .click();
+      },
+    });
+    await this.reconcileFeatureCaptureFailures(
+      capture,
+      'project',
+      name,
+      identifier,
+    );
+    if (capture.actionError !== undefined) throw capture.actionError;
+    if (!responsePromise) {
+      throw new Error('Duplicate project check did not start its exact POST.');
+    }
+    const response = await responsePromise;
+    expect(capture.attemptCount).toBe(1);
+    expect(capture.responseCount).toBe(1);
+    expect(capture.failedAttempts).toEqual([]);
+    expect(capture.created).toEqual([]);
+    expect(capture.non201).toEqual([
+      { status: 400, url: this.absolute(PROJECTS_API_PATH) },
+    ]);
+    expect(response.status()).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      identifier: ['PROJECT_IDENTIFIER_ALREADY_EXIST'],
+    });
+    await expect(dialog).toBeVisible();
+    await this.cancelDialog(dialog);
+    await expect(this.page.getByText(name, { exact: true })).toHaveCount(0);
+  }
+
+  async createProject(
+    input: ProjectInput,
+    register: FeatureRegistration,
+  ): Promise<CreatedProject> {
+    this.assertOwnedName(input.name);
+    await this.gotoProjects();
+    const dialog = await this.openProjectDialog();
+    await dialog
+      .getByRole('textbox', { name: 'Project name', exact: true })
+      .fill(input.name);
+    await dialog
+      .getByRole('textbox', { name: 'Project ID', exact: true })
+      .fill(input.identifier);
+    await dialog
+      .getByRole('textbox', { name: 'Description', exact: true })
+      .fill(input.description);
+
+    const created = await this.captureFeatureCreation(
+      'project',
+      input.name,
+      input.identifier,
+      (body) => parseCreatedProject(body, input.name, input.identifier),
+      register,
+      () =>
+        dialog
+          .getByRole('button', { name: 'Create project', exact: true })
+          .click(),
+    );
+    await expect(dialog).toBeHidden();
+    return created;
+  }
+
+  async updateProject(
+    created: CreatedProject,
+    name: string,
+    description: string,
+  ) {
+    this.assertRegistered(created);
+    this.assertOwnedName(name);
+    await this.gotoProjectSettings(created.id);
+    const nameInput = this.page.getByRole('textbox', {
+      name: 'Project name',
+      exact: true,
+    });
+    const descriptionInput = this.page.getByRole('textbox', {
+      name: 'Enter project description',
+      exact: true,
+    });
+    await expect(nameInput).toHaveValue(created.name);
+    await nameInput.fill(name);
+    await descriptionInput.fill(description);
+    await this.assertSandbox();
+    this.#owned.get(created.id)?.names.add(name);
+    const responsePromise = this.waitForResponse(
+      'PATCH',
+      `${PROJECTS_API_PATH}${created.id}/`,
+    );
+    await this.page
+      .getByRole('button', { name: 'Update project', exact: true })
+      .click();
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
+    const body: unknown = await response.json();
+    if (
+      !isRecord(body) ||
+      body.id !== created.id ||
+      body.name !== name ||
+      body.identifier !== created.identifier
+    ) {
+      throw new Error('Project update response identity did not match ownership.');
+    }
+    await this.page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(nameInput).toHaveValue(name, { timeout: 15_000 });
+    await expect(descriptionInput).toHaveValue(description);
+  }
+
+  async assertProjectCopyUnavailable(created: CreatedProject, name: string) {
+    this.assertRegistered(created);
+    await this.gotoProjects();
+    const card = this.page.getByRole('link').filter({ hasText: name });
+    await expect(card).toHaveCount(1);
+    await expect(
+      card.getByRole('button', { name: 'Copy link', exact: true }),
+    ).toBeVisible();
+    await expect(
+      card.getByRole('button', { name: 'Make a copy', exact: true }),
+    ).toHaveCount(0);
+  }
+
+  async archiveOwnedProject(created: CreatedProject, expectedName: string) {
+    this.assertRegisteredName(created, expectedName);
+    await this.gotoProjectSettings(created.id);
+    await expect(
+      this.page.getByRole('textbox', { name: 'Project name', exact: true }),
+    ).toHaveValue(expectedName);
+    await this.page
+      .getByRole('button', { name: 'Archive project', exact: true })
+      .click();
+    const archiveWarning = this.page.getByText(
+      'Archiving a project will unlist your project from your side navigation although you will still be able to access it from your projects page. You can restore the project or delete it whenever you want.',
+      { exact: true },
+    );
+    await expect(archiveWarning).toBeVisible();
+    const archiveControl = archiveWarning
+      .locator('..')
+      .getByRole('button', { name: 'Archive project', exact: true });
+    await expect(archiveControl).toHaveCount(1);
+    await archiveControl.click();
+    const dialog = this.page.getByRole('dialog').filter({
+      has: this.page.getByRole('heading', {
+        name: `Archive ${expectedName}`,
+        exact: true,
+      }),
+    });
+    await expect(dialog).toContainText('Only project admins can restore the project.');
+    await this.assertSandbox();
+    const responsePromise = this.waitForResponse(
+      'POST',
+      `${PROJECTS_API_PATH}${created.id}/archive/`,
+    );
+    await dialog.getByRole('button', { name: 'Archive', exact: true }).click();
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
+    await this.gotoProjects();
+    await expect(this.page.getByText(expectedName, { exact: true })).toHaveCount(0);
+  }
+
+  async cancelOwnedProjectDelete(
+    created: CreatedProject,
+    expectedName: string,
+  ): Promise<number> {
+    this.assertRegisteredName(created, expectedName);
+    await this.gotoProjectSettings(created.id);
+    const dialog = await this.openProjectDeleteDialog();
+    let deleteAttempts = 0;
+    const endpoint = this.absolute(`${PROJECTS_API_PATH}${created.id}/`);
+    const observeDelete = (request: { method(): string; url(): string }) => {
+      if (request.method() === 'DELETE' && request.url() === endpoint) {
+        deleteAttempts += 1;
+      }
+    };
+    this.page.on('request', observeDelete);
+    try {
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(dialog).toBeHidden();
+      await this.page.waitForTimeout(500);
+    } finally {
+      this.page.off('request', observeDelete);
+    }
+    await expect(
+      this.page.getByRole('textbox', { name: 'Project name', exact: true }),
+    ).toHaveValue(expectedName);
+    return deleteAttempts;
+  }
+
+  async deleteOwnedProjectThroughUi(
+    created: CreatedProject,
+    expectedName: string,
+  ) {
+    this.assertRegisteredName(created, expectedName);
+    await this.gotoProjectSettings(created.id);
+    await expect(
+      this.page.getByRole('textbox', { name: 'Project name', exact: true }),
+    ).toHaveValue(expectedName);
+    const dialog = await this.openProjectDeleteDialog();
+    await dialog
+      .getByRole('textbox', { name: 'Project name', exact: true })
+      .fill(expectedName);
+    await dialog
+      .getByRole('textbox', { name: "Enter 'delete my project'", exact: true })
+      .fill('delete my project');
+    await this.assertSandbox();
+    const responsePromise = this.waitForResponse(
+      'DELETE',
+      `${PROJECTS_API_PATH}${created.id}/`,
+    );
+    await dialog
+      .getByRole('button', { name: 'Delete project', exact: true })
+      .click();
+    const response = await responsePromise;
+    expect(response.status()).toBe(204);
+    this.markDeleted(created.id);
+    await expect(this.page).toHaveURL(new RegExp(`/${SANDBOX.workspaceSlug}/projects/?$`));
+    await this.gotoProjects();
+    await expect(this.page.getByText(expectedName, { exact: true })).toHaveCount(0);
+  }
+
+  async deleteOwnedProject(created: CreatedProject, expectedName: string) {
+    await this.deleteOwnedFeature(created, expectedName);
+  }
+
+  async cleanupOwnedProject(created: CreatedProject) {
+    await this.deleteOwnedFeature(created);
+  }
+
+  async rejectEmptyCycle(): Promise<number> {
+    await this.gotoCycles();
+    const dialog = await this.openCycleDialog();
+    const result = await withBlockedExactPosts({
+      page: this.page,
+      endpoint: this.absolute(`${SANDBOX_PROJECT_API_PATH}/cycles/`),
+      action: async () => {
+        await this.assertSandbox();
+        await dialog
+          .getByRole('button', { name: 'Create cycle', exact: true })
+          .click();
+        await expect(
+          dialog.getByText('Title is required', { exact: true }),
+        ).toBeVisible();
+        await this.cancelDialog(dialog);
+      },
+    });
+    if (result.actionError) throw result.actionError;
+    return result.attemptCount;
+  }
+
+  async assertCyclePastDatesDisabled() {
+    await this.gotoCycles();
+    const dialog = await this.openCycleDialog();
+    await this.openDatePicker(dialog);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dateButton = dialog.getByRole('button', {
+      name: calendarName(yesterday),
+      exact: true,
+    });
+    await expect(dateButton).toBeDisabled();
+    await dateButton.press('Escape');
+    await this.cancelDialog(dialog);
+  }
+
+  async createCycle(
+    input: PlanningInput,
+    register: FeatureRegistration,
+  ): Promise<CreatedCycle> {
+    this.assertOwnedName(input.name);
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const startDate = new Date(input.startDate);
+      const endDate = new Date(input.endDate);
+      startDate.setDate(startDate.getDate() + attempt * 7);
+      endDate.setDate(endDate.getDate() + attempt * 7);
+
+      await this.gotoCycles();
+      const dialog = await this.openCycleDialog();
+      await dialog
+        .getByRole('textbox', { name: 'Title', exact: true })
+        .fill(input.name);
+      await dialog
+        .getByRole('textbox', { name: 'Description', exact: true })
+        .fill(input.description);
+      await this.selectDateRange(dialog, startDate, endDate);
+
+      let dateCheckObservation: ExactResponseObservation | undefined;
+      let dateCheckResult:
+        | { response: Response; body: unknown }
+        | undefined;
+      const endpoint = this.absolute(`${SANDBOX_PROJECT_API_PATH}/cycles/`);
+      const capture = await captureExactFeaturePosts({
+        page: this.page,
+        endpoint,
+        parse: (body) => parseCreatedCycle(body, input.name),
+        register: (created) =>
+          this.registerCreatedInLedgers(created, register),
+        action: async () => {
+          await this.assertSandbox();
+          dateCheckObservation = observeExactResponse(
+            this.page,
+            'POST',
+            this.absolute(
+              `${SANDBOX_PROJECT_API_PATH}/cycles/date-check/`,
+            ),
+          );
+          await dialog
+            .getByRole('button', { name: 'Create cycle', exact: true })
+            .click();
+        },
+        waitBeforeAdmissionClose: async (
+          waitForExactAdmission,
+          actionError,
+        ) => {
+          const observation = dateCheckObservation;
+          if (!observation) return;
+          try {
+            if (
+              actionError !== undefined &&
+              !observation.isAdmitted() &&
+              !(await waitForBoundedExactAdmission(observation))
+            ) {
+              return;
+            }
+            await observation.waitForAdmission();
+            const terminal = await observation.terminal;
+            if ('failedRequest' in terminal) {
+              throw new Error(
+                'Cycle date-check request failed before returning a response.',
+              );
+            }
+            const body: unknown = await terminal.response.json();
+            dateCheckResult = { response: terminal.response, body };
+            if (isRecord(body) && body.status === true) {
+              await waitForExactAdmission();
+            }
+          } finally {
+            observation.dispose();
+          }
+        },
+      });
+      await this.reconcileFeatureCaptureFailures(
+        capture,
+        'cycle',
+        input.name,
+        undefined,
+      );
+      if (capture.actionError !== undefined) throw capture.actionError;
+      if (!dateCheckObservation) {
+        throw new Error('Cycle create did not start its exact date-check observer.');
+      }
+      if (!dateCheckResult) {
+        throw new Error('Cycle create did not observe its exact date-check.');
+      }
+      const { response: dateCheck, body: dateCheckBody } = dateCheckResult;
+      expect(dateCheck.status()).toBe(200);
+      if (capture.attemptCount === 0) {
+        if (
+          !isRecord(dateCheckBody) ||
+          dateCheckBody.status !== false ||
+          typeof dateCheckBody.error !== 'string'
+        ) {
+          throw new Error(
+            'Cycle date-check allowed a range without an exact create response.',
+          );
+        }
+        await this.cancelDialog(dialog);
+        continue;
+      }
+
+      if (!isRecord(dateCheckBody) || dateCheckBody.status !== true) {
+        throw new Error('Cycle create proceeded after a rejected date-check.');
+      }
+      const created = this.assertSuccessfulFeatureCapture(capture, 'cycle');
+      expect(created.startDate.slice(0, 10)).toBe(isoDate(startDate));
+      expect(created.endDate.slice(0, 10)).toBe(isoDate(endDate));
+      await expect(dialog).toBeHidden();
+      return created;
+    }
+    throw new Error(
+      'No free cycle range was found across four observed date-check attempts.',
+    );
+  }
+
+  async rejectEmptyModule(): Promise<number> {
+    await this.gotoModules();
+    const dialog = await this.openModuleDialog();
+    const result = await withBlockedExactPosts({
+      page: this.page,
+      endpoint: this.absolute(`${SANDBOX_PROJECT_API_PATH}/modules/`),
+      action: async () => {
+        await this.assertSandbox();
+        await dialog
+          .getByRole('button', { name: 'Create Module', exact: true })
+          .click();
+        await expect(
+          dialog.getByText('Title is required', { exact: true }),
+        ).toBeVisible();
+        await this.cancelDialog(dialog);
+      },
+    });
+    if (result.actionError) throw result.actionError;
+    return result.attemptCount;
+  }
+
+  async assertModulePastDatesEnabled() {
+    await this.gotoModules();
+    const dialog = await this.openModuleDialog();
+    await this.openDatePicker(dialog);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dateButton = dialog.getByRole('button', {
+      name: calendarName(yesterday),
+      exact: true,
+    });
+    await expect(dateButton).toBeEnabled();
+    await dateButton.press('Escape');
+    await this.cancelDialog(dialog);
+  }
+
+  async createModule(
+    input: PlanningInput,
+    register: FeatureRegistration,
+  ): Promise<CreatedModule> {
+    this.assertOwnedName(input.name);
+    await this.gotoModules();
+    const dialog = await this.openModuleDialog();
+    await dialog.getByRole('textbox', { name: 'Title', exact: true }).fill(input.name);
+    await dialog
+      .getByRole('textbox', { name: 'Description', exact: true })
+      .fill(input.description);
+    await this.selectDateRange(dialog, input.startDate, input.endDate);
+    const created = await this.captureFeatureCreation(
+      'module',
+      input.name,
+      undefined,
+      (body) => parseCreatedModule(body, input.name),
+      register,
+      () =>
+        dialog
+          .getByRole('button', { name: 'Create Module', exact: true })
+          .click(),
+    );
+    expect(created.startDate).toBe(isoDate(input.startDate));
+    expect(created.targetDate).toBe(isoDate(input.endDate));
+    await expect(dialog).toBeHidden();
+    return created;
+  }
+
+  async assignCycleToCurrentWorkItem(
+    workItems: WorkItemsPage,
+    cycle: CreatedCycle,
+    item: CreatedWorkItem,
+  ) {
+    this.assertRegistered(cycle);
+    await this.assertAssociationTargetBeforeControls(workItems, item);
+    const row = this.propertyRow('Cycle');
+    await row
+      .getByRole('button', { name: 'No cycle', exact: true })
+      .click();
+    const option = this.page.getByRole('option', {
+      name: cycle.name,
+      exact: true,
+    });
+    await expect(option).toHaveCount(1);
+    await this.assertAssociationTargetBeforeMutation(workItems, item);
+    const response = await this.runGuardedAssociationMutation({
+      method: 'POST',
+      path: `${SANDBOX_PROJECT_API_PATH}/cycles/${cycle.id}/cycle-issues/`,
+      validate: (request) =>
+        validateCycleAssignmentRequest(request, item.id),
+      action: () => option.click(),
+    });
+    expect(response.status()).toBe(201);
+    await expect(row.getByRole('button', { name: cycle.name, exact: true })).toBeVisible();
+  }
+
+  async removeCycleFromCurrentWorkItem(
+    workItems: WorkItemsPage,
+    cycle: CreatedCycle,
+    item: CreatedWorkItem,
+  ) {
+    this.assertRegistered(cycle);
+    await this.assertAssociationTargetBeforeControls(workItems, item);
+    const row = this.propertyRow('Cycle');
+    await row.getByRole('button', { name: cycle.name, exact: true }).click();
+    await this.assertAssociationTargetBeforeMutation(workItems, item);
+    const noCycle = this.page.getByRole('option', {
+      name: 'No cycle',
+      exact: true,
+    });
+    const response = await this.runGuardedAssociationMutation({
+      method: 'DELETE',
+      path: `${SANDBOX_PROJECT_API_PATH}/cycles/${cycle.id}/cycle-issues/${item.id}/`,
+      validate: validateCycleRemovalRequest,
+      action: () => noCycle.click(),
+    });
+    expect(response.status()).toBe(204);
+    await expect(row.getByRole('button', { name: 'No cycle', exact: true })).toBeVisible();
+  }
+
+  async assignModuleToCurrentWorkItem(
+    workItems: WorkItemsPage,
+    module: CreatedModule,
+    item: CreatedWorkItem,
+  ) {
+    this.assertRegistered(module);
+    await this.assertAssociationTargetBeforeControls(workItems, item);
+    const row = this.propertyRow('Modules');
+    await row
+      .getByRole('button', { name: 'No module', exact: true })
+      .click();
+    const option = this.page.getByRole('option', {
+      name: module.name,
+      exact: true,
+    });
+    await expect(option).toHaveCount(1);
+    await this.assertAssociationTargetBeforeMutation(workItems, item);
+    const response = await this.runGuardedAssociationMutation({
+      method: 'POST',
+      path: `${SANDBOX_PROJECT_API_PATH}/modules/${module.id}/issues/`,
+      validate: (request) =>
+        validateModuleAssignmentRequest(request, item.id),
+      action: () => option.click(),
+    });
+    expect(response.status()).toBe(201);
+    await this.page.keyboard.press('Escape');
+    await expect(row.getByRole('button', { name: module.name, exact: true })).toBeVisible();
+  }
+
+  async removeModuleFromCurrentWorkItem(
+    workItems: WorkItemsPage,
+    module: CreatedModule,
+    item: CreatedWorkItem,
+  ) {
+    this.assertRegistered(module);
+    await this.assertAssociationTargetBeforeControls(workItems, item);
+    const row = this.propertyRow('Modules');
+    await row.getByRole('button', { name: module.name, exact: true }).click();
+    await this.assertAssociationTargetBeforeMutation(workItems, item);
+    const moduleOption = this.page.getByRole('option', {
+      name: module.name,
+      exact: true,
+    });
+    const response = await this.runGuardedAssociationMutation({
+      method: 'POST',
+      path: `${SANDBOX_PROJECT_API_PATH}/issues/${item.id}/modules/`,
+      validate: (request) =>
+        validateModuleRemovalRequest(request, module.id),
+      action: () => moduleOption.click(),
+    });
+    expect(response.status()).toBe(201);
+    await this.page.keyboard.press('Escape');
+    await expect(row.getByRole('button', { name: 'No module', exact: true })).toBeVisible();
+  }
+
+  async assertCycleProgress(
+    cycle: CreatedCycle,
+    itemName: string,
+  ) {
+    await this.gotoPlanningDetail(cycle);
+    const progress = this.page
+      .getByRole('main')
+      .getByText('0/1', { exact: true });
+    await expect(progress).toHaveCount(1);
+    await expect(progress).toBeVisible();
+    await expect(
+      this.page.getByRole('link').filter({ hasText: itemName }),
+    ).toHaveCount(1);
+  }
+
+  async assertModuleProgress(
+    module: CreatedModule,
+    itemName: string,
+  ) {
+    await this.gotoPlanningDetail(module);
+    const progress = this.page
+      .getByRole('main')
+      .getByText('0/1', { exact: true });
+    await expect(progress).toHaveCount(1);
+    await expect(progress).toBeVisible();
+    await expect(
+      this.page.getByRole('link').filter({ hasText: itemName }),
+    ).toHaveCount(1);
+  }
+
+  async deleteOwnedCycle(cycle: CreatedCycle) {
+    await this.deleteOwnedFeature(cycle, cycle.name);
+  }
+
+  async cleanupOwnedCycle(cycle: CreatedCycle) {
+    await this.deleteOwnedFeature(cycle);
+  }
+
+  async deleteOwnedModule(module: CreatedModule) {
+    await this.deleteOwnedFeature(module, module.name);
+  }
+
+  async cleanupOwnedModule(module: CreatedModule) {
+    await this.deleteOwnedFeature(module);
+  }
+
+  private async captureFeatureCreation<T extends ResponseOwnedFeature>(
+    kind: T['kind'],
+    requestedName: string,
+    requestedIdentifier: string | undefined,
+    parse: (body: unknown) => T,
+    register: FeatureRegistration,
+    action: () => Promise<unknown>,
+  ): Promise<T> {
+    const endpointPath =
+      kind === 'project'
+        ? PROJECTS_API_PATH
+        : `${SANDBOX_PROJECT_API_PATH}/${kind === 'cycle' ? 'cycles' : 'modules'}/`;
+    const capture = await captureExactFeaturePosts({
+      page: this.page,
+      endpoint: this.absolute(endpointPath),
+      action: async () => {
+        await this.assertSandbox();
+        return action();
+      },
+      parse,
+      register: (created) =>
+        this.registerCreatedInLedgers(created, register),
+    });
+
+    await this.reconcileFeatureCaptureFailures(
+      capture,
+      kind,
+      requestedName,
+      requestedIdentifier,
+    );
+    if (capture.actionError !== undefined) throw capture.actionError;
+    return this.assertSuccessfulFeatureCapture(capture, kind);
+  }
+
+  private assertSuccessfulFeatureCapture<T extends ResponseOwnedFeature>(
+    capture: ExactFeaturePostCapture<T>,
+    kind: T['kind'],
+  ): T {
+    expect(capture.non201).toEqual([]);
+    expect(capture.failedAttempts).toEqual([]);
+    expect(capture.attemptCount).toBe(1);
+    expect(capture.responseCount).toBe(1);
+    expect(capture.created).toHaveLength(1);
+    const [created] = capture.created;
+    if (!created) {
+      throw new Error(`${kind} create produced no exact-ID response.`);
+    }
+    return created;
+  }
+
+  private async reconcileFeatureCaptureFailures<T extends ResponseOwnedFeature>(
+    capture: ExactFeaturePostCapture<T>,
+    kind: T['kind'],
+    requestedName: string,
+    requestedIdentifier: string | undefined,
+  ) {
+    const failures = [
+      ...capture.contractErrors.map((failure) => ({
+        requestOrdinal: failure.requestOrdinal,
+        exactId: failure.exactId,
+        observedId: failure.observedId,
+        error: failure.error,
+      })),
+      ...capture.registrationErrors.map((failure) => ({
+        requestOrdinal: failure.requestOrdinal,
+        exactId: failure.created.id,
+        observedId: failure.created.id,
+        error: failure.error,
+      })),
+    ].sort((left, right) => left.requestOrdinal - right.requestOrdinal);
+    if (failures.length === 0) return;
+
+    const cleanupErrors: unknown[] = [];
+    const cleanedIds = new Set<string>();
+    for (const { exactId } of failures) {
+      if (!exactId || cleanedIds.has(exactId)) continue;
+      cleanedIds.add(exactId);
+      try {
+        await this.deleteCapturedExactIdIfOwned(
+          kind,
+          exactId,
+          requestedName,
+          requestedIdentifier,
+        );
+      } catch (error) {
+        cleanupErrors.push(
+          new AggregateError(
+            [error],
+            `Exact-ID cleanup failed; residual ID: ${exactId}`,
+          ),
+        );
+      }
+    }
+    const unresolvedIds = failures
+      .filter(
+        ({ observedId, exactId }) =>
+          observedId !== undefined && exactId === undefined,
+      )
+      .map(
+        ({ observedId }) =>
+          new Error(`Unreconciled non-canonical response ID: ${observedId}`),
+      );
+    throw new AggregateError(
+      [
+        ...failures.map(({ error }) => error),
+        ...unresolvedIds,
+        ...cleanupErrors,
+      ],
+      'Exact feature POST capture failed after guarded cleanup.',
+    );
+  }
+
+  private async deleteCapturedExactIdIfOwned(
+    kind: ResponseOwnedFeature['kind'],
+    id: string,
+    requestedName: string,
+    requestedIdentifier: string | undefined,
+  ) {
+    this.requireCanonicalId(id);
+    const endpointPath =
+      kind === 'project'
+        ? `${PROJECTS_API_PATH}${id}/`
+        : `${SANDBOX_PROJECT_API_PATH}/${kind === 'cycle' ? 'cycles' : 'modules'}/${id}/`;
+    const endpoint = this.absolute(endpointPath);
+    const inspection = await this.requestContext.get(endpoint);
+    if (inspection.status() === 404) {
+      const record = this.#owned.get(id);
+      if (record) record.deleted = true;
+      return;
+    }
+    expect(inspection.status()).toBe(200);
+    const body: unknown = await inspection.json();
+    const identityMatches =
+      isRecord(body) &&
+      body.id === id &&
+      body.name === requestedName &&
+      (kind === 'project'
+        ? body.identifier === requestedIdentifier
+        : body.project_id === SANDBOX.projectId);
+    if (!identityMatches) {
+      throw new Error(
+        'Refusing captured exact-ID cleanup without an exact ownership match.',
+      );
+    }
+    const response = await this.requestContext.delete(endpoint);
+    expect(response.status()).toBe(204);
+    const record = this.#owned.get(id);
+    if (record) record.deleted = true;
+  }
+
+  private async openProjectDialog() {
+    await this.page
+      .getByRole('button', { name: 'Add Project', exact: true })
+      .click();
+    const dialog = this.page.getByRole('dialog').filter({
+      has: this.page.getByRole('textbox', {
+        name: 'Project name',
+        exact: true,
+      }),
+    });
+    await expect(dialog).toBeVisible();
+    return dialog;
+  }
+
+  private async openCycleDialog() {
+    await this.page
+      .getByRole('button', { name: 'Add cycle', exact: true })
+      .click();
+    return this.expectDialog('Create cycle');
+  }
+
+  private async openModuleDialog() {
+    await this.page
+      .getByRole('button', { name: 'Add Module', exact: true })
+      .click();
+    return this.expectDialog('Create module');
+  }
+
+  private async expectDialog(heading: string) {
+    const dialog = this.page.getByRole('dialog').filter({
+      has: this.page.getByRole('heading', { name: heading, exact: true }),
+    });
+    await expect(dialog).toBeVisible();
+    return dialog;
+  }
+
+  private async cancelDialog(dialog: Locator) {
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog).toBeHidden();
+  }
+
+  private async openProjectDeleteDialog() {
+    await this.page
+      .getByRole('button', { name: 'Delete project', exact: true })
+      .click();
+    await this.page
+      .getByRole('button', { name: 'Delete my project', exact: true })
+      .click();
+    return this.expectDialog('Delete project');
+  }
+
+  private async openDatePicker(dialog: Locator) {
+    await dialog
+      .getByRole('button', { name: 'Start date End date', exact: true })
+      .click();
+    const listbox = dialog.getByRole('listbox', {
+      name: 'Start date End date',
+      exact: true,
+    });
+    await expect(listbox).toBeVisible();
+    return listbox;
+  }
+
+  private async selectDateRange(dialog: Locator, startDate: Date, endDate: Date) {
+    expect(endDate.getTime()).toBeGreaterThan(startDate.getTime());
+    const listbox = await this.openDatePicker(dialog);
+    await this.selectCalendarDate(listbox, startDate);
+    await this.selectCalendarDate(listbox, endDate);
+    await expect(listbox).toBeHidden();
+  }
+
+  private async selectCalendarDate(listbox: Locator, date: Date) {
+    const year = `${date.getFullYear()}`;
+    const month = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(date);
+    const yearOption = listbox.getByRole('option', { name: year, exact: true });
+    if (await yearOption.count()) await yearOption.click();
+    await listbox.getByRole('option', { name: month, exact: true }).click();
+    await listbox
+      .getByRole('button', { name: calendarName(date), exact: true })
+      .click();
+  }
+
+  private async runGuardedAssociationMutation({
+    method,
+    path,
+    validate,
+    action,
+  }: AssociationMutationInput): Promise<Response> {
+    const endpoint = this.absolute(path);
+    let admitted = false;
+    let mutationStarted = false;
+    let actionFailed = false;
+    let actionError: unknown;
+    let lastActivityAt = 0;
+    let pendingMutations = 0;
+    let primaryResolved = false;
+    let resolvePrimary = (_outcome: AssociationRouteOutcome) => {};
+    const primaryTerminal = new Promise<AssociationRouteOutcome>((resolve) => {
+      resolvePrimary = resolve;
+    });
+    const secondaryErrors: unknown[] = [];
+    const settlePrimary = (outcome: AssociationRouteOutcome) => {
+      if (primaryResolved) return;
+      primaryResolved = true;
+      lastActivityAt = Date.now();
+      resolvePrimary(outcome);
+    };
+    const markMutationStarted = () => {
+      lastActivityAt = Date.now();
+      if (mutationStarted) return;
+      mutationStarted = true;
+    };
+    const abortMutation = async (
+      route: Route,
+      error: unknown,
+      failureMessage: string,
+      primary: boolean,
+    ) => {
+      let terminalError = error;
+      try {
+        await route.abort('blockedbyclient');
+      } catch (abortError) {
+        terminalError = new AggregateError(
+          [error, abortError],
+          failureMessage,
+        );
+      }
+      if (primary) settlePrimary({ error: terminalError });
+      else secondaryErrors.push(terminalError);
+    };
+    const guardRoute = async (route: Route) => {
+      const request = route.request();
+      if (!MUTATING_HTTP_METHODS.has(request.method())) {
+        await route.continue();
+        return;
+      }
+
+      markMutationStarted();
+      pendingMutations += 1;
+      try {
+        if (admitted) {
+          await abortMutation(
+            route,
+            new Error(
+              'Association action emitted more than one mutation request.',
+            ),
+            'Failed to block duplicate association mutation.',
+            false,
+          );
+          return;
+        }
+        admitted = true;
+
+        try {
+          if (actionFailed) {
+            throw new Error(
+              'Association mutation started after its UI action failed.',
+            );
+          }
+          if (request.method() !== method || request.url() !== endpoint) {
+            throw new Error(
+              'Association mutation did not match the exact endpoint and method.',
+            );
+          }
+          validate(request);
+        } catch (validationError) {
+          await abortMutation(
+            route,
+            validationError,
+            'Association request was invalid and could not be aborted.',
+            true,
+          );
+          return;
+        }
+
+        try {
+          await route.continue();
+          const response = await request.response();
+          if (!response) {
+            throw new Error(
+              'Continued association request produced no response.',
+            );
+          }
+          settlePrimary({ response });
+        } catch (error) {
+          settlePrimary({ error });
+        }
+      } finally {
+        pendingMutations -= 1;
+        lastActivityAt = Date.now();
+      }
+    };
+
+    const drainMutationRoute = async () => {
+      const drainStartedAt = Date.now();
+      lastActivityAt = Math.max(lastActivityAt, drainStartedAt);
+      while (true) {
+        const now = Date.now();
+        if (
+          pendingMutations === 0 &&
+          now - lastActivityAt >= MUTATION_DRAIN_QUIET_MS
+        ) {
+          break;
+        }
+        if (
+          pendingMutations === 0 &&
+          now - drainStartedAt >= MUTATION_DRAIN_MAX_MS
+        ) {
+          break;
+        }
+        await delay(25);
+      }
+    };
+
+    await this.page.route('**/*', guardRoute);
+    try {
+      try {
+        await action();
+      } catch (error) {
+        actionFailed = true;
+        actionError = error;
+      }
+      if (actionFailed) {
+        await drainMutationRoute();
+        if (!mutationStarted) throw actionError;
+      }
+
+      const outcome = await primaryTerminal;
+      await drainMutationRoute();
+      const errors: unknown[] = [];
+      if ('error' in outcome) errors.push(outcome.error);
+      if (actionFailed) errors.push(actionError);
+      errors.push(...secondaryErrors);
+      if (errors.length === 1) throw errors[0];
+      if (errors.length > 1) {
+        throw new AggregateError(
+          errors,
+          'Association mutation failed during guarded request draining.',
+        );
+      }
+      if (!outcome.response) {
+        throw new Error('Association mutation produced no guarded response.');
+      }
+      return outcome.response;
+    } finally {
+      await this.page.unroute('**/*', guardRoute);
+    }
+  }
+
+  private async assertAssociationTargetBeforeControls(
+    workItems: WorkItemsPage,
+    item: CreatedWorkItem,
+  ) {
+    await this.assertSandbox();
+    await workItems.assertCurrentResponseOwned(item);
+  }
+
+  private async assertAssociationTargetBeforeMutation(
+    workItems: WorkItemsPage,
+    item: CreatedWorkItem,
+  ) {
+    await workItems.assertCurrentResponseOwned(item);
+    await this.assertSandbox();
+  }
+
+  private propertyRow(label: 'Cycle' | 'Modules') {
+    const detail = this.page
+      .getByRole('textbox', { name: 'Work item title', exact: true })
+      .locator('xpath=ancestor::main[1]');
+    return detail.getByText(label, { exact: true }).locator('..');
+  }
+
+  private async gotoProjectSettings(id: string) {
+    this.requireCanonicalId(id);
+    await this.page.goto(`/${SANDBOX.workspaceSlug}/settings/projects/${id}/`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(
+      this.page.getByRole('button', { name: 'Update project', exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+  }
+
+  private async gotoPlanningDetail(feature: CreatedCycle | CreatedModule) {
+    this.assertRegistered(feature);
+    await this.page.goto(
+      `${SANDBOX_PROJECT_PATH}/${feature.kind === 'cycle' ? 'cycles' : 'modules'}/${feature.id}`,
+      { waitUntil: 'domcontentloaded' },
+    );
+    await expect(
+      this.page.getByRole('heading', { name: feature.name, exact: true }),
+    ).toBeVisible({ timeout: 15_000 });
+  }
+
+  private featureEndpoint(feature: ResponseOwnedFeature) {
+    this.requireCanonicalId(feature.id);
+    if (feature.kind === 'project') {
+      return `${PROJECTS_API_PATH}${feature.id}/`;
+    }
+    return `${SANDBOX_PROJECT_API_PATH}/${feature.kind === 'cycle' ? 'cycles' : 'modules'}/${feature.id}/`;
+  }
+
+  private async deleteOwnedFeature(
+    feature: ResponseOwnedFeature,
+    expectedName?: string,
+  ) {
+    this.assertRegistered(feature);
+    if (expectedName !== undefined) {
+      this.assertRegisteredName(feature, expectedName);
+    }
+    const record = this.#owned.get(feature.id);
+    if (!record) throw new Error('Exact feature ID is missing from the response ledger.');
+    const endpoint = this.absolute(this.featureEndpoint(feature));
+    if (!record.deleted) {
+      const inspection = await this.requestContext.get(endpoint);
+      if (inspection.status() === 404) {
+        record.deleted = true;
+      } else {
+        expect(inspection.status()).toBe(200);
+        const body: unknown = await inspection.json();
+        const inspectedName =
+          isRecord(body) && typeof body.name === 'string' ? body.name : undefined;
+        const cleanupName = expectedName ?? inspectedName;
+        if (!cleanupName || !record.names.has(cleanupName)) {
+          throw new Error('Refusing cleanup for a name absent from the ownership ledger.');
+        }
+        assertExactOwnedFeatureCleanupTarget(body, {
+          ...feature,
+          name: cleanupName,
+        });
+        const response = await this.requestContext.delete(endpoint);
+        expect(response.status()).toBe(204);
+        record.deleted = true;
+      }
+    }
+    if (feature.kind === 'project') await this.gotoProjects();
+    else if (feature.kind === 'cycle') await this.gotoCycles();
+    else await this.gotoModules();
+    for (const name of record.names) {
+      await expect(this.page.getByText(name, { exact: true })).toHaveCount(0, {
+        timeout: 15_000,
+      });
+    }
+  }
+
+  private registerCreatedInLedgers(
+    created: ResponseOwnedFeature,
+    register: FeatureRegistration,
+  ) {
+    this.#owned.set(created.id, {
+      created,
+      names: new Set([created.name]),
+      deleted: false,
+    });
+    return register(created);
+  }
+
+  private assertRegistered(feature: ResponseOwnedFeature) {
+    const record = this.#owned.get(feature.id);
+    if (
+      !record ||
+      record.created.kind !== feature.kind ||
+      record.created.id !== feature.id
+    ) {
+      throw new Error('Feature must be present in the exact create-response ledger.');
+    }
+  }
+
+  private assertRegisteredName(
+    feature: ResponseOwnedFeature,
+    expectedName: string,
+  ) {
+    this.assertRegistered(feature);
+    this.assertOwnedName(expectedName);
+    if (!this.#owned.get(feature.id)?.names.has(expectedName)) {
+      throw new Error('Expected feature name is absent from the ownership ledger.');
+    }
+  }
+
+  private assertOwnedName(name: string) {
+    if (!name.startsWith(`${QA_PREFIX} `)) {
+      throw new Error(`Feature names must start with ${QA_PREFIX}.`);
+    }
+  }
+
+  private requireCanonicalId(id: string) {
+    if (!isCanonicalEntityId(id)) {
+      throw new Error('Refusing an endpoint for a non-canonical feature ID.');
+    }
+  }
+
+  private markDeleted(id: string) {
+    const record = this.#owned.get(id);
+    if (!record) throw new Error('Cannot mark an unregistered feature deleted.');
+    record.deleted = true;
+  }
+
+  private waitForResponse(
+    method: string,
+    path: string,
+    options?: ExactResponseWaitOptions,
+  ): Promise<Response> {
+    const endpoint = this.absolute(path);
+    return waitForExactResponse(this.page, method, endpoint, options);
+  }
+
+  private absolute(path: string) {
+    return new URL(path, this.page.url()).href;
+  }
+}

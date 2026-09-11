@@ -1,0 +1,317 @@
+import { createHash } from "node:crypto";
+import { readFile, readdir } from "node:fs/promises";
+import { join, relative } from "node:path";
+
+import {
+  canonicalJson,
+  digestCanonical,
+  parseCorpus,
+  validateGraph,
+  validateProductCiRun,
+  validateProductTestCatalog,
+} from "./model.mjs";
+import { validateCoverageOwnership } from "./coverage-proof.mjs";
+import { reconcileAuditedGapClosures } from "./audited-gap-reconciliation.mjs";
+import { validateChangedFileClassifications } from "./impact-proof.mjs";
+import { renderObsidianVault } from "./obsidian.mjs";
+import { validateSourceLocatorReviews } from "./proof.mjs";
+import { collectChanges } from "./rebuild.mjs";
+
+export const EXPECTED = Object.freeze({
+  sourceSha: "5b75d6bbc4a390434d660a95324510f1bff13148",
+  graphDigest: "sha256:0da9a660b5ab0ae06e20847d9f9bb92dfd69d6804e1fcdc402ff05a5edb85169",
+  productMapReferenceSha: "5b75d6bbc4a390434d660a95324510f1bff13148",
+  baselineSha: "94991c44860bb12306f5eafb940727e02092ecc7",
+  nodes: 611,
+  edges: 1363,
+  sourceLocators: 444,
+  changedFiles: 535,
+  coverageOwnership: 196,
+  knownCoverageGaps: 47,
+  plan: { automated: 271, productCi: 103, manual: 89 },
+});
+
+export async function validateRepository(root, { sourceRoot } = {}) {
+  const graph = await json(root, "graph/current/graph.json");
+  const production = await json(root, "graph/current/production-reference.json");
+  const impact = await json(root, "graph/current/impact.json");
+  const plan = await json(root, "graph/current/test-plan.json");
+  const catalog = await json(root, "graph/current/catalog.json");
+  const productCatalog = await json(root, "graph/current/product-catalog.json");
+  const productRun = await json(root, "graph/current/product-ci-run.json");
+  const sourceReview = await json(root, "graph/current/source-locator-review.json");
+  const sourceReviewProof = await json(root, "proof/source-locator-reviews.v1.json");
+  const changedProof = await json(root, "proof/changed-file-classifications.v1.json");
+  const coverage = await json(root, "graph/current/coverage-ownership.json");
+  const coverageProof = await json(root, "proof/coverage-ownership.v1.json");
+  const versionedProductCatalog = await json(root, "proof/product-test-bindings.v2.json");
+  const versionedProductRun = await json(root, "proof/product-ci-run.v2.json");
+  const mappings = await json(root, "mappings/mappings.v1.json");
+  const productMap = await readFile(join(root, "contracts/PRODUCT-MAP.md"), "utf8");
+  const coverageMap = await readFile(join(root, "contracts/COVERAGE-MAP.md"), "utf8");
+  const manualCases = await readFile(join(root, "contracts/MANUAL-TEST-CASES.md"), "utf8");
+  const baseline = await json(root, "contracts/baseline.manifest.json");
+  const auditedGapInventory = await json(root, "contracts/audited-gap-inventory.v1.json");
+  const liveInputCorpusDigest = digestCanonical({
+    productMap,
+    coverageMap,
+    manualCases,
+    baseline,
+    mappings,
+    sourceReviewDigest: sourceReviewProof.reviewDigest,
+    changedFileClassificationDigest: changedProof.classificationDigest,
+    productCatalogDigest: productCatalog.catalogDigest,
+    productRunDigest: productRun.runDigest,
+  });
+
+  const structural = validateGraph(graph, {
+    nodeCount: EXPECTED.nodes,
+    edgeCount: EXPECTED.edges,
+    sourceLocatorCount: EXPECTED.sourceLocators,
+    requireNoUnresolved: true,
+    requireResolved: true,
+  });
+  assert(structural.ok, `GRAPH_INVALID ${canonicalJson(structural.issues)}`);
+  const strict = validateGraph(graph, { strictReleaseCoverage: true });
+  assert(strict.issues.length === EXPECTED.knownCoverageGaps, "STRICT_GATE_DEBT_COUNT_MISMATCH");
+  assert(strict.issues.every(issue => issue.code === "KNOWN_COVERAGE_GAP"), "STRICT_GATE_UNTYPED_DEBT");
+  assert(graph.semanticDigest === EXPECTED.graphDigest, "GRAPH_DIGEST_MISMATCH");
+  assert(graph.generatedFrom?.sourceSha === EXPECTED.sourceSha, "GRAPH_SOURCE_SHA_MISMATCH");
+  assert(graph.generatedFrom?.proofStatus === "fully_proven", "GRAPH_PROOF_STATUS_INVALID");
+  assert(graph.generatedFrom?.productMapReferenceSha === EXPECTED.productMapReferenceSha, "PRODUCT_MAP_REFERENCE_SHA_MISMATCH");
+  assert(graph.generatedFrom?.inputCorpusDigest === liveInputCorpusDigest, "INPUT_CORPUS_DRIFT");
+  assert(production.releaseSha === EXPECTED.sourceSha && production.assurance === "corroborated", "PRODUCTION_ATTESTATION_INVALID");
+  assert(graph.sourceLocators.every(locator => locator.disposition === "resolved"), "SOURCE_LOCATOR_NOT_PROVEN");
+
+  assert(impact.proofStatus === "fully_proven" && impact.releaseVerdict === "not_evaluated", "IMPACT_PROOF_STATUS_INVALID");
+  assert(impact.changedFiles.length === EXPECTED.changedFiles && impact.unmappedFiles.length === 0, "IMPACT_FILE_ACCOUNTING_INVALID");
+  const { impactDigest, ...impactBody } = impact;
+  assert(impactDigest === digestCanonical(impactBody), "IMPACT_DIGEST_MISMATCH");
+
+  assert(plan.proofStatus === "fully_proven" && plan.releaseVerdict === "not_evaluated", "PLAN_PROOF_STATUS_INVALID");
+  assert(plan.sourceIdentity === "exact_source_commit", "PLAN_SOURCE_IDENTITY_INVALID");
+  assert(plan.environment === "staging" && plan.executionProject === "freeland-staging", "PLAN_ENVIRONMENT_INVALID");
+  assert(plan.fallback === "full" && plan.manualStatus === "pending", "PLAN_FALLBACK_INVALID");
+  assert(plan.candidateSha === EXPECTED.sourceSha && plan.sourceSha === EXPECTED.sourceSha, "PLAN_CANDIDATE_SHA_MISMATCH");
+  assert(plan.baselineSha === EXPECTED.baselineSha, "PLAN_BASELINE_SHA_MISMATCH");
+  assert(plan.inputCorpusDigest === liveInputCorpusDigest, "PLAN_INPUT_CORPUS_DRIFT");
+  assert(new Set(plan.automatedTests.map(test => test.id)).size === EXPECTED.plan.automated, "PLAN_AUTOMATED_COUNT_MISMATCH");
+  assert(new Set((plan.productCiTests ?? []).map(test => test.id)).size === EXPECTED.plan.productCi, "PLAN_PRODUCT_CI_COUNT_MISMATCH");
+  assert(new Set((plan.manualTests ?? []).map(test => test.id)).size === EXPECTED.plan.manual, "PLAN_MANUAL_COUNT_MISMATCH");
+  assert(catalog.catalogCount === EXPECTED.plan.automated, "CATALOG_COUNT_MISMATCH");
+  const { planDigest, ...planBody } = plan;
+  assert(planDigest === digestCanonical(planBody), "PLAN_DIGEST_MISMATCH");
+
+  const validatedProductCatalog = validateProductTestCatalog(productCatalog);
+  const validatedProductRun = validateProductCiRun({ run: productRun, catalog: validatedProductCatalog });
+  assert(validatedProductCatalog.sourceSha === EXPECTED.sourceSha, "PRODUCT_CI_SOURCE_SHA_MISMATCH");
+  assert(canonicalJson(productCatalog) === canonicalJson(versionedProductCatalog), "PRODUCT_CI_CATALOG_PROOF_DRIFT");
+  assert(canonicalJson(productRun) === canonicalJson(versionedProductRun), "PRODUCT_CI_RUN_PROOF_DRIFT");
+  assert(validatedProductCatalog.tests.length === EXPECTED.plan.productCi, "PRODUCT_CI_CATALOG_COUNT_MISMATCH");
+  assert(validatedProductRun.state === "completed", "PRODUCT_CI_RUN_INCOMPLETE");
+  assert(validatedProductRun.counts.selected === EXPECTED.plan.productCi, "PRODUCT_CI_SELECTED_COUNT_MISMATCH");
+  assert(validatedProductRun.counts.passed === EXPECTED.plan.productCi, "PRODUCT_CI_PASS_COUNT_MISMATCH");
+  assert(validatedProductRun.counts.failed === 0 && validatedProductRun.counts.skipped === 0 && validatedProductRun.counts.notRun === 0, "PRODUCT_CI_RUN_NOT_GREEN");
+  assert(canonicalJson(plan.productCiTests.map(test => test.id).sort()) === canonicalJson(validatedProductCatalog.tests.map(test => test.id).sort()), "PLAN_PRODUCT_CI_CATALOG_MISMATCH");
+
+  assert(sourceReview.schemaVersion === 2 && sourceReview.proofStatus === "fully_proven", "SOURCE_REVIEW_SCHEMA_INVALID");
+  assert(sourceReview.sourceSha === EXPECTED.sourceSha && sourceReview.graphDigest === EXPECTED.graphDigest, "SOURCE_REVIEW_IDENTITY_MISMATCH");
+  assert(sourceReview.counts.total === EXPECTED.sourceLocators && sourceReview.counts.resolved === EXPECTED.sourceLocators, "SOURCE_REVIEW_COUNT_MISMATCH");
+  assert(sourceReview.counts.reviewRequired === 0 && sourceReview.counts.unresolved === 0, "SOURCE_REVIEW_DEBT_PRESENT");
+  const { summaryDigest, ...sourceReviewBody } = sourceReview;
+  assert(summaryDigest === digestCanonical(sourceReviewBody), "SOURCE_REVIEW_DIGEST_MISMATCH");
+  assertExactKeys(sourceReviewProof, ["schemaVersion", "sourceSha", "reviews", "reviewDigest"], "source locator proof");
+  assert(sourceReviewProof.schemaVersion === 1 && sourceReviewProof.sourceSha === EXPECTED.sourceSha, "SOURCE_REVIEW_PROOF_IDENTITY_MISMATCH");
+  assert(Array.isArray(sourceReviewProof.reviews), "SOURCE_REVIEW_PROOF_LIST_INVALID");
+  const { reviewDigest: proofDigest, ...sourceReviewProofBody } = sourceReviewProof;
+  assert(proofDigest === digestCanonical(sourceReviewProofBody), "SOURCE_REVIEW_PROOF_DIGEST_MISMATCH");
+
+  assert(canonicalJson(coverage) === canonicalJson(coverageProof), "COVERAGE_OWNERSHIP_PROOF_DRIFT");
+  const coverageValidation = validateCoverageOwnership({
+    document: coverage,
+    sourceSha: EXPECTED.sourceSha,
+    requiredNodeIds: graph.nodes.filter(node => ["requirement", "flow", "route", "invariant"].includes(node.kind)).map(node => node.id),
+    testNodes: new Map(graph.nodes.map(node => [node.id, node])),
+    productCatalog: validatedProductCatalog,
+    passedProductCiIds: new Set(validatedProductRun.rows.filter(row => row.status === "passed").map(row => row.id)),
+    requireComplete: true,
+  });
+  assert(coverageValidation.owned === EXPECTED.coverageOwnership, "COVERAGE_OWNERSHIP_COUNT_MISMATCH");
+  assert(coverageValidation.knownGaps.length === EXPECTED.knownCoverageGaps, "COVERAGE_GAP_COUNT_MISMATCH");
+  assert(canonicalJson(coverageValidation.knownGaps.sort()) === canonicalJson(strict.issues.map(issue => issue.id).sort()), "STRICT_GAP_SET_MISMATCH");
+
+  const auditedGapReconciliation = reconcileAuditedGapClosures({
+    inventory: auditedGapInventory,
+    closures: await loadAuditedGapClosures(root, auditedGapInventory.closureArtifactOrder),
+  });
+  assert(auditedGapReconciliation.baselineGapCount === EXPECTED.knownCoverageGaps, "AUDITED_GAP_BASELINE_COUNT_MISMATCH");
+  assert(
+    auditedGapReconciliation.remainingGapIds.length === auditedGapInventory.expectedRemainingGapIds.length,
+    "AUDITED_GAP_REMAINING_COUNT_MISMATCH",
+  );
+
+  if (sourceRoot) {
+    const corpus = parseCorpus({ productMap, coverageMap, manualCases, baseline, aliases: mappings.aliases });
+    const sourceValidation = await validateSourceLocatorReviews({
+      document: sourceReviewProof,
+      locators: corpus.sourceLocators,
+      sourceRoot,
+      sourceSha: EXPECTED.sourceSha,
+      requireComplete: true,
+    });
+    assert(sourceValidation.reviewed === EXPECTED.sourceLocators, "LIVE_SOURCE_REVIEW_COUNT_MISMATCH");
+    const changedValidation = validateChangedFileClassifications({
+      document: changedProof,
+      expectedChanges: collectChanges({ sourceRoot, baselineSha: EXPECTED.baselineSha, candidateSha: EXPECTED.sourceSha }),
+      baselineSha: EXPECTED.baselineSha,
+      candidateSha: EXPECTED.sourceSha,
+      validNodeIds: new Set(graph.nodes.filter(node => ["requirement", "flow", "route", "invariant"].includes(node.kind)).map(node => node.id)),
+      requireComplete: true,
+    });
+    assert(changedValidation.classified === EXPECTED.changedFiles, "LIVE_CHANGED_FILE_COUNT_MISMATCH");
+  }
+
+  return {
+    ok: true,
+    graphDigest: graph.semanticDigest,
+    sourceSha: graph.generatedFrom.sourceSha,
+    counts: { nodes: graph.nodes.length, edges: graph.edges.length, sourceLocators: graph.sourceLocators.length },
+    proofStatus: "fully_proven",
+    impact: { changed: impact.changedFiles.length, unmapped: impact.unmappedFiles.length, semanticNodes: impact.impactedNodes.length },
+    plan: EXPECTED.plan,
+    productCi: { catalog: validatedProductCatalog.tests.length, passed: validatedProductRun.counts.passed },
+    auditedGaps: { remaining: auditedGapReconciliation.remainingGapIds },
+  };
+}
+
+export async function verifySnapshot(root) {
+  const graph = await json(root, "graph/current/graph.json");
+  const snapshotRelative = `graph/snapshots/${graph.generatedFrom.sourceSha}/${graph.semanticDigest.replace(":", "-")}`;
+  const manifest = await json(root, `${snapshotRelative}/snapshot.json`);
+  assert(manifest.sourceSha === graph.generatedFrom.sourceSha, "SNAPSHOT_SOURCE_SHA_MISMATCH");
+  assert(manifest.graphDigest === graph.semanticDigest, "SNAPSHOT_GRAPH_DIGEST_MISMATCH");
+  assert(manifest.schemaVersion === 2 && manifest.proofStatus === "fully_proven", "SNAPSHOT_PROOF_STATUS_INVALID");
+  const expectedFiles = {
+    "current/graph.json": "graph/current/graph.json",
+    "current/production-reference.json": "graph/current/production-reference.json",
+    "current/impact.json": "graph/current/impact.json",
+    "current/test-plan.json": "graph/current/test-plan.json",
+    "current/catalog.json": "graph/current/catalog.json",
+    "current/product-catalog.json": "graph/current/product-catalog.json",
+    "current/product-ci-run.json": "graph/current/product-ci-run.json",
+    "current/source-locator-review.json": "graph/current/source-locator-review.json",
+    "current/coverage-ownership.json": "graph/current/coverage-ownership.json",
+    "mappings.v1.json": "mappings/mappings.v1.json",
+  };
+  assert(canonicalJson(Object.keys(manifest.sha256).sort()) === canonicalJson(Object.keys(expectedFiles).sort()), "SNAPSHOT_FILE_SET_MISMATCH");
+  for (const [snapshotPath, currentPath] of Object.entries(expectedFiles)) {
+    const sealed = await readFile(join(root, snapshotRelative, snapshotPath));
+    const current = await readFile(join(root, currentPath));
+    assert(sealed.equals(current), `SNAPSHOT_CURRENT_MISMATCH ${snapshotPath}`);
+    assert(sha256(sealed) === manifest.sha256[snapshotPath], `SNAPSHOT_HASH_MISMATCH ${snapshotPath}`);
+  }
+  return { ok: true, snapshot: snapshotRelative, files: Object.keys(expectedFiles).length };
+}
+
+export async function verifyViews(root) {
+  const graph = await json(root, "graph/current/graph.json");
+  const impact = await json(root, "graph/current/impact.json");
+  const plan = await json(root, "graph/current/test-plan.json");
+  const productionReference = await json(root, "graph/current/production-reference.json");
+  const rendered = renderObsidianVault({ graph, impact, plan, productionReference });
+  const actualFiles = (await walk(join(root, "obsidian")))
+    .map(path => relative(join(root, "obsidian"), path).replaceAll("\\", "/"))
+    .filter(path => !isObsidianLocalState(path))
+    .sort();
+  const expectedFiles = [...rendered.keys()].filter(path => !isObsidianLocalState(path)).sort();
+  assert(canonicalJson(actualFiles) === canonicalJson(expectedFiles), "OBSIDIAN_FILE_SET_MISMATCH");
+  for (const [path, expected] of [...rendered].filter(([path]) => !isObsidianLocalState(path))) {
+    const actual = await readFile(join(root, "obsidian", path), "utf8");
+    if (path.endsWith(".canvas")) {
+      assert(canonicalJson(JSON.parse(actual)) === canonicalJson(JSON.parse(expected)), `OBSIDIAN_VIEW_DRIFT ${path}`);
+    } else {
+      assert(actual === expected, `OBSIDIAN_VIEW_DRIFT ${path}`);
+    }
+  }
+  return { ok: true, files: rendered.size };
+}
+
+export async function scanSensitive(root) {
+  const obsidianRoot = join(root, "obsidian");
+  const files = (await walk(root)).filter(path => {
+    if (path === join(root, ".git") || path.includes("/.git/")) return false;
+    const obsidianPath = relative(obsidianRoot, path).replaceAll("\\", "/");
+    return obsidianPath.startsWith("../") || !isObsidianLocalState(obsidianPath);
+  });
+  const patterns = [
+    ["ABSOLUTE_USER_PATH", new RegExp(["/", "Users", "/"].join(""))],
+    ["PERSONAL_HANDLE", new RegExp(["@", "solo", "danil", "|", "danil", "solomin"].join(""), "i")],
+    ["INTERNAL_ACCESS_TOKEN", new RegExp(["nuanu", "_api_", "[a-z0-9]+"].join(""), "i")],
+    ["PRIVATE_KEY", new RegExp(["-----BEGIN ", "(?:RSA |EC |OPENSSH )?", "PRIVATE KEY-----"].join(""))],
+    ["GITHUB_TOKEN", new RegExp(["gh", "[pousr]", "_", "[A-Za-z0-9]{20,}"].join(""))],
+    ["JWT", /eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}/],
+  ];
+  const findings = [];
+  for (const path of files) {
+    let text;
+    try { text = await readFile(path, "utf8"); } catch { continue; }
+    for (const [code, pattern] of patterns) if (pattern.test(text)) findings.push({ code, path: relative(root, path) });
+  }
+  assert(findings.length === 0, `SENSITIVE_CONTENT_FOUND ${canonicalJson(findings)}`);
+  return { ok: true, files: files.length };
+}
+
+function isObsidianLocalState(path) {
+  return /^\.obsidian\/workspace(?:-mobile)?\.json$/.test(path)
+    || path === ".obsidian/graph.json"
+    || path === ".obsidian/appearance.json"
+    || path === ".obsidian/bookmarks.json"
+    || path === ".obsidian/hotkeys.json"
+    || path === ".obsidian/community-plugins.json"
+    || /^\.obsidian\/core-plugins(?:-migration)?\.json$/.test(path)
+    || path.startsWith(".obsidian/plugins/")
+    || path.startsWith(".trash/");
+}
+
+async function json(root, path) { return JSON.parse(await readFile(join(root, path), "utf8")); }
+async function loadAuditedGapClosures(root, artifactOrder) {
+  if (!Array.isArray(artifactOrder)) throw new TypeError("AUDITED_GAP_ARTIFACT_ORDER_INVALID");
+  const candidateRoot = join(root, "proof/candidates");
+  const directories = await readdir(candidateRoot, { withFileTypes: true });
+  const expected = new Set(artifactOrder);
+  const closures = new Map();
+  for (const directory of directories) {
+    if (!directory.isDirectory()) continue;
+    const files = await readdir(join(candidateRoot, directory.name), { withFileTypes: true });
+    for (const file of files) {
+      if (!file.isFile() || !expected.has(file.name)) continue;
+      if (closures.has(file.name)) throw new TypeError(`AUDITED_GAP_ARTIFACT_DUPLICATE ${file.name}`);
+      closures.set(file.name, { artifact: file.name, ...await json(root, `proof/candidates/${directory.name}/${file.name}`) });
+    }
+  }
+  return artifactOrder.map(artifact => {
+    const closure = closures.get(artifact);
+    if (!closure) throw new TypeError(`AUDITED_GAP_ARTIFACT_MISSING ${artifact}`);
+    return closure;
+  });
+}
+function sha256(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
+function assert(condition, message) { if (!condition) throw new Error(message); }
+function countBy(values, keyOf) {
+  return Object.fromEntries([...values.reduce((counts, value) => counts.set(keyOf(value), (counts.get(keyOf(value)) ?? 0) + 1), new Map())].sort());
+}
+function uniqueSelectors(tests = []) { return new Set(tests.map(test => `${test.file}\u0000${(test.titlePath ?? []).join("\u0000")}`)); }
+function assertExactKeys(value, expected, label) {
+  assert(value && typeof value === "object" && !Array.isArray(value), `${label.toUpperCase().replaceAll(" ", "_")}_INVALID`);
+  assert(canonicalJson(Object.keys(value).sort()) === canonicalJson([...expected].sort()), `${label.toUpperCase().replaceAll(" ", "_")}_KEYS_INVALID`);
+}
+async function walk(root) {
+  const entries = await readdir(root, { withFileTypes: true });
+  const paths = [];
+  for (const entry of entries) {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) paths.push(...await walk(path));
+    else if (entry.isFile()) paths.push(path);
+  }
+  return paths.sort();
+}

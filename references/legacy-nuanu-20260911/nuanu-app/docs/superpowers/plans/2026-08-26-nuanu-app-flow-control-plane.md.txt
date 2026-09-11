@@ -1,0 +1,2186 @@
+# Nuanu App Flow Control Plane Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Add a durable fail-closed confirmed-defect outbox and create the
+private Nuanu Flow workspace, project, Bugs workflow, labels, views, and
+campaign-level coverage backlog with exact read-back.
+
+**Architecture:** A private append-only journal is the local authority until a
+Flow item is created and read back. Lease acquisition, renewal, commit, and
+release use the same immutable contiguous event sequence, so a newer
+`leaseId`/fence publication prevents a paused older writer from overwriting
+state. `flow-outbox.snapshot.v1.json` and `flow-outbox.json` are rebuildable
+caches after journal genesis. A descriptor-bound host adapter searches by an
+immutable fingerprint before a create and requires an action-time host
+confirmation bound to the immutable exact batch. A successful request is never
+treated as remote success without read-back. An ambiguous create fails closed
+and must be reconciled before another create; without a server-side
+idempotency key this plan deliberately does not claim global exactly-once
+delivery. The currently unproven attachment read-back capability is an
+explicit post-create blocker, not an inferred success. Nuanu Flow is a control
+plane, not a test execution dependency.
+
+**Tech Stack:** Node.js ESM, node:test, atomic filesystem persistence, Nuanu
+Flow compact MCP tools.
+
+**Spec:** `docs/superpowers/specs/2026-08-26-nuanu-app-qa-project-design.md`
+
+## Global Constraints
+
+- Execute after the Nuanu App QA foundation plan so
+  `tools/nuanu-app-graph/io.mjs` and private Nuanu paths exist.
+- This plan creates external cloud state. Perform a fresh duplicate check and
+  obtain action-time confirmation immediately before each mutation batch.
+- Workspace is exactly `Nuanu App`, slug `nuanu-app`.
+- The exact `nuanu-app` slug is currently blocked by a provider-reported slug
+  conflict. No alternate slug is authorized or silently substituted. Any
+  alternate requires a prior user-approved design amendment and rebinding of
+  every exact workspace, action, and confirmation-batch identity in this plan.
+- Project is exactly `Nuanu App Map`, identifier `NAPP`, private
+  `network: 0`.
+- `Bugs` is a state inside NAPP, not a second project.
+- No invitations, objectives, wiki pages, automations, processes, agents, or
+  unrelated workspace content are authorized.
+- `description_html` and comments use HTML, never Markdown.
+- Every remote mutation is followed by exact read-back. Ambiguous timeout or
+  error stops; never retry a create blindly.
+- The production journal, snapshot, projection, and permanent legacy-writer barrier
+  paths are module-derived under `docs/local/nuanu-app/`; a caller cannot
+  redirect them. Temporary paths exist only behind the injected test service.
+- Published journal events are immutable authority. V1 never deletes,
+  truncates, renames, replaces, rolls back, or automatically compacts one.
+- Snapshot and projection artifacts are caches only after journal genesis;
+  their failure or drift cannot authorize a retry of a published commit.
+- A fresh complete descriptor binding is mandatory before every Flow call.
+  Every mutation additionally requires its task-specific host confirmation:
+  fingerprint batch for bugs, confirmation A for workspace creation,
+  confirmation B for scaffold changes, or the exact coverage-item batch.
+- Only confirmed defects enter Bugs. Candidate observations remain local.
+- Aggregate telemetry never creates Bugs automatically. It may only support a
+  separately reproduced candidate or the non-defect coverage backlog.
+- The outbox stores sanitized evidence metadata only; never credentials,
+  cookies, auth headers, personal data, precise GPS, OTPs, or callback tokens.
+- Preserve existing dirty work and commit only exact owned files.
+
+---
+
+## File Structure
+
+~~~text
+tools/nuanu-app-graph/
+  flow-outbox.mjs            fingerprint, atomic state, lease, sync/recovery
+  flow-payload.mjs           exact sanitized Flow HTML and field payloads
+  flow-sync-protocol.mjs     durable action/observation reducer, no MCP client
+  flow-sync-cli.mjs          fixed private-state next/dispatch/apply host bridge
+
+tests/nuanu-app-graph/
+  flow-outbox.test.mjs
+  flow-payload.test.mjs
+  flow-sync-protocol.test.mjs
+  flow-sync-cli.test.mjs
+  fixtures/flow-outbox/
+
+docs/local/nuanu-app/
+  flow-outbox.journal.v1/    append-only authoritative event sequence
+  flow-outbox.snapshot.v1.json optional replay checkpoint cache
+  flow-outbox.json           compatible outbox projection cache / legacy input
+  flow-outbox.lock           permanent old-worker compatibility barrier
+
+docs/nuanu-app/
+  BUG-LIFECYCLE.md
+  FLOW-CONTROL-PLANE.md
+~~~
+
+## Locked Interfaces
+
+~~~js
+// flow-outbox.mjs
+export const OUTBOX_VERSION = 1;
+export const OUTBOX_RELATIVE_PATH = "flow-outbox.json";
+export const OUTBOX_JOURNAL_VERSION = 1;
+export const OUTBOX_JOURNAL_RELATIVE_PATH = "flow-outbox.journal.v1";
+export const OUTBOX_SNAPSHOT_RELATIVE_PATH = "flow-outbox.snapshot.v1.json";
+export const OUTBOX_LOCK_RELATIVE_PATH = "flow-outbox.lock"; // permanent compatibility barrier
+export function fingerprintFinding(input) {}
+export function createFlowOutboxService({
+  io, journalPath, snapshotPath, outboxPath, legacyLockPath,
+  journalFs, randomUUID, limits,
+}) {}
+export async function readOutbox() {}
+export async function withOutboxTransaction({ ownerId, now, leaseMs, operation }) {}
+export async function enqueueConfirmedFinding({ finding, ownerId, now, leaseMs }) {}
+export async function recoverOutbox({ fingerprint, ownerId, now, leaseMs }) {}
+
+// flow-payload.mjs
+export function buildBugDescriptionHtml(entry) {}
+export function buildBugCreatePayload(entry) {}
+export function validateRemoteBugReadBack({ entry, issue, expectedIssueId }) {}
+
+// flow-sync-protocol.mjs
+export const FLOW_ACTION_VERSION = 1;
+export function createFlowSyncProtocol({ outboxService }) {}
+export async function planNextFlowAction({
+  fingerprint, descriptorBinding, ownerId, now, leaseMs,
+}) {}
+export async function markFlowActionDispatched({
+  actionId, descriptorBinding, ownerId, now, leaseMs,
+}) {}
+export function validateFlowObservation({ action, observation }) {}
+export async function applyFlowObservation({
+  action, observation, successorDescriptorBinding, ownerId, now, leaseMs,
+}) {}
+~~~
+
+Production named exports derive exactly:
+
+~~~text
+resolve(PRIVATE_ROOT, "flow-outbox.journal.v1")
+resolve(PRIVATE_ROOT, "flow-outbox.snapshot.v1.json")
+resolve(PRIVATE_ROOT, "flow-outbox.json")
+resolve(PRIVATE_ROOT, "flow-outbox.lock")
+~~~
+
+The legacy reclaim inspection path is exactly the lock path plus `.reclaim`.
+Task 2 may create the exact permanent barrier at the lock path once; after
+publication it never modifies, renews, reclaims, or deletes that barrier. It
+never creates or deletes the reclaim path. Named exports accept no path or environment override. Arbitrary paths are
+available only through `createFlowOutboxService` for temporary synthetic fixtures. The
+factory returns the exact five operations `readOutbox`,
+`withOutboxTransaction`, `enqueueConfirmedFinding`, and `recoverOutbox` plus
+`fingerprintFinding`; production named
+exports delegate to one service created with the module-derived paths and the
+hardened default I/O. No production command accepts or forwards factory
+dependencies.
+
+The factory keeps a module-private `WeakSet` of service-issued lease and
+transaction capabilities. Their observable shape is exact:
+
+~~~js
+{
+  ownerId,
+  leaseId,
+  fenceSequence,
+  acquiredAt,
+  expiresAt,
+  assertOwned({ now }),
+  renew({ now, leaseMs }),
+  snapshot,
+  snapshotDigest,
+  commit(nextOutbox),
+}
+~~~
+
+`withOutboxTransaction` publishes a `lease_acquired` journal event, derives its
+snapshot from authoritative replay only after that event wins, invokes
+`operation` once, and verifies the same service brand, lease ID, current fence,
+expiry, tail event digest, and snapshot digest before publication. `renew`
+publishes a new fence. `commit` publishes `outbox_committed`, changes the
+logical state, and releases the lease in one event. A no-commit return or throw
+publishes `lease_released` only while the same lease/fence is still current. A
+fabricated capability, a capability from another service, a released or
+already-committed capability, or a stale snapshot/fence cannot write. An
+expired but still-current capability cannot renew or commit; its only permitted
+publication is the exact `lease_released` cleanup event. There is no public
+detached journal append, cache writer, or transferable structural lease.
+
+## Locked Append-Only Journal Contract
+
+This section governs Task 2 and every later task. Task 1 is a frozen historical
+record of the already-committed mutable-JSON baseline at `74f997a` plus its
+UTF-8 prerequisite at `7145c88`; its lock/storage steps are not re-executed or
+reinterpreted as journal work. Task 2 alone replaces that authority/publication
+layer and extends the opaque transaction with journal fencing. Task 1's
+canonical JSON model, privacy validation, transition validator, and exact
+five-method service shape are inputs. Tasks 3–7 consume the same canonical
+outbox and transaction methods without receiving journal paths or append
+capability.
+
+### Fixed paths, names, modes, and caps
+
+Production uses only these module-derived paths:
+
+~~~text
+PRIVATE_ROOT/flow-outbox.journal.v1/
+PRIVATE_ROOT/flow-outbox.snapshot.v1.json
+PRIVATE_ROOT/flow-outbox.json
+PRIVATE_ROOT/flow-outbox.lock
+PRIVATE_ROOT/flow-outbox.lock.reclaim
+PRIVATE_ROOT/.flow-outbox-journal-candidate-v1-<publicationId>.json
+PRIVATE_ROOT/.flow-outbox-migration-barrier-v1-<publicationId>.json
+~~~
+
+The first three are respectively authority, optional replay-checkpoint cache,
+and compatible projection cache. The lock path becomes a permanent,
+non-authoritative compatibility barrier before genesis; the reclaim path must
+always be absent. Candidate names are internal, use a freshly generated
+lowercase UUIDv4 `publicationId`, and are never accepted from a public method,
+CLI argument, environment variable, finding, action, or observation.
+
+The journal directory is mode `0700`. Published sequence files are mode `0400`
+and match exactly `/^[0-9]{20}\.json$/`; sequence one is
+`00000000000000000001.json`. Candidates are created mode `0600`, fsynced, then
+changed to `0400` before publication. Snapshot and projection are mode `0600`
+through the existing hardened atomic JSON writer. Readers reject symlinked or
+non-directory journal paths and symlinked/non-regular sequence files. Candidate
+residue lives outside the journal directory and is never part of replay.
+
+Add and export these exact code-owned caps:
+
+~~~js
+export const MAX_JOURNAL_EVENTS = 100_000;
+export const MAX_JOURNAL_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;
+export const MAX_JOURNAL_EVENT_BYTES = MAX_OUTBOX_BYTES + 64 * 1024;
+export const MAX_OUTBOX_SNAPSHOT_BYTES = MAX_OUTBOX_BYTES + 64 * 1024;
+export const MAX_JOURNAL_CANDIDATES = 16;
+export const MAX_JOURNAL_CANDIDATE_TOTAL_BYTES =
+  MAX_JOURNAL_CANDIDATES * MAX_JOURNAL_EVENT_BYTES;
+export const JOURNAL_SEQUENCE_WIDTH = 20;
+~~~
+
+The existing `MAX_OUTBOX_BYTES = 4 * 1024 * 1024`, `MAX_ENTRIES = 500`,
+finding/attachment limits, `MAX_LEASE_MS`, action limits, descriptor limit, and
+observation limit do not change. Replay sums attested sequence-file sizes
+before allocating or parsing them and enforces both event-count and total-byte
+caps. Each bounded read uses fatal UTF-8 and stable-metadata double-read
+attestation. A new event that would exceed any cap fails before candidate
+creation with `OUTBOX_JOURNAL_LIMIT_EXCEEDED`.
+
+The injected `journalFs` surface is exact: `open`, `lstat`, `readdir`, `mkdir`,
+`link`, and `unlink`. Handles returned by `open` supply only the required
+`stat`, bounded `read`/complete `write`, `fsync`, `chmod`, and `close`
+operations. Journal publication never receives or uses rename, destination
+unlink, recursive removal, or caller-selected paths. Production binds this
+surface to Node filesystem primitives; temporary tests may wrap it to record or
+pause the exact operations.
+
+The new storage error set is closed:
+
+| Code | Exact condition |
+| --- | --- |
+| `INVALID_OUTBOX_JOURNAL` | journal path/entry/schema/UTF-8/digest/sequence/mode/replay invariant fails |
+| `INVALID_OUTBOX_JOURNAL_CANDIDATE` | candidate prefix/name/type/mode/stable metadata is invalid, or cleanup cannot re-attest either this exact candidate or no-follow absence |
+| `OUTBOX_JOURNAL_LIMIT_EXCEEDED` | next event or replay exceeds event, event-count, or total-byte cap |
+| `OUTBOX_JOURNAL_ORPHAN_LIMIT_EXCEEDED` | candidate inventory exceeds 16 files, per-file cap, or aggregate candidate cap |
+| `OUTBOX_JOURNAL_PUBLISHER_UNQUIESCED` | a bounded candidate is not the attested second link of an already-published event |
+| `OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED` | post-unlink lstat proves this call's exact candidate remains; it blocks publication |
+| `OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN` | post-unlink lstat proves candidate absence, but the following private-root fsync fails; no candidate is currently present |
+| `OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN` | mandatory private-root fsync at the end of bounded candidate inventory, or after the no-unlink event `candidateState:ABSENT × destination:MATCHING` branch, fails when this call performed no candidate unlink; excludes journal-directory create/adopt durability and first barrier visibility durability |
+| `OUTBOX_JOURNAL_DIRECTORY_DURABILITY_UNKNOWN` | the journal directory was created/adopted but the pre-publication private-root fsync failed; no event is linked |
+| `OUTBOX_JOURNAL_PUBLICATION_UNSUPPORTED` | oracle cell is `THROWN(UNSUPPORTED) × ABSENT`, where unsupported is EXDEV, EPERM, EOPNOTSUPP, or ENOTSUP |
+| `OUTBOX_JOURNAL_PUBLICATION_FAILED` | oracle cell is `THROWN(OTHER) × ABSENT` |
+| `OUTBOX_JOURNAL_PUBLICATION_INCONSISTENT` | oracle cell is `RETURNED × DIFFERENT_VALID`, `RETURNED × ABSENT`, or `THROWN(EEXIST) × ABSENT` |
+| `OUTBOX_JOURNAL_CAS_LOST` | oracle cell is `THROWN(EEXIST|UNSUPPORTED|OTHER) × DIFFERENT_VALID`; acquisition must replay rather than retarget inside publication |
+| `OUTBOX_JOURNAL_DURABILITY_UNKNOWN` | oracle destination is `MATCHING` or `DIFFERENT_VALID`, but its post-link journal-directory fsync did not complete |
+| `OUTBOX_LEASE_FENCED` | a transaction event loses its expected tail or current lease/fence to a different published event |
+| `OUTBOX_LEGACY_BUSY` | a non-barrier legacy lock or any reclaim path exists before genesis |
+| `OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN` | an exact barrier is visible during create/adopt but the required private-root fsync did not complete |
+| `OUTBOX_LEGACY_BARRIER_INVALID` | after genesis, the required barrier path is malformed, symlinked, non-regular, or wrong-mode |
+| `OUTBOX_LEGACY_BARRIER_LOST` | after genesis, the bound barrier is missing or its canonical record/digest no longer equals genesis |
+
+Existing `OUTBOX_LOCKED`, `OUTBOX_LEASE_EXPIRED`, transaction, transition,
+privacy, finding, action, and receipt codes retain their meanings. Provider or
+raw filesystem messages are never copied into these errors or persisted.
+
+### Permanent legacy-writer compatibility barrier
+
+Automatic migration is permitted only after the new implementation has
+excluded every cooperating Task 1/old Task 2 writer with the path they already
+honor. Before it reads the legacy projection for genesis, Task 2 publishes this
+exact old-lock-compatible record at fixed `flow-outbox.lock`:
+
+~~~js
+{
+  ownerId: "journal-v1-barrier-<lowercase UUIDv4>",
+  acquiredAt: "canonical injected UTC instant",
+  expiresAt: "9999-12-31T23:59:59.999Z",
+}
+~~~
+
+The canonical record digest is `sha256:` plus `digestJson(record)`. The owner
+matches exactly
+`/^journal-v1-barrier-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/`.
+The far-future canonical expiry is deliberate: committed Task 1 treats any
+existing lock as held, and the uncommitted stale-reclaim implementation treats
+this exact record as unexpired. The barrier is not the new authority and is
+never renewed; it exists permanently to prevent an old binary from resuming
+projection writes or dispatching stale actions after journal genesis.
+
+Create a complete mode-0600 barrier candidate under the fixed private root
+with O_EXCL/no-follow, write/fsync/close it, hard-link it once to
+`flow-outbox.lock` once. Never create a partial lock record directly. Before
+candidate creation, any reclaim path or any lock other than an exact canonical
+journal barrier is `OUTBOX_LEGACY_BUSY`; do not reclaim, wait, mutate, delete,
+or infer expiry. An exact pre-existing barrier is adopted after attestation and
+private-root fsync without creating or linking a candidate.
+
+When this call does link a barrier candidate, use the same normalized
+`RETURNED|THROWN(errorClass)` outcome and mutually exclusive destination oracle
+as the event matrix, substituting mode `0600`, the fixed lock path, and
+private-root fsync. `MATCHING` is this candidate's exact barrier bytes/inode.
+`DIFFERENT_VALID` is only another exact canonical journal barrier with a
+different owner/digest. `ABSENT` is no-follow `ENOENT`; `INVALID` is every
+other lock-path state and maps to `OUTBOX_LEGACY_BUSY` without cleanup. The
+literal cell results are otherwise the same: `PUBLISHED` installs this barrier;
+`THROWN(*) × DIFFERENT_VALID` fsyncs, cleans this call's candidate, and adopts
+the attested barrier; `RETURNED × DIFFERENT_VALID` is
+`OUTBOX_JOURNAL_PUBLICATION_INCONSISTENT`; the three `ABSENT` results use the
+same unsupported/failed/inconsistent codes. There is no automatic link retry;
+only `THROWN(OTHER) × ABSENT` permits a later fresh mutating call.
+
+Barrier cleanup is limited to the same three tokens: `PUBLISHED`, `CAS_LOST`,
+and `FAILED`; inconsistent, unsupported, and invalid barrier cells retain their
+candidate and block later mutation. For
+`candidateState:ABSENT × destination:MATCHING`, re-attest no-follow absence,
+skip unlink, and fsync the private root once. Success adopts the published
+barrier. Failure is `OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN`, preserves the
+barrier, and requires a fresh mutator to re-attest/fsync it without relinking;
+it is not candidate-cleanup uncertainty.
+
+Barrier candidate cleanup uses the same two phases. If the candidate remains,
+`OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED` blocks; if absence is proven but the
+following private-root fsync fails,
+`OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN` recovers by the mandatory
+empty-inventory root fsync on a fresh call. If an exact barrier is visible but
+its first private-root durability fsync fails, preserve it, publish no genesis,
+and return `OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN`; the next mutating call
+re-attests and fsyncs it without relinking.
+
+After the barrier wins or is adopted, re-attest its inode and canonical digest,
+recheck that `.reclaim` is absent, and only then read the legacy projection.
+Re-attest the same barrier immediately before the genesis hard link. Bind
+`legacyBarrierDigest` into `bootstrap_v1`. Every journal replay, including
+`readOutbox`, requires the current barrier to match genesis. Missing or changed
+barrier after genesis is `OUTBOX_LEGACY_BARRIER_LOST`; malformed/symlinked/
+non-regular/wrong-mode barrier is `OUTBOX_LEGACY_BARRIER_INVALID`. No projection
+or journal operation continues without it. The service never deletes the
+barrier. This closes the old-reader/old-writer TOCTOU instead of treating an
+absence check as quiescence.
+
+### Canonical event and digest schema
+
+Every published event is exact closed JSON:
+
+~~~js
+{
+  schemaVersion: 1,
+  sequence: 1,                         // safe integer; equals filename
+  publicationId: "00000000-0000-4000-8000-000000000000", // UUIDv4 shape
+  kind:
+    | "bootstrap_v1"
+    | "lease_acquired"
+    | "lease_renewed"
+    | "outbox_committed"
+    | "lease_released",
+  recordedAt: "canonical UTC instant",
+  previousEventDigest: null | "sha256:<64 lowercase hex>",
+  previousOutboxDigest: null | "sha256:<64 lowercase hex>",
+  nextOutboxDigest: "sha256:<64 lowercase hex>",
+  leaseId: null | "lowercase UUIDv4",
+  fenceSequence: 0,                    // zero or positive safe integer
+  payload: {},                         // exact kind union below
+  eventDigest: "sha256:<canonical preceding fields>",
+}
+~~~
+
+`previousEventDigest` and `previousOutboxDigest` are null together only for
+sequence one. For every later event, `previousEventDigest` equals the preceding
+event's recomputed digest and `previousOutboxDigest` equals the replayed outbox
+digest before the event. `nextOutboxDigest` equals the digest after the event.
+`eventDigest` is `sha256:` plus `digestJson` of every preceding top-level field
+in the shown order; `digestJson` recursively sorts object keys and preserves
+array order. The outbox digest is `sha256:` plus `digestJson` of the exact
+canonical `{version:1,entries}` object. Existing finding, action, batch, and
+receipt digest algorithms do not change.
+
+Both generated identity classes match exactly
+`/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/`.
+Every `publicationId` is journal-unique. Every acquired `leaseId` is distinct
+from all prior acquisitions; renewal, commit, and release must repeat their
+current acquisition's lease ID.
+
+Journal validation reuses the exact closed-JSON, owner-ID, outbox, finding,
+action, observation, secret-key, and privacy-unsafe-value validators. Events
+contain only the canonical outbox, code-owned enums/digests, internal UUIDs,
+bounded owner ID, and canonical timestamps. They never persist a candidate
+pathname, process ID, provider error/message/stack, credential, raw response,
+descriptor body, attachment bytes, or private evidence path. Filesystem errors
+map only to the code-owned error codes in this contract.
+
+The payload union and state effects are exact:
+
+| Kind | Top-level lease/fence | Exact payload | Replay effect |
+| --- | --- | --- | --- |
+| `bootstrap_v1` | `leaseId:null`, `fenceSequence:0` | `{source:"empty_v1"|"legacy_v1_projection",legacyBarrierDigest,outbox}` | sequence one only; validates permanent barrier and installs complete V1 outbox; active lease remains null |
+| `lease_acquired` | fresh `leaseId`, `fenceSequence === sequence` | `{ownerId,acquiredAt,expiresAt}` | outbox digest unchanged; install active lease |
+| `lease_renewed` | current `leaseId`, `fenceSequence === sequence` | `{ownerId,acquiredAt,previousExpiresAt,expiresAt,previousFenceSequence}` | outbox digest unchanged; retain lease identity and advance fence |
+| `outbox_committed` | current `leaseId` and current fence | `{outbox}` | validate exact old-to-new outbox transition, install complete outbox, clear active lease atomically |
+| `lease_released` | current `leaseId` and current fence | `{}` | outbox digest unchanged; clear active lease |
+
+`bootstrap_v1.recordedAt`, lease acquisition/renewal times, commit time, and
+release time use the injected clock and are canonical UTC instants. Journal
+times are nondecreasing. Acquisition requires no active lease or
+`activeLease.expiresAt < recordedAt`; equality is still locked. Its
+`recordedAt === acquiredAt` and `expiresAt === acquiredAt + leaseMs`.
+Renewal requires `recordedAt < current expiresAt`, preserves `ownerId`,
+`leaseId`, and `acquiredAt`, requires the exact prior expiry/fence in payload,
+and sets `expiresAt === recordedAt + leaseMs`. Commit requires
+`recordedAt < current expiresAt`. Release may clear an exact still-current
+lease even after expiry, but cannot clear or alter a newer lease. Lease events
+have identical previous/next outbox digests. Only bootstrap and commit embed an
+outbox. Unknown fields, enum values, events, payload variants, digest forms,
+and transitions fail `INVALID_OUTBOX_JOURNAL`.
+
+Replay returns exactly:
+
+~~~js
+{
+  throughSequence,
+  throughEventDigest,
+  outbox,
+  outboxDigest,
+  activeLease: null | {
+    leaseId,
+    ownerId,
+    acquiredAt,
+    expiresAt,
+    fenceSequence,
+  },
+  totalBytes,
+}
+~~~
+
+Directory entries must be the exact contiguous sequence `1..throughSequence`.
+An empty/missing journal has no replay result and enters the bootstrap rules
+below. Any gap, unexpected journal entry, filename/sequence mismatch, invalid
+mode, oversized file/set, digest-chain mismatch, outbox-digest mismatch,
+duplicate acquired-lease/publication identity, time regression, or illegal state effect
+rejects the entire authority. Replay never skips a bad event, selects a later
+branch, or repairs published history.
+
+### Journal-directory genesis
+
+`readOutbox` never creates a missing journal directory. The first mutating call
+first wins/adopts and attests the permanent compatibility barrier, then calls
+one private `ensureJournalDirectory()`:
+
+1. Attest the fixed private root and open it no-follow as a directory.
+2. `mkdir(flow-outbox.journal.v1, {mode:0o700})` once, without `recursive`.
+3. On success or `EEXIST`, lstat the exact path, reject a symlink/non-directory/
+   wrong mode, open it `O_RDONLY|O_DIRECTORY|O_NOFOLLOW`, fstat it, and require
+   the opened inode to equal the lstat inode.
+4. Re-attest the private-root inode and fsync the private-root directory before
+   any candidate or sequence publication. A newly created directory is not
+   usable before that fsync succeeds.
+
+Concurrent creators are deterministic: one `mkdir` succeeds, the others receive
+`EEXIST` and adopt only the same attested `0700` directory. A crash before
+`mkdir` leaves it absent; a crash after `mkdir` leaves it absent or an empty
+directory. The next mutating call repeats the full attestation and parent
+fsync, then publishes sequence one. A nonempty directory must pass ordinary
+contiguous replay; it is never reset as an incomplete creation. Parent fsync
+failure returns `OUTBOX_JOURNAL_DIRECTORY_DURABILITY_UNKNOWN`, publishes no
+event and creates no event candidate, and is reconciled by a later mutating
+call repeating this exact attestation/fsync. That later call may publish only
+after the root fsync succeeds. It is safe to retry from a fresh public call
+because replay still has no new event; the failed call never retries itself.
+This pre-link result is distinct from
+`OUTBOX_JOURNAL_DURABILITY_UNKNOWN`, which requires a visible linked event and
+forbids operation retry before replay. Creation never removes, renames,
+chmod-repairs, or recursively replaces an existing path.
+
+### Bounded candidate inventory and recovery
+
+Every `readOutbox`/replay and every publication first lists the fixed private
+root and inventories every name beginning
+`.flow-outbox-journal-candidate-v1-` or
+`.flow-outbox-migration-barrier-v1-`. A prefix match with a non-exact UUIDv4
+suffix/`.json` form, symlink, non-regular entry, a journal-candidate mode other
+than `0600` or `0400`, a barrier-candidate mode other than `0600`, size above
+`MAX_JOURNAL_EVENT_BYTES`, more than 16 candidate files, or aggregate
+candidate bytes above `MAX_JOURNAL_CANDIDATE_TOTAL_BYTES` fails closed before
+a new candidate is created. Invalid name/type/mode is
+`INVALID_OUTBOX_JOURNAL_CANDIDATE`; an over-cap inventory is
+`OUTBOX_JOURNAL_ORPHAN_LIMIT_EXCEEDED`; metadata that changes during the
+bounded double-read is `OUTBOX_JOURNAL_PUBLISHER_UNQUIESCED`. The scan sorts
+names and uses lstat/open/fstat stable-metadata bounded reads. A mode-0600
+journal candidate is an in-progress publisher and is never parsed, repaired,
+or removed by another service; mutation treats it as unquiesced. Read/replay
+performs no candidate deletion and may ignore a valid within-cap candidate
+after inventory. Candidates are outside the journal and never affect outbox
+replay, but they cannot accumulate outside a cap.
+
+A test-only pause before the underlying journal-candidate `O_EXCL` open leaves
+no candidate and therefore does not block a later fresh mutator. Once that
+`O_EXCL` succeeds, every fresh mutator applies the ordinary inventory rules:
+it may not bypass, ignore, or age-delete the candidate. The expired-writer
+fencing witness below pauses before candidate creation; the separate
+crash-before-link witness continues to prove that an already-created unmatched
+candidate blocks all fresh mutation until publisher quiescence is proven.
+
+A mode-0400 journal candidate whose parsed exact event, `publicationId`,
+digest, inode, and bytes match its published sequence path is post-link residue.
+A mode-0600 barrier candidate whose exact record and inode match the permanent
+barrier is likewise published residue. Before a mutation, remove each such
+attested candidate through the two-phase cleanup primitive. A pre-absence
+failure leaves the candidate present and returns
+`OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED`; a post-absence private-root fsync
+failure returns `OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN` with no
+candidate currently present. Neither revokes the destination. Every mutating
+inventory ends with a private-root fsync even when no candidates are present;
+no new candidate may be created until it succeeds. This mandatory empty-
+inventory fsync is the fresh-call recovery for a prior post-absence durability
+error. If it fails on a call that performed no candidate unlink, return
+`OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN`; create/link nothing and let only
+a later fresh mutation repeat inventory plus root fsync. This code never
+replaces `OUTBOX_JOURNAL_DIRECTORY_DURABILITY_UNKNOWN` for journal-directory
+create/adopt or `OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN` for first barrier
+visibility durability.
+
+Every other bounded candidate may be an active publisher or a pre-link crash.
+`readOutbox` may ignore it as non-authoritative after the bounded inventory,
+but a mutating call fails `OUTBOX_JOURNAL_PUBLISHER_UNQUIESCED` and creates no
+candidate. It is never age-guessed or automatically deleted. An operator may
+remove it only after separately proving no publisher is live. This fail-closed
+rule and the candidate caps replace the prior unbounded "ignore residue"
+behavior. The publisher also reserves one candidate slot and its serialized
+bytes before O_EXCL creation, so its own new candidate cannot cross either cap.
+
+### Publication linearization and fencing
+
+Implement one private `publishEvent({expectedTail, buildEvent})` primitive.
+It performs these exact steps:
+
+1. Complete the bounded candidate inventory/cleanup, then re-attest the fixed
+   private root and already parent-fsynced `0700` journal directory. Derive only
+   `expectedTail.throughSequence + 1` and its 20-digit destination; callers
+   cannot supply a sequence or destination.
+2. Generate a fresh UUIDv4 publication ID, build and canonicalize one event,
+   recompute all state/event digests, serialize with a trailing newline, and
+   enforce event/count/total-byte caps.
+3. Create the same-private-root candidate with
+   `O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW`, mode `0600`; attest the inode, write
+   every byte, fsync, chmod `0400`, fsync again, close, and re-attest identical
+   inode/content metadata.
+4. Immediately re-read the current authoritative tail. A changed tail aborts
+   this candidate before publication. For a transaction event, also require
+   current active `leaseId`, `fenceSequence`, expiry, and snapshot digest.
+   When any of those bindings changed after candidate completion, do not call
+   `link`. Re-attest and remove only this call's exact candidate through the
+   ordinary two-phase cleanup primitive, including its required private-root
+   fsync, and return
+   `OUTBOX_LEASE_FENCED` for a transaction event. A pre-absence cleanup failure
+   or post-absence durability failure overrides that disposition with its
+   existing closed cleanup code. This is publisher-local stale-candidate
+   cleanup, not orphan recovery, and never permits age-based deletion.
+5. Invoke `link(candidatePath, exactSequencePath)` once. No rename, overwrite,
+   unlink-destination, mutable lock, or process-local serialization is a
+   substitute. Normalize the syscall to exactly
+   `{kind:"RETURNED"}` or
+   `{kind:"THROWN",errorClass:"EEXIST"|"UNSUPPORTED"|"OTHER"}`.
+   `UNSUPPORTED` is exactly `EXDEV|EPERM|EOPNOTSUPP|ENOTSUP`; raw error text is
+   discarded.
+6. After every return or throw, re-attest the journal-directory inode, this
+   call's candidate identity, and the exact destination. Candidate state is
+   first classified `EXACT`, `ABSENT`, or `INVALID`. `ABSENT` may proceed only
+   when the destination is `MATCHING`, because another reconciler may already
+   have cleaned published residue; `INVALID` is
+   `INVALID_OUTBOX_JOURNAL_CANDIDATE` and is never unlinked. Only an `EXACT`
+   candidate enters every other matrix cell.
+7. Classify the destination into exactly one mutually exclusive state.
+   `MATCHING` is this event's exact canonical bytes, `publicationId`,
+   `eventDigest`, mode `0400`, and the same inode while the candidate is
+   `EXACT`. `DIFFERENT_VALID` is a mode-0400 canonical event at the expected
+   sequence that validates from `expectedTail` and has a different
+   publication identity/digest. `ABSENT` is no-follow `ENOENT`. `INVALID` is
+   every remaining state, including symlink, wrong type/mode, unstable
+   metadata, noncanonical bytes, invalid transition, or same bytes on a
+   different extant inode. No prose alias or errno may reclassify a cell.
+8. Apply the literal 16-cell oracle below. `PUBLISHED` fsyncs the journal
+   directory and, for an `EXACT` candidate, runs cleanup before accepting this
+   event once. `CAS_LOST` fsyncs the journal directory, runs cleanup, and
+   replays the `DIFFERENT_VALID` event; bootstrap adopts only an identical
+   payload, acquisition returns `OUTBOX_JOURNAL_CAS_LOST` for outer replay,
+   and renewal/commit/release return `OUTBOX_LEASE_FENCED`. `FAILED` runs
+   cleanup against the attested-absent destination before returning
+   `OUTBOX_JOURNAL_PUBLICATION_FAILED`. These are the only three cell tokens
+   allowed to unlink a candidate. `INCONSISTENT` fsyncs a `DIFFERENT_VALID`
+   destination when present but deliberately retains the candidate, then
+   returns `OUTBOX_JOURNAL_PUBLICATION_INCONSISTENT`. `UNSUPPORTED` retains the
+   candidate and returns its named code. `INVALID` leaves both paths untouched
+   and returns `INVALID_OUTBOX_JOURNAL`.
+
+| Normalized link outcome | `MATCHING` | `DIFFERENT_VALID` | `ABSENT` | `INVALID` |
+| --- | --- | --- | --- | --- |
+| `RETURNED` | `PUBLISHED` | `INCONSISTENT` | `INCONSISTENT` | `INVALID` |
+| `THROWN(EEXIST)` | `PUBLISHED` | `CAS_LOST` | `INCONSISTENT` | `INVALID` |
+| `THROWN(UNSUPPORTED)` | `PUBLISHED` | `CAS_LOST` | `UNSUPPORTED` | `INVALID` |
+| `THROWN(OTHER)` | `PUBLISHED` | `CAS_LOST` | `FAILED` | `INVALID` |
+
+There is no in-primitive link retry or retarget. `PUBLISHED` is never
+republished. `CAS_LOST` permits only outer replay and a later fresh acquisition
+call. `FAILED` alone permits a later fresh public-call publication retry after
+replay. `UNSUPPORTED`, `INCONSISTENT`, and `INVALID` are nonretryable: their
+candidate is never unlinked by the cell, so the next mutation is physically
+blocked as unquiesced until filesystem/operator review. They cannot collapse
+through cleanup-fsync uncertainty into a retryable empty inventory.
+
+`candidateState:ABSENT × destination:MATCHING` is the executable `PUBLISHED`
+subcase after another reconciler removed published residue. Fsync the journal
+directory, lstat the candidate path again and require no-follow `ENOENT`, skip
+unlink entirely, then fsync the private root. Root-fsync success returns
+`PUBLISHED`; failure is
+`OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN`, retains the matching event, and
+requires a fresh mutating inventory/root-fsync before replayed success. It is
+never classified as orphan cleanup or post-unlink cleanup uncertainty.
+
+Cleanup has two mutually exclusive failure phases. Before unlink, require this
+call's recorded candidate inode/type/mode/bytes and invoke unlink once. Then
+lstat the candidate path: if the same candidate remains,
+`OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED` overrides the cell result and that
+candidate blocks publication; if another entry appears or re-attestation
+cannot prove exact-candidate-or-absence,
+`INVALID_OUTBOX_JOURNAL_CANDIDATE` overrides and nothing further is unlinked. Once
+lstat proves `ENOENT`, candidate absence is established regardless of unlink's
+return/throw. Fsync the private root. Failure of only this post-absence fsync is
+`OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN`, not orphan cleanup; no
+candidate is currently present. Every later mutating call completes candidate
+inventory and fsyncs the private root even when inventory is empty before it
+may create a candidate. That fresh-call fsync is the exact recovery; if the
+candidate reappears after a crash, ordinary bounded recovery classifies it.
+This post-unlink error can arise only from cleanup-eligible `PUBLISHED`,
+`CAS_LOST`, or `FAILED`. After the fresh-call root fsync, destination replay
+preserves the original disposition: `MATCHING` is already published and is
+never retried, `DIFFERENT_VALID` replays CAS loss without retargeting, and
+`ABSENT` permits only the later fresh retry already allowed by `FAILED`.
+
+If the oracle destination is `MATCHING` or `DIFFERENT_VALID` but the
+journal-directory fsync fails, do not unlink or roll back the event. Throw
+`OUTBOX_JOURNAL_DURABILITY_UNKNOWN`; the next command must replay and reconcile
+whether the event is present before any retry. In a
+`THROWN(*) × DIFFERENT_VALID` cell, cleanup only this call's attested candidate
+before returning durability unknown; apply the two cleanup phases above. In
+`RETURNED × DIFFERENT_VALID` and every `* × MATCHING` cell, retain the
+candidate so the pending nonretryable/published disposition cannot collapse.
+A later recovery after process or power loss sees either the complete event or
+the preceding contiguous tail, never a partial event.
+
+The successful hard-link creation is the linearization point. A crash before
+it leaves no authoritative event. A crash after it leaves one complete event;
+recovery replays that event even when the candidate hard link also remains.
+An operation that lost stdout or received a post-link error must replay before
+retrying. The existing fingerprint/receipt/action state then makes safe reads
+and duplicate enqueues idempotent, while a dispatched create retains its
+existing ambiguity rules. Published events are never rolled back to make an
+API call appear unsuccessful.
+
+Lease acquisition itself is a journal publication. Contenders for an expired
+lease construct different lease IDs for the same next sequence; exactly one
+hard link wins. The winner's event sequence is its fence. `renew` appends an
+event and updates the transaction's read-only `fenceSequence` getter. `commit`
+can publish only against that latest fence and clears the lease in the same
+event. Thus the critical race is serialized as:
+
+~~~text
+old lease fence N -> old commit pauses before candidate O_EXCL
+new owner publishes lease N+1 and commit N+2
+old writer completes its stale N+1 candidate -> mandatory pre-link replay sees N+2
+old exact candidate cleanup -> zero link calls -> OUTBOX_LEASE_FENCED
+~~~
+
+No mutable lock inode, hard-linked reclaim marker, owner rewrite, or stale-file
+deletion participates in journal serialization. The permanent legacy barrier
+participates only in old-worker exclusion and is digest-bound at genesis.
+
+### Bootstrap, caches, and V1 retention
+
+When no sequence-one event exists, `readOutbox` reads the fixed legacy
+projection with existing hardened bounded JSON I/O. A missing file yields the
+empty V1 outbox; a valid file returns its canonical state without writing.
+Malformed, invalid-UTF-8, oversized, symlinked, non-regular, privacy-unsafe, or
+transition-invalid legacy state fails closed.
+
+The first mutating call wins or adopts the permanent legacy-writer barrier,
+ensures and parent-fsyncs the journal directory, clears only attested published
+candidate residue, then reads the legacy projection while the barrier excludes
+old writers. It re-attests the barrier and absent reclaim path immediately
+before publishing sequence one as `bootstrap_v1`, with the barrier digest,
+`source:"legacy_v1_projection"`, and the exact canonical legacy outbox or
+`source:"empty_v1"` and `{version:1,entries:[]}`. Concurrent bootstrappers first
+adopt the same barrier, then use different publication IDs for the same
+sequence slot; the loser discards its candidate, validates the winning genesis
+and barrier digest, and continues only from that journal. After sequence one
+exists, projection bytes are never an authority or migration input again, and
+every operation re-attests the permanent barrier before trusting replay.
+
+The optional snapshot schema is exact:
+
+~~~js
+{
+  schemaVersion: 1,
+  throughSequence,
+  throughEventDigest,
+  outbox,
+  outboxDigest,
+  activeLease: null | { leaseId, ownerId, acquiredAt, expiresAt, fenceSequence },
+  snapshotDigest: "sha256:<canonical preceding fields>",
+}
+~~~
+
+A snapshot may avoid applying already-covered outbox states only after replay
+has validated the immutable filename/event/digest chain through its
+`throughSequence`. Its wrapper digest, bound event digest, outbox digest, and
+active lease must all match that prefix. Missing, stale, future, malformed,
+oversized, symlinked, or mismatched snapshots are ignored and full replay is
+used; they never invalidate a valid journal. The projection remains the exact
+V1 `{version,entries}` object, with no wrapper fields, so Tasks 3–7 and existing
+operators see the same state shape.
+
+After a successfully directory-fsynced event, atomically refresh snapshot;
+refresh projection only when bootstrap or commit changes the outbox. These are
+best-effort cache writes after the authoritative linearization point. Failure,
+process death, or stale bytes in either cache does not make the journal commit
+fail and cannot authorize a retry. `readOutbox`, transaction snapshots, action
+IDs, recovery, and every transition always use replay output. A later event may
+refresh both caches. V1 performs no automatic compaction: it never deletes a
+sequence file or promotes a snapshot to genesis. At a cap it fails closed with
+`OUTBOX_JOURNAL_LIMIT_EXCEEDED`; a separately reviewed later schema/version
+must define export verification, checkpoint promotion, rollback recovery, and
+old-journal retention before any compaction exists.
+
+### Tasks 3–7 compatibility
+
+- Task 3 continues to call only the five-method outbox service and opaque
+  transaction. Its action, batch, finding, receipt, state, and failure schemas
+  and digests remain byte-for-byte unchanged because they hash the canonical
+  logical outbox, not cache bytes, lease events, or journal sequence numbers.
+- `flow-sync-cli.mjs` keeps exactly the existing `next`, `dispatch`, and `apply`
+  grammars. Production protocol exports bind the fixed journal-backed service;
+  no journal, snapshot, projection, legacy-lock, or candidate path becomes a
+  CLI option or stdin field.
+- Task 3's "successor write failure leaves prior action byte-identical" test
+  injects failure before event publication. A failure after publication is
+  resolved by replay and must expose the successor, never the predecessor.
+- Tasks 4–6 mutate only confirmed cloud state through the existing host
+  protocol and need no journal-aware Flow field. The one-entry batch and action
+  confirmation shown to the user do not include lease IDs, fence sequences, or
+  local paths.
+- Task 7 adds read-only journal replay/integrity verification to its local exit
+  gate. It reports cache drift separately and never edits or compacts history.
+
+`createFlowSyncProtocol` binds exactly one `createFlowOutboxService` instance
+and returns `planNextFlowAction`, `markFlowActionDispatched`,
+`validateFlowObservation`, and `applyFlowObservation`. Temporary tests bind a
+temporary outbox service; production named exports delegate to one protocol
+bound to the fixed module-derived production service. No factory dependency,
+service, path, or transaction is accepted by a production named export or CLI
+argument. The underlying service-branded transaction remains the only write
+capability, so a structurally forged or cross-service protocol input cannot
+commit.
+
+Tasks 1–3 import no MCP implementation, receive no credential, and expose no
+production callback capable of a remote call. Instead, the durable reducer
+emits one closed action manifest at a time:
+
+~~~js
+{
+  version: 1,
+  productId: "nuanu-app",
+  actionId: "napp-flow-action-v1-<64 lowercase hex>",
+  fingerprint: "napp-v1-<64 lowercase hex>",
+  findingDigest: "sha256:<64 lowercase hex>",
+  batchDigest: "sha256:<64 lowercase hex>",
+  proposedAt: "canonical UTC instant",
+  expiresAt: "proposedAt + MAX_ACTION_AGE_MS",
+  kind: "search_issues" | "get_issue" | "create_issue",
+  mutation: false | true,
+  descriptorBinding: {
+    catalogRevision: "sha256:<64 lowercase hex>",
+    capturedAt: "canonical UTC instant",
+    workspaceSlug: "nuanu-app",
+    projectIdentifier: "NAPP",
+    attachmentEvidenceCapability: "BLOCKED_UNPROVEN_OUTPUT",
+    schemaDigests: {
+      search_issues: "sha256:<64 lowercase hex>",
+      create_issue: "sha256:<64 lowercase hex>",
+      get_issue: "sha256:<64 lowercase hex>",
+      list_issue_attachments: "sha256:<64 lowercase hex>",
+      upload_small_issue_attachment: "sha256:<64 lowercase hex>",
+      update_issue: "sha256:<64 lowercase hex>",
+    },
+  },
+  arguments: {},
+  expectedObservation: "search" | "issue" | "mutation_ack",
+  actionDigest: "sha256:<canonical preceding fields>",
+}
+~~~
+
+`arguments` is an exact kind-specific sanitized Flow payload. It never contains
+a credential, arbitrary URL, raw file path, attachment bytes, descriptor body,
+or caller-selected tool name. `actionId` hashes every semantic field and the
+current outbox revision. Only the same service instance that holds the opaque
+lease capability may persist a pending action or apply its matching
+observation.
+
+The argument/observation map is closed:
+
+| Kind | Exact arguments | Expected result |
+| --- | --- | --- |
+| `search_issues` | `{workspaceSlug:"nuanu-app",projectIdentifier:"NAPP",fingerprint,scopes:["active","recently_closed"],requireComplete:true}` | `search` |
+| `get_issue` | `{workspaceSlug:"nuanu-app",projectIdentifier:"NAPP",issueId}` | `issue` |
+| `create_issue` | the exact `buildBugCreatePayload(entry)` object | `mutation_ack` |
+
+Unknown/missing keys, non-exact scopes, incomplete pagination, any label
+outside the exact entry platform set, or argument/expected-result mismatch
+fails before action persistence. Descriptor `capturedAt` must be no more than
+`MAX_ACTION_AGE_MS` old when the action is persisted and again when the host
+executes it.
+These are canonical reducer arguments, not a generic pass-through request.
+The host maps them only through the freshly resolved exact tool descriptor and
+compares the resulting call against the action kind/schema digest. If any
+required semantic field has no one-to-one current descriptor field, the action
+is `FLOW_DESCRIPTOR_STALE/BLOCKED`; the host does not guess a payload.
+
+Dispatch compares its refreshed projection to the immutable manifest binding:
+`productId`, workspace/project identities, attachment-capability value,
+`catalogRevision`, and every schema-digest key/value must be byte-identical.
+Only `capturedAt` may differ; it must be a canonical UTC instant, greater than
+or equal to the manifest value, not in the future, and no more than
+`MAX_ACTION_AGE_MS` old at dispatch. Dispatch never rewrites the manifest,
+action ID, or action digest. Any non-time drift, older timestamp, or stale time
+leaves the proposal byte-identical for `FLOW_DESCRIPTOR_STALE`. Tests cover
+equal/newer time, every digest/identity drift, rollback, and immutable action
+bytes.
+
+The trusted production host is the Codex/Nuanu Flow MCP orchestrator, not a
+callback supplied to Node. It follows this executable protocol:
+
+1. refresh the full six current descriptors and resolve the exact workspace,
+   project, state, label, and tool schema identities;
+2. ask `next` for one immutable `PROPOSED` action bound to that descriptor
+   projection; a proposal is non-executable and may be displayed again safely;
+3. for a read, prepare the exact named tool call; for a mutation, display the
+   exact consequence and immutable action/batch digest and wait for action-time
+   user confirmation in the host conversation;
+4. immediately before any remote call, invoke the separate `dispatch` command.
+   It rechecks the unchanged action and fresh descriptor, atomically changes
+   lifecycle `PROPOSED -> DISPATCHED`, and returns the one execution manifest.
+   Refusal or a pre-dispatch blocker is applied while still `PROPOSED`; no
+   remote call is permitted from a proposal;
+5. invoke exactly one descriptor-mapped MCP call from the returned dispatch
+   manifest. Repeating `dispatch` returns only a non-executable summary;
+6. normalize only the closed response projection below and apply it against the
+   same action digest under a fresh outbox transaction;
+7. read back remote state before requesting the next action.
+
+The user confirmation is a host capability and is never represented by a
+caller-authored JSON object accepted by local code. Without this host protocol,
+the reducer can only leave a pending action and reports Flow sync BLOCKED. The
+local code cannot cause an external mutation, even if its test factory receives
+forged data.
+
+Every closed observation is the exact envelope
+`{version:1,productId:"nuanu-app",actionId,actionDigest,observedAt,result,
+observationDigest}`, where `observationDigest` canonically hashes every
+preceding field and `result` is one exact union:
+
+~~~js
+{ kind: "search", complete: true, matches: [{ id, identifier }] }
+{ kind: "issue", issue: {
+  id, identifier, name, projectIdentifier, stateName, priority,
+  labelNames, descriptionHtml, url,
+} }
+{ kind: "mutation_ack", id }
+{ kind: "failure", code:
+  "FLOW_READ_FAILED" | "FLOW_SEARCH_INCOMPLETE" |
+  "FLOW_DESCRIPTOR_STALE" | "FLOW_HOST_BLOCKED" |
+  "FLOW_ACTION_STALE" | "FLOW_MUTATION_BLOCKED" |
+  "DELIVERY_UNKNOWN" }
+~~~
+
+`applyFlowObservation` receives an exact
+`successorDescriptorBinding` union. It is a freshly validated complete binding
+when a successful search or mutation ACK deterministically produces a
+successor, and JSON `null` only for either a terminal issue/failure observation
+or the explicit `SUCCESSOR_BINDING_UNAVAILABLE` fallback after a structurally
+valid successful observation that requires a successor. The fresh
+successor binding is independent of the predecessor dispatch comparison: it
+must pass the full current schema/freshness rules and is digested into the new
+action. If it is null for a valid success that needs a successor, the reducer
+does not lose the result: a search result becomes `FLOW_DESCRIPTOR_STALE` with
+safe-search recovery; an ACK persists its ACKED receipt; a unique ambiguous-
+recovery match persists `candidateRemoteId`. The entry becomes `failed` with
+`RETRY_SAFE_READ`, and a later fresh binding may plan only the code-owned safe
+successor. A non-null malformed/stale binding is rejected with no byte change.
+This fallback and the normal atomic replacement are both covered by crash/
+rollback tests. The fallback is an internal reducer disposition, not a
+caller-supplied `FLOW_DESCRIPTOR_STALE` observation after dispatch.
+
+Observation scalars are exact and bounded:
+
+~~~js
+FLOW_ORIGIN = "https://flow.nuanu.com"
+UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+ISSUE_IDENTIFIER = /^NAPP-[1-9][0-9]{0,9}$/
+MAX_REMOTE_URL_BYTES = 512
+MAX_REMOTE_NAME_BYTES = 512
+MAX_REMOTE_HTML_BYTES = 48 * 1024
+MAX_REMOTE_MATCHES = 20
+MAX_REMOTE_LABELS = 32
+~~~
+
+All IDs are bounded by 64 ASCII bytes; labels must come from the exact NAPP
+allowlist and are unique. `observedAt` is a canonical UTC instant, is not in
+the future, and is not before `proposedAt`. A successful provider result and
+`FLOW_SEARCH_INCOMPLETE` for a `DISPATCHED` action are not before
+`dispatchedAt` and are within 24 hours of it. Failure-only recovery for the
+still-current dispatched action has no upper age bound: a read may report only
+`FLOW_READ_FAILED`, and a create may report only `DELIVERY_UNKNOWN`, with
+`observedAt >= dispatchedAt`. `FLOW_ACTION_STALE` is valid only for a still
+`PROPOSED` action when `observedAt` is strictly after the manifest expiry, and
+also has no upper bound. Thus arbitrarily old proposed and dispatched actions
+have truthful fail-closed recovery, while a late successful provider result
+cannot advance state. A persisted
+Flow URL must have exactly `https://flow.nuanu.com` origin, no userinfo, query,
+fragment, encoded control or secret-shaped segment, a normalized absolute path,
+and the byte cap above. Matches are capped, sorted deterministically, and
+unique by ID plus identifier.
+`name` and `descriptionHtml` are bounded and must equal the exact values from
+`buildBugCreatePayload(entry)` byte-for-byte. Tests reject arbitrary or
+tokenized origins/paths, malformed UUIDs/identifiers/timestamps, duplicate or
+over-cap arrays, and every unknown nested field.
+
+Unknown fields, incomplete pagination, duplicate matches, descriptor drift,
+or action-digest mismatch is rejected and cannot advance the outbox. The V1
+observation union intentionally has no attachment result: current MCP
+descriptors cannot prove `evidenceId`, filename, media type, size, and SHA-256,
+so the reducer never calls list/upload/update, evidence completion remains
+BLOCKED, and `Evidence Complete` is never set.
+
+Failure codes are lifecycle- and action-compatible. While `PROPOSED` and not
+expired, an action accepts only `FLOW_DESCRIPTOR_STALE`, `FLOW_HOST_BLOCKED`,
+or `FLOW_MUTATION_BLOCKED`; after expiry it accepts only
+`FLOW_ACTION_STALE`. None creates a mutation receipt. After `DISPATCHED`, reads accept
+`FLOW_READ_FAILED` and search alone also accepts `FLOW_SEARCH_INCOMPLETE`.
+After `DISPATCHED`, a create accepts only its exact `mutation_ack` or
+`DELIVERY_UNKNOWN`; any lost/timeout/unknown result maps internally to
+`REMOTE_CREATE_AMBIGUOUS` and writes the exact receipt. The host never chooses
+a mutation-specific ambiguity code itself. A result/lifecycle mismatch is
+rejected without changing bytes.
+
+V1 bug synchronization deliberately defines a batch as exactly one fingerprint
+and one canonical finding. The host displays that single-entry batch and its
+digest before each mutation. `batchDigest` is persisted in every action and
+pending action and is the canonical SHA-256 of exact
+`{version:1,productId:"nuanu-app",workspaceSlug:"nuanu-app",
+projectIdentifier:"NAPP",entries:[{fingerprint,findingDigest}]}`. Any missing,
+changed, duplicate, or extra entry and any action/batch mismatch is rejected.
+Thus host confirmation binds the selected ticket and its immutable canonical
+finding across host restart. Tasks 4–6 use their separately defined
+workspace, scaffold, and coverage-batch confirmations rather than this
+fingerprint-specific digest.
+
+### Task 1 (Historical, Complete): Implement Fingerprints, Opaque Lock Transactions, and Mutable JSON Storage
+
+**Execution status:** Complete in commits `74f997a` and `7145c88`. This task
+documents the baseline consumed by Task 2. Do not execute, edit, or recommit
+its mutable-lock implementation as the target architecture.
+
+**Files:**
+- Create: `tools/nuanu-app-graph/flow-outbox.mjs`
+- Create: `tests/nuanu-app-graph/flow-outbox.test.mjs`
+- Create: `tests/nuanu-app-graph/fixtures/flow-outbox/empty.json`
+
+**Interfaces:**
+- Consumes: sanitized confirmed findings.
+- Produces: versioned deterministic fingerprint, service-issued opaque
+  lock/inode transaction, and durable mutable outbox JSON baseline. Task 2
+  migrates this exact state to the journal before Tasks 3–7 begin.
+
+- [x] **Step 1: Write failing fingerprint tests**
+
+~~~js
+test("fingerprint is stable when object keys are reordered", () => {});
+test("fingerprint changes when runtime or evidence signature changes", () => {});
+test("fingerprint normalizes symptom whitespace and case", () => {});
+test("fingerprint rejects missing product route platform or evidence", () => {});
+test("same fingerprint with different full finding digest is a conflict", () => {});
+test("telemetry-only and privacy-unsafe findings never enter the outbox", () => {});
+test("aggregate variable text cap rejects limit plus one before persistence", async () => {});
+test("worst-case HTML escape characters at the aggregate cap are accepted", async () => {});
+test("write rejects forged cross-service expired and released transactions", async () => {});
+test("transaction reads only after lease acquisition and rejects stale digest", async () => {});
+~~~
+
+Canonical hash input, where the test defines
+`runtimeCatalogDigest = "a".repeat(64)` and
+`sanitizedEvidenceDigest = "b".repeat(64)`:
+
+~~~js
+{
+  version: 1,
+  productId: "nuanu-app",
+  normalizedSymptom: "unknown app route returns http 200",
+  affectedObjectOrRoute: "/qa-napp-not-found-probe",
+  platform: "Desktop",
+  runtimeIdentity: "sha256:" + runtimeCatalogDigest,
+  evidenceSignature: "sha256:" + sanitizedEvidenceDigest,
+}
+~~~
+
+Return `napp-v1-` plus a lowercase SHA-256 hex digest.
+
+The closed finding schema is exact:
+
+~~~js
+{
+  schemaVersion: 1,
+  productId: "nuanu-app",
+  classification: "confirmed_product_defect",
+  symptom: "bounded plain text",
+  affectedObjectOrRoute: "/route-or-bounded-object",
+  platform: "Desktop" | "iOS Web" | "Android Web",
+  runtimeIdentity: "sha256:<64 lowercase hex>",
+  evidenceSignature: "sha256:<64 lowercase hex>",
+  environment: "https://app.nuanu.com/",
+  priority: "urgent" | "high" | "medium" | "low",
+  preconditions: ["bounded plain text"],
+  steps: ["bounded plain text"],
+  actual: "bounded plain text",
+  expected: "bounded plain text",
+  impact: "bounded plain text",
+  evidenceSummary: "bounded plain text",
+  attachments: [{
+    evidenceId: "logical-sanitized-id",
+    fileName: "sanitized-name.ext",
+    mediaType: "allowlisted/media-type",
+    sizeBytes: 1,
+    sha256: "sha256:<64 lowercase hex>",
+  }],
+  graph: {
+    graphDigest: "sha256:<64 lowercase hex>",
+    nodeIds: ["nuanu-app:<reviewed-node-id>"],
+  },
+  regression:
+    | { status: "AUTOMATED", testId: "NAPP-...", design: "bounded plain text" }
+    | {
+        status: "MANUAL",
+        testId: null,
+        reason: "UNSAFE_TO_AUTOMATE" | "NO_STABLE_ORACLE",
+        design: "bounded plain text",
+      },
+  deduplication: {
+    searchedAt: "canonical UTC instant",
+    result: "no_duplicate",
+    queryDigest: "sha256:<64 lowercase hex>",
+  },
+  confirmation: {
+    freshContext: true,
+    deterministicOracle: true,
+    telemetryOnly: false,
+  },
+}
+~~~
+
+Production constants are fixed and tests cover every `limit-1`, `limit`, and
+`limit+1` boundary. Every text/file limit is measured in UTF-8 bytes, not code
+units:
+
+~~~js
+MAX_OUTBOX_BYTES = 4 * 1024 * 1024
+MAX_ENTRIES = 500
+MAX_TEXT_BYTES = 2_000
+MAX_FINDING_VARIABLE_TEXT_BYTES = 7 * 1024
+MAX_SYMPTOM_BYTES = 300
+MAX_ROUTE_OR_OBJECT_BYTES = 300
+MAX_LIST_ITEMS = 20
+MAX_NODE_IDS = 64
+MAX_ATTACHMENTS = 10
+MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024
+MAX_TOTAL_ATTACHMENT_BYTES = 16 * 1024 * 1024
+MAX_FILENAME_BYTES = 120
+MAX_LEASE_MS = 5 * 60 * 1000
+MAX_ACTION_AGE_MS = 10 * 60 * 1000
+MAX_GENERATED_DESCRIPTION_HTML_BYTES = 48 * 1024
+MAX_CREATE_ACTION_JSON_BYTES = 56 * 1024
+MAX_DESCRIPTOR_STDIN_BYTES = 64 * 1024
+MAX_OBSERVATION_STDIN_BYTES = 96 * 1024
+~~~
+
+`MAX_FINDING_VARIABLE_TEXT_BYTES` is the UTF-8 sum of every variable string in
+the finding, including every list item, node/test ID, regression design, and
+attachment evidence ID/name/media type; fixed enum literals and fixed-length
+digests are excluded. Enqueue rejects over-cap input before writing. Tests fill
+every byte with the worst-case HTML-escaping characters and prove the generated
+description remains within 48 KiB and the full create action within 56 KiB.
+`buildBugDescriptionHtml` and the reducer independently enforce those generated
+caps as defense in depth. Thus an accepted entry cannot become permanently
+unplannable because its generated payload is too large.
+
+Allowed attachment pairs are exactly `image/png`↔`.png`,
+`image/jpeg`↔`.jpg|.jpeg`, `application/json`↔`.json`, and
+`text/plain`↔`.txt`. Filenames match
+`^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$`, contain exactly one allowed terminal
+extension, and reject dot segments, leading/trailing dots, separators,
+Unicode confusables, and case-mismatched extension/MIME pairs. `evidenceId`,
+filename, and the complete `(evidenceId,fileName,mediaType,sizeBytes,sha256)`
+tuple are each unique within a finding. The current provider descriptor may
+impose a smaller upload limit; it can never raise these code-owned caps.
+
+Normalize only `symptom` with Unicode NFC, trim, collapsed whitespace, and
+lowercase. Trim the route/object, but reject any query or fragment instead of
+silently removing it. Canonical JSON uses a fixed key order. A duplicate
+fingerprint with a different full canonical `findingDigest` is
+`OUTBOX_FINGERPRINT_CONFLICT`, never a dedupe success.
+
+Recursively reject unknown fields; secret-like keys or values; Bearer/Basic
+authorization; JWT/opaque tokens; email, phone, IP, coordinates or precise
+GPS; arbitrary URLs; query or fragment data; HTML, Markdown, script/control
+text; absolute filesystem paths; raw console/network bodies; PostHog rows;
+exception messages/stacks; or raw error messages. Attachment bytes and paths
+never enter outbox JSON.
+
+The fresh 2026-08-26 compact descriptor exposes a base64 upload of at most
+exactly 64 KiB, but the attachment-list operation has no declared output schema
+proving `evidenceId`, SHA-256, MIME, filename, and size. No fixed-root binary
+provider is implemented in this plan. Therefore V1 production evidence sync is
+explicitly `FLOW_EVIDENCE_UNSUPPORTED`: the reducer emits no list, upload, or
+update action, reads no bytes, and never sets `Evidence Complete`. V1 contains
+no synthetic or dormant attachment-mutation branch. A later outbox schema
+version and separately reviewed implementation may add one only after a fresh
+descriptor proves the complete list/read-back tuple and the host bridge can
+carry bytes without path/base64 logging. Confirmed bugs can still be created
+with full sanitized HTML evidence and remain visibly without
+`Evidence Complete`.
+The V1 descriptor projection therefore requires exactly
+`attachmentEvidenceCapability:"BLOCKED_UNPROVEN_OUTPUT"`; any claimed
+full-tuple/provider capability is an unknown field/value until a later schema
+version and reviewed implementation change it.
+
+- [x] **Step 2: Verify red**
+
+~~~bash
+node --test tests/nuanu-app-graph/flow-outbox.test.mjs
+~~~
+
+- [x] **Step 3: Implement outbox schema validation**
+
+Persist:
+
+~~~js
+{
+  version: 1,
+  entries: [{
+    fingerprint: "napp-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    findingDigest: "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    finding: {},
+    state: "pending_sync",
+    attempts: 0,
+    createdAt: "ISO timestamp",
+    updatedAt: "ISO timestamp",
+    pendingAction: null,
+    mutationReceipt: null,
+    remote: null,
+    failure: null
+  }]
+}
+~~~
+
+Allowed V1 states are exactly `pending_sync`, `syncing`, and `failed`.
+Reject unknown versions, duplicate fingerprints, non-ISO timestamps,
+secret-like field names, and invalid transitions. `remote`, when non-null, is exactly
+`{id,identifier,url,createdReadBackAt}`. A future evidence-capable schema must
+use a new outbox version rather than adding a dormant field or state to V1.
+`failure`, when non-null, is exactly
+`{code,failedAt,recoveryClass}`. `code` is one of
+`FLOW_HOST_BLOCKED`, `FLOW_DESCRIPTOR_STALE`, `FLOW_READ_FAILED`,
+`FLOW_SEARCH_INCOMPLETE`, `FLOW_RECONCILIATION_REQUIRED`,
+`FLOW_FINGERPRINT_AMBIGUOUS`, `REMOTE_CREATE_AMBIGUOUS`,
+`FLOW_READBACK_MISMATCH`, `FLOW_EVIDENCE_UNSUPPORTED`,
+`FLOW_MUTATION_BLOCKED`, or `FLOW_ACTION_STALE`;
+`recoveryClass` is exactly `RETRY_SAFE_READ`, `CREATE_RECONCILIATION`,
+`MANUAL`, or `SCHEMA_BLOCKED`. The code-to-class map is closed below;
+provider messages and stacks never persist. `pendingAction` is null or exact
+`{manifest,lifecycle,dispatchedAt}`, where `manifest` is the closed
+action from `flow-sync-protocol.mjs`, `lifecycle` is `PROPOSED` or
+`DISPATCHED`, and `dispatchedAt` is null exactly while proposed. The manifest
+contains digest-bound `proposedAt` and
+`expiresAt = proposedAt + MAX_ACTION_AGE_MS`. Proposal display never
+changes lifecycle; only the separate descriptor-revalidating dispatch
+transaction may set `DISPATCHED`.
+
+`mutationReceipt` is durable across failure and recovery and is one exact
+discriminated union:
+
+~~~js
+null
+| {
+    kind: "create_issue",
+    actionId, actionDigest,
+    outcome: "ACKED",
+    remoteId,
+    observedAt,
+  }
+| {
+    kind: "create_issue",
+    actionId, actionDigest,
+    outcome: "AMBIGUOUS",
+    candidateRemoteId: null | "uuid-from-one-complete-recovery-match",
+    observedAt,
+  }
+~~~
+
+It is cleared only after a separate safe read proves the exact remote effect.
+It is never cleared by a generic retry or state transition. A complete unique
+recovery search for an AMBIGUOUS receipt atomically sets
+`candidateRemoteId = match.id` and replaces the search action with
+`get_issue(match.id)` while retaining outcome AMBIGUOUS. A failed get retries
+only that candidate read. Only an exact issue read-back whose ID equals
+`remoteId` or `candidateRemoteId` may clear the receipt.
+
+- `pending_sync`: `pendingAction`, `failure`, and `mutationReceipt` are null;
+- `syncing`: exactly one current `pendingAction`; `remote` and a create receipt
+  may be known only when the action is the receipt's required safe read. A
+  successful observation that has a deterministic successor atomically
+  replaces the current `DISPATCHED` action with one `PROPOSED` successor in the
+  same outbox commit; no valid `syncing` snapshot has a gap;
+- `failed`: `pendingAction` is null, `failure` is non-null, and `remote` plus
+  `mutationReceipt` are retained when known;
+
+The exact failure map is:
+
+| Code | Recovery class | Receipt rule | Next permitted operation |
+| --- | --- | --- | --- |
+| `FLOW_HOST_BLOCKED`, `FLOW_DESCRIPTOR_STALE`, `FLOW_READ_FAILED`, `FLOW_SEARCH_INCOMPLETE`, `FLOW_MUTATION_BLOCKED`, `FLOW_ACTION_STALE` | `RETRY_SAFE_READ` | retain if present | no receipt: reset to `pending_sync`; ACKED: only `get_issue(remoteId)`; AMBIGUOUS with null candidate: only fingerprint search; AMBIGUOUS with candidate: only `get_issue(candidateRemoteId)` |
+| `REMOTE_CREATE_AMBIGUOUS` | `CREATE_RECONCILIATION` | AMBIGUOUS required | only complete fingerprint search |
+| `FLOW_RECONCILIATION_REQUIRED`, `FLOW_FINGERPRINT_AMBIGUOUS` | `MANUAL` | retain if present | none until a separately reviewed manual reconciliation migration |
+| `FLOW_READBACK_MISMATCH` | `MANUAL` without receipt, otherwise `RETRY_SAFE_READ` | retain if present | none without receipt; otherwise only the receipt's proving read |
+| `FLOW_EVIDENCE_UNSUPPORTED` | `SCHEMA_BLOCKED` | null | none in V1 |
+
+Every other code/class/receipt combination is invalid.
+
+Missing outbox state means exact
+`{version: 1, entries: []}`; malformed existing state never auto-resets.
+
+- [x] **Step 4: Implement the historical opaque lock transaction and durable JSON write**
+
+Create the adjacent lock with `open(...,"wx")` and mode 0600. Acquire the lock
+before reading the snapshot. Brand the transaction in the service-private
+`WeakSet`, bind it to the service instance, lock inode, owner, expiry, and
+snapshot digest, and commit only through its one-shot callback. Reuse hardened
+`createJsonIo()` containment, symlink, bounded-read, 0600, same-directory
+temporary, file-fsync, atomic replacement, directory-fsync, and
+ambiguous-outcome rollback. This paragraph records the committed Task 1
+baseline; Task 2 removes it as authority.
+
+- [x] **Step 5: Add historical atomic-storage tests**
+
+Cover malformed JSON rejection, unknown version, durable replacement, no temp
+residue, previous-file survival when rename is injected to fail, a write call
+without a service-issued active transaction failing closed, cross-service and
+reused-transaction rejection, stale digest/CAS rejection, lock-inode swap,
+expiry before commit, and fingerprint-conflict rejection.
+
+- [x] **Step 6: Verify and commit the historical baseline**
+
+~~~bash
+node --test tests/nuanu-app-graph/flow-outbox.test.mjs
+git add tools/nuanu-app-graph/flow-outbox.mjs tests/nuanu-app-graph/flow-outbox.test.mjs tests/nuanu-app-graph/fixtures/flow-outbox/empty.json
+git diff --cached --check
+git commit -m "feat: add durable Nuanu App defect outbox"
+~~~
+
+### Task 2: Replace the Mutable Lock/Projection Authority with the Fencing Journal
+
+**Files:**
+- Modify: `tools/nuanu-app-graph/flow-outbox.mjs`
+- Modify: `tests/nuanu-app-graph/flow-outbox.test.mjs`
+
+**Interfaces:**
+- Consumes: Task 1's canonical outbox/finding/transition validators and five-
+  method service; fixed or test-injected journal/snapshot/projection/legacy-lock
+  paths; injected clock, UUIDv4 generator, filesystem operations, and caps.
+- Produces: authoritative contiguous journal replay, O_EXCL/hard-link
+  publication, lease ID plus sequence fencing, one-time V1 JSON migration,
+  rebuildable caches, lossless concurrent enqueue, and the unchanged exact
+  recoverable entry state consumed by Tasks 3–7.
+
+- [ ] **Step 1: Preserve and verify the two current RED race witnesses**
+
+Run before replacing the mutable authority:
+
+~~~bash
+node --test tests/nuanu-app-graph/flow-outbox.test.mjs
+~~~
+
+Expected baseline: 84 tests, 82 pass, and exactly these two fail:
+
+~~~text
+expired reclaim cannot let an old in-flight atomic write erase the new owner update
+an attested stale reclaim claim left by a crash is itself recoverable
+~~~
+
+The first must continue to express the same safety invariant against journal
+publication. Replace the second's obsolete `.reclaim` mechanism with the
+journal-equivalent post-link/pre-candidate-cleanup crash. Do not delete either
+invariant merely because the mutable lock implementation is removed.
+
+- [ ] **Step 2: Rewrite/add the failing journal acceptance matrix**
+
+Use temporary roots only. The fixture derives sibling `journalPath`,
+`snapshotPath`, `outboxPath`, and `legacyLockPath`, supplies deterministic
+UUIDv4 values, and may wrap only the test factory's `journalFs.open`,
+`journalFs.link`, `journalFs.lstat`, `journalFs.readdir`, `journalFs.mkdir`, and
+`journalFs.unlink`. Production exports receive no injection.
+
+| Exact test name | Required assertion before GREEN |
+| --- | --- |
+| `production constants and five-method surface expose fixed journal snapshot and projection names` | exact relative constants; service keys remain only the five locked methods; no append/path/cache method |
+| `missing private state reads empty without writing and first mutation barriers then publishes empty bootstrap` | read creates nothing; mutation publishes permanent old-lock barrier, parent-fsynced journal directory, sequence one with barrier digest and `source:empty_v1`, then lease and commit events |
+| `valid legacy V1 JSON is imported exactly once while the permanent barrier excludes old writers` | barrier is acquired before projection read; sequence one embeds canonical legacy outbox/barrier digests; later projection edits are ignored |
+| `malformed oversized symlinked or privacy-unsafe legacy JSON publishes no genesis` | exact validation error and no sequence-one file |
+| `active legacy lock or reclaim residue blocks bootstrap without deletion` | `OUTBOX_LEGACY_BUSY`; bytes/inodes preserved; no barrier replacement or journal event |
+| `complete permanent barrier blocks old writers and survives post-publication process restart` | old factory returns `OUTBOX_LOCKED`; new service adopts exact record/inode/digest and never renews/deletes it |
+| `crash after barrier publication resumes migration from the exact adopted barrier` | no genesis is required for recovery; next service attests barrier then imports projection once |
+| `missing replaced malformed symlinked or wrong-mode barrier fails after genesis` | `OUTBOX_LEGACY_BARRIER_LOST` or `OUTBOX_LEGACY_BARRIER_INVALID`; projection/journal action does not continue |
+| `concurrent bootstrappers adopt one barrier and publish one genesis` | exactly one barrier hard link; loser removes only its own attested candidate before adoption; an early winner may fail unquiesced and retry after that cleanup; final state has one sequence-one path and both services replay it |
+| `missing journal directory is created once attested and parent-fsynced before genesis` | exact operation order; directory is 0700 and no sequence link precedes root fsync |
+| `concurrent journal directory creators adopt one inode` | one mkdir success, one EEXIST, both lstat/open/fstat the same directory inode |
+| `crash around journal mkdir recovers only absent or attested empty directory` | absent is recreated; empty is re-fsynced; nonempty invalid history fails and is never reset |
+| `private-root fsync failure before genesis is distinct and retryable with no linked event` | `OUTBOX_JOURNAL_DIRECTORY_DURABILITY_UNKNOWN`; zero event candidates/links; no automatic retry; a fresh call re-attests/fsyncs the empty directory then publishes sequence one |
+| `journal filenames and semantic sequences are contiguous from one` | gap, unexpected entry, filename/sequence mismatch, and non-one genesis each fail `INVALID_OUTBOX_JOURNAL` |
+| `journal rejects unknown fields kinds payloads invalid UTF-8 and digest-chain drift` | each corrupt event fails without reading projection as fallback |
+| `journal enforces 0700 directory 0400 events and no-follow regular files` | wrong mode, symlink, and non-regular entry fail; production never opens a published event for write |
+| `journal count event-size and total-byte caps cover limit minus one limit and plus one` | exact boundary acceptance and `OUTBOX_JOURNAL_LIMIT_EXCEEDED` before candidate creation |
+| `candidate inventory count per-file and aggregate caps cover limit minus one limit and plus one` | at most 16 exact candidates and aggregate cap; invalid name/type/mode is `INVALID_OUTBOX_JOURNAL_CANDIDATE`; oversize/count/aggregate plus one is `OUTBOX_JOURNAL_ORPHAN_LIMIT_EXCEEDED`; all fail before O_EXCL |
+| `snapshot digest and prefix binding can skip state application only after chain validation` | valid bound snapshot returns journal state; chain is still validated through checkpoint |
+| `missing stale future malformed symlinked or mismatched snapshot falls back to full replay` | same authoritative outbox/digest; snapshot never causes journal rejection |
+| `stale malformed or attacker-replaced projection is never authoritative after genesis` | `readOutbox` and transaction snapshot equal replay; projection cannot restore/erase an entry |
+| `O_EXCL candidates are complete fsynced and readonly before one hard-link publication` | injected operation order and inode equality are exact; no rename/overwrite fallback |
+| `two candidates for one sequence produce one winner and one replayed loser` | one destination only; loser never retries its transaction event at a later sequence |
+| `barrier hard-link reconciliation uses the literal oracle` | `MATCHING` publishes once; only `THROWN(*) × DIFFERENT_VALID` adopts a different exact barrier; inconsistent/unsupported/invalid cells retain their candidates; `INVALID` old lock is busy; `ABSENT` cells distinguish unsupported, failed, and inconsistent; cleanup phase errors override; candidate-absent matching skips unlink, attests absence, and root-fsyncs once; that fsync failure is `OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN` and recovery re-fsyncs without relinking |
+| `link reconciliation exhausts the literal 16-cell oracle` | table-drive `RETURNED`, `THROWN(EEXIST)`, `THROWN(UNSUPPORTED)`, and `THROWN(OTHER)` against `MATCHING`, `DIFFERENT_VALID`, `ABSENT`, and `INVALID`; assert the exact cell token/code, directory/root fsync order, one link call, and zero retargets |
+| `absent link destination distinguishes failed from retained nonretryable cells` | `THROWN(OTHER) × ABSENT` is `FAILED`, unlinks its exact candidate, and only a later fresh call may retry; `THROWN(UNSUPPORTED) × ABSENT` is unsupported and `RETURNED × ABSENT` plus `THROWN(EEXIST) × ABSENT` are inconsistent, so all three retain their candidate, perform no unlink, and physically block later mutation |
+| `crash before link leaves no authority and blocks mutation until publisher quiescence is proven` | read uses prior journal within inventory caps; mutation gets `OUTBOX_JOURNAL_PUBLISHER_UNQUIESCED` and creates nothing |
+| `published event with candidate hard link left by a crash is attested cleaned and recoverable` | fresh service matches inode/event, unlinks candidate, fsyncs root, then publishes next contiguous event |
+| `pre-unlink-completion cleanup failure retains a blocker without revoking destination` | unlink returns/throws and lstat proves the same candidate remains; `OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED`; matching event replays and later cleanup may retry, while unmatched residue stays unquiesced |
+| `empty mutating inventory root-fsync failure has a closed fresh-call recovery` | with zero candidates and no unlink invocation, root fsync failure is `OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN`; no candidate/link is created and there is no automatic retry; a later fresh mutation repeats bounded inventory and root fsync before candidate creation |
+| `post-absence cleanup durability preserves each cleanup-eligible cell disposition` | table-drive `PUBLISHED/MATCHING`, `CAS_LOST/DIFFERENT_VALID`, and `FAILED/ABSENT`; unlink completes, lstat proves absence, root fsync fails with `OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN`; a fresh-call root fsync then respectively accepts without retry, replays CAS loss without retargeting, or permits only the fresh retry already allowed by `FAILED` |
+| `nonretryable oracle cells cannot collapse through candidate cleanup uncertainty` | `INCONSISTENT`, `UNSUPPORTED`, and `INVALID` retain their candidate, never invoke unlink, and make the next mutation fail unquiesced or invalid before any new publication attempt |
+| `already-absent matching publication skips unlink and has exact inventory durability recovery` | after journal-directory fsync, `candidateState:ABSENT × destination:MATCHING` re-attests no-follow absence, invokes no unlink, and root-fsync success returns `PUBLISHED`; injected root-fsync failure is `OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN`, preserves the matching event, and a fresh mutation root-fsyncs inventory then replays without republishing |
+| `post-link candidate identity outcomes are closed` | candidate is exact, or already absent only for `MATCHING`; replacement is invalid and never unlinked; after an unlink attempt, exact-present, absent, and replacement map only to the two cleanup phases or invalid-candidate code |
+| `matching destination after any link error is accepted exactly once` | exact bytes/publicationId/eventDigest and same inode while candidate exists; journal fsync precedes cleanup; no semantic-event retry |
+| `THROWN by DIFFERENT_VALID replays without retargeting a transaction event` | every thrown error class maps to the same `CAS_LOST` cell; bootstrap adopts only identical payload, acquisition surfaces CAS loss for outer replay, renewal/commit/release fence, and `RETURNED × DIFFERENT_VALID` alone is inconsistent |
+| `directory fsync failure after a visible link reports post-link durability unknown without rollback` | `OUTBOX_JOURNAL_DURABILITY_UNKNOWN`, never the pre-link directory code; matching event remains with recoverable candidate; next operation replays before any retry |
+| `snapshot or projection refresh failure cannot roll back or make a durable commit retryable` | journal state is returned/visible; later read replays it; retry dedupes rather than duplicating |
+| `active lease rejects a second owner and exact expiry remains locked` | `OUTBOX_LOCKED` at `now <= expiresAt`; no contender event |
+| `strictly expired lease contenders publish exactly one new leaseId and fence` | one `lease_acquired` wins next sequence; one caller owns; loser is `OUTBOX_LOCKED` |
+| `leaseId and publicationId are internal distinct UUIDv4 values` | caller cannot supply either; invalid injected UUID fails before write; IDs are not owner IDs |
+| `renew preserves lease identity and advances fence sequence` | acquiredAt/owner/leaseId unchanged; previous expiry/fence exact; transaction getter sees new fence |
+| `commit requires current lease fence snapshot and tail then releases atomically` | one commit event changes state and leaves active lease null; no later release event is required |
+| `return or throw without commit appends release but preserves logical outbox digest` | exact current lease appends one `lease_released`; throw rethrows original after release; journal tail truthfully advances |
+| `expired still-current transaction appends release while fenced cleanup appends nothing` | expired commit rejects then releases exact lease; a newer fence prevents any old-owner release event |
+| `forged cross-service released committed and stale-fence transactions cannot publish` | pre-acquisition invalid input and post-release/reuse/fenced calls add no event; logical state remains byte-identical |
+| `expired old writer paused before candidate creation cannot erase a newer owner commit` | table-drive successful cleanup, pre-absence cleanup failure, and post-absence durability failure; old writer pauses immediately before its commit-candidate O_EXCL open, so no candidate exists; the strictly newer owner publishes lease and commit; after resume the old writer creates only its own stale candidate and the mandatory pre-link tail/lease recheck invokes zero links; success asserts the exact re-attestation → unlink → no-follow absence → private-root fsync order before `OUTBOX_LEASE_FENCED`, while the two cleanup failures override fencing with their closed cleanup codes; final outbox contains only the newer committed finding |
+| `concurrent different enqueues preserve both findings after visible contention is retried` | first successful commit plus caller retry yields both fingerprints in order |
+| `duplicate enqueue after contention reuses one durable entry` | one entry and unchanged finding digest; lease/release history may grow but logical state does not |
+| `invalid transition and generic recovery cannot clear a durable create receipt` | existing receipt lifecycle validator remains authoritative; logical outbox/receipt bytes remain unchanged although an exact acquire/release pair may advance journal history |
+| `V1 never compacts deletes truncates renames or replaces a published event` | injected fs call log contains no such operation; cap failure preserves all sequence inodes/bytes |
+
+For the first open race, replace the old atomic-JSON gate with this exact
+journal publication rendezvous:
+
+~~~js
+let signalOldCommitReady;
+let signalContinueOldCommit;
+const oldCommitReady = new Promise((resolve) => { signalOldCommitReady = resolve; });
+const continueOldCommit = new Promise((resolve) => { signalContinueOldCommit = resolve; });
+let gateOldCommitOpen = false;
+let oldCandidatePath = null;
+let oldCandidateLinkCalls = 0;
+let oldLeaseId = null;
+const privateRoot = dirname(journalPath);
+const candidateBasenamePattern = /^\.flow-outbox-journal-candidate-v1-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/;
+const oldJournalFs = {
+  ...journalFs,
+  async open(path, flags, mode) {
+    if (
+      gateOldCommitOpen &&
+      typeof path === "string" &&
+      dirname(path) === privateRoot &&
+      candidateBasenamePattern.test(basename(path)) &&
+      (flags & fsConstants.O_EXCL) !== 0
+    ) {
+      gateOldCommitOpen = false;
+      oldCandidatePath = path;
+      signalOldCommitReady();
+      // Pause before the underlying open: the candidate does not exist yet.
+      await continueOldCommit;
+    }
+    return journalFs.open(path, flags, mode);
+  },
+  async link(from, to) {
+    if (from === oldCandidatePath) oldCandidateLinkCalls += 1;
+    return journalFs.link(from, to);
+  },
+};
+
+const oldAttempt = oldService.withOutboxTransaction({
+  ownerId: "expiring-old-writer",
+  now: () => new Date("2026-08-26T00:00:00.000Z"),
+  leaseMs: 1_000,
+  operation: async (transaction) => {
+    oldLeaseId = transaction.leaseId;
+    gateOldCommitOpen = true;
+    return transaction.commit({ version: 1, entries: [entryFor(900)] });
+  },
+});
+await oldCommitReady;
+await assert.rejects(() => lstat(oldCandidatePath), { code: "ENOENT" });
+await newService.enqueueConfirmedFinding({
+  finding: newFinding,
+  ownerId: "new-fenced-writer",
+  now: () => new Date("2026-08-26T00:00:01.001Z"),
+  leaseMs: 30_000,
+});
+signalContinueOldCommit();
+await assert.rejects(oldAttempt, { code: "OUTBOX_LEASE_FENCED" });
+assert.equal(oldCandidateLinkCalls, 0);
+await assert.rejects(() => lstat(oldCandidatePath), { code: "ENOENT" });
+const events = await readJournalEvents(journalPath);
+assert.equal(events.some((event) => event.kind === "outbox_committed" && event.leaseId === oldLeaseId), false);
+assert.equal(events.some((event) => event.kind === "lease_released" && event.leaseId === oldLeaseId), false);
+assert.deepEqual(
+  (await newService.readOutbox()).entries.map(({ fingerprint }) => fingerprint),
+  [fingerprintFinding(newFinding)],
+);
+~~~
+
+The test file imports `constants as fsConstants` from `node:fs` and `basename`
+from `node:path`. Its wrapper must assert—not merely record—the stale
+candidate's exact cleanup suffix before the fenced rejection:
+
+~~~js
+assert.deepEqual(staleCleanupOps.slice(-7), [
+  "lstat:candidate:exact",
+  "unlink:candidate",
+  "lstat:candidate:ENOENT",
+  "open:private-root:nofollow-directory",
+  "fstat:private-root:same-inode",
+  "fsync:private-root",
+  "close:private-root",
+]);
+~~~
+
+The same named test creates fresh fixtures for two additional table rows. A
+pre-absence injected unlink failure must leave the exact candidate present,
+invoke zero links, and override fencing with
+`OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED`. A post-absence injected private-root
+fsync failure must leave the candidate absent, invoke zero links, and override
+fencing with `OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN`. This stale-
+binding branch never enters the literal 16-cell link oracle.
+
+For the second open race, inject one candidate-unlink failure after a
+successfully journal-directory-fsynced event. The publishing call reports
+`OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED` only after lstat proves the exact
+candidate remains; the destination remains authoritative and is the same
+inode/bytes as the candidate. Construct a fresh service; its first mutation
+must attest and unlink that exact published residue, prove absence, fsync the
+private root, publish only the next contiguous event, and replay the complete
+sequence. The separate post-absence root-fsync test uses
+`OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN` and has no candidate to
+remove. Neither test may recreate or interpret
+`flow-outbox.lock.reclaim`.
+
+- [ ] **Step 3: Run the journal suite and verify RED for missing journal behavior**
+
+~~~bash
+node --test tests/nuanu-app-graph/flow-outbox.test.mjs
+~~~
+
+Expected: the pre-existing fingerprint/privacy/transition tests remain green;
+the journal matrix fails because the committed module still uses the mutable
+lock/projection authority. Preserve the exact failing subtest names in the SDD
+ledger; do not weaken assertions to obtain GREEN.
+
+- [ ] **Step 4: Implement bootstrap replay publication and fencing**
+
+Implement the Locked Append-Only Journal Contract in this order:
+
+1. Add the permanent old-format barrier candidate publication/adoption,
+   closed hard-link reconciliation, reclaim-path rejection, and genesis/replay
+   barrier binding.
+2. Add exact journal-directory creation/adoption with no-follow inode/mode
+   attestation and private-root fsync before sequence publication, including
+   the distinct no-linked-event durability error and fresh-call recovery.
+3. Add fixed constants/caps, bounded candidate inventory/cleanup, exact
+   UUID/event/snapshot validators, 20-digit naming, and fatal bounded reads.
+4. Add full contiguous replay and the one-time empty/legacy bootstrap performed
+   only by Task 2 after the barrier and directory preconditions succeed.
+5. Add O_EXCL candidate creation, complete-file fsync/chmod, hard-link CAS,
+   the literal normalized-outcome/destination 16-cell oracle,
+   journal-directory fsync, split pre-absence/post-absence candidate cleanup,
+   the already-absent matching no-unlink branch, mandatory fresh-call root
+   fsync with its distinct inventory-durability error, preservation of each
+   cell's retry disposition, and explicit retry/no-retry results.
+6. Replace the mutable lease authority with journaled acquire/renew/commit/
+   release. Bind the WeakSet transaction to service brand, lease ID, current
+   fence, tail digest, expiry, and snapshot digest. Make commit clear the lease
+   in the authoritative event, and make no-commit cleanup append only for the
+   exact still-current fence.
+7. Make replay the only source for `readOutbox`, transaction snapshots,
+   enqueue, recovery, action predecessor digests, and transition validation.
+   Write snapshot/projection only after publication and treat their failures as
+   cache failures. Retain `OUTBOX_LOCK_RELATIVE_PATH` permanently as the
+   old-worker compatibility barrier; remove mutable reclaim implementation and
+   all `.reclaim` creation/unlink logic.
+
+`assertOwned({now})` must replay and verify exact lease/fence immediately before
+every dispatch and observation apply; the host separately rechecks the action
+and descriptor before a remote mutation. A fallback never broadens remote
+authority.
+
+- [ ] **Step 5: Preserve the exact entry/receipt transitions on journal commits**
+
+| From | To | Exact condition |
+| --- | --- | --- |
+| `pending_sync` | `syncing` | no receipt/failure and exact initial fingerprint-search action is persisted |
+| `syncing` | `syncing` | successful search or create ACK atomically replaces the dispatched action with its single proposed successor; ACK also persists its receipt, and a unique ambiguous-recovery match also persists `candidateRemoteId` |
+| `syncing` | `failed` | a structurally valid successful search or create ACK requires a successor but `successorDescriptorBinding` is null: the reducer emits internal `FLOW_DESCRIPTOR_STALE`/`RETRY_SAFE_READ`, removes the dispatched action, and atomically preserves no receipt for an ordinary search, the ACKED receipt for an ACK, or the AMBIGUOUS receipt plus `candidateRemoteId` for a unique recovery match |
+| `syncing` | `failed` | closed failure observation, unknown create delivery, read-back mismatch, fingerprint ambiguity, manual reconciliation, or evidence-capability blocker; receipt retained when known |
+| `failed` | `pending_sync` | `recoveryClass === "RETRY_SAFE_READ"` and `mutationReceipt === null`; recovery atomically clears the handled failure |
+| `failed` | `syncing` | a retained create receipt exists and the reducer atomically persists only its required `get_issue` or fingerprint-search action |
+
+No transition may clear a receipt. Receipt clearing occurs only inside the
+same transaction that applies a proving read observation. A create receipt can
+select only `get_issue(remoteId)` when ACKED, fingerprint search when AMBIGUOUS
+with a null candidate, or `get_issue(candidateRemoteId)` when AMBIGUOUS with a
+candidate. An ambiguous create plus a complete zero-result search becomes
+manual reconciliation and cannot create. No other receipt kind is valid in V1.
+
+`MANUAL` and `SCHEMA_BLOCKED` failures have no V1 outgoing transition.
+`attempts` increments exactly once whenever a transition enters `syncing`;
+`createdAt` is immutable and `updatedAt` is monotonic.
+
+- [ ] **Step 6: Verify GREEN, static consistency, and commit only Task 2 code/tests**
+
+~~~bash
+node --test tests/nuanu-app-graph/flow-outbox.test.mjs
+node --check tools/nuanu-app-graph/flow-outbox.mjs
+rg -n "reclaimExpiredLease|approvedReclaimPath|writeLockHandle" tools/nuanu-app-graph/flow-outbox.mjs
+rg -n "OUTBOX_JOURNAL_RELATIVE_PATH|OUTBOX_SNAPSHOT_RELATIVE_PATH|OUTBOX_JOURNAL_(DIRECTORY_|CANDIDATE_CLEANUP_|INVENTORY_)?DURABILITY_UNKNOWN|OUTBOX_JOURNAL_PUBLICATION_(FAILED|INCONSISTENT|UNSUPPORTED)|OUTBOX_JOURNAL_CAS_LOST|OUTBOX_LEASE_FENCED|journal-v1-barrier|OUTBOX_LEGACY_BUSY" tools/nuanu-app-graph/flow-outbox.mjs tests/nuanu-app-graph/flow-outbox.test.mjs
+git add tools/nuanu-app-graph/flow-outbox.mjs tests/nuanu-app-graph/flow-outbox.test.mjs
+git diff --cached --check
+git commit -m "fix: fence Nuanu App outbox journal writes"
+~~~
+
+Expected: all outbox tests pass; `node --check` exits 0; the first `rg` has no
+match; the second finds permanent-barrier, journal, and fencing implementation
+plus acceptance coverage. Do not stage journal/snapshot/projection private
+state.
+
+### Task 3: Add Sanitized Payloads and the Host Action/Observation Reducer
+
+**Files:**
+- Create: `tools/nuanu-app-graph/flow-payload.mjs`
+- Create: `tools/nuanu-app-graph/flow-sync-protocol.mjs`
+- Create: `tools/nuanu-app-graph/flow-sync-cli.mjs`
+- Create: `tests/nuanu-app-graph/flow-payload.test.mjs`
+- Create: `tests/nuanu-app-graph/flow-sync-protocol.test.mjs`
+- Create: `tests/nuanu-app-graph/flow-sync-cli.test.mjs`
+- Modify: `tools/nuanu-app-graph/flow-outbox.mjs`
+- Modify: `tests/nuanu-app-graph/flow-outbox.test.mjs`
+
+**Interfaces:**
+- Consumes: leased outbox entry, verified evidence metadata, and a fresh
+  descriptor binding. It consumes no remote client or authorization JSON.
+- Produces: initial Bugs payload without completion label, one durable closed
+  host action at a time, exact observation validation, a read-back remote
+  identity, and then the explicit `FLOW_EVIDENCE_UNSUPPORTED` blocker. Tests
+  drive the reducer with synthetic observations; production external calls
+  exist only in the host protocol above.
+
+- [ ] **Step 1: Write failing payload tests**
+
+Required payload:
+
+~~~js
+{
+  project_identifier: "NAPP",
+  name: "[BUG][Desktop] Unknown app route returns HTTP 200",
+  description_html: "<section><h2>Environment</h2><p>https://app.nuanu.com/</p></section><section><h2>Preconditions</h2><ul><li>Fresh anonymous context.</li></ul></section><section><h2>Steps</h2><ol><li>Open the reviewed unknown-route probe.</li></ol></section><section><h2>Actual</h2><p>Unknown route returned HTTP 200.</p></section><section><h2>Expected</h2><p>Unknown route returns HTTP 404 with Not Found UI.</p></section><section><h2>Impact</h2><p>Invalid routes are reported as valid documents.</p></section><section><h2>Evidence</h2><p>Sanitized response-status evidence; sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.</p></section><section><h2>Graph</h2><p>nuanu-app:route:unknown; sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.</p></section><section><h2>Regression</h2><p>AUTOMATED: NAPP-PUB-003.</p></section><section><h2>Deduplication</h2><p>Complete active and recently-closed search found no duplicate.</p></section><p>QA Fingerprint: napp-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</p>",
+  state_name: "Bugs",
+  label_names: ["Bug", "Desktop"],
+  priority: "high"
+}
+~~~
+
+Tests assert escaped HTML, exact headings Environment/Preconditions/Steps/
+Actual/Expected/Impact/Evidence/Graph/Regression/Deduplication, and a visible
+`QA Fingerprint: napp-v1-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`.
+The all-`a` value is the exact deterministic test fixture; production payloads
+use the SHA-256 formula from Task 1. Reject raw Markdown, script tags, query tokens,
+authorization text, cookies, passwords, OTPs, and precise GPS.
+
+- [ ] **Step 2: Verify red**
+
+~~~bash
+node --test tests/nuanu-app-graph/flow-payload.test.mjs
+~~~
+
+- [ ] **Step 3: Implement payload generation and read-back validation**
+
+`validateRemoteBugReadBack` requires project identifier `NAPP`, identifier
+prefix `NAPP-`, non-empty remote UUID equal to `expectedIssueId`, exact
+`buildBugCreatePayload(entry).name`, byte-identical generated
+`description_html`, exact Bugs state, exact priority, and the exact sorted label
+set `Bug` plus the one platform label with no extra labels. The description's
+ten headings and fingerprint therefore remain attested through equality rather
+than substring presence. `Evidence Complete` must be absent. It returns
+code-owned structured errors rather than a boolean or provider error text. V1
+exports no evidence-completion update payload and accepts no attachment
+observation; both require a later schema version. If the provider normalizes or
+truncates the generated HTML, read-back is `FLOW_READBACK_MISMATCH`; the
+reducer does not weaken the oracle.
+
+- [ ] **Step 4: Write failing action/observation reducer tests**
+
+Cover:
+
+~~~js
+test("reducer emits search first and contains no callable remote client", async () => {});
+test("one fingerprint match plans get without create", async () => {});
+test("complete zero-match search plans one create action", async () => {});
+test("proposal is non-executable until a separate fresh dispatch", async () => {});
+test("dispatch permits only newer time with byte-identical non-time descriptor fields", async () => {});
+test("dispatch drift or rollback leaves the immutable proposal unchanged", async () => {});
+test("confirmation refusal and descriptor drift cancel a proposal without ambiguity", async () => {});
+test("dispatched create stdout loss becomes create-unknown without a retry", async () => {});
+test("stale proposal accepts FLOW_ACTION_STALE after any age", async () => {});
+test("aged dispatched read accepts only FLOW_READ_FAILED recovery", async () => {});
+test("aged dispatched create accepts only DELIVERY_UNKNOWN recovery", async () => {});
+test("successful search atomically replaces dispatched action with one proposal", async () => {});
+test("mutation acknowledgement atomically stores receipt and proposed get", async () => {});
+test("successor uses a separate fresh descriptor binding", async () => {});
+test("ordinary successful search plus null successor binding enters safe failed recovery", async () => {});
+test("missing successor binding preserves ACK or candidate in failed recovery", async () => {});
+test("stale non-null successor binding rejects with byte-identical outbox", async () => {});
+test("apply snapshots observation and successor binding before async transaction use", async () => {});
+test("successor journal publication failure leaves the prior dispatched action byte-identical", async () => {});
+test("ambiguous create records reconciliation and never plans a second create", async () => {});
+test("acked create plus get failure retains ID and retries only get", async () => {});
+test("ambiguous create plus one match retains candidate and plans only get", async () => {});
+test("ambiguous candidate plus get failure retries only the same candidate", async () => {});
+test("ambiguous create plus zero recovery search becomes manual without create", async () => {});
+test("partial search and multiple fingerprint matches never plan create", async () => {});
+test("stale descriptor or action digest cannot apply an observation", async () => {});
+test("search and get failures leave an executable safe recovery path", async () => {});
+test("partial search maps to FLOW_SEARCH_INCOMPLETE and never create", async () => {});
+test("stdout loss summary maps reads safely and mutations to DELIVERY_UNKNOWN", async () => {});
+test("forged cross-service or replayed observation cannot advance state", async () => {});
+test("lost lease before action persistence or observation apply changes nothing", async () => {});
+test("read-back requires exact ID title generated HTML and label set", async () => {});
+test("read-back mismatch retains receipt and never plans evidence completion", async () => {});
+test("blocked evidence capability emits no list upload or update action", async () => {});
+test("blocked evidence capability never sets Evidence Complete or synced", async () => {});
+test("attachment observations and non-create receipts are rejected as unknown", async () => {});
+test("create acknowledgement alone can never mark remote read-back complete", async () => {});
+test("local reducer can never perform a Flow or network call", async () => {});
+test("temporary protocol factory commits only through its temporary branded service", async () => {});
+test("production protocol accepts no injected service path or transaction", async () => {});
+test("worst-case escaped accepted finding fits generated and action byte caps", async () => {});
+test("over-cap aggregate finding is rejected before enqueue persistence", async () => {});
+test("every action is bound to exactly one immutable fingerprint batch", async () => {});
+test("changed missing duplicate or extra batch entries are rejected", async () => {});
+test("CLI supports only fixed-state next dispatch and bounded-stdin apply", async () => {});
+test("CLI accepts no client credential URL path descriptor or confirmation argument", async () => {});
+~~~
+
+- [ ] **Step 5: Implement the durable reducer and host handoff**
+
+Algorithm:
+
+1. under `withOutboxTransaction`, validate the fresh closed descriptor binding,
+   transition `pending_sync -> syncing`, and persist the exact fingerprint
+   `PROPOSED` search action for active plus recently closed scopes;
+2. the host separately dispatches and executes the read. Applying a complete
+   observation with a separately refreshed successor descriptor computes its
+   deterministic successor and atomically replaces the current `DISPATCHED`
+   action with one `PROPOSED` action in the same outbox transaction. Without a
+   fresh successor binding, the exact null fallback atomically persists
+   internal `FLOW_DESCRIPTOR_STALE`/`RETRY_SAFE_READ`: an ordinary successful
+   search keeps no receipt, an ACK keeps its ACKED receipt, and a unique
+   ambiguous-recovery match keeps its AMBIGUOUS receipt plus
+   `candidateRemoteId`. It never copies the predecessor binding. Incomplete
+   search or multiple matches
+   becomes a code-owned failure and never produces create;
+3. one initial match atomically proposes `get_issue`; zero initial matches
+   atomically proposes exactly one `create_issue` mutation whose arguments
+   contain the full sanitized payload;
+4. the host displays the proposed mutation and immutable batch/action digests,
+   receives user confirmation, invokes `dispatch` to recheck and mark the exact
+   action, then invokes it once. Applying a closed mutation acknowledgement
+   with a fresh successor binding atomically persists the ACKED receipt and a
+   `PROPOSED get_issue(remoteId)`; without that binding it still atomically
+   preserves the ACKED receipt in safe failed recovery. An acknowledgement is
+   never read-back by itself;
+5. if create returns an unknown outcome, the host submits `DELIVERY_UNKNOWN`;
+   the reducer records an ambiguous create receipt and recovery may plan a new
+   search but never another create. A unique match atomically stores its ID as
+   `candidateRemoteId` and proposes only `get_issue(candidateRemoteId)`; zero or
+   multiple matches require manual reconciliation;
+6. after an exact ID/title/generated-HTML/state/priority/label issue read-back,
+   clear only the proven create receipt, store the remote identity, persist
+   `FLOW_EVIDENCE_UNSUPPORTED`, emit no list/upload/update action, and stop in
+   `failed` without `Evidence Complete`;
+7. any attachment observation, attachment mutation receipt, non-null
+   `evidenceCompletedAt`, or V1 transition to `synced` is invalid rather than a
+   dormant future path.
+
+Evidence unavailability and item read-back mismatch are `failed` with any
+known remote identity retained. The V1 reducer can never plan
+`Evidence Complete`; a later schema version must introduce and review the
+entire binary-provider/read-back protocol together.
+
+The exact guarantee is: at most one create among cooperating workers while the
+single persisted create action remains current and the host invokes it once.
+Strict global exactly-once requires a future server-side idempotency key bound
+to the fingerprint. Ambiguous creation is never repaired by a blind second
+create. The reducer itself has zero remote-call capability.
+
+`flow-sync-cli.mjs` is the executable host boundary. Its grammar is only:
+
+~~~text
+flow-sync-cli.mjs next --fingerprint napp-v1-<64 lowercase hex> --descriptor-stdin
+flow-sync-cli.mjs dispatch --action-id napp-flow-action-v1-<64 lowercase hex> --descriptor-stdin
+flow-sync-cli.mjs apply --action-id napp-flow-action-v1-<64 lowercase hex> --stdin
+~~~
+
+`next` reads only the fixed production outbox plus at most 64 KiB of the closed
+six-digest descriptor projection from stdin, persists or returns the one closed
+`PROPOSED` action, and prints no private path, raw descriptor, or raw finding
+beyond the sanitized action payload. Re-reading a proposal is safe because a
+proposal cannot be executed. `dispatch` reads the same bounded fresh projection,
+requires `now < expiresAt`, atomically revalidates and marks the action
+`DISPATCHED`, and returns its one execution manifest; an expired proposal is
+left byte-identical for a `FLOW_ACTION_STALE` observation, and any repeat after
+successful dispatch returns only a summary. `apply` reads at most
+96 KiB of exact
+`{observation,successorDescriptorBinding}` JSON from stdin; the binding is a
+fresh closed projection when the result needs a successor, or exact JSON
+`null` only when the result is terminal or invokes the code-owned
+`SUCCESSOR_BINDING_UNAVAILABLE` fallback described above. It
+requires the exact pending action ID/digest, validates it before persistence,
+and applies it under a new opaque transaction. It accepts no arbitrary file,
+URL, workspace/project override, raw descriptor body, credential, Flow client,
+tool name, or confirmation flag; only the exact closed descriptor projection
+above is valid. The CLI snapshots and deeply freezes the bounded wrapper before
+validation; the same snapshot alone reaches the transaction. The host
+action-time confirmation remains in
+the conversation and is required before mutation `dispatch`; it is not
+fabricated or consumed by this CLI.
+
+For a `PROPOSED` action, `next` returns the byte-identical proposal plus
+`proposedAt` and `expiresAt`; stdout loss is safe because no MCP call is allowed
+without `dispatch`. For a `DISPATCHED` action, `next` and repeated `dispatch`
+return only
+`{status:"DISPATCHED",actionId,actionDigest,kind,mutation,lifecycle,
+proposedAt,dispatchedAt,expiresAt,reconciliationClass}` and never re-emit an
+executable payload. `reconciliationClass` is exactly `SAFE_READ` or
+`CREATE_UNKNOWN`, derived internally from the persisted kind. After dispatch
+stdout loss, the host submits `FLOW_READ_FAILED` for a safe read or
+`DELIVERY_UNKNOWN` for a mutation. A still-proposed expired action accepts the
+truthful `FLOW_ACTION_STALE` pre-dispatch failure. The host never guesses a
+mutation-specific code or blind-retries a mutation after a crash/lost result.
+
+- [ ] **Step 6: Verify and commit**
+
+~~~bash
+node --test tests/nuanu-app-graph/flow-payload.test.mjs tests/nuanu-app-graph/flow-outbox.test.mjs tests/nuanu-app-graph/flow-sync-protocol.test.mjs tests/nuanu-app-graph/flow-sync-cli.test.mjs
+git add tools/nuanu-app-graph/flow-payload.mjs tools/nuanu-app-graph/flow-outbox.mjs tools/nuanu-app-graph/flow-sync-protocol.mjs tools/nuanu-app-graph/flow-sync-cli.mjs tests/nuanu-app-graph/flow-payload.test.mjs tests/nuanu-app-graph/flow-outbox.test.mjs tests/nuanu-app-graph/flow-sync-protocol.test.mjs tests/nuanu-app-graph/flow-sync-cli.test.mjs
+git diff --cached --check
+git commit -m "feat: reduce Nuanu App Flow sync actions"
+~~~
+
+### Task 4: Perform the Fresh Cloud Preflight and Create the Workspace
+
+**Files:**
+- No repository file changes.
+- External state: Nuanu Flow workspace only.
+
+**Interfaces:**
+- Consumes: authenticated Nuanu Flow compact MCP.
+- Produces: exact private workspace `Nuanu App` / `nuanu-app`.
+
+- [ ] **Step 1: Refresh tool descriptors**
+
+Use `search_tools` with full detail for `list_workspaces`,
+`get_workspace`, `create_workspace`, and `list_projects`. Use the returned
+current catalog revision and schema digest; do not reuse a stale descriptor.
+
+- [ ] **Step 2: Recheck duplicates read-only**
+
+Call:
+
+~~~json
+list_workspaces({})
+get_workspace({"workspace_slug":"nuanu-app"})
+~~~
+
+If the workspace exists, stop creation and inspect it. If the name or ownership
+is ambiguous, ask the user rather than adopting it.
+
+- [ ] **Step 3: Obtain action-time confirmation A**
+
+Read back this exact consequence:
+
+~~~text
+Create one private Nuanu Flow workspace:
+name Nuanu App
+slug nuanu-app
+The provider may automatically add one default project while creating the workspace.
+This batch will not intentionally configure or add a project.
+Any default project will be listed and reported immediately, and project work stops until confirmation B.
+No invitations, objectives, automations, or other content in this batch.
+~~~
+
+Do not call `create_workspace` until the user explicitly confirms.
+
+- [ ] **Step 4: Create once**
+
+~~~json
+create_workspace({"name":"Nuanu App","slug":"nuanu-app"})
+~~~
+
+- [ ] **Step 5: Read back immediately**
+
+Call `get_workspace({"workspace_slug":"nuanu-app"})` and
+`list_projects({"workspace_slug":"nuanu-app"})`. Verify exact name, slug,
+returned UUID, and any automatically created projects. Report the actual
+result; navigation or a successful tool envelope is not enough.
+
+### Task 5: Create and Configure the Private NAPP Project
+
+**Files:**
+- No repository file changes.
+- External state: one project and exact project configuration.
+
+**Interfaces:**
+- Consumes: verified workspace and fresh Flow descriptors.
+- Produces: private NAPP project, seven states, sixteen labels, supported
+  views, and optionally a confirmed estimate system.
+
+- [ ] **Step 1: Resolve auto-created project behavior**
+
+List projects again. If an exact `Nuanu App Map` or identifier `NAPP` exists,
+inspect and reuse only when its read-back matches the approved private project.
+If workspace creation produced exactly one empty default project, do not create
+a second project: inspect whether the current schema can safely update its
+name, identifier, network, and description, disclose that reuse in confirmation
+B, and update/read back it only after confirmation. If the default is nonempty,
+there are multiple projects, update semantics are incomplete, or ownership is
+ambiguous, stop and ask instead of creating another project.
+
+- [ ] **Step 2: Read configuration descriptors and current state**
+
+Refresh full schemas for `create_project`, `update_project`, `get_project`, `list_states`,
+`update_state`, `create_state`, `list_labels`, `create_label`,
+`list_views`, `create_view`, `list_estimates`, `create_estimate`, and
+`create_estimate_point`. Resolve the exact schema field and mutation required
+to make one state default and the read-back field that proves it. If the
+current descriptors cannot set and read back a default state, report the
+scaffold BLOCKED before confirmation B; do not infer default from ordering.
+
+- [ ] **Step 3: Obtain action-time confirmation B**
+
+Read back:
+
+~~~text
+Create or reuse/update the exact read-back default project identified above:
+Nuanu App Map, identifier NAPP, network 0.
+Configure seven workflow states, make Backlog the sole default state, create
+sixteen labels, and create only supported saved views.
+If no estimate system exists, create Fibonacci points 1,2,3,5,8,13 so ready items can be estimated.
+No invitations, objectives, wiki, automations, processes, or agents.
+~~~
+
+Wait for explicit confirmation.
+
+- [ ] **Step 4: Create or verify the project**
+
+Create only if absent:
+
+~~~json
+{
+  "workspace_slug":"nuanu-app",
+  "name":"Nuanu App Map",
+  "identifier":"NAPP",
+  "network":0,
+  "description":"Private QA control plane for app.nuanu.com product mapping, campaigns, evidence, confirmed defects, and retesting."
+}
+~~~
+
+Read back with `get_project` by returned ID.
+
+- [ ] **Step 5: Normalize default states without destructive deletion**
+
+List state IDs. Prefer renaming/updating default rows:
+
+| Desired state | Group | Color | Default |
+| --- | --- | --- | --- |
+| Backlog | backlog | #6B7280 | yes |
+| Ready for QA | unstarted | #F2BE02 | no |
+| Testing | started | #3B82F6 | no |
+| Bugs | unstarted | #E5484D | no |
+| Retest | started | #A855F7 | no |
+| Verified | completed | #22C55E | no |
+| Cancelled | cancelled | #9CA3AF | no |
+
+Reuse and update exact defaults when possible; create only missing names. Do
+not delete a state or move existing issues without a new confirmation. After
+each individual create/update, re-list or get that state and verify exact
+name/group/color/default marker before the next mutation. Require exactly one
+default state and require it to be Backlog. An ambiguous response stops the
+sequence.
+
+- [ ] **Step 6: Create only missing exact labels**
+
+| Label | Color |
+| --- | --- |
+| Bug | #E5484D |
+| Coverage | #5E6AD2 |
+| Manual | #F2BE02 |
+| Map | #0EA5E9 |
+| Places | #14B8A6 |
+| Search | #8B5CF6 |
+| Auth | #F97316 |
+| Profile | #EC4899 |
+| PWA | #2563EB |
+| Privacy | #64748B |
+| Desktop | #475569 |
+| iOS Web | #111827 |
+| Android Web | #22C55E |
+| Evidence Complete | #16A34A |
+| Blocked | #DC2626 |
+| Analytics | #7C3AED |
+
+Create all sixteen enumerated labels. Verify the exact name set rather than a
+count alone; do not silently drop or rename a label. After each create, read
+back the exact label ID/name/color before creating the next one.
+
+- [ ] **Step 7: Create only supported views**
+
+Create exact views using resolved UUID filters:
+
+1. Open bugs by priority.
+2. iOS Web.
+3. Android Web.
+4. Blocked.
+5. Manual.
+6. Retest.
+7. Missing complete evidence only if current schema supports label negation.
+
+If negation is unsupported, record a Flow platform limitation and do not
+invent a broken filter. Read back each stored filter immediately after its
+create before continuing.
+
+- [ ] **Step 8: Configure estimates only under confirmation**
+
+If `list_estimates` returns none and confirmation B included estimates,
+create `Fibonacci` with points 1, 2, 3, 5, 8, 13 and mark it last-used. If
+estimate creation was not confirmed, stop before coverage-item creation and
+report the blocker. Read back the estimate container after creation and every
+point immediately after its mutation before creating the next point.
+
+- [ ] **Step 9: Read back the full scaffold**
+
+Verify project name, identifier, network, state names/groups/colors/default
+markers, exactly one default state named Backlog, label names/colors, view
+names/filters, and estimate values. Report differences instead of claiming
+success.
+
+### Task 6: Create the Campaign-Level Coverage Backlog
+
+**Files:**
+- Modify: `docs/nuanu-app/FLOW-CONTROL-PLANE.md` after read-back.
+- External state: fourteen coverage items in Backlog.
+
+**Interfaces:**
+- Consumes: verified NAPP state/label/estimate IDs.
+- Produces: fourteen non-defect coverage items; no Bugs item.
+
+- [ ] **Step 1: Search for existing exact items**
+
+Search NAPP by each exact title and list Backlog coverage items. Deduplicate
+before bulk creation.
+
+In the same turn, refresh full descriptors for `search_issues`,
+`bulk_create_issues`, and `get_issue`. Verify the exact batch payload shape,
+maximum batch size, idempotency behavior, partial-failure behavior, returned
+identifiers, and read-back fields. If the tool or required semantics are not
+available, stop before confirmation and external writes; do not substitute a
+loop of individual creates.
+
+- [ ] **Step 2: Shape exact items**
+
+Create only absent titles:
+
+~~~text
+Map deployment identity and runtime surface
+Verify public application shell
+Verify Places and map discovery
+Verify search and filters
+Verify place details
+Verify location boundaries
+Verify authentication boundaries
+Verify profile and privacy boundaries
+Verify PWA lifecycle
+Verify routing and SEO
+Verify accessibility and performance
+Establish read-only PostHog telemetry baseline
+Run iOS Web real-device lane
+Run Android Web real-device lane
+~~~
+
+Every description uses HTML sections Outcome, Scope, and Done when. The two
+device items use labels `Coverage`, `Manual`, and their platform label;
+the telemetry item uses exactly `Coverage`, `Analytics`, `Desktop`, `iOS Web`,
+and `Android Web`; other items use `Coverage` plus their area/platform labels.
+Set all to `Backlog`; use `execution_mode: "manual"` for device lanes and
+`execution_mode: "assist"` for the rest. Assign an existing estimate point
+based on the approved system. The telemetry item establishes an aggregate
+read-only baseline only. Missing telemetry access, instrumentation, or sample
+does not move it to Bugs and does not block the safe web/PWA campaign.
+Its `Done when` section requires either a normalized baseline or an exact
+telemetry-only blocker covering effective capability-matrix read-back,
+one fresh digest-bound schema preflight with all nine metric statuses,
+mandatory `app.nuanu.com` host scope, an explicit immutable 24-hour UTC window
+with window-dependent approvals, code-owned structured-query validation,
+non-p75 count/denominator/first-step origins, and independent p75 count-
+companion validation over the identical window, host,
+event population, filters, and breakdown where Web Vitals are available, and
+separate scoped transport with a verified bounded provider envelope. Production
+connector compatibility left UNVERIFIED is an exact telemetry-only blocker,
+not completion by query execution. The read-back also requires Task 2
+coordinate-join evidence plus the exact privacy-normalized catalog wrapper/
+digest; Task 1
+structural attestation alone is not raw-pair proof. A role label, invitation
+browser session, or percentile result without paired count evidence is not
+completion evidence. Exception fingerprint groups require the dedicated
+mutually exclusive query and fresh provider-opacity proof; otherwise completion
+records `FIELD_NOT_PROVEN` and aggregate exceptions only.
+
+- [ ] **Step 3: Obtain final batch confirmation**
+
+Read back the exact number and titles to be created, their state, labels,
+execution mode, and estimate. Wait for explicit confirmation because this is a
+multi-item external write.
+
+- [ ] **Step 4: Submit one verified batch**
+
+Use one `bulk_create_issues` call with at most the fourteen absent issues.
+The call is not assumed to be transactional. Never loop individual creates
+after a partial or ambiguous batch result; reconcile returned and listed items
+by exact title before proposing a recovery batch.
+
+- [ ] **Step 5: Read back every item**
+
+Use returned IDs plus `get_issue`; then list Backlog/Coverage. Verify exact
+titles, HTML, state, labels, execution mode, estimate, and count. Return actual
+`NAPP-*` identifiers.
+
+- [ ] **Step 6: Document the verified cloud state**
+
+Record names, slugs, identifiers, read-back counts, and current Flow URLs in
+`docs/nuanu-app/FLOW-CONTROL-PLANE.md`. Store no token, user UUID, or secret.
+
+- [ ] **Step 7: Commit the documentation**
+
+~~~bash
+git add docs/nuanu-app/FLOW-CONTROL-PLANE.md
+git diff --cached --check
+git commit -m "docs: record Nuanu App Flow control plane"
+~~~
+
+### Task 7: Document and Verify the Defect Lifecycle
+
+**Files:**
+- Create: `docs/nuanu-app/BUG-LIFECYCLE.md`
+
+**Interfaces:**
+- Consumes: verified outbox behavior and actual NAPP configuration.
+- Produces: operator runbook for candidate, confirmed, remotely created but
+  evidence-incomplete, retest, and verified states.
+
+- [ ] **Step 1: Document exact lifecycle**
+
+~~~text
+candidate local evidence
+-> fresh-context reproduction
+-> deterministic classification
+-> dedupe
+-> confirmed local outbox
+-> descriptor-bound host action
+-> action-time mutation confirmation
+-> one MCP call plus sanitized observation
+-> Bugs state read-back
+-> expected-fail regression
+-> Retest
+-> deployed verification
+-> Verified
+~~~
+
+Include explicit branches for FLAKY, BLOCKED, UNVERIFIED, INCONCLUSIVE,
+duplicate/Cancelled, Flow outage, the current attachment-capability blocker,
+and item read-back mismatch.
+
+- [ ] **Step 2: Run local control-plane verification**
+
+~~~bash
+node --test tests/nuanu-app-graph/flow-outbox.test.mjs tests/nuanu-app-graph/flow-payload.test.mjs tests/nuanu-app-graph/flow-sync-protocol.test.mjs tests/nuanu-app-graph/flow-sync-cli.test.mjs
+node --check tools/nuanu-app-graph/flow-outbox.mjs
+npm run typecheck
+git diff --check
+~~~
+
+- [ ] **Step 3: Perform read-only remote verification**
+
+Re-list and compare workspace, project, states, labels, views, estimates, and
+coverage items. Do not mutate during final verification.
+
+- [ ] **Step 4: Commit**
+
+~~~bash
+git add docs/nuanu-app/BUG-LIFECYCLE.md
+git diff --cached --check
+git commit -m "docs: define Nuanu App bug lifecycle"
+~~~
+
+## Control Plane Exit Gate
+
+This plan is complete only when:
+
+- outbox/fingerprint/lease/sync/recovery unit tests pass;
+- replay proves one contiguous digest-valid append-only journal; journaled
+  lease IDs/fences close the expired-writer race; snapshot/projection drift is
+  cache-only; and V1 contains no automatic compaction path;
+- the production local module has no callable Flow client; the fixed-state CLI
+  emits/applies only descriptor-bound action/observation records, while the
+  confirmed host performs and reads back every MCP mutation;
+- the workspace and project exist exactly once and are private;
+- Bugs is a verified state inside NAPP;
+- configuration and every coverage item have exact read-back;
+- the scaffold has exactly seven states, sixteen labels including Analytics,
+  and fourteen campaign coverage items including the telemetry baseline;
+- unsupported view features are reported rather than fabricated;
+- no invitations, objectives, automations, processes, or agents were created;
+- no candidate bug was filed as confirmed;
+- no telemetry-only observation was filed in Bugs;
+- V1 emits no attachment/list/update action, never sets `Evidence Complete`,
+  and reports `FLOW_EVIDENCE_UNSUPPORTED` after a proven item read-back;
+- the telemetry coverage item read-back preserves its exact optional/add-only
+  contract and records live-envelope/schema/window gaps as telemetry-only
+  blockers while the deterministic campaign continues;
+- cooperating workers cannot create twice while the lease is valid, and an
+  ambiguous create fails closed until reconciliation instead of issuing a
+  second create.

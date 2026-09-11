@@ -1,0 +1,204 @@
+# Skills and other-product QA reconciliation audit
+
+Date: 2026-09-11. Read-only audit; no skill installation, product calls, tracker writes, registration changes, source edits, product tests, dependency installation, or remote mutation. This report is the only file written by this audit. Skills authoring guidance was used to distinguish a complete portable instruction bundle from a loose SKILL.md; no skill was authored or deployed.
+
+## Exact baseline and scope
+
+Comparison baseline: `/Users/danilsolomin/projectsnew/qa-agent/.local/qa-h001-review-20260911.gx5j0h/cold`, outer `c3f9ca2dc5c156b5eaada337dee22f75e9db4c0c`; Console `f3660d0eed9c442aec974f1b57dcaa6b7a8bcc3b`; Kernel `15a067c9a694de26460102ce5dadb9707c7977b1`; Freeland `9c2509e32462319d5b96ccb49d5ae2070df7b18d`; reporting reference `10d398d8a077068c2184f33958e9b654a2f2947c`, inactive. `npm run sources:verify` from that exact cold root exited 0 and returned all four expected identities. This is source verification, not product/runtime acceptance. Its AGENTS still explicitly describes reviewed integration sources, with accepted outer workspace at 48bccef; this audit does not silently promote that workspace.
+
+Inspected in full recursively for bytes, extra files, references and metadata:
+
+- Eight QA/support skill directories under each of `/Users/danilsolomin/.codex/skills`, `/Users/danilsolomin/.agents/skills`, `/Users/danilsolomin/.claude/skills` where present: qa-check, qa-bugfix, qa-init, qa-product-v0, freeland-release-qa, browser-qa, e2e-testing, verification-loop. None of the inspected installed bundles is a symlink.
+- Matching baseline root/Console/Freeland source directories, Console `.claude/skills` parity, and NuanuFlowQA project-scoped QA bundles/template. Installed QA inventory contained no other qa/test/verification-named skills at the top level.
+- `/Users/danilsolomin/.codex/qa-workspaces.md`, current/source/historical path references; no equivalent top-level QA workspace registry found under `.agents` or `.claude`.
+- Full root metadata and scoped useful QA material in projectsnew/{QA,example-web-qa,magicpay-qa,magiccard-qa-20260905,magiccard-prod-qa-20260906,sati-qa}. Product source snapshots and private runtime artifacts are not donor code to copy.
+- Bounded related-workspace metadata discovery in projectsnew/{MagicPay,agenticpayments,mercuryo-agent-pay,mgmt,mgmt-src,mgmt_cowork,Outreach,ai-scoring,scoring-app}: QA-named paths through depth 4, excluding generated/vendor execution outputs and private content; selected Git source history for relevant QA paths. This is not an exhaustive audit of every application test.
+
+Applicable root and discovered QA-workspace AGENTS/CLAUDE guardrails were read. No secrets/config credentials, browser sessions, accounts or private provider artifacts were opened. A first filename-only discovery traversed private-containing trees; subsequent enumeration explicitly excluded them. No such contents enter this report.
+
+## Actionable conclusions
+
+1. Starter qa-init/qa-product-v0 is already fully synchronized: 15/15 installed files across three hosts match f3660d0, including all three references. Do not reinstall them merely because generic qa-check is stale.
+2. Freeland is fully synchronized and pinned: all three installed copies and selected source are `5cd82212037fe765219bbfc7bdd39bced23a1527458abb57e74e143f67b4dfbc`. Do not change it as part of generic consolidation.
+3. qa-check remains an active installed routing/acceptance defect: two old host bundles include a Linear dependency/default prompt and the legacy unexpected-PASS=>FIXED recipe. The root's reviewed thin routing source solves the source-side entry, but no matching installed delivery or Claude-host entry currently exists.
+4. qa-bugfix is a second real entrypoint gap. Its improved NuanuFlowQA donor is not in canonical executable/source routing, while two installed copies retain the old provider-specific state recipe. A complete source slice must include the fix-prompt dependency and exact tracker/state roles; adopting just SKILL.md would be incomplete.
+5. Other-project history is mostly product-owned evidence, not missing universal engine code. Preserve Sati's native/proxy QA knowledge and MagicCard's pure oracles/replay boundaries as indexed donors. Do not migrate managed workspaces or copy credentials/third-party skills. QA's two-commit prototype is unique historical code but not a qualified runner.
+6. Source parity does not prove actual Codex/Claude behavior. Local Claude lacks qa-check/qa-bugfix and the three support skills; the cross-runtime `.agents` directory is not proof that Claude will discover/use them. An installed-entrypoint behavioral gate is still separate.
+
+## Installed/source byte inventory
+
+`C/A/L` below means `.codex/.agents/.claude`. Every row lists the complete bundle contents; there are no omitted reference or metadata files in these inspected bundles.
+
+| Bundle/file | Hosts | SHA-256 | Bytes | Source disposition |
+| --- | --- | --- | ---: | --- |
+| qa-init/SKILL.md | C/A/L | bb7dcefbe62dcdfd40911d838a0558cafb2e4db606cac24e3ba912c88c771db6 | 10982 | Exact Console source + Console Claude source |
+| qa-product-v0/SKILL.md | C/A/L | 05f43ec6359969651bb783fca896d0ce83dbb0cb84c9fd65213b4fd8a6a81a22 | 7987 | Exact Console + Claude source |
+| qa-product-v0/references/agent-observations.md | C/A/L | 543703f6a57a6faf6b1e6067ab18f092f9518b1bdc948c09444478fb7fbd21bd | 7164 | Exact Console + Claude source |
+| qa-product-v0/references/declarative-campaign.md | C/A/L | 8597b743687eb52f439d3ab20c6e9e9a53b397f9c9c7653f0cc84c14f7ddd03c | 8143 | Exact Console + Claude source |
+| qa-product-v0/references/product-analysis.md | C/A/L | 732261fbfb0835b5bf61e2f04c936d8904371ce98793ee5e78d4af98b8dbcd7e | 5736 | Exact Console + Claude source |
+| freeland-release-qa/SKILL.md | C/A/L | 5cd82212037fe765219bbfc7bdd39bced23a1527458abb57e74e143f67b4dfbc | 17789 | Exact Freeland source; preserve pinned |
+| qa-check/SKILL.md | C/A | c9a1a7e61909db6cb5feb815575c7697e85aee6645463c1fe22a967cd1b251e1 | 11325 | Stale; root source is 6055cb4422e134e2c40e8fe9a757f3a0282994855b4fd8b6e06a505096476a37, 3053 bytes |
+| qa-check/agents/openai.yaml | C/A | 9ad578e5d937fed1626409e6fbe594a5570eb431b6c3f1bf712ca64a84278a20 | 443 | Stale Linear tool dependency/default prompt; no metadata file in root source bundle |
+| qa-bugfix/SKILL.md | C/A | 93fc375fdadcb5939f109bf8afc6b07fb5fcc83fc7dfa7f166bbdf0c8ae76d3c | 4286 | Stale; no current canonical root source |
+| qa-bugfix/agents/openai.yaml | C/A | fb566a89731ae2bf54ce4a1e3847acbd5630b8f8d38ef054fed03c4f06fb9069 | 437 | Stale Linear tool dependency |
+| browser-qa/SKILL.md | C/A | c501257d2c9ca711342b56d7adfb04897f17c6946dc6cdb88a5c75c87e4aa951 | 3727 | External support prerequisite, not bundled source |
+| e2e-testing/SKILL.md | C/A | f84ae93c159bf6ecef5a60c9735dc82d96bc5f977ef52eb71678b66722acf684 | 8065 | External support prerequisite, not bundled source |
+| verification-loop/SKILL.md | C/A | 01a9ae310ad4426bb05660dda6cefdeaac9513417585c09c8bb1b94738649a78 | 2491 | External support prerequisite, not bundled source |
+
+Claude-local qa-check, qa-bugfix, browser-qa, e2e-testing and verification-loop directories do not exist. This is a discovered-file gap, not a claim that no relevant plugin capability exists in Claude. No plugin configuration or credentials were changed.
+
+### qa-check and qa-bugfix semantic differences
+
+The installed qa-check requires Playwright setup and Linear before useful QA, says every confirmed bug should be filed, prescribes global Done/Todo states, and states an expected-failure PASS proves the fix. Its UI metadata reinforces bug filing and a `linear-server` dependency. The root thin source instead resolves current product/owner/source/runtime/authority, selects one specialist, allows report-only and supported independent work, and treats unexpected PASS as an investigation signal. Retaining the old metadata while copying the new text would leave a discoverability/dependency contradiction.
+
+NuanuFlowQA's updated qa-bugfix already has useful product-aware semantics: resolve registration/pack and checkpoint, provider-specific tracker, supplied-snapshot fallback, no prepare-only writes, exact issue/product/checkout/environment identity, evidenced clustering, literal state names plus implementation/QA roles, no invented handoff transition, specialist-owned deployed acceptance, and persisted write readback. These are reusable source improvements, not permission to install its whole legacy repository.
+
+| NuanuFlowQA donor | Git status observed | SHA-256 | Disposition |
+| --- | --- | --- | --- |
+| skills/qa-bugfix/SKILL.md | Untracked directory | 8b18f439bb1db9bf3c85952abe95b76169f4deb3d6ba3bd1604b80ba7764aa7f | Candidate selective source adoption, not current installed authority |
+| .claude/skills/qa-bugfix/SKILL.md | Modified | Same 8b18f439… | Exact text parity, no separate behavior proof |
+| skills/qa-bugfix/agents/openai.yaml | Untracked directory | d02584dfa872d5b8a0a654d6151212477e2c9dc03a03f9b5afb032bf96773bfb | Product-aware metadata; no unconditional Linear dependency |
+| templates/fix-prompt.md | Modified | ffeec727eca48f4050a841afff316fa411195cea60a53bd9340d4e54abedf780 | Required dependency; must travel through a resolved canonical reference |
+| skills/qa-check/SKILL.md and .claude/skills/qa-check/SKILL.md | Donor files | 8877ee0a61acf2c2220f41880c8eca086d1d56e363fae7b680ccc0ec639af7ac | Historical improved generic workflow; root thin entry supersedes as chosen routing design |
+| skills/qa-check/agents/openai.yaml | Donor metadata | fc14deed7ef54ee8c31ad19514314e40a8fa4ae5c2ae964331efe7cb35cf353b | Inspect selectively if adding root UI metadata; do not bulk install |
+| skills/freeland-release-qa/SKILL.md | Legacy source | c710d66686c23cce7b93058f161dd31f6439e316615269dbfa1fc536a45c5af5 | Not the selected Freeland source; do not copy |
+| .claude/skills/freeland-release-qa/SKILL.md | Project compatibility file | 5cd82212037fe765219bbfc7bdd39bced23a1527458abb57e74e143f67b4dfbc | Already matches active pin; preserve |
+
+Cold `docs/roadmap/2026-09-06-master-plan.historical.md` refers to `docs/audits/2026-09-06-qa-g0-qa-bugfix-handoff.md`; that referenced file is absent in cold. The historical text describes V3 review/five samples/seven local source files, but it is not itself a complete recoverable review bundle. Recover the exact donor review/evidence in the broader reconciliation; do not attribute those old evaluations to a newly edited thin source without new qualification.
+
+Recommended bounded source action, not executed: package a root-owned qa-bugfix entry plus its resolved fix-prompt reference/metadata; preserve specialist acceptance ownership; review the source diff and realistic no-write cases before any selective host delivery. A deployment must back up and verify every changed/retired bundle member, including metadata. No third-party installation or Freeland change belongs in that slice.
+
+## Other QA projects: refs and disposition
+
+### QA — unique two-commit historical prototype
+
+Path `/Users/danilsolomin/projectsnew/QA`, real directory, clean Git worktree. All refs: `refs/heads/main` => `45c4a7858e2e17978e2d066b8497919c6de1efa1` (first-iteration dashboard + MCP contracts); parent `8854c191f9f1bacb86dda4c365d591bcd3e277e0` (Playwright scaffold). No configured remote, hence no remote freshness query possible. Neither commit is an object in any of the five baseline Git stores. No exact-byte counterpart was found for the 20 safe selected tracked files in current baseline root/components (excluded `.env.example` and `.claude/settings.json`). This establishes byte/history absence, not semantic absence.
+
+Useful donor ideas: separate browserless MCP project, worker-scoped SDK client, dashboard POM, explicit staging guard, visible buy fixture. Limits are visible in source: tool names remain TODO placeholders `search/purchase/status`; amount cap is a simple numeric comparison, not a qualified financial authority boundary. Do not activate its tests or transplant its purchase fixture. Most generic POM/fixtures/MCP concepts are already represented by existing tools and support skills. Disposition: index/archive complete source history; extract only a demonstrated need into existing framework with its own safety tests.
+
+Selected identities: `tests/fixtures/env.ts` SHA-256 `080df077a47f3c33cfa6610a9e48ac66fe2eac04bccaa6e479488c66103588a3`; `tests/fixtures/mcp-client.ts` `e7cb94d3b458caaa35bf0733261878657678e6f51b4391e209cc3a41e9518cd7`; `playwright.config.ts` `7688b174fcc78b63b616cb93bd25ff7fdcc7027059bf7e6e2f9f950f5dd6d4e2`.
+
+### Generated Starter workspaces
+
+These roots have no `.git`; there are no root commits/refs/remotes to merge. Hash verification below compares declared managed members against actual bytes, not semantic validation by the current Kernel.
+
+| Workspace | Managed matching files | Graph | Unique content / disposition |
+| --- | ---: | --- | --- |
+| example-web-qa | 14/14 | draft, 0 nodes, 0 edges, 1 unresolved | No tests; product overview and two finding files. Scaffold/sample and findings donor, not executable coverage |
+| magicpay-qa | 15/15 | draft, 0 nodes, 0 edges, 1 unresolved | No tests/findings. Earlier scaffold; do not confuse with MagicCard pilot/prod roots |
+| sati-qa | 15/15 | draft, 0 nodes, 0 edges, 1 unresolved | One 28-case native/proxy manual ledger, campaign document, 15 finding files. Unique product knowledge outside empty managed graph |
+
+All use generatorVersion `0.1.0`. Their generated qa-init adapters are intentionally different host wrappers: Codex SHA `778eb38f3696ef48bc7cf965cd48ea859a1447c92539c80f14f7b24398856764`, Claude SHA `f31ba2dafd734fb8d0f080a87f6660513526655c0460589724c6737bfaaa4db7`; both 2184 bytes, same embedded canonical workflow, `$qa-init` versus `/qa-init`. They are deterministic I0-generated adapters, not the current global Console registration/continuation skill. Do not overwrite these managed members with installed SKILL.md or re-run init over an existing workspace.
+
+Sati's ledger explicitly separates iOS-on-Mac portrait proxy/static/network results from unexecuted real-iPhone/account capabilities. It supplies useful portability scenarios for native capability gaps, signed candidate identity, APNs/OTA/privacy/build alignment, and honest unassessed scope. It is not native-mobile support in Kernel. SHA-256: `tests/mobile/manual/iphone-proxy-matrix.md` `89e0713ddf2ddf1d6ca56ee26aedec0aa5af48f0de1f7303dd29dbb738ca853a`; `docs/product/mac-release-campaign.md` `5cc20581c745b22f5e1d06c193168c22ffd2a9364a0d6fc180888524edab7a93`. Keep product evidence dated 2026-09-01 and do not reuse its release verdict for a new candidate.
+
+### MagicCard staging and production packs
+
+Both roots have no root Git repository. Embedded source snapshots are read-only product code, not QA engine commits. They are distinct campaigns despite MagicCard/MagicPay product naming aliases. The accepted baseline already documents the external pilot owner in products/README.md and second-product.md; it does not bundle its complete runtime/evidence.
+
+| Managed workspace | Actual matching files | Manifest SHA-256 |
+| --- | ---: | --- |
+| magiccard-qa-20260905/workspace | 28/28 | 663ae617f47a3e2efa18c15055ba91eab13b3788ab7ee6177a17e56533e59d5f |
+| magiccard-qa-20260905/wave2/workspace | 28/28 | ced2b9c5052df75ce3947d57d691387814308ba4d4e61e547bd67cb453f31261 |
+| magiccard-qa-20260905/restart-20260906/workspace | 28/28 | eb6e224a22a02462d2ebd0663bb5696dcab38369afe9a493078311c1bc442702 |
+| magiccard-prod-qa-20260906/workspace | 28/28 | 99101cf2d4209cf1fdff9266468766864cee0da7f8f3bc1367ced1f1e8bcead5 |
+
+All four have the same Codex/Claude generated adapter hashes above. This checks 112 managed members, not catalog completeness, planner meaning, backend identity, live acceptance or migration readiness. Staging restart CHECKPOINT explicitly retains STOPPED_BY_OWNER and later guided-demo distinctions. Production's AGENTS forbids staging calls and transfer of staging credentials/verdicts. Production README's historical/current source text points at 35a36e2 while campaign.json later records 56f2937: preserve dated progression and resolve actual owner checkpoint, not filename recency, before any future use.
+
+Unique reusable candidates, absent as exact bytes from current baseline tracked files:
+
+| Staging restart scripts/ donor | SHA-256 | Intended reuse boundary |
+| --- | --- | --- |
+| memory-scope-oracle.mjs | da55e61add62910504029ab94b387ab6a345e2a4fb37e4459831ab023bcc96af | Pure saved-record semantic oracle, already cited/qualified historically in second-product.md; specific retained fixture IDs/scopes, not generic DLP |
+| memory-scope-oracle-controls.mjs | 427e387f6bf9d026ca99c8f70f48eafb2f1b58479332419d4efe531447984c0e | Sensitivity controls; selective fixture/eval donor |
+| request-choice-oracle.mjs | 40372fc331d3ba3ba00c15cc3670cf9bf2b8bf7d4e657c6e0134e8bc0fc285ad | Pure exact-session/owner/result/input-binding and cleanup oracle; product contract-specific |
+| payment-input-oracle.mjs | 84f601a8e8fda2c67e3e9e058ced008a9afacf33612331d094fae03750f7861f | Product input oracle candidate; not universal payment permission |
+| crypto-api-negative-oracle-c7.mjs | 37a830b1c2aaca21c2f3d200a6e12ebdf5adb9dd21d7ae428d7f894d8177aec9 | Product negative-oracle donor |
+| crypto-mcp-negative-oracle-c7.mjs | 8b665f85280807a164fd20b1325727cfa3ee4274ed4f88be9832dc246fb3ad51 | Product MCP negative-oracle donor |
+| action-denial-oracle-c7.mjs | c83aba2ed5b4d842cae69b278db5f2ab67018f823772349d171f41cccef7895c | Exact denial outcome/effect donor |
+| message-signature-oracle-c7.mjs | e66f6d954f491b5768c67057454117a96a83e5e73211b3b982706e14d515543a | Exact signed-message outcome donor |
+| x402-cap-oracle.mjs | c6ee80c292c83704e3de471b9d4df3ed486c5a323772cb6215cfc51cd4bb1e9c | Product cap/reconciliation oracle; not generic runner |
+
+Twenty-seven filenames matching oracle/replay/offline/finalizer were hash-compared; no exact current-baseline tracked counterpart was found. Only Memory and request-choice pure oracle implementation was read deeply in this subaudit. Other entries are discovered donor candidates, not reviewed/qualified imports. Their scripts that create requests, approve, publish observations, read mail, register, or seal results remain product-owner code with explicit authority; do not bundle them into a universal default path. Source-only dependency graph and the large planning inventories remain planning, not executed coverage.
+
+Production has separate local execution planning (`planning/full-flow-plan.json`, source checklist, tracker) and product parser/receipt regressions (`check-x402-fingerprint-parser.mjs`, `check-optional-skipped-apply.mjs`, `check-x402-recorded-receipt.mjs`, etc.). Index these as separate product-case donors; no current product-verdict or adoption is inferred. `.agents/skills/magicpay` and downloaded/embedded published MagicPay skill variants are product dependencies under their own release ownership, not QA skills to install globally.
+
+## Related product workspaces: bounded discovery
+
+| Workspace / metadata identity | Useful QA-only paths found | Disposition |
+| --- | --- | --- |
+| mercuryo-agent-pay HEAD fa8c422b7edf9b53802381b0f20620abfcdda4fc | scripts/pack-smoke-consumer.*, run-ledger-e2e.*, valutnet-preview-smoke.*, product CLI/browser E2E tests and pack-install verification scripts | Product-owned source/qualification reference; potential provider-contract oracles only after a demonstrated gap and license/safety review |
+| mgmt-src HEAD 1d48d02e75a15e447801c62a4d01938acd7eb888 | apps/e2e authenticated/public QA suites and configs; apps/worker/src/qa_runtime.mjs + test | Nuanu product-specific execution implementation, not a competing universal QA engine to bulk import |
+| mgmt HEAD d5cb62339a7ecbd8b0bd3513384a2a42fbf3a52d | apps/api/plane/tests/smoke; historical E2E report | Older product line; index only |
+| scoring-app HEAD 4292f9fb54c7fa47eac4150a86b92e197aa140ae | Existing application tests | Product-specific, no QA-platform donor established by metadata |
+| MagicPay | Analysis/other-results directories, no QA-named source paths in depth-4 search | Research/reference, not QA runtime |
+| agenticpayments | Empty root | No donor discovered |
+| mgmt_cowork / ai-scoring | No relevant QA-named paths in bounded discovery | No reusable QA-platform donor established |
+| Outreach | Multiple project-local ECC skill copies; product/vendor test suites excluded | Third-party provenance/host variants, not automatic install candidates |
+
+Selected QA paths above were clean when queried. Relevant latest source histories (not exhaustive product refs): mercuryo 83d19b15419d4ee05376390744b4db7c648dd45c, 8f822e1a509ec9fb484cd20ffcd14929cbbddcc8, 9aaff29e11ba25582718cf8bd0cdcbcffe95aa39, d6f66530c336a8e25e95a576960575c8d00e15d1, d223805d87ad1f9ba86904ed24b2b937c551efcd, 7e3bcc715b306ad652256848cc247d8b0c3139fd; mgmt-src 89e18e44f738d319b347b5282efb1a1527a84bd0, ff73277cb2a7f049a12edbcd202d03a62b2280f4, 021daaa2824f550034af4dc30ee407d3bc26a284, 2457f54da0f889b8c90d5cd358882ddeba1adf85, f99bcafa8c44d688c37d128bcd1c7dc4b8ec8d75, 0a1947c259858430260a4f787600b68f87591081. These commits remain product-owned, unselected for canonical QA adoption.
+
+Remote freshness: standalone QA has no remote; the five non-Git QA roots have no root remote. Existing origin remotes for related **product** repositories were deliberately not queried; local refs are not advertised as latest remote truth. No inaccessible remote was retried. Outer qa-agent and primary QA-source remote reconciliation belongs to the parent audit.
+
+### Third-party support-skill differences are not install instructions
+
+Outreach local `.agents/skills/ecc/e2e-testing` and `.claude/skills/ecc/e2e-testing` are one-file bundles sharing SHA `de79b897a7b99b98e325ece0eccb78645b2a9cac88bb0ca0c97ee3f24530eb24`, different from installed global f84ae93…. Their verification-loop files differ across those two hosts (`2e6b170090960db1a360f1aa611e95b9bcf5614a5effde82dd0dd2be4addd1f9` versus `685117c714142cf94704fc6850a2fd9ecacb7f725f649af20eb49af422d7f5bf`). AI-regression-testing and Windows-desktop-e2e likewise have host-specific bytes. Nested `Outreach/.claude/.agents/skills/{e2e-testing,verification-loop}` each contains two files and distinct SKILL hashes `7e8fe72760f9274656f2b3d5a501b9535b4fe3acd8d83a79cd15f207c21bd937` / `abe40a95fc1fe7d5ff47ed2bab27600f160871e487fb1698546b0c80e45b1fbb`.
+
+These are real directories, not aliases to the installed QA support bundles. Different bytes do not establish a better/newer accepted owner. No complete license/version lineage was qualified here. Keep external-support declarations and avoid copying the largest or newest-looking bundle into qa-agent.
+
+## Registry, aliases and obsolete-path risks
+
+Registry SHA-256 at audit: `/Users/danilsolomin/.codex/qa-workspaces.md` = `021770098a70fbfc1b1fc3085779c1b9edd695d876ae975d60efef10f49e64db`. It correctly separates source assembly, selected instruction adoption, executable product owners and historical paths; current Freeland and Agentify owner/runtime locations exist. The historical credential dependency on NuanuFlowQA is explicitly acknowledged; no credential content was read or copied.
+
+- Its latest-source entry still points to source-assembly-20260910.hT28L8/committed-cold at64ed4b4, not the root qa-check source candidate c3f9ca2. This is a registry/promotion boundary, not permission to select c3f9ca2 as product runtime.
+- Historical `/private/tmp` source copies largely still exist, but existence is not current owner authority. Two exact referenced historical files are missing: `/private/tmp/FreelandQAmain-agent-first-s0.KUkjWv/.superpowers/sdd/2026-09-05-agent-first-qa-reuse-implementation/progress.md` and `/private/tmp/qa-product-bootstrap-_nvr5zk3/evidence/HANDOFF.md`. Preserve evidence locators/hashes and locate archival replacements in the broader audit; do not silently delete provenance.
+- The `{console,kernel}` shorthand for product-discovery-20260909.SVbw3S denotes two directories, not one literal filesystem path; do not report the brace-expression as a missing runtime.
+- The primary qa-agent root48bccef, reviewed source assemblies, Agentify executable runtime and live Freeland harness are separate roles. They are not aliases even if component pins match.
+- `magicpay-qa`, `magiccard-qa-20260905` and `magiccard-prod-qa-20260906` share product-related naming but are separate scaffolds/campaigns and environments. They must not be coalesced by name.
+- Generated workspace `agent-adapters/*/qa-init` is managed historical state; global installed `qa-init` is a current host routing workflow. Matching names do not make them interchangeable files.
+
+## Remaining acceptance boundaries
+
+No claim of full historical consolidation, all-project tests, live product verification, current remote freshness for product repositories, licensed third-party redistribution, native/mobile runner support, or actual Claude execution is made. Real remaining source/entry gaps are qa-check installed drift, qa-bugfix canonical packaging/host drift, complete review/reference preservation, and explicit per-product donor indexing. Archived private evidence, empty scaffolds, immutable old receipts and unsupported native cases are not missing universal code to be merged blindly.
+
+## Recovered historical qualification and exact copy candidates
+
+The broken cold-roadmap review link has a retained source replacement at `/Users/danilsolomin/projectsnew/NuanuFlowQA/docs/superpowers/audits/2026-09-06-qa-g0-qa-bugfix-handoff.md`, SHA-256 `4fd136bebe524e0ca8fe1941b4dcdf3c92620429d37f9e64f68769933e3dc75c`. It reports independent Lead AQA Spec PASS / Quality APPROVE for V3, seven exact source files applied, no installation/live/dual-host claim. Current donor SKILL.md, its Claude mirror, metadata and template were freshly compared byte-for-byte with the retained reviewed worktree files: all four equal; hashes are 8b18f439… / 8b18f439… / d02584df… / ffeec727… as recorded above. These are the exact historically reviewed donor bytes, not a newly inferred rewrite.
+
+Historical artifact root (exists): `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety/.superpowers/sdd/2026-09-06-qa-g0`. Its 26 `task-3-*` files total 170188 bytes. For reproducible inventory, sort those direct filenames lexically, form JSON array objects in property order `{path,bytes,sha256}`, use compact JSON with no trailing newline; SHA-256 of that inventory is `22c1ff0a029fd2b64b201aeaaadc9854a6ebd78b2bd9c2b7c7b3770462d74c78`. Preserve all 26, not only the passing V3 samples.
+
+| Retained file under artifact root | SHA-256 | Role / limitation |
+| --- | --- | --- |
+| task-3-evaluation.md | 35bf22e61ac035219d3e3c11a1adeff01c8392ab27a994e74318df6f72f5dfdb | Original offline A/B inputs |
+| task-3-counterchecks.md | 49ef69fddf35711a740349e439fd500baf4caf5ff0a0752ac4894cbd6840e967 | C: exact authorized developer handoff, not blanket transition prohibition |
+| task-3-artifact-witnesses.md | 325f92b54a0c6d362dcd657de96e4ea5661cfc2cc3fd7c6482ba8d7a173e7b39 | Controller-captured original/V1 consequential excerpts; not a complete original transcript |
+| task-3-implementation-report.md | c1282d1591d29ad98e42a6d048588715d9c3ceb03da4b6e55db57f0aca57da69 | Chronology, reported structural gates and V1/V2 rejection rationale |
+| task-3-v3-review-package.md | 266bafc9eca4958edaa6ba5ad4d6cf1e5a6e9e199130ca70c4a08898ea460a3d | Frozen original-to-V3 seven-file diffs and before/after hashes |
+| task-3-v3-sample-1.md | 6eb670341ff08ccf40d818cd0ef75d4929072434360a59a8cf7829a69bd606cc | Retained first-output V3 artifact |
+| task-3-v3-sample-2.md | 5089cc51d85f7ac4cf51dc365ed91842af833c76ebe257f610fcec3de9065060 | Retained first-output V3 artifact |
+| task-3-v3-sample-3.md | 3dadad444ded91a395769ff112de2552dc5f54713bc2a1fa3dd268aae002cc5b | Retained first-output V3 artifact |
+| task-3-v3-sample-4.md | 7004ed6b684c549f45f224e072e349367bfdfa4993bf6d7ed7f0e170dfc7774e | Retained first-output V3 artifact |
+| task-3-v3-sample-5.md | fe46513862bb7c6cac6bc752faab0c5bb76c9fe3fc8026a41fa3f7f2bbe6c707 | Retained first-output V3 artifact |
+
+Original SKILL snapshots `task-3-original-skills--qa-bugfix--SKILL.md` and `task-3-original-.claude--skills--qa-bugfix--SKILL.md` match current stale installed `93fc375f…`; original metadata matches `fb566a89…`; original template `task-3-original-templates--fix-prompt.md` is `90c21f6d176374ca33ec00c9b0ce7c2dde73aad7caa650b5caef3961e763de24`. Preserve also original AGENTS/CLAUDE/README snapshots.
+
+Rejected source snapshots: `task-3-v1-skill.md` `31a88b5d430fa69c445c6e8600eec2faf841176896e53db797264b5bf1d40e1a`; `task-3-v1-template.md` `c7c2c764b0dbe270e95e3c2c9a2137ea3fae0cb6adc1f831acab1b0075cd5108`; `task-3-v2-skill.md` `35335553ad3848f7df191869c75b45722b52fab4e66f899ee7321ac2faa084b0`; `task-3-v2-template.md` `fae4c401d247c82ffca694551aa56045aa6084870bb5a9b68adf06005da4fae4`. Rejected V2 first-output artifacts remain `task-3-final-sample-1.md` through `-5.md` (the word final is historical, not accepted): hashes respectively `5a334fd551520f5d31f7ffb525b8199ab01e73900fc57eda69f0a97375cb01f3`, `64813457c31f32148d4a4ea0af795c34c88b2c5ca873d76cc41e84551af2f229`, `8e45211673b96449609dce7fa594886da62cbd396a84d7a2797e00cc57e5f227`, `22f902abac8609b6b4b5336c184c4c7a70e5d791b2eab55acd3f60a4dd81e70d`, `4d9023492bea3e370b534e72b9c703a627f5892ecb8241d617523643034b6a58`.
+
+Evidence limits: old source already chose the correct provider and rejected a title-only PASS in five reported samples; do not claim new improvement for those choices. The observed original failure was premature QA-state handoff in three of five artifacts. V1 corrected roles but introduced identity errors; V2 still confused product and tracker in two of five, and was rejected. V3's five gpt-5.6-sol/medium samples were reported accepted. These are historical synthetic decision outcomes, not a new baseline test, probability guarantee, executed tracker effects, fresh host qualification, or causal experiment (V2 exposed AGENTS as well). Full original baseline messages stayed in the original Codex conversation; the disk witness file explicitly preserves excerpts only.
+
+Command proof limits: the handoff and implementation report document source/mirror/Ruby-Psych checks, `git diff --check`, isolated typecheck exit 0 and F1 installer regressions 2/2; the main broad compiler comparison retained 143 pre-existing diagnostics over 653 identical inputs. Artifact-root `ledger.md` SHA `6b0a036733425242fa740797a7cab2aa013153e0912597d61c64fe222371f80f` records that chronology. No dedicated Task3 raw command-output file was found in the bounded ledger inventory. `controller-verification.md` SHA `2b99e277672129412bc0251351ebe0a5ee74cc76edb630cbf07fe37472cdda48` contains real retained TAP/command output, but for the earlier **five-file installer slice**, not Task3; do not relabel it as Task3 proof. Fresh packaging tests still belong to the new source delivery.
+
+### Secret-free, inactive Sati donor slice suitable for inspection/copy
+
+The following files were fully read and contain product/case metadata and narrative evidence boundaries, not credentials or raw private captures. Preserve them under an explicitly inactive product-reference directory with original absolute locators, date, digests, owner-unresolved/current-campaign-not-authorized label, and no executable registration. Preserve original content instead of making historical NO-GO text look like a current verdict.
+
+- `/Users/danilsolomin/projectsnew/sati-qa/docs/product/overview.md` — SHA `ac210d73eb4fd7dd554769ae60fec72509ab689fafdabbd66903a2acbcb29436`.
+- `/Users/danilsolomin/projectsnew/sati-qa/docs/product/mac-release-campaign.md` — SHA `5cc20581c745b22f5e1d06c193168c22ffd2a9364a0d6fc180888524edab7a93`.
+- `/Users/danilsolomin/projectsnew/sati-qa/tests/mobile/manual/iphone-proxy-matrix.md` — SHA `89e0713ddf2ddf1d6ca56ee26aedec0aa5af48f0de1f7303dd29dbb738ca853a`.
+- `/Users/danilsolomin/projectsnew/sati-qa/qa-project.yaml` — SHA `5e27a2db5486e3e8ef02df03e19ba87b22d958191cedc55f264c57f53b7afc95`, optional inert profile snapshot only; original source locator still says exact-build-pending while later narrative identifies3.0.1(15), so do not adopt as a refreshed profile.
+
+Do not copy `.qa-private`, findings/raw captures, managed registries, account data, or app binaries as part of this small reference slice. Individual finding files were inventoried but not fully sanitized in this subaudit. Memory and request-choice pure oracle source paths listed earlier are the other small deeply inspected candidates; they still require a complete fixture/input attribution manifest before an offline replay package is called portable.
+
+### Recovered supporting-skill provenance
+
+`/Users/danilsolomin/projectsnew/NuanuFlowQA/docs/superpowers/audits/2026-09-06-qa-g0-supporting-source-provenance.md` SHA `b4a68d2fefd140bdb99137cbd05d44fa492deb2b75802dcadf752b7e2b2c566c` records exact public ECC content lineage for installed e2e-testing and verification-loop to commit `48dafdd288ca415bed92be9fc86580cb742e0363`. The current installed hashes match those historical records. This recovers a useful immutable source attribution; it still does not prove installer provenance, license-complete redistribution approval, a better new version, or current host qualification. No remote fetch or third-party copying was performed by this audit.

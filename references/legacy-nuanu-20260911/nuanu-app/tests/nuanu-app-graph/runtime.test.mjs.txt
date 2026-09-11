@@ -1,0 +1,761 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+
+import {
+  observePublicRuntime,
+  normalizeRuntimeObservation,
+} from "../../tools/nuanu-app-graph/runtime.mjs";
+
+const FIXTURE_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
+
+async function runtimeFixture() {
+  return JSON.parse(await readFile(join(FIXTURE_DIRECTORY, "runtime-observation.json"), "utf8"));
+}
+
+function fakeElement({ tagName = "DIV", textContent = "", attributes = {}, unsafeDescendant = false, isContentEditable = false, labelText } = {}) {
+  return {
+    tagName,
+    textContent,
+    isContentEditable,
+    children: [],
+    labels: labelText ? [{ textContent: labelText }] : [],
+    getAttribute(name) {
+      return attributes[name] ?? null;
+    },
+    hasAttribute(name) {
+      return Object.hasOwn(attributes, name);
+    },
+    querySelector() {
+      return unsafeDescendant ? fakeElement({ tagName: "INPUT" }) : null;
+    },
+  };
+}
+
+function fakeChromium({
+  failOnProbe = false,
+  unexpectedNavigationUrl,
+  unexpectedFinalUrl,
+  unexpectedPopup = false,
+  manifestFailure = false,
+  manifestRedirect = false,
+  delayedFrameUrl,
+  delayedDuringManifestUrl,
+  popupDuringClose = false,
+  contextPageDuringClose = false,
+  frameDuringCloseUrl,
+  closeFailure = false,
+  editableSecret = false,
+  taxonomyEntries,
+  probeOnlyCandidate = false,
+  rootControlCount,
+  rootStatus = 200,
+  probeStatus = 404,
+} = {}) {
+  const calls = {
+    events: [],
+    navigations: [],
+    continuedMethods: [],
+    abortedMethods: [],
+    evaluationSources: [],
+    evaluations: 0,
+    manifestGets: [],
+    contextOptions: [],
+    closed: 0,
+  };
+  const listeners = new Map();
+  const contextListeners = new Map();
+  let contextRouteHandler;
+  let currentUrl = "about:blank";
+  const document = {
+    title: "Nuanu App",
+    querySelector(selector) {
+      if (selector === 'link[rel="manifest"]') {
+        return fakeElement({ tagName: "LINK", attributes: { href: "/manifest.webmanifest" } });
+      }
+      if (selector === 'meta[name="theme-color"]') {
+        return fakeElement({ tagName: "META", attributes: { content: "#112233" } });
+      }
+      return null;
+    },
+    querySelectorAll(selector) {
+      const onProbe = currentUrl.endsWith("/__napp_runtime_probe__");
+      if (selector === "main, nav, header, footer, [role]") {
+        if (onProbe && probeOnlyCandidate) {
+          return [fakeElement({ tagName: "MAIN", attributes: { role: "main", "aria-label": "Probe-only surface" } })];
+        }
+        return [
+          fakeElement({ tagName: "NAV", textContent: editableSecret ? "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signaturevalue" : "Navigation", attributes: { role: "navigation", "aria-label": "Primary navigation" } }),
+          fakeElement({ tagName: "MAIN", textContent: "Search", attributes: { role: "search" } }),
+          fakeElement({ tagName: "DIV", textContent: "contenteditable secret must not persist", attributes: editableSecret ? { role: "textbox", contenteditable: "true" } : { role: "region" } }),
+        ];
+      }
+      if (selector.startsWith("a, button")) {
+        if (onProbe && probeOnlyCandidate) {
+          return [fakeElement({ tagName: "BUTTON", textContent: "Probe-only control", attributes: { role: "button" } })];
+        }
+        if (rootControlCount !== undefined) {
+          return Array.from({ length: rootControlCount }, (_, index) => fakeElement({
+            tagName: "BUTTON",
+            textContent: `Synthetic root control ${index}`,
+            attributes: { role: "button" },
+          }));
+        }
+        return [
+          fakeElement({ tagName: "INPUT", attributes: { role: "searchbox", value: "private input must not persist" } }),
+          fakeElement({ tagName: "INPUT", attributes: { type: "search", id: "synthetic-search", value: "private value" }, labelText: "Synthetic associated search" }),
+          fakeElement({ tagName: "INPUT", attributes: { type: "checkbox", "aria-label": "Synthetic checkbox" } }),
+          fakeElement({ tagName: "TEXTAREA", textContent: "ordinary form value must not persist", attributes: { role: "textbox" } }),
+          fakeElement({ tagName: "BUTTON", textContent: "Open taxonomy", attributes: { role: "button" } }),
+          fakeElement({ tagName: "A", textContent: "Synthetic link", attributes: { href: "/synthetic" } }),
+          fakeElement({ tagName: "CANVAS", attributes: { title: "Synthetic canvas title" } }),
+          fakeElement({ tagName: "BUTTON", textContent: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signaturevalue", attributes: { role: "button" } }),
+        ];
+      }
+      if (selector === "[data-taxonomy]") {
+        if (onProbe && probeOnlyCandidate) {
+          return [fakeElement({ textContent: "Probe-only taxonomy" })];
+        }
+        return taxonomyEntries ?? [
+          fakeElement({ textContent: "Category alpha" }),
+          fakeElement({ textContent: "Category beta" }),
+        ];
+      }
+      return [];
+    },
+  };
+  const context = {
+    on(event, handler) {
+      contextListeners.set(event, handler);
+    },
+    request: {
+      async get(url, options) {
+        calls.manifestGets.push({ url, options });
+        if (delayedDuringManifestUrl) {
+          currentUrl = delayedDuringManifestUrl;
+          listeners.get("framenavigated")?.({ url: () => delayedDuringManifestUrl });
+        }
+        if (manifestFailure) throw new Error("synthetic manifest failure");
+        return {
+          ok: () => true,
+          status: () => manifestRedirect ? 302 : 200,
+          url: () => manifestRedirect ? "https://external.example.test/manifest.webmanifest" : url,
+          async text() {
+            return JSON.stringify({
+              name: "Nuanu App",
+              short_name: "N App",
+              start_url: "/discover",
+              display: "standalone",
+              icons: [
+                { src: "/icons/app-192.png", sizes: "192x192", type: "image/png", secret: "not-retained" },
+                { src: "/icons/app-192.png", sizes: "192x192", type: "image/png" },
+                { src: "/icons/app.png?token=not-retained", sizes: "512x512" },
+              ],
+              unknown: "not-retained",
+            });
+          },
+        };
+      },
+    },
+  };
+
+  context.route = async (pattern, handler) => {
+    calls.events.push(`context-route:${pattern}`);
+    contextRouteHandler = handler;
+  };
+  context.newPage = async () => {
+    calls.events.push("newPage");
+    return page;
+  };
+
+  function request(url, method, resourceType, navigation = false) {
+    return {
+      url: () => url,
+      method: () => method,
+      resourceType: () => resourceType,
+      isNavigationRequest: () => navigation,
+    };
+  }
+
+  async function dispatch(url, method, resourceType, navigation = false) {
+    const route = {
+      request: () => request(url, method, resourceType, navigation),
+      continue: async () => calls.continuedMethods.push(method),
+      abort: async () => calls.abortedMethods.push(method),
+    };
+    await contextRouteHandler(route);
+    listeners.get("request")?.(request(url, method, resourceType, navigation));
+  }
+
+  const page = {
+    on(event, handler) {
+      calls.events.push(`on:${event}`);
+      listeners.set(event, handler);
+    },
+    async goto(url) {
+      calls.events.push(`goto:${url}`);
+      calls.navigations.push(url);
+      await dispatch(url, "GET", "document", true);
+      const onProbe = url.endsWith("/__napp_runtime_probe__");
+      await dispatch(onProbe
+        ? "https://probe-api.example.test/catalog?token=not-retained"
+        : "https://app.nuanu.com/api/catalog?token=not-retained", "GET", "xhr");
+      await dispatch("https://app.nuanu.com/assets/app.js", "GET", "script");
+      await dispatch(onProbe
+        ? "https://probe-fetch.example.test/catalog?token=not-retained"
+        : "https://api.example.test/catalog?token=not-retained", "GET", "fetch");
+      await dispatch(onProbe
+        ? "https://probe-cdn.example.test/app.js#not-retained"
+        : "https://cdn.example.test/app.js#not-retained", "GET", "script");
+      await dispatch("https://app.nuanu.com/write", "POST", "fetch");
+      if (unexpectedNavigationUrl) await dispatch(unexpectedNavigationUrl, "GET", "document", true);
+      if (unexpectedPopup) {
+        const popup = { url: () => "https://app.nuanu.com/unapproved-popup" };
+        await dispatch("https://app.nuanu.com/unapproved-popup", "GET", "document", true);
+        listeners.get("popup")?.(popup);
+        contextListeners.get("page")?.(popup);
+      }
+      currentUrl = unexpectedFinalUrl ?? url;
+      if (failOnProbe && url.endsWith("/__napp_runtime_probe__")) {
+        throw new Error("synthetic probe failure");
+      }
+      return { status: () => onProbe ? probeStatus : rootStatus };
+    },
+    locator(selector) {
+      assert.equal(selector, "html");
+      return {
+        async evaluate(callback, argument) {
+          calls.evaluationSources.push(String(callback));
+          calls.evaluations += 1;
+          const previousDocument = globalThis.document;
+          globalThis.document = document;
+          try {
+            const result = await callback(argument);
+            if (delayedFrameUrl) {
+              currentUrl = delayedFrameUrl;
+              listeners.get("framenavigated")?.({ url: () => delayedFrameUrl });
+            }
+            return result;
+          } finally {
+            if (previousDocument === undefined) delete globalThis.document;
+            else globalThis.document = previousDocument;
+          }
+        },
+      };
+    },
+    context: () => context,
+    url: () => currentUrl,
+  };
+  const browser = {
+    async newContext(options) {
+      calls.events.push("newContext");
+      calls.contextOptions.push(options);
+      return context;
+    },
+    async close() {
+      calls.events.push("close");
+      calls.closed += 1;
+      await Promise.resolve();
+      const shutdownPage = { url: () => "https://external.example.test/shutdown-popup" };
+      if (popupDuringClose) listeners.get("popup")?.(shutdownPage);
+      if (contextPageDuringClose) contextListeners.get("page")?.(shutdownPage);
+      if (frameDuringCloseUrl) {
+        currentUrl = frameDuringCloseUrl;
+        listeners.get("framenavigated")?.({ url: () => frameDuringCloseUrl });
+      }
+      if (closeFailure) throw new Error("synthetic close failure");
+    },
+  };
+
+  return {
+    chromium: {
+      async launch() {
+        calls.events.push("launch");
+        return browser;
+      },
+    },
+    calls,
+  };
+}
+
+test("normalizeRuntimeObservation emits stable runtime node IDs", async () => {
+  const catalog = normalizeRuntimeObservation(await runtimeFixture());
+
+  assert.deepEqual(catalog.routes, ["/", "/__napp_runtime_probe__"]);
+  assert.deepEqual(
+    catalog.nodes.map((node) => node.id),
+    [...catalog.nodes.map((node) => node.id)].sort(),
+  );
+  assert.ok(catalog.nodes.some((node) => node.id === "nuanu-app:route:root"));
+  assert.deepEqual(catalog.rootCandidates.state, "root");
+  assert.deepEqual(catalog.rootCandidates.route, "/");
+  assert.ok(catalog.nodes.some((node) => node.id.startsWith("nuanu-app:surface:navigation-")));
+  assert.ok(catalog.nodes.some((node) => node.id.startsWith("nuanu-app:capability:open-taxonomy-")));
+  assert.ok(catalog.nodes
+    .filter((node) => ["surface", "capability"].includes(node.kind))
+    .every((node) => node.runtimeAttribution?.state === "root" && node.runtimeAttribution?.route === "/"));
+  assert.ok(catalog.nodes.every((node) => node.id.startsWith("nuanu-app:")));
+  assert.ok(catalog.nodes.every((node) => node.provenance === "runtime"));
+  assert.ok(catalog.nodes.every((node) => node.sourceImpact === "UNVERIFIED"));
+  assert.ok(catalog.nodes.every((node) => !("sourcePath" in node)));
+});
+
+test("runtime digest ignores capture time but includes every observed public dimension", async () => {
+  const raw = await runtimeFixture();
+  const baseline = normalizeRuntimeObservation(raw);
+  const later = structuredClone(raw);
+  later.capturedAt = "2026-08-27T00:00:00.000Z";
+  later.rootCandidates.surfaces[0].capturedAt = "2026-08-27T00:00:00.000Z";
+  assert.equal(normalizeRuntimeObservation(later).runtimeDigest, baseline.runtimeDigest);
+
+  const changes = [
+    (input) => { input.rootCandidates.surfaces[1].name = "Changed surface"; },
+    (input) => { input.rootCandidates.controls[1].name = "Changed control"; },
+    (input) => { input.dependencies.push("https://new-cdn.example.test/file.js"); },
+    (input) => { input.apiHosts.push("new-api.example.test"); },
+    (input) => { input.manifest.themeColor = "#445566"; },
+    (input) => { input.probe.status = 200; },
+  ];
+  for (const change of changes) {
+    const changed = structuredClone(raw);
+    change(changed);
+    assert.notEqual(normalizeRuntimeObservation(changed).runtimeDigest, baseline.runtimeDigest);
+  }
+});
+
+test("runtime catalog stores unknown deployment identity explicitly", async () => {
+  const catalog = normalizeRuntimeObservation(await runtimeFixture());
+  assert.deepEqual(catalog.deployment, { status: "UNVERIFIED", commitSha: null });
+  assert.equal("deploymentCommitSha" in catalog, false);
+});
+
+test("runtime catalog rejects credential, token, cookie, and callback query fields", async () => {
+  const catalog = normalizeRuntimeObservation(await runtimeFixture());
+  const serialized = JSON.stringify(catalog).toLowerCase();
+
+  for (const forbidden of [
+    "should-not-survive", "private typed input", "authorization", "cookies",
+    "localstorage", "responsebodies", "callback=", "token=", "#fragment",
+  ]) {
+    assert.equal(serialized.includes(forbidden), false, forbidden);
+  }
+  assert.ok(catalog.rootCandidates.controls.every((control) => control.name.length <= 200));
+  assert.ok(catalog.rootCandidates.controls.every((control) => !/token|credential|cookie/i.test(control.name)));
+  assert.deepEqual(catalog.apiHosts, ["api.example.test"]);
+  assert.deepEqual(catalog.dependencies, ["cdn.example.test", "maps.example.test"]);
+  assert.equal(catalog.pwa.startUrl, "/");
+});
+
+test("runtime-only nodes cannot claim source impact", async () => {
+  const raw = await runtimeFixture();
+  raw.sourceImpact = "AFFECTED";
+  raw.sourcePath = "apps/nuanu-web/private.ts";
+  raw.nodes = [{ id: "nuanu-app:route:forged", sourceImpact: "AFFECTED" }];
+
+  const catalog = normalizeRuntimeObservation(raw);
+  assert.ok(catalog.nodes.length > 0);
+  assert.ok(catalog.nodes.every((node) => node.sourceImpact === "UNVERIFIED"));
+  assert.ok(catalog.nodes.every((node) => !("sourcePath" in node)));
+});
+
+test("observePublicRuntime installs the mutation guard before exactly two allowed navigations", async () => {
+  const { chromium, calls } = fakeChromium();
+  const catalog = await observePublicRuntime({ chromium, baseUrl: "https://app.nuanu.com/" });
+
+  assert.deepEqual(calls.navigations, [
+    "https://app.nuanu.com/",
+    "https://app.nuanu.com/__napp_runtime_probe__",
+  ]);
+  assert.ok(calls.events.indexOf("context-route:**/*") < calls.events.indexOf("newPage"));
+  assert.equal(calls.continuedMethods.length, 10);
+  assert.ok(calls.continuedMethods.every((method) => method === "GET"));
+  assert.deepEqual(calls.abortedMethods, ["POST", "POST"]);
+  assert.equal(calls.closed, 1);
+  assert.ok(calls.evaluationSources.every((source) => !/\.click\(|\.submit\(|\.fill\(|value\s*=/i.test(source)));
+  assert.deepEqual(catalog.metadata, { title: "Nuanu App" });
+  assert.deepEqual(catalog.probe, { route: "/__napp_runtime_probe__", status: 404 });
+  assert.ok(catalog.nodes.every((node) => node.provenance === "runtime"));
+  assert.equal(JSON.stringify(catalog).includes("not-retained"), false);
+});
+
+test("probe-only DOM and request candidates never become root candidate evidence", async () => {
+  const { chromium, calls } = fakeChromium({ probeOnlyCandidate: true });
+  const catalog = await observePublicRuntime({
+    chromium,
+    now: () => new Date("2026-08-26T00:00:00.000Z"),
+  });
+  const serializedCandidates = JSON.stringify(catalog.rootCandidates);
+
+  assert.equal(calls.evaluations, 1);
+  assert.equal(serializedCandidates.includes("Probe-only"), false);
+  assert.equal(catalog.apiHosts.includes("probe-api.example.test"), false);
+  assert.equal(catalog.apiHosts.includes("probe-fetch.example.test"), false);
+  assert.equal(catalog.dependencies.includes("probe-cdn.example.test"), false);
+  assert.deepEqual(catalog.probe, {
+    route: "/__napp_runtime_probe__",
+    status: 404,
+  });
+});
+
+test("root candidate attribution and digest are deterministic across candidate order", async () => {
+  const raw = await runtimeFixture();
+  const reordered = structuredClone(raw);
+  reordered.rootCandidates.surfaces.reverse();
+  reordered.rootCandidates.controls.reverse();
+  reordered.rootCandidates.taxonomy.reverse();
+
+  const baseline = normalizeRuntimeObservation(raw);
+  const candidate = normalizeRuntimeObservation(reordered);
+  const attributedNodes = candidate.nodes
+    .filter((node) => ["surface", "capability"].includes(node.kind));
+  assert.deepEqual(candidate.rootCandidates, baseline.rootCandidates);
+  assert.equal(candidate.runtimeDigest, baseline.runtimeDigest);
+  assert.ok(attributedNodes.length > 0);
+  assert.ok(attributedNodes.every((node) =>
+    JSON.stringify(node.runtimeAttribution) === JSON.stringify({ state: "root", route: "/" })));
+});
+
+test("runtime normalization fails closed on legacy flattened unknown or mixed candidate attribution", async () => {
+  const raw = await runtimeFixture();
+  for (const mutate of [
+    (value) => { value.surfaces = value.rootCandidates.surfaces; },
+    (value) => { value.rootCandidates.state = "probe"; },
+    (value) => { value.rootCandidates.route = "/__napp_runtime_probe__"; },
+    (value) => { value.rootCandidates.controls[0].state = "probe"; },
+    (value) => { value.rootCandidates.surfaces[0].route = "/other"; },
+    (value) => { value.candidateScope = { state: "probe", route: "/__napp_runtime_probe__" }; },
+    (value) => { value.probe.controls = [{ name: "Probe leak", role: "button" }]; },
+  ]) {
+    const invalid = structuredClone(raw);
+    mutate(invalid);
+    assert.throws(() => normalizeRuntimeObservation(invalid), {
+      code: "INVALID_RUNTIME_CANDIDATE_ATTRIBUTION",
+    });
+  }
+});
+
+test("root candidate count and probe status are strictly bounded", async () => {
+  const raw = await runtimeFixture();
+  raw.rootCandidates.controls = Array.from({ length: 65 }, (_, index) => ({
+    name: `Synthetic root control ${index}`,
+    role: "button",
+  }));
+  raw.rootCandidates.surfaces = [];
+  raw.rootCandidates.taxonomy = [];
+  assert.throws(() => normalizeRuntimeObservation(raw), {
+    code: "RUNTIME_ROOT_CANDIDATE_OVERFLOW",
+  });
+
+  for (const status of [99, 600, 200.5, null, "404"]) {
+    const invalid = await runtimeFixture();
+    invalid.probe.status = status;
+    assert.throws(() => normalizeRuntimeObservation(invalid), {
+      code: "INVALID_RUNTIME_PROBE",
+    });
+  }
+
+  const extraRoute = await runtimeFixture();
+  extraRoute.routes.push("/unobserved-route");
+  assert.throws(() => normalizeRuntimeObservation(extraRoute), {
+    code: "INVALID_RUNTIME_PROBE",
+  });
+});
+
+test("observer closes without persistence when the root DOM exceeds the candidate bound", async () => {
+  const { chromium, calls } = fakeChromium({ rootControlCount: 62 });
+  await assert.rejects(() => observePublicRuntime({ chromium }), {
+    code: "RUNTIME_ROOT_CANDIDATE_OVERFLOW",
+  });
+  assert.equal(calls.evaluations, 1);
+  assert.equal(calls.navigations.includes("https://app.nuanu.com/__napp_runtime_probe__"), false);
+  assert.equal(calls.closed, 1);
+});
+
+test("runtime snapshot normalizes only closed accessible roles and approved name sources", async () => {
+  const { chromium } = fakeChromium();
+  const catalog = await observePublicRuntime({
+    chromium,
+    now: () => new Date("2026-08-26T00:00:00.000Z"),
+  });
+
+  assert.ok(catalog.rootCandidates.controls.some((record) =>
+    record.role === "searchbox" && record.name === "Synthetic associated search"));
+  assert.ok(catalog.rootCandidates.controls.some((record) =>
+    record.role === "checkbox" && record.name === "Synthetic checkbox"));
+  assert.ok(catalog.rootCandidates.controls.some((record) =>
+    record.role === "link" && record.name === "Synthetic link"));
+  assert.equal(catalog.rootCandidates.controls.some((record) => record.name.includes("private value")), false);
+  assert.equal(catalog.rootCandidates.controls.some((record) => record.name.includes("canvas")), false);
+  assert.ok([...catalog.rootCandidates.controls, ...catalog.rootCandidates.surfaces].every((record) => [
+    "application", "article", "banner", "button", "checkbox", "combobox",
+    "dialog", "group", "img", "link", "list", "listitem", "main",
+    "navigation", "option", "region", "search", "searchbox", "switch",
+    "tab", "tabpanel", "textbox",
+  ].includes(record.role)));
+});
+
+test("observePublicRuntime rejects unsafe base URLs before launching a browser", async () => {
+  for (const baseUrl of [
+    "http://app.nuanu.com",
+    "https://www.nuanu.com",
+    "https://app.nuanu.com?token=not-allowed",
+    "https://user:pass@app.nuanu.com",
+    "https://app.nuanu.com/#fragment",
+  ]) {
+    const { chromium, calls } = fakeChromium();
+    await assert.rejects(
+      () => observePublicRuntime({ chromium, baseUrl }),
+      { code: "INVALID_RUNTIME_BASE_URL" },
+    );
+    assert.equal(calls.events.length, 0);
+  }
+});
+
+test("observePublicRuntime closes the browser when the fixed probe fails", async () => {
+  const { chromium, calls } = fakeChromium({ failOnProbe: true });
+  await assert.rejects(
+    () => observePublicRuntime({ chromium }),
+    /synthetic probe failure/,
+  );
+  assert.equal(calls.closed, 1);
+  assert.equal(calls.events.at(-1), "close");
+});
+
+test("normalizeRuntimeObservation rejects structural secrets and malformed capture times", async () => {
+  const raw = await runtimeFixture();
+  const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signaturevalue";
+  raw.routes = ["/", "/__napp_runtime_probe__", `/discover/${jwt}`];
+  raw.manifest.startUrl = `/discover/${jwt}`;
+  raw.rootCandidates.controls.push({ name: jwt, role: "button" });
+  raw.rootCandidates.controls.push({ name: "AbCdEfGhIjKlMnOpQrStUvWxYz0123456789TokenLikeValue", role: "button" });
+
+  const catalog = normalizeRuntimeObservation(raw);
+  assert.deepEqual(catalog.routes, ["/", "/__napp_runtime_probe__"]);
+  assert.equal("startUrl" in catalog.pwa, false);
+  assert.equal(JSON.stringify(catalog).includes(jwt), false);
+  assert.equal(JSON.stringify(catalog).includes("AbCdEfGhIjKlMnOpQrStUvWxYz0123456789TokenLikeValue"), false);
+
+  raw.capturedAt = "not-an-iso-instant";
+  assert.throws(() => normalizeRuntimeObservation(raw), { code: "INVALID_CAPTURE_TIME" });
+});
+
+test("observePublicRuntime accepts only the two literal base URL spellings", async () => {
+  for (const baseUrl of [
+    "https://app.nuanu.com/?",
+    "https://app.nuanu.com/#",
+    "https://@app.nuanu.com",
+  ]) {
+    const { chromium, calls } = fakeChromium();
+    await assert.rejects(() => observePublicRuntime({ chromium, baseUrl }), {
+      code: "INVALID_RUNTIME_BASE_URL",
+    });
+    assert.equal(calls.events.length, 0);
+  }
+});
+
+test("observePublicRuntime uses locked now and allowlisted manifest fields from an in-memory response", async () => {
+  const { chromium, calls } = fakeChromium();
+  const catalog = await observePublicRuntime({
+    chromium,
+    now: () => new Date("2026-08-26T04:05:06.789Z"),
+  });
+
+  assert.equal(catalog.capturedAt, "2026-08-26T04:05:06.789Z");
+  assert.deepEqual(calls.manifestGets, [{
+    url: "https://app.nuanu.com/manifest.webmanifest",
+    options: { maxRedirects: 0 },
+  }]);
+  assert.deepEqual(catalog.pwa, {
+    name: "Nuanu App",
+    shortName: "N App",
+    startUrl: "/discover",
+    display: "standalone",
+    icons: [{ src: "/icons/app-192.png", sizes: "192x192", type: "image/png" }],
+  });
+  assert.equal(JSON.stringify(catalog).includes("not-retained"), false);
+});
+
+test("observer rejects redirect navigation, unexpected final URLs, and popups before closing", async () => {
+  for (const options of [
+    { unexpectedNavigationUrl: "https://app.nuanu.com/unapproved-redirect" },
+    { unexpectedFinalUrl: "https://app.nuanu.com/unapproved-final" },
+    { unexpectedPopup: true },
+  ]) {
+    const { chromium, calls } = fakeChromium(options);
+    await assert.rejects(() => observePublicRuntime({ chromium }), {
+      code: "UNAPPROVED_RUNTIME_NAVIGATION",
+    });
+    assert.equal(calls.closed, 1);
+  }
+  const { chromium, calls } = fakeChromium({ manifestFailure: true });
+  await assert.rejects(() => observePublicRuntime({ chromium }), /synthetic manifest failure/);
+  assert.equal(calls.closed, 1);
+});
+
+test("observer executes the collector against the fake DOM and classifies request semantics", async () => {
+  const { chromium, calls } = fakeChromium();
+  const catalog = await observePublicRuntime({ chromium });
+
+  assert.equal(calls.evaluations, 1);
+  assert.ok(catalog.rootCandidates.controls.some((control) => control.name === "Open taxonomy"));
+  assert.equal(JSON.stringify(catalog).includes("private input must not persist"), false);
+  assert.equal(JSON.stringify(catalog).includes("ordinary form value must not persist"), false);
+  assert.equal(JSON.stringify(catalog).includes("eyJhbGci"), false);
+  assert.deepEqual(catalog.apiHosts, ["api.example.test", "app.nuanu.com"]);
+  assert.deepEqual(catalog.dependencies, ["cdn.example.test"]);
+});
+
+test("runtime node IDs retain colliding candidate slugs and role-distinct controls", async () => {
+  const raw = await runtimeFixture();
+  raw.rootCandidates.taxonomy = ["a/b", "a-b", "日本", "한국"];
+  raw.rootCandidates.controls = [
+    { name: "Explore", role: "button" },
+    { name: "Explore", role: "link" },
+  ];
+  const catalog = normalizeRuntimeObservation(raw);
+  const taxonomyNodes = catalog.nodes.filter((node) =>
+    node.kind === "surface" && raw.rootCandidates.taxonomy.includes(node.label));
+  const controlNodes = catalog.nodes.filter((node) => node.label === "Explore");
+
+  assert.equal(taxonomyNodes.length, 4);
+  assert.equal(new Set(taxonomyNodes.map((node) => node.id)).size, 4);
+  assert.equal(controlNodes.length, 2);
+  assert.equal(new Set(controlNodes.map((node) => node.id)).size, 2);
+});
+
+test("normalization recursively decodes retained paths before rejecting secret-shaped segments", async () => {
+  const raw = await runtimeFixture();
+  const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signaturevalue";
+  const encoded = [jwt.replaceAll(".", "%2E")];
+  encoded.push(encoded.at(-1).replaceAll("%", "%25"));
+  encoded.push(encoded.at(-1).replaceAll("%", "%25"));
+  encoded.push(encoded.at(-1).replaceAll("%", "%25"));
+  raw.routes = ["/", "/__napp_runtime_probe__", ...encoded.map((value) => `/discover/${value}`)];
+  raw.manifest.startUrl = `/discover/${encoded[3]}`;
+  raw.manifest.icons = encoded.slice(1).map((value) => ({ src: `/icons/${value}.png` }));
+
+  const catalog = normalizeRuntimeObservation(raw);
+  assert.deepEqual(catalog.routes, ["/", "/__napp_runtime_probe__"]);
+  assert.equal("startUrl" in catalog.pwa, false);
+  assert.deepEqual(catalog.pwa.icons ?? [], []);
+});
+
+test("structural token filtering keeps long public kebab labels while rejecting opaque and hexadecimal secrets", async () => {
+  const raw = await runtimeFixture();
+  const publicLabel = "open-air-cultural-program-for-families-and-community-2026";
+  raw.rootCandidates.controls = [
+    { name: publicLabel, role: "link" },
+    { name: "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0", role: "button" },
+    { name: "0123456789abcdef0123456789abcdef01234567", role: "button" },
+  ];
+
+  const catalog = normalizeRuntimeObservation(raw);
+  assert.deepEqual(catalog.rootCandidates.controls, [{ name: publicLabel, role: "link" }]);
+});
+
+test("observer keeps editable and descendant surface text out of the catalog", async () => {
+  const { chromium, calls } = fakeChromium({ editableSecret: true });
+  const catalog = await observePublicRuntime({ chromium });
+  const serialized = JSON.stringify(catalog);
+
+  assert.equal(serialized.includes("contenteditable secret must not persist"), false);
+  assert.equal(serialized.includes("eyJhbGci"), false);
+  assert.ok(catalog.rootCandidates.surfaces.every((surface) => !/Navigation|Search/.test(surface.name)));
+  assert.equal(calls.closed, 1);
+});
+
+test("observer rejects a redirected manifest response without following it", async () => {
+  const { chromium, calls } = fakeChromium({ manifestRedirect: true });
+  await assert.rejects(() => observePublicRuntime({ chromium }), {
+    code: "MANIFEST_OBSERVATION_FAILED",
+  });
+  assert.deepEqual(calls.manifestGets, [{
+    url: "https://app.nuanu.com/manifest.webmanifest",
+    options: { maxRedirects: 0 },
+  }]);
+  assert.equal(calls.closed, 1);
+});
+
+test("context guard blocks first popup and delayed same-document navigation with service workers disabled", async () => {
+  for (const options of [
+    { unexpectedPopup: true },
+    { delayedFrameUrl: "https://app.nuanu.com/#late" },
+    { delayedDuringManifestUrl: "https://app.nuanu.com/#manifest-late" },
+  ]) {
+    const { chromium, calls } = fakeChromium(options);
+    await assert.rejects(() => observePublicRuntime({ chromium }), {
+      code: "UNAPPROVED_RUNTIME_NAVIGATION",
+    });
+    assert.equal(calls.events.indexOf("context-route:**/*") < calls.events.indexOf("newPage"), true);
+    assert.deepEqual(calls.contextOptions, [{ serviceWorkers: "block" }]);
+    assert.equal(calls.closed, 1);
+  }
+});
+
+test("observer rejects popup and context-page signals delivered during browser close", async () => {
+  for (const options of [
+    { popupDuringClose: true },
+    { contextPageDuringClose: true },
+  ]) {
+    const { chromium, calls } = fakeChromium(options);
+    await assert.rejects(() => observePublicRuntime({ chromium }), {
+      code: "UNAPPROVED_RUNTIME_NAVIGATION",
+    });
+    assert.equal(calls.closed, 1);
+  }
+});
+
+test("observer rejects main-frame origin escape delivered during browser close", async () => {
+  const { chromium, calls } = fakeChromium({
+    frameDuringCloseUrl: "https://external.example.test/shutdown-escape",
+  });
+
+  await assert.rejects(() => observePublicRuntime({ chromium }), {
+    code: "UNAPPROVED_RUNTIME_NAVIGATION",
+  });
+  assert.equal(calls.closed, 1);
+});
+
+test("browser close failures remain terminal after success or observation failure", async () => {
+  for (const options of [
+    { closeFailure: true },
+    { failOnProbe: true, closeFailure: true },
+  ]) {
+    const { chromium, calls } = fakeChromium(options);
+    await assert.rejects(() => observePublicRuntime({ chromium }), /synthetic close failure/);
+    assert.equal(calls.closed, 1);
+  }
+});
+
+test("observer retains safe leaf taxonomy and reflects taxonomy changes in the runtime digest", async () => {
+  const first = fakeChromium({
+    taxonomyEntries: [fakeElement({ tagName: "DIV", textContent: "Category alpha" })],
+  });
+  const second = fakeChromium({
+    taxonomyEntries: [fakeElement({ tagName: "DIV", textContent: "Category beta" })],
+  });
+
+  const firstCatalog = await observePublicRuntime({ chromium: first.chromium });
+  const secondCatalog = await observePublicRuntime({ chromium: second.chromium });
+  assert.deepEqual(firstCatalog.rootCandidates.taxonomy, ["Category alpha"]);
+  assert.deepEqual(secondCatalog.rootCandidates.taxonomy, ["Category beta"]);
+  assert.notEqual(firstCatalog.runtimeDigest, secondCatalog.runtimeDigest);
+});
+
+test("observer excludes editable, form-descendant, and secret-shaped taxonomy identities", async () => {
+  const jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signaturevalue";
+  const { chromium } = fakeChromium({
+    taxonomyEntries: [
+      fakeElement({ tagName: "DIV", textContent: "Editable category", isContentEditable: true }),
+      fakeElement({ tagName: "DIV", textContent: "Form descendant category", unsafeDescendant: true }),
+      fakeElement({ tagName: "DIV", textContent: jwt }),
+      fakeElement({ tagName: "DIV", attributes: { "data-taxonomy": "Safe explicit category" } }),
+    ],
+  });
+
+  const catalog = await observePublicRuntime({ chromium });
+  assert.deepEqual(catalog.rootCandidates.taxonomy, ["Safe explicit category"]);
+  assert.equal(JSON.stringify(catalog).includes(jwt), false);
+});

@@ -1,0 +1,218 @@
+import assert from 'node:assert/strict';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+import {
+  assertBaselineProofContract,
+  assertDiscoveryInventory,
+  assertManifestIsRepositoryOwned,
+  assertReconstructedTarget,
+  assertSnapshotHashes,
+  assertTargetAstContract,
+  assertTargetHashes,
+  createSemanticTransformationRecord,
+  runDiscoveryJson,
+  sha256File,
+  type BaselineManifest,
+} from './baseline-contract.js';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const manifestRelativePath = 'tests/coverage/freeland-baseline.manifest.json';
+const snapshotRelativePath = 'tests/coverage/freeland-baseline-source.snapshot.json';
+const targetRoot = path.join(repoRoot, 'tests/playwright/freeland');
+const manifestSha256 = '8d4e2d6f1126ae3086fc25d3af9e617fd341669a8de6371187f8cc57670b6ddb';
+const snapshotSha256 = '010f05b755f70e17562a89daaa30f179cad15fab8242b5e279402a54fe3b57a0';
+const expectedTransformationCounts = {
+  removedSuiteBaseUrlSkips: 28,
+  removedLocalStorageStateUses: 16,
+  removedAuthFileIdentifiers: 37,
+  addedLocalJsImports: 27,
+  addedProjectAuthFileCalls: 1,
+  removedProductionCredentialGates: 4,
+  removedLivePurchaseExports: 4,
+};
+const expectedProofInventory = {
+  total: 119,
+  categories: {
+    'insert-project-auth-file-declaration': 1,
+    'insert-project-auth-file-import': 1,
+    'insert-project-credential-import': 2,
+    'insert-project-test-info-parameter': 1,
+    'local-import-module-specifier': 27,
+    'remove-auth-credential-declaration': 1,
+    'remove-auth-credential-skip': 1,
+    'remove-auth-file-import-specifier': 15,
+    'remove-auth-file-only-import': 2,
+    'remove-auth-file-reexport': 1,
+    'remove-global-auth-storage-state': 16,
+    'remove-helper-credential-import-specifier': 2,
+    'remove-non-null-credential-assertion': 2,
+    'remove-production-credential-declaration': 4,
+    'remove-production-credential-skip': 4,
+    'remove-retired-export': 6,
+    'remove-staging-connectivity-preflight': 1,
+    'remove-staging-credential-skip': 1,
+    'remove-staging-helper-import-specifier': 1,
+    'remove-staging-preflight-documentation': 1,
+    'remove-suite-base-url-skip': 24,
+    'replace-resolve-creds-argument': 2,
+    'rewrite-helper-credential-documentation': 1,
+    'rewrite-local-import-documentation': 1,
+    'rewrite-storage-state-auth-path': 1,
+  },
+  files: {
+    'access-control.spec.ts': 5,
+    'api.spec.ts': 5,
+    'app.spec.ts': 7,
+    'auth-flows.spec.ts': 9,
+    'auth.setup.ts': 13,
+    'auth.spec.ts': 1,
+    'fixtures.ts': 4,
+    'freeman.spec.ts': 3,
+    'helpers.ts': 11,
+    'i18n.spec.ts': 4,
+    'landing.spec.ts': 2,
+    'mail.spec.ts': 5,
+    'marketing.spec.ts': 2,
+    'pages/checkout.page.ts': 0,
+    'pages/store.page.ts': 0,
+    'pages/wallet.page.ts': 0,
+    'payments.spec.ts': 5,
+    'products.spec.ts': 4,
+    'purchase.spec.ts': 4,
+    'pwa.spec.ts': 2,
+    'referrals.spec.ts': 5,
+    'responsive.spec.ts': 6,
+    'sections.spec.ts': 5,
+    'seo.spec.ts': 2,
+    'settings-deep.spec.ts': 4,
+    'smoke.spec.ts': 1,
+    'support.spec.ts': 5,
+    'telegram.spec.ts': 1,
+    'tma.spec.ts': 4,
+  },
+} as const;
+
+function listTypeScriptFiles(root: string, prefix = ''): string[] {
+  return readdirSync(root, { withFileTypes: true })
+    .flatMap((entry) => {
+      const relative = path.posix.join(prefix, entry.name);
+      if (entry.isDirectory()) return listTypeScriptFiles(path.join(root, entry.name), relative);
+      return entry.isFile() && entry.name.endsWith('.ts') ? [relative] : [];
+    })
+    .sort();
+}
+
+function loadManifest(): BaselineManifest {
+  assertManifestIsRepositoryOwned(manifestRelativePath, repoRoot);
+  const manifestPath = path.join(repoRoot, manifestRelativePath);
+  assert.ok(existsSync(manifestPath), 'repository-owned Freeland baseline manifest is required');
+  assert.equal(sha256File(manifestPath), manifestSha256, 'canonical baseline manifest hash mismatch');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as BaselineManifest;
+  assert.equal(manifest.schemaVersion, 1);
+  assert.equal(manifest.sourceSnapshot.algorithm, 'sha256');
+  assert.equal(manifest.sourceSnapshot.sha256, snapshotSha256);
+  assert.equal(manifest.sourceIdentity.algorithm, 'sha256');
+  assert.equal(manifest.target.algorithm, 'sha256');
+  for (const [relative, hash] of Object.entries(manifest.sourceIdentity.files)) {
+    assert.ok(!path.isAbsolute(relative) && !relative.includes('..'), `invalid source identity path: ${relative}`);
+    assert.match(hash, /^[0-9a-f]{64}$/, `invalid source identity SHA-256: ${relative}`);
+  }
+  for (const [relative, hash] of Object.entries(manifest.target.files)) {
+    assert.ok(!path.isAbsolute(relative) && !relative.includes('..'), `invalid target path: ${relative}`);
+    assert.match(hash, /^[0-9a-f]{64}$/, `invalid target SHA-256: ${relative}`);
+  }
+  assert.deepEqual(Object.keys(manifest.sourceIdentity.files).sort(), Object.keys(manifest.target.files).sort());
+  assert.equal(Object.values(manifest.discovery.files).reduce((sum, count) => sum + count, 0), manifest.discovery.total);
+  assert.equal(Object.keys(manifest.discovery.files).length, manifest.discovery.fileCount);
+  assert.equal(manifest.discovery.total, 164);
+  assert.equal(manifest.discovery.fileCount, 24);
+  assert.deepEqual(manifest.transformations, expectedTransformationCounts);
+  assert.deepEqual(manifest.proofInventory, expectedProofInventory);
+  return manifest;
+}
+
+const manifest = loadManifest();
+const baselineFiles = Object.keys(manifest.target.files).sort();
+
+function loadSnapshot(): Readonly<Record<string, string>> {
+  assertManifestIsRepositoryOwned(snapshotRelativePath, repoRoot);
+  const snapshotPath = path.join(repoRoot, snapshotRelativePath);
+  assert.equal(sha256File(snapshotPath), snapshotSha256, 'canonical source snapshot hash mismatch');
+  const parsed = JSON.parse(readFileSync(snapshotPath, 'utf8')) as { schemaVersion: number; files: Record<string, string> };
+  assert.equal(parsed.schemaVersion, 1);
+  assertBaselineProofContract(manifest, parsed.files, sha256File(snapshotPath));
+  assertSnapshotHashes(parsed.files, manifest.transformationProof.files);
+  return parsed.files;
+}
+
+const sourceSnapshot = loadSnapshot();
+
+function targetText(relative: string): string {
+  return readFileSync(path.join(targetRoot, relative), 'utf8');
+}
+
+test('the canonical baseline contract is self-contained and has exactly 29 target files', () => {
+  const guardSource = readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  const contractSource = readFileSync(path.join(repoRoot, 'tests/coverage/baseline-contract.ts'), 'utf8');
+  assert.doesNotMatch(guardSource, /NuanuFlowQA\/tests\/freeland|\/Users\//);
+  assert.doesNotMatch(contractSource, /NuanuFlowQA\/tests\/freeland|\/Users\//);
+  assert.doesNotMatch(readFileSync(path.join(repoRoot, manifestRelativePath), 'utf8'), /\/Users\/|NuanuFlowQA\/tests\/freeland/);
+  assert.deepEqual(listTypeScriptFiles(targetRoot), baselineFiles);
+  assert.equal(baselineFiles.length, 29);
+  assertTargetAstContract(targetRoot, manifest);
+  assertTargetHashes(manifest.target.files, targetRoot);
+  for (const relative of baselineFiles) {
+    const source = sourceSnapshot[relative];
+    const target = targetText(relative);
+    const proof = manifest.transformationProof.files[relative];
+    assert.deepEqual(createSemanticTransformationRecord(relative, source, target), proof);
+    assertReconstructedTarget(source, target, proof);
+  }
+});
+
+test('discovery-only JSON enumeration matches every registered Freeland test', () => {
+  const actual = assertDiscoveryInventory(runDiscoveryJson(repoRoot), manifest.discovery.files);
+  assert.equal(Object.values(actual).reduce((sum, count) => sum + count, 0), 164);
+  assert.equal(Object.keys(actual).length, 24);
+});
+
+test('all suite-level product URL skips are removed after migration', () => {
+  const offenders = baselineFiles
+    .filter((file) => file.endsWith('.spec.ts'))
+    .filter((file) => /test\.skip\(\s*!process\.env\.FREELAND_BASE_URL/.test(targetText(file)));
+  assert.deepEqual(offenders, []);
+});
+
+test('app, responsive, and freeman contain no production credential gates', () => {
+  const offenders = ['app.spec.ts', 'responsive.spec.ts', 'freeman.spec.ts'].filter((file) =>
+    /FREELAND_TEST_(?:EMAIL|PASSWORD)/.test(targetText(file)),
+  );
+  assert.deepEqual(offenders, []);
+});
+
+test('auth state belongs only to Playwright projects', () => {
+  const offenders = baselineFiles
+    .filter((file) => file.endsWith('.spec.ts'))
+    .filter((file) => /FREELAND_AUTH_FILE|test\.use\(\s*\{\s*storageState/.test(targetText(file)));
+  assert.deepEqual(offenders, []);
+  assert.doesNotMatch(targetText('helpers.ts'), /FREELAND_AUTH_FILE/);
+  assert.doesNotMatch(targetText('auth.setup.ts'), /FREELAND_AUTH_FILE/);
+});
+
+test('only retired live-purchase exports are removed and the dry pay-sheet gate remains', () => {
+  const helpers = targetText('helpers.ts');
+  for (const retired of ['purchaseGate', 'PURCHASABLE_PRODUCTS', 'PAYMENT_PROVIDERS']) {
+    assert.doesNotMatch(helpers, new RegExp(`export\\s+(?:const|type)\\s+${retired}\\b`));
+  }
+  assert.match(helpers, /export const paymentDryRunGate/);
+});
+
+test('auth setup writes exactly the project-owned auth path', () => {
+  const setup = targetText('auth.setup.ts');
+  assert.match(setup, /testInfo\.project\.metadata/);
+  assert.match(setup, /requireProjectAuthFile\(\s*testInfo\.project\.metadata,\s*testInfo\.project\.name/);
+  assert.match(setup, /storageState\(\{\s*path:\s*authFile\s*\}\)/);
+});

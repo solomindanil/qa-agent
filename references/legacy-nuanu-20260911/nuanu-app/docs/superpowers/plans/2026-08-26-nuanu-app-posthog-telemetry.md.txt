@@ -1,0 +1,2513 @@
+# Nuanu App PostHog Aggregate Telemetry Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Add an optional privacy-normalized PostHog evidence lane that reads
+only reviewed aggregate metrics, produces add-only graph-planner signals, and
+records a non-gating first baseline for `app.nuanu.com`.
+
+**Architecture:** Pure normalization rejects raw or identifying analytics data
+before persistence. Code-owned immutable builders generate only recursively
+allowlisted PostHog structured queries, inject the mandatory
+`app.nuanu.com` equality scope, validate the complete query, and hash it before
+an exact-host/project/path transport can run. Each p75 query is an immutable
+pair with an independently aggregated total-count companion for privacy-floor
+sample size. Reviewed telemetry mappings may add safe tests to the deterministic
+plan, but telemetry never supplies PASS/FAIL, source/runtime/deployment proof,
+release approval, or automatic defect creation.
+
+**Tech Stack:** Node.js ESM, node:test, canonical JSON digests, code-owned
+PostHog structured-query builders, injected host secret provider, exact-scope
+POST transport, existing Nuanu App graph planner, private JSON artifacts.
+
+**Spec:** `docs/superpowers/specs/2026-08-26-nuanu-app-qa-project-design.md`
+
+## Global Constraints
+
+- V1 is standalone and covers only `https://app.nuanu.com/` web/PWA. Do not
+  import from or write to another product graph or analytics project.
+- Complete Tasks 1–3 with synthetic fixtures only. Do not open an invitation,
+  use a live account, or execute a live analytics query before Task 4.
+- PostHog is optional aggregate evidence. Its only planner authority is to add
+  discovered read-only automated tests or, for a separately reviewed elevated
+  unmapped regression, expand the existing full safe fallback and mobile
+  manual safety tier.
+- Telemetry never removes a test, changes a result status, proves source,
+  runtime, release, or deployment identity, gates a release, or automatically
+  creates a Nuanu Flow Bugs item.
+- Source-only UNVERIFIED cases remain in the planner's distinct sorted
+  `unverified` bucket. Telemetry cannot promote or reclassify them and its own
+  dispositions remain separate from case-status buckets.
+- Missing access blocks only telemetry as `BLOCKED`. Missing event/property
+  schema is `NOT_INSTRUMENTED`. A complete supported primary whose exact
+  companion/result cannot be used is `UNAVAILABLE`. A cohort below 20 is
+  `SUPPRESSED`. The deterministic web/PWA
+  campaign continues in every case.
+- Do not read, retain, attach, or export raw events, persons, session replays,
+  exact URLs or query values, person/session/device identifiers, IP addresses,
+  precise GPS, email or phone data, search text, exception messages, stacks or
+  code variables, request headers, or request/response bodies.
+- After the 20-observation floor, persist only explicitly allowlisted public
+  browser/OS/device/PWA/release categorical values. A present dimension
+  allowlist requires an exact match; mismatch rejects and never silently
+  randomizes. An omitted dimension uses one catalog-wide ephemeral random-ID
+  memo with no persisted reverse map. Unkeyed hashes are never described or
+  used as a privacy boundary.
+- JavaScript exception evidence stores only total count/rate unless the
+  official schema proves a provider fingerprint is already opaque and its
+  dedicated mutually exclusive auxiliary query/hash is approved; even then,
+  retain it only for a group with at least 20 observations. Otherwise use
+  `FIELD_NOT_PROVEN` and retain aggregate exceptions only.
+- Durable numeric evidence is limited to sample size and aggregate count,
+  rate, or p75 value; freshness may retain a completed aggregate bucket
+  timestamp.
+- Every adapter receives one explicit immutable canonical UTC-midnight 24-hour
+  UTC window. No component derives it from the current clock; it is included
+  in every query and approved hash.
+- Non-p75 sample size comes only from the code-owned sole total, ordered rate
+  denominator, or funnel first-step population, never a result/row/bucket/
+  array length.
+- A p75 `sampleSize` comes only from an independent `total` companion query
+  over the identical event population, UTC window, app-host predicate,
+  filters, and breakdown. Pair by immutable metric ID, completed bucket, and
+  ordered dimensions—not response order, array length, quantile payload, or
+  result metadata. Missing, mismatched, duplicate, ambiguous, or unsupported
+  count evidence makes that p75 UNAVAILABLE.
+- Only the percentile-primary and sample-count envelopes inside one validated
+  `postStructuredP75Pair` call may remain structurally valid with duplicate
+  full coordinates. That is semantic pair ambiguity and yields UNAVAILABLE with
+  `P75_COUNT_PAIR_AMBIGUOUS`, not `HTTP_PROVIDER_BLOCKED`; the latter is
+  reserved for envelope shape/type/bounds/required-uniqueness, redirect, or
+  status failure.
+- Every non-p75 primary and exception-fingerprint auxiliary envelope requires
+  structurally unique full coordinates. A duplicate maps to
+  `HTTP_PROVIDER_BLOCKED` with zero candidate emission; it never reaches metric
+  normalization or p75 ambiguity classification.
+- Suppress every overall or breakdown cohort whose sample size is below 20.
+  Do not persist its value, provider fingerprint, or random ID; retain only an
+  incremented `suppressedCohortCount`.
+- A credential is never an argument, environment example, log, artifact,
+  command-line value, or chat value. Query authentication remains inside the
+  host secret provider or approved connector; the browser session cannot be
+  substituted.
+- Bind live reads to one exact host, target project resource, and query
+  endpoint path. The private manifest may bind strictly validated identifiers
+  to a code-owned builder ID but cannot supply any query body.
+- Reject `HogQLQuery`, SQL/HogQL text, raw-table/column nodes, person/replay/raw
+  event queries, joins, and unknown structured-query fields before the injected
+  client is called. Future HogQL stays BLOCKED pending a separately reviewed
+  AST allowlist.
+- Recursively validate the complete generated structured query, inject one
+  exact-equality predicate for a freshly inspected host/environment property
+  equal to `app.nuanu.com` into every query, then hash it. If that mapping is
+  missing or unreliable, telemetry is BLOCKED or NOT_INSTRUMENTED and selects
+  no tests.
+- Validate one closed schema observation with one preflight identity/digest,
+  all nine metric statuses, all five breakdown statuses, exact project/
+  capability evidence, and age no greater than 30 minutes. Builders prove only
+  structural binding/query/window shape; the Task 2 read layer proves
+  freshness and same-preflight manifest/access-lock binding.
+- For every p75 builder, recursively validate and allowlist both the percentile
+  query and its independent total-count companion plus their pair digest before
+  either transport call. A companion count below 20 suppresses both the p75
+  value and cohort identity.
+- Task 2 alone sees and joins provider aggregate responses. Task 1 accepts only
+  its exact candidate, validates structural attestations/tagged unions, applies
+  privacy, and makes no raw-origin or schema-freshness claim.
+- The exact PostHog host is control-plane scope metadata and the sole allowed
+  exact URL. No product/event URL or query value is collected or persisted.
+- Do not infer effective permissions from a role name or one `readOnly` flag.
+  Inspect and read back the full capability matrix defined below.
+- The invitation web session is only for invite, schema, and capability
+  read-back. It is not API authentication. Automated reads require a separately
+  scoped `query:read` credential from macOS Keychain/CI secret storage or an
+  approved connector; without one telemetry remains BLOCKED.
+- Do not change PostHog project settings, instrumentation, feature flags,
+  cohorts, dashboards, retention, annotations, users, roles, or product data.
+  Accepting one exact invitation after action-time confirmation is the only
+  authorized PostHog mutation in this plan.
+- Normalize responses in memory and discard them. HTTP 401, 403, 429, and 5xx
+  are telemetry BLOCKED; never persist their response data. Accept only the
+  bounded closed status/redirect/payload/coordinate envelope. Malformed 200,
+  redirect, unexpected status, or shape/size mismatch uses
+  `HTTP_PROVIDER_BLOCKED`. Production compatibility remains UNVERIFIED until
+  Task 4 reads back the live schema and connector contract.
+- Persist only the exact six-field telemetry catalog wrapper. Its canonical
+  digest excludes only itself and includes `capturedAt`.
+- The first baseline has no approved thresholds. PostHog real-user metrics do
+  not replace the five-run named lab performance baseline and do not gate a
+  release.
+- Preserve existing dirty work. Commit only the exact tracked files named by
+  each task; private live artifacts under `docs/local` remain untracked.
+- Run `superpowers:verification-before-completion` before any completion claim.
+
+---
+
+## Execution Dependencies
+
+Tasks 1–3 execute after Nuanu App foundation Task 6 so the exact optional
+`telemetrySignals` planner interface exists. Task 4 is an external account
+boundary and requires a fresh browser/connector capability check plus
+action-time confirmation. Task 5 runs after the web coverage plan has created
+its tracked runbook/registry files and the Flow control-plane plan has either
+read back or explicitly blocked the telemetry coverage item.
+
+## File Structure
+
+~~~text
+tools/nuanu-app-graph/
+  telemetry-contract.mjs        shared IDs and canonical p75 pair digest
+  telemetry.mjs                 pure aggregate schema, privacy, catalog build
+  posthog-query-builders.mjs     immutable structured-query construction/guard
+  posthog-read.mjs               exact-scope secret-provider-backed adapter
+  telemetry-policy.mjs           catalog-to-reviewed-signal conversion
+
+tests/nuanu-app-graph/
+  telemetry.test.mjs
+  posthog-query-builders.test.mjs
+  posthog-read.test.mjs
+  telemetry-policy.test.mjs
+  fixtures/posthog/
+    aggregate-safe.json
+    aggregate-forbidden.json
+    access-lock.synthetic.json
+    schema-facts.synthetic.json
+    query-manifest.synthetic.json
+
+docs/nuanu-app/
+  TELEMETRY.md
+  TEST-STRATEGY.md
+  TEST-CASES.md
+  COVERAGE-MAP.md
+  BASELINE-RUNBOOK.md
+
+docs/local/nuanu-app/telemetry/
+  access-lock.v1.json            exact scope/matrix/window/hash approvals
+  schema-facts.v1.json           one fresh closed instrumentation preflight
+  query-manifest.v1.json         validated bindings and builder IDs; no bodies
+  structured-query-catalog.json  generated validated query hashes/status only
+  mappings.v1.json               reviewed metric-to-graph mappings/policy
+  telemetry-catalog.json         privacy-normalized metric availability
+  telemetry-signals.json         add-only planner input
+  baselines/${RUN_ID}/
+    aggregate-baseline.json      normalized first baseline only
+~~~
+
+All files under `docs/local/nuanu-app/telemetry` are private and gitignored.
+They contain no credential, caller-supplied query body, raw response, direct
+user/device identifier, observed URL/query value, exception detail, or
+unsuppressed small cohort. The exact target project resource and endpoint path
+are permitted control-plane scope metadata only.
+
+## Locked Interfaces
+
+~~~js
+// tools/nuanu-app-graph/telemetry-contract.mjs
+export const TELEMETRY_SCHEMA_VERSION = 1;
+export const MIN_TELEMETRY_COHORT_SIZE = 20;
+export const TELEMETRY_METRIC_IDS = Object.freeze([
+  "telemetry-freshness",
+  "route-health",
+  "funnel-discovery",
+  "funnel-search",
+  "funnel-place-detail",
+  "js-exception-rate",
+  "web-vitals-lcp-p75",
+  "web-vitals-cls-p75",
+  "web-vitals-inp-p75",
+]);
+export const P75_METRIC_IDS = Object.freeze([
+  "web-vitals-lcp-p75",
+  "web-vitals-cls-p75",
+  "web-vitals-inp-p75",
+]);
+export const TELEMETRY_DIMENSIONS = Object.freeze([
+  "browser", "os", "device", "pwa_mode", "release",
+]);
+export function createP75PairDigestInput({
+  metricId,
+  dimensions,
+  percentileQueryHash,
+  sampleCountQueryHash,
+}) {}
+export function digestP75Pair(p75PairDigestInput) {}
+
+// tools/nuanu-app-graph/telemetry.mjs
+export function normalizeAggregateMetric({
+  candidate,
+  publicValueAllowlists,
+  randomIdForValue,
+}) {}
+export function buildTelemetryCatalog({
+  accessLockDigest,
+  capturedAt,
+  candidates,
+  publicValueAllowlists,
+  randomUUID,
+}) {}
+export function validateTelemetryCatalog(catalog) {}
+
+// tools/nuanu-app-graph/posthog-query-builders.mjs
+export const TARGET_APP_HOST = "app.nuanu.com";
+export const ALLOWED_ROOT_QUERY_KINDS = Object.freeze(["TrendsQuery", "FunnelsQuery"]);
+export const ALLOWED_SERIES_KINDS = Object.freeze(["EventsNode"]);
+export const ALLOWED_AGGREGATIONS = Object.freeze(["total", "unique_session", "p75"]);
+export const ALLOWED_PROPERTY_OPERATORS = Object.freeze(["exact"]);
+export const POSTHOG_WINDOW_INTERVAL = "day";
+export const POSTHOG_WINDOW_DURATION_HOURS = 24;
+export const POSTHOG_QUERY_BUILDERS = Object.freeze({ /* exact map below */ });
+export const POSTHOG_AUXILIARY_QUERY_BUILDERS = Object.freeze({
+  "js-exception-rate:fingerprint": {
+    builderId: "trends-exception-fingerprint-breakdown-v1",
+    queryKind: "TrendsQuery",
+    series: [{ role: "exception_session_population", aggregation: "unique_session" }],
+  },
+});
+export function getPostHogSensitiveScalarViolation(value, maximumBytes) {}
+export function validateAndFreezePostHogWindow(window) {}
+export function buildStructuredPostHogQuery({ queryId, binding, window }) {}
+export function validateStructuredPostHogQuery({ query, binding, window }) {}
+export function digestStructuredPostHogQuery(query) {}
+export function buildP75PostHogQueryPair({ metricId, binding, window }) {}
+export function validateP75PostHogQueryPair({ pair, binding, window }) {}
+
+// tools/nuanu-app-graph/posthog-read.mjs
+export const POSTHOG_QUERY_IDS = Object.freeze([
+  "telemetry-freshness",
+  "route-health",
+  "funnel-discovery",
+  "funnel-search",
+  "funnel-place-detail",
+  "js-exception-rate",
+  "web-vitals-lcp-p75",
+  "web-vitals-cls-p75",
+  "web-vitals-inp-p75",
+]);
+export function validatePostHogAccessLock(accessLock) {}
+export function validatePostHogSchemaFacts({ accessLock, schemaFacts, now }) {}
+export function validatePostHogQueryManifest({
+  accessLock,
+  queryManifest,
+  schemaFacts,
+  window,
+  now,
+}) {}
+export function createExactPostHogTransport({
+  accessLock,
+  queryManifest,
+  schemaFacts,
+  window,
+  authorizedPostProvider,
+  now,
+}) {}
+export function createPostHogReadAdapter({
+  accessLock,
+  queryManifest,
+  schemaFacts,
+  window,
+  transport,
+  now,
+}) {}
+
+// tools/nuanu-app-graph/telemetry-policy.mjs
+export function validateTelemetryMappings({ mappings, graph, catalog, accessLock }) {}
+export function buildTelemetrySignals({ mappings, graph, catalog, accessLock }) {}
+~~~
+
+`window` is a required immutable adapter argument, never an implicit clock
+calculation. V1 accepts exactly a plain object
+`{ startAt, endAt, interval: "day" }`: both timestamps use canonical
+`YYYY-MM-DDT00:00:00.000Z`, `endAt` is exactly 24 hours after `startAt`, and
+the logical interval is `[startAt, endAt)`. `validateAndFreezePostHogWindow`
+rejects extra keys, offsets, fractional/unaligned times, invalid calendar
+values, a different or non-positive duration, and mutation-prone nested input;
+it returns a defensive deeply frozen copy. Every generated query contains
+these exact bounds, so every approved query hash is window-dependent. Neither
+the adapter, builder, transport, nor a retry may derive a boundary from
+`Date.now()` or injected `now`; `now` is used only for schema freshness and the
+single catalog `capturedAt`.
+
+`POSTHOG_QUERY_BUILDERS` is this complete immutable V1 map. Array position is
+the provider-series position and is part of validation; there is no generic
+fallback builder.
+
+| query ID | builder ID / node | exact ordered code-owned roles and aggregation | durable value and `sampleSize` origin |
+| --- | --- | --- | --- |
+| `telemetry-freshness` | `trends-total-v1` / `TrendsQuery` | `[population_event: total]` | `count = population_event`; `sampleSize = population_event` count; freshness age is `capturedAt - bucketEndedAt` only |
+| `route-health` | `trends-route-health-rate-v1` / `TrendsQuery` | `[route_attempt_population: unique_session, route_success_population: unique_session]` | `rate = success / attempt`; `sampleSize = attempt` denominator |
+| `funnel-discovery` | `funnels-discovery-v1` / `FunnelsQuery` | `[discovery_surface_view, place_detail_view_from_discovery]`, each `total` | `rate = last / first`; `sampleSize = first-step` population |
+| `funnel-search` | `funnels-search-v1` / `FunnelsQuery` | `[search_submit, search_results_view, place_detail_view_from_search]`, each `total` | `rate = last / first`; `sampleSize = first-step` population |
+| `funnel-place-detail` | `funnels-place-detail-v1` / `FunnelsQuery` | `[place_detail_view, place_detail_primary_action]`, each `total` | `rate = last / first`; `sampleSize = first-step` population |
+| `js-exception-rate` | `trends-exception-session-rate-v1` / `TrendsQuery` | `[eligible_session_population: unique_session, exception_session_population: unique_session]` | `rate = exception sessions / eligible sessions`; `sampleSize = eligible-session` denominator |
+| each of `web-vitals-lcp-p75`, `web-vitals-cls-p75`, `web-vitals-inp-p75` | `trends-p75-v1` / `TrendsQuery` | primary `[vital_measurement: p75]`; companion `[vital_measurement: total]` | `p75` from primary; `sampleSize` only from independently returned companion count |
+
+The only auxiliary map entry is
+`js-exception-rate:fingerprint -> trends-exception-fingerprint-breakdown-v1`
+with exactly one `exception_session_population: unique_session` series and the proven
+fingerprint breakdown. No other logical or auxiliary query ID is accepted.
+
+The two rate builders reject a zero/missing denominator and numerator greater
+than denominator. Funnel builders use the exact adapter date range plus
+`funnelWindowInterval: 24`, `funnelWindowIntervalUnit: "hour"`; they reject a
+missing first step, later-step population greater than the first step, or a
+provider response with a different order/arity. `route-health` means only the
+instrumented share of schema-proven route attempts that reached the
+schema-proven route-success event during this window. It is not HTTP uptime,
+deployment health, source/runtime proof, or a release gate. If those semantic
+roles are not proven by the fresh schema observation, the metric is
+`NOT_INSTRUMENTED`; a similarly named event is never substituted.
+
+No metric obtains `sampleSize` from response-array length, number of returned
+rows/buckets, quantile metadata, or a result-object count. A code-owned
+companion series/query is mandatory whenever the primary response does not
+itself contain the exact reviewed population named in the table. Unsupported
+exact population evidence makes only that metric `UNAVAILABLE` after a primary
+hash exists, or `NOT_INSTRUMENTED` when the required event/value binding does
+not exist.
+
+The code-owned builders emit only these recursively validated structures:
+
+~~~js
+{
+  kind: "TrendsQuery",
+  series: [{
+    kind: "EventsNode",
+    event: schemaBoundEventIdentifier,
+    math: "total" | "unique_session" | "p75",
+    math_property: schemaBoundValuePropertyOrUndefined,
+  }],
+  dateRange: { date_from: exactWindowStart, date_to: exactWindowEnd },
+  interval: "day",
+  properties: [{
+    type: "event",
+    key: schemaBoundHostProperty,
+    operator: "exact",
+    value: "app.nuanu.com",
+  }],
+  breakdownFilter: {
+    breakdowns: [{ type: "event", property: schemaBoundBreakdownProperty }],
+  } | undefined,
+  trendsFilter: { display: "ActionsLineGraph" },
+}
+~~~
+
+`FunnelsQuery` permits exactly `kind`, `series`, `dateRange`, `properties`, and
+`funnelsFilter`; every series entry is an `EventsNode` with a schema-bound event
+and fixed `math: "total"`, and every V1 funnel binding requires
+`breakdown: null`. `funnelsFilter` permits only `layout: "vertical"`,
+`funnelVizType: "steps"`, `funnelWindowInterval: 24`, and
+`funnelWindowIntervalUnit: "hour"`. No other root or
+nested field is accepted. A structured p75 query is emitted only when the
+binding structurally contains the exact p75 value-property slot; the Task 2
+read layer, not the builder, proves that slot against fresh schema facts before
+transport. A missing bound event/value property is NOT_INSTRUMENTED instead.
+The builders never fall back to text query or `math: "hogql"`.
+
+There is exactly one p75-pair digest input and algorithm in V1. The shared
+`createP75PairDigestInput` returns this exact plain object with no extra keys:
+
+~~~js
+{
+  metricId: "web-vitals-lcp-p75",
+  dimensions: ["browser"],
+  percentile: {
+    role: "p75_value",
+    queryHash: lowercaseSha256,
+  },
+  sampleCount: {
+    role: "sample_count",
+    queryHash: differentLowercaseSha256,
+  },
+}
+~~~
+
+`dimensions` is a sorted unique array of reviewed dimension IDs; `[]` means
+the overall metric. `digestP75Pair` rejects missing/extra keys, unknown metric
+or dimension IDs, unsorted/duplicate dimensions, wrong roles, malformed
+hashes, and equal role hashes. It returns `digestJson(p75PairDigestInput)` from
+`model.mjs`: UTF-8 JSON of recursively key-sorted objects while preserving
+array order, SHA-256 encoded as lowercase hex. Nothing else enters the digest.
+Both `telemetry.mjs` and the Task 2 query/transport modules import this shared
+helper; no second pair-digest implementation is permitted.
+
+`buildP75PostHogQueryPair` emits this immutable in-memory bundle for each Web
+Vital metric:
+
+~~~js
+{
+  p75PairDigestInput: exactObjectAbove,
+  pairDigest: lowercaseSha256,
+  percentileQuery: structuredTrendsQueryWithExactlyOneP75Series,
+  sampleCountQuery: structuredTrendsQueryWithExactlyOneTotalSeries,
+}
+~~~
+
+Its return is this strict builder-result union:
+
+~~~js
+{
+  status: "READY",
+  queryHash: p75PairDigestInput.percentile.queryHash,
+  pairBundle: immutableBundleAbove,
+  limitation: null,
+} | {
+  status: "UNAVAILABLE",
+  queryHash: completedPrimaryPercentileQueryHash,
+  pairBundle: null,
+  limitation: "P75_COUNT_COMPANION_UNAVAILABLE",
+}
+~~~
+
+The second branch is valid only when the primary percentile query was built
+and hashed but an exact companion cannot be expressed/proven; it authorizes no
+transport. Failure to build a complete primary structured query is pre-query
+BLOCKED with `queryHash: null`, not an UNAVAILABLE builder result.
+
+Both queries use the same schema-bound event, UTC date range, interval, exact
+`app.nuanu.com` predicate, other root/series filters, and breakdown definition.
+The percentile series alone carries the schema-bound value property and p75
+math; the count series uses `math: "total"` and no value aggregation. Schema
+facts must prove that this total series counts exactly the percentile-eligible
+event population. If identical population semantics cannot be expressed with
+the allowed structured fields, the p75 metric is UNAVAILABLE.
+
+Pair validation hashes each complete query, requires those hashes to equal the
+two role hashes in `p75PairDigestInput`, recomputes `pairDigest` only through
+the shared helper, and checks every field above. Missing, duplicate, or extra
+pair fields, reversed roles, or any window/event/host/filter/breakdown mismatch
+reject the pair before transport. Neither individual query hash can authorize
+a p75 read without the approved `pairDigest`.
+
+The recursive validator rejects before transport: `HogQLQuery`; any SQL/HogQL
+string field; raw `EventsQuery`; persons, session-recording, replay,
+data-warehouse, or raw-table nodes; `source`, `table`, `columns`, `select`, or
+join fields; raw URL/person/session properties; unknown fields; aggregation or
+operator values outside the constants above; and any query lacking exactly one
+host predicate equal to `app.nuanu.com` for the property identifier supplied
+by the exact binding. This builder validation is deliberately structural and
+non-circular: it accepts only `{query, binding, window}` (or
+`{pair, binding, window}`), never `accessLock`, `schemaFacts`, a manifest, or
+`now`. `posthog-read.mjs` separately proves that the binding belongs to a fresh
+schema observation, then compares its rebuilt hash with the final access lock.
+
+`schema-facts.v1.json` is the only status authority for instrumentation. It has
+this exact closed shape:
+
+~~~js
+{
+  version: 1,
+  provider: "posthog",
+  productId: "nuanu-app",
+  targetHost: "app.nuanu.com",
+  observation: {
+    preflightId: "napp-posthog-preflight-" + randomUuid,
+    observedAt: "canonical ISO UTC timestamp",
+    targetProjectResourceId: exactPrivateTargetProjectResource,
+    capabilityEvidenceDigest: lowercaseSha256,
+    evidenceDigest: lowercaseSha256,
+  },
+  hostScope: {
+    status: "AVAILABLE" | "NOT_INSTRUMENTED",
+    kind: "event_property",
+    propertyIdentifier: schemaBoundHostPropertyOrNull,
+    operator: "exact",
+    value: "app.nuanu.com",
+  },
+  metrics: [{
+    metricId: oneOfNineIdsInTELEMETRY_METRIC_IDSOrder,
+    status: "AVAILABLE" | "NOT_INSTRUMENTED" | "UNAVAILABLE",
+    events: [{ role: exactCodeOwnedRole, identifier: schemaBoundEventIdentifier }],
+    valuePropertyIdentifier: schemaBoundValuePropertyOrNull,
+    exactPopulationSemanticsEvidenceDigest: lowercaseSha256OrNull,
+  }],
+  breakdowns: [{
+    dimension: oneOfFiveIdsInTELEMETRY_DIMENSIONSOrder,
+    status: "AVAILABLE" | "NOT_INSTRUMENTED",
+    propertyIdentifier: schemaBoundBreakdownPropertyOrNull,
+  }],
+  exceptionFingerprint: {
+    status: "PROVEN_OPAQUE" | "FIELD_NOT_PROVEN",
+    propertyIdentifier: schemaBoundProviderFingerprintPropertyOrNull,
+    officialSchemaEvidenceDigest: lowercaseSha256OrNull,
+  },
+  schemaFactsDigest: lowercaseSha256,
+}
+~~~
+
+`metrics` contains exactly nine entries in the constant order, including every
+`NOT_INSTRUMENTED` or `UNAVAILABLE` metric. An AVAILABLE entry has the exact role names, arity,
+and order from `POSTHOG_QUERY_BUILDERS`, a non-null
+`exactPopulationSemanticsEvidenceDigest`, and a value property only for p75.
+A NOT_INSTRUMENTED entry has `events: []`, both nullable fields null, and no
+manifest binding. In V1, schema-level UNAVAILABLE is valid only for a p75
+metric whose exact primary event/value binding is proven but whose identical-
+population total companion is not: it has the primary role/event and value
+property, but a null population-semantics digest. It may be hashed as primary-
+only evidence but can never be executed or added to approved hashes.
+`breakdowns` similarly contains exactly five entries in
+constant order; its nullable property is non-null exactly when AVAILABLE.
+`hostScope.propertyIdentifier` is non-null exactly when AVAILABLE. The
+exception fingerprint fields are both non-null exactly for `PROVEN_OPAQUE` and
+both null for `FIELD_NOT_PROVEN`. One shared fail-closed scalar policy applies
+to every provider identifier and public allowlist value: it rejects empty or
+unbounded values, non-canonical or non-printable-ASCII values, controls, raw
+URL/path/query payloads, email/phone/contact data (including phone-length digit
+sequences embedded in text), token/secret markers, person/session/device
+markers, and opaque scalar identifiers, including long unreviewed base-N-like
+segments.
+
+`schemaFactsDigest` is `digestJson` of all other schema-facts fields, including
+the observation timestamp. `preflightId` is one newly injected UUID for this
+baseline preflight, formatted as `napp-posthog-preflight-` plus one canonical
+lowercase UUID v4, and binds the host scope, all nine metrics, all five
+breakdowns, and the exception proof to one observation. The Task 2 read layer
+requires the target project and `capabilityEvidenceDigest` to match the final
+access-lock inventory, requires the inventory preflight ID to match, requires
+`inventory.observedAt <= observation.observedAt <= now`, requires both ages no
+greater than exactly 30 minutes, recomputes the digest, and requires the same `preflightId`
+and digest in the manifest and approved window. Missing, future, stale,
+mixed-preflight, or mismatched facts stop transport. Builders do not perform
+this freshness or binding proof.
+
+The private manifest supplies no request/body/query node and no status. It has
+this exact shape and binds every metric not marked NOT_INSTRUMENTED in the
+fresh schema facts:
+
+~~~js
+{
+  version: 1,
+  provider: "posthog",
+  targetHost: "app.nuanu.com",
+  schemaObservation: {
+    preflightId: exactSchemaFactsPreflightId,
+    schemaFactsDigest: exactSchemaFactsDigest,
+  },
+  hostScope: {
+    propertyIdentifier: schemaBoundHostProperty,
+    operator: "exact",
+    value: "app.nuanu.com",
+  },
+  bindings: [{
+    queryId: "telemetry-freshness",
+    builderId: exactBuilderIdFromPOSTHOG_QUERY_BUILDERS,
+    eventIdentifiers: [schemaBoundEventIdentifiersInExactRoleOrder],
+    valuePropertyIdentifier: schemaBoundValuePropertyOrNull,
+    breakdown: {
+      dimension: "browser" | "os" | "device" | "pwa_mode" | "release",
+      propertyIdentifier: schemaBoundBreakdownProperty,
+      publicValueAllowlist: ["Synthetic Browser"] | null,
+    } | null,
+    exceptionFingerprintQuery: {
+      builderId: "trends-exception-fingerprint-breakdown-v1",
+      propertyIdentifier: schemaBoundProviderFingerprintProperty,
+      officialSchemaEvidenceDigest: lowercaseSha256,
+    } | null,
+    p75SampleCountCompanion: {
+      builderId: "trends-total-sample-size-v1",
+      exactPopulationSemanticsEvidenceDigest: lowercaseSha256,
+    } | null,
+  }],
+}
+~~~
+
+The binding set equals the schema-facts AVAILABLE-or-UNAVAILABLE metric set
+exactly; its order is the filtered `TELEMETRY_METRIC_IDS` order. A NOT_INSTRUMENTED ID is
+omitted, never represented by an empty binding. Every binding must be complete:
+builder ID, event arity/order, value-property nullability, companion, and
+breakdown must match both the code-owned map and schema facts. For a schema-
+level UNAVAILABLE p75, the primary binding is complete but
+`p75SampleCountCompanion` is null; Task 2 may hash that primary, emits
+UNAVAILABLE, and never authorizes or calls it. An empty or partial AVAILABLE
+executable binding rejects the whole manifest before any provider call. The
+manifest cannot relabel a metric's status.
+
+`p75SampleCountCompanion` is mandatory for an AVAILABLE p75, null for a schema-
+level UNAVAILABLE p75, and null for every non-p75 binding. It cannot supply an event, property, filter,
+dimension, window, or query body: the code-owned pair builder derives all of
+those from the percentile binding so they cannot drift independently.
+
+`exceptionFingerprintQuery` is non-null only on `js-exception-rate`, only when
+schema facts say `PROVEN_OPAQUE`, and only when that binding's ordinary
+`breakdown` is null. The auxiliary code-owned query has exactly one
+`exception_session_population: unique_session` series and the proven fingerprint as its
+only breakdown. The property can never also appear as a normal dimension or
+be reused by another binding. If proof is absent, stale, or mismatched, no
+auxiliary query/hash runs, the aggregate exception rate remains eligible, and
+Task 2 emits `exceptionGroups: []`, a null attestation, and limitation
+`FIELD_NOT_PROVEN`. A valid auxiliary result may retain only fingerprint-group
+aggregate counts with cohort `sampleSize` equal to that group count; Task 1
+still suppresses groups below 20. No message, stack, code variable, event row,
+person, session, or reverse mapping is accepted.
+
+After Task 2 validates the manifest against fresh schema facts, it derives one
+exact `publicValueAllowlists` plain object for Task 1. A dimension appears as a
+key only when every binding for it has the same reviewed, sorted, unique,
+non-empty allowlist; that key means `public_value` mode. A dimension whose
+manifest allowlist is `null` is omitted from the object and therefore uses
+`catalog_local_random_id` mode. Mixed/conflicting declarations reject the
+manifest. Task 1 never receives or guesses a separate persistence flag.
+
+~~~js
+{
+  browser: ["Synthetic Browser"], // optional exact dimension keys only
+  // omitted os/device/pwa_mode/release keys use random-ID mode
+}
+~~~
+
+`exceptionFingerprintQuery.officialSchemaEvidenceDigest` is only a
+structural attestation when it reaches Task 1: the pure normalizer verifies its
+exact keys and digest syntax but cannot prove freshness, property binding, or
+provider semantics. Task 2 alone compares that attestation with the freshly
+read schema facts and exact manifest binding before emitting it in a
+candidate. A stale, missing, or mismatched proof emits no exception-group
+attestation; Task 1 then drops groups and retains only aggregate count/rate.
+
+Every query uses the freshly inspected `hostScope.propertyIdentifier` as the
+exact predicate. A dedicated-project name, environment assertion, or project
+attestation alone never waives this property. Missing/rejected scope makes all
+dependent metrics BLOCKED or NOT_INSTRUMENTED and produces no selecting planner
+signal. Evidence carried from another preflight or older than 30 minutes is
+stale even if its identifier text happens to match.
+
+The concrete injected production boundary is:
+
+~~~js
+{
+  authorizedPostProvider: {
+    postJsonWithHostSecret: async ({ host, path, body }) => ({
+      status: 200 | 401 | 403 | 429 | 500 | 502 | 503 | 504,
+      redirected: false,
+      payload: null | {
+        schemaVersion: 1,
+        queryId: exactLogicalQueryId,
+        queryHash: lowercaseSha256,
+        windowDigest: lowercaseSha256,
+        resultKind: "series" | "funnel",
+        coordinates: [{
+          bucketEndedAt: exactWindowEndAt,
+          dimensionIds: [sortedReviewedDimensionIds],
+          dimensionValues: [boundedInMemoryCategoricalValues],
+          series: [{
+            index: 0,
+            role: exactCodeOwnedRole,
+            aggregation: "total" | "unique_session" | "p75",
+            value: finiteNonNegativeNumber,
+          }],
+        }],
+      },
+    }),
+  },
+  transport: {
+    postStructuredQuery: async ({ queryId, queryHash, query, window }) =>
+      normalizedAggregateResponse,
+    postStructuredP75Pair: async ({ metricId, pair, window }) =>
+      normalizedPairedAggregateResponse,
+  },
+}
+~~~
+
+`authorizedPostProvider` is a host-owned macOS Keychain/CI-secret-store broker.
+It resolves and injects the separately scoped `query:read` credential
+internally; the credential value is never returned to the adapter. The
+transport recomputes and requires exactly
+`accessLock.host + accessLock.queryEndpointPath`, where the path is exactly
+`/api/projects/{targetProjectResourceId}/query/`, and uses POST only. It
+accepts no URL, path, project, credential, headers, or generic request from the
+caller. The invitation browser session is never substituted for this broker.
+
+This provider envelope is exact and closed. A non-200 status requires
+`payload: null`; a 200 requires the exact payload and `redirected: false`.
+Only the listed statuses are accepted. A payload has at most 1,000 coordinates;
+`resultKind` must be `funnel` exactly for the three funnel builders and
+`series` for every other primary/companion/auxiliary builder.
+Each coordinate has zero to five sorted unique dimension IDs, exactly the same
+number of dimension values, and exactly the code-owned series arity/order for
+that request. A dimension value is a non-empty string of at most 128 UTF-8
+bytes and exists only in memory until Task 1 normalizes it. Count and
+unique-session values are non-negative safe integers; p75 is a finite
+non-negative number. Every `bucketEndedAt` equals the exact canonical
+`window.endAt`. Only the two envelopes issued inside one already validated
+`postStructuredP75Pair` call may contain repeated full coordinate identities
+`{queryId, queryHash, windowDigest, bucketEndedAt, dimensionIds,
+dimensionValues}` without failing structural validation, so the p75 join layer
+can classify pair ambiguity. Every non-p75 primary envelope and every
+exception-fingerprint auxiliary envelope requires those full coordinate
+identities to be unique; a duplicate is a malformed envelope. The validator
+selects this policy from the code-owned transport method and immutable request
+role before reading the payload; `queryId`, `resultKind`, or any response field
+cannot opt a non-p75/auxiliary response into the p75 duplicate allowance.
+Unknown keys, prototypes, symbols,
+redirects, nested results, raw rows/events/persons/replay/export data, IDs,
+URLs, or content/detail fields reject the entire response before candidate
+emission.
+
+A malformed HTTP-success envelope, unexpected status, redirect, oversized
+payload, coordinate shape/type/bounds violation, or duplicate full coordinate
+in a non-p75 primary or exception auxiliary envelope maps to the existing Task
+1 limitation `HTTP_PROVIDER_BLOCKED`; it never invents a new limitation code. Statuses
+401/403 map to `HTTP_AUTH_BLOCKED`, 429 to `HTTP_RATE_LIMIT_BLOCKED`, and the
+listed 5xx statuses to `HTTP_PROVIDER_BLOCKED`. Raw success and error payloads
+are normalized in memory and then discarded.
+
+Task 2 tests this boundary with an injected synthetic provider only and make
+no network or secret-store call. Compatibility between this bounded envelope
+and a real approved PostHog connector/broker is `UNVERIFIED` until Task 4
+freshly reads the live schema and connector response contract. A browser
+session or invite acceptance does not establish production transport
+compatibility.
+
+Before the broker is called, the adapter rebuilds the query from code, validates
+it recursively, computes its complete hash, and requires that hash in
+`accessLock.approvedQueryHashes` for the exact approved window digest. The read
+layer first validates schema-facts freshness/digest/same-preflight, exact
+AVAILABLE binding membership, and access-lock approval; the builder validator
+then checks only the structural binding/query/window relationship. For p75,
+`postStructuredP75Pair` validates
+both complete queries and the pair digest before the first of two exact-path
+POSTs. It discards both responses if either call or pairing fails.
+
+The p75 response normalizer joins one percentile aggregate to one total-count
+aggregate by immutable metric ID, completed bucket, ordered dimension IDs, and
+the exact in-memory breakdown coordinate. After both envelopes pass structural
+validation, it indexes the full join key `{metricId, bucketEndedAt,
+dimensionIds, dimensionValues}`. A duplicate full key in either bounded list,
+or more than one count match for a percentile, is semantic pair ambiguity:
+emit UNAVAILABLE with the retained primary hash, null pairing, no measured
+payload, and `P75_COUNT_PAIR_AMBIGUOUS`. Missing/extra/mismatched keys use
+`P75_COUNT_PAIR_MISMATCH`. These cases never become `HTTP_PROVIDER_BLOCKED`
+and the adapter never joins by response order. The total result is the sole
+`sampleSize`; result-array length, number of buckets, quantile response count,
+and percentile metadata are forbidden substitutes. A 401, 403, 429, or 5xx
+result becomes a stable BLOCKED limitation. Other missing/mismatched/ambiguous
+count evidence makes the p75 metric UNAVAILABLE. All raw success/error
+responses and in-memory coordinates are then discarded.
+
+Non-p75 normalization follows the map rather than provider result shape:
+`telemetry-freshness` uses its sole total as both count and `sampleSize`;
+`route-health` and `js-exception-rate` use ordered series index 0 as the
+denominator population and index 1 as the numerator; each funnel uses exact
+first-step index 0 as `sampleSize` and exact last-step population as its
+numerator. The adapter rejects a missing, reordered, duplicated, additional,
+zero-denominator, or arity-incompatible series and never substitutes payload,
+row, bucket, or array length. Before this normalization, it requires unique
+full coordinates for every non-p75 primary and exception auxiliary envelope;
+a duplicate produces BLOCKED / `HTTP_PROVIDER_BLOCKED`, emits no candidate,
+and never becomes `P75_COUNT_PAIR_AMBIGUOUS`. If the duplicate is in the
+exception auxiliary response, discard both that response and its already-read
+primary response; do not fall back to `FIELD_NOT_PROVEN`. A future alternative
+population definition requires a separately reviewed code-owned builder ID and
+schema evidence; it cannot be injected through the manifest.
+
+The exact examples below use the immutable window
+`{ startAt: "2026-08-25T00:00:00.000Z", endAt:
+"2026-08-26T00:00:00.000Z", interval: "day" }`. Every p75 candidate and
+durable p75 record has `bucketEndedAt` equal to that canonical `window.endAt`.
+The normalized p75 candidate input accepted by `normalizeAggregateMetric` has
+exactly this shape:
+
+~~~js
+{
+  queryId: "web-vitals-lcp-p75",
+  queryHash: lowercaseSha256 | null,
+  p75Pairing: {
+    p75PairDigestInput: {
+      metricId: "web-vitals-lcp-p75",
+      dimensions: ["browser"],
+      percentile: { role: "p75_value", queryHash: lowercaseSha256 },
+      sampleCount: { role: "sample_count", queryHash: differentLowercaseSha256 },
+    },
+    pairDigest: lowercaseSha256,
+    sampleSizeSource: "independent_total_count",
+  } | null,
+  metricId: "web-vitals-lcp-p75",
+  status: "AVAILABLE" | "NOT_INSTRUMENTED" | "UNAVAILABLE" | "BLOCKED",
+  capturedAt: "2026-08-26T00:05:00.000Z",
+  bucketEndedAt: "2026-08-26T00:00:00.000Z",
+  aggregate: {
+    sampleSize: 200,
+    count: null,
+    rate: null,
+    p75: 2100.5,
+  },
+  breakdowns: [{
+    dimension: "browser" | "os" | "device" | "pwa_mode" | "release",
+    value: "Synthetic Browser",
+    sampleSize: 100,
+    count: null,
+    rate: null,
+    p75: 2050.25,
+  }],
+  exceptionGroups: [],
+  providerExceptionFingerprintAttestation: null,
+  limitations: ["NO_REVIEWED_THRESHOLD"],
+}
+~~~
+
+`exceptionGroups` and `providerExceptionFingerprintAttestation` are required
+keys on every Task 1 candidate. Every non-`js-exception-rate` candidate,
+including all Web Vitals candidates, requires exactly `exceptionGroups: []`
+and `providerExceptionFingerprintAttestation: null`. Only
+`js-exception-rate` may carry non-empty/non-null exception evidence, and its
+evidence must satisfy the exact validation below. The exact AVAILABLE
+`js-exception-rate` candidate is represented separately:
+
+~~~js
+{
+  queryId: "js-exception-rate",
+  queryHash: lowercaseSha256,
+  p75Pairing: null,
+  metricId: "js-exception-rate",
+  status: "AVAILABLE",
+  capturedAt: "2026-08-26T00:05:00.000Z",
+  bucketEndedAt: "2026-08-26T00:00:00.000Z",
+  aggregate: {
+    sampleSize: 200,
+    count: null,
+    rate: 0.20,
+    p75: null,
+  },
+  breakdowns: [],
+  exceptionGroups: [{
+    providerFingerprint: syntheticAlreadyOpaqueProviderFingerprint,
+    sampleSize: 24,
+    count: 24,
+    rate: 0.12,
+  }],
+  providerExceptionFingerprintAttestation: {
+    propertyIdentifier: syntheticSchemaBoundProperty,
+    officialSchemaEvidenceDigest: lowercaseSha256,
+  },
+  limitations: ["NO_REVIEWED_THRESHOLD"],
+}
+~~~
+
+Task 2 is the sole boundary that sees the two aggregate responses. It performs
+the one-to-one coordinate join, discards raw provider shapes, and emits the
+candidate above. Task 1 never sees response rows or companion coordinates and
+does not claim to prove where a numeric sample size came from. It validates
+only the exact p75 attestation: the source literal, two distinct hashes,
+top-level `queryHash` equality to the percentile hash, exact digest-input
+shape, and `digestP75Pair(p75PairDigestInput) === pairDigest`.
+
+The candidate is a strict tagged union:
+
+| Status | `queryHash` | p75 `p75Pairing` | measured payload |
+| --- | --- | --- | --- |
+| `AVAILABLE` | required | required for p75; `null` for non-p75 | required |
+| `NOT_INSTRUMENTED` | `null` | `null` | absent |
+| `UNAVAILABLE` | required | `null` | absent |
+| pre-query `BLOCKED` with no complete query | `null` | `null` | absent |
+| post-build/query `BLOCKED` | required | `null` | absent |
+
+`queryHash: null` is therefore legal only for `NOT_INSTRUMENTED` or a
+pre-query `BLOCKED` candidate for which no complete structured query existed.
+Once a complete primary query existed, its hash is retained for every status,
+including UNAVAILABLE response/pair failures and post-query BLOCKED results.
+An unsupported, missing, invalid, mismatched, or ambiguous p75 companion is
+emitted by Task 2 as UNAVAILABLE with the completed percentile query hash and
+`p75Pairing: null`. Task 1 rejects a candidate that contradicts this union; it
+does not repair or reclassify it.
+
+Exactly one of `count`, `rate`, or `p75` is non-null for an AVAILABLE aggregate
+or breakdown. `publicValueAllowlists` is an exact plain object whose optional
+keys are the five dimension IDs and whose present values are sorted, unique,
+non-empty arrays of reviewed strings. A present dimension key selects
+`public_value` mode: every value for that dimension must exactly match its
+allowlist or normalization rejects the candidate. It never silently falls back
+to random-ID mode. An omitted dimension key selects
+`catalog_local_random_id` mode regardless of whether its value resembles a
+public value elsewhere.
+
+`buildTelemetryCatalog` owns one private `Map` for the whole invocation and
+passes only a `randomIdForValue(rawValue)` closure to
+`normalizeAggregateMetric`. The closure calls injected `randomUUID()` once per
+distinct exact raw string across every metric and dimension, reuses the same
+`napp-telemetry-bucket-` ID for repeats catalog-wide, and never returns the map
+or raw value. Distinct values receive distinct IDs; a malformed UUID or
+collision rejects the catalog rather than silently retrying. The map is
+cleared in a `finally` block after normalized records have been constructed;
+it is never
+logged, persisted, included in a digest, or retained at module scope. A direct
+normalizer caller must inject the same closure contract; it cannot inject a
+finished ID or map.
+
+Exception groups persist only on `js-exception-rate` when Task 2 emitted the
+exact structural `providerExceptionFingerprintAttestation`; Task 1 checks
+shape only and does not claim schema freshness or binding. Every candidate
+requires both keys; a non-js candidate requires the exact empty/null pair and
+rejects non-empty/non-null exception evidence. Without the attestation, the
+normalizer discards groups and retains only total exception count/rate.
+For the dedicated auxiliary query, `sampleSize` and `count` are both the
+fingerprint-group aggregate count used for the privacy floor; `rate` may be
+derived only against the matching primary eligible-session denominator. Thus a
+group with fewer than 20 occurrences is omitted even when the overall eligible
+session population is larger.
+Statuses other than AVAILABLE carry no aggregate, breakdown, or exception
+values and require the same empty/null candidate pair. If an
+AVAILABLE overall sample is below 20, Task 1 emits SUPPRESSED and
+omits all numeric/identity fields except `suppressedCohortCount`. A p75
+SUPPRESSED record retains the already valid structural `p75Pairing`; it does
+not retain the percentile or cohort identity.
+
+The normalized p75 output has this exact durable shape:
+
+~~~js
+{
+  queryId: "web-vitals-lcp-p75",
+  queryHash: lowercaseSha256,
+  p75Pairing: {
+    p75PairDigestInput: {
+      metricId: "web-vitals-lcp-p75",
+      dimensions: ["browser"],
+      percentile: { role: "p75_value", queryHash: lowercaseSha256 },
+      sampleCount: { role: "sample_count", queryHash: differentLowercaseSha256 },
+    },
+    pairDigest: lowercaseSha256,
+    sampleSizeSource: "independent_total_count",
+  },
+  metricId: "web-vitals-lcp-p75",
+  status: "AVAILABLE" | "NOT_INSTRUMENTED" | "UNAVAILABLE" | "BLOCKED" | "SUPPRESSED",
+  bucketEndedAt: "2026-08-26T00:00:00.000Z" | null,
+  aggregate: {
+    sampleSize: 200,
+    count: null,
+    rate: null,
+    p75: 2100.5,
+  } | null,
+  breakdowns: [{
+    dimension: "browser",
+    publicValue: "Synthetic Browser" | null,
+    catalogLocalId: null | "napp-telemetry-bucket-" + randomUuid,
+    sampleSize: 100,
+    count: null,
+    rate: null,
+    p75: 2050.25,
+  }],
+  suppressedCohortCount: 0,
+  limitations: ["NO_REVIEWED_THRESHOLD"],
+}
+~~~
+
+For p75, AVAILABLE requires non-null `p75Pairing`; SUPPRESSED after a valid
+pair retains that object; UNAVAILABLE, BLOCKED, and NOT_INSTRUMENTED require
+`p75Pairing: null`. Every non-p75 record also requires `p75Pairing: null`.
+Non-AVAILABLE records set `bucketEndedAt` and `aggregate` to `null`,
+`breakdowns` and `exceptionGroups` to `[]`, and keep measured numeric fields
+absent. Every durable record contains `exceptionGroups`; it must be empty for
+non-`js-exception-rate` metrics. The provider attestation is candidate-only
+validation evidence and is absent from every durable record. The `queryHash`
+nullability matrix remains identical to the candidate matrix above.
+
+`buildTelemetryCatalog` returns exactly this wrapper and no other top-level
+keys:
+
+~~~js
+{
+  schemaVersion: 1,
+  provider: "posthog",
+  accessLockDigest: lowercaseSha256,
+  capturedAt: "2026-08-26T00:05:00.000Z",
+  metrics: [exactNormalizedMetricRecordsSortedByMetricId],
+  catalogDigest: lowercaseSha256,
+}
+~~~
+
+It validates that every candidate `capturedAt` equals the wrapper
+`capturedAt`, normalizes candidates in canonical metric-ID order, and computes
+`catalogDigest = digestJson({ schemaVersion, provider, accessLockDigest,
+capturedAt, metrics })`. The digest excludes only its own `catalogDigest`
+field: it includes `capturedAt` and every other wrapper/metric field. Catalog
+validation rejects missing/extra keys, wrong provider/version, reordered or
+duplicate metrics, malformed access-lock digest/time, and any digest mismatch.
+
+The private access lock has this exact credential-free effective-scope schema:
+
+~~~js
+{
+  version: 1,
+  provider: "posthog",
+  host: observedScope.host,
+  organizationName: observedScope.organizationName,
+  projectName: observedScope.projectName,
+  targetProjectResourceId: observedScope.targetProjectResourceId,
+  queryEndpointPath: observedScope.queryEndpointPath,
+  displayedRole: observedScope.displayedRole,
+  effectiveCapabilities: {
+    inventory: {
+      preflightId: "napp-posthog-preflight-" + randomUuid,
+      observedAt: "ISO timestamp",
+      evidenceDigest: lowercaseSha256,
+      visibleCapabilitiesComplete: true | false,
+    },
+    organizationMembershipLevel: "none" | "member" | "admin" | "owner" | "unknown",
+    accessibleProjects: [{
+      resourceId: observedProject.resourceId,
+      name: observedProject.name,
+      defaultVisibility: "private" | "organization" | "public" | "unknown",
+      resourceLevel: "none" | "view" | "edit" | "admin" | "unknown",
+    }],
+    targetProjectResourceLevels: {
+      project: "none" | "view" | "edit" | "admin" | "unknown",
+      query: "none" | "view" | "edit" | "admin" | "unknown",
+      persons: "none" | "view" | "edit" | "admin" | "unknown",
+      replay: "none" | "view" | "edit" | "admin" | "unknown",
+      rawEvents: "none" | "view" | "edit" | "admin" | "unknown",
+    },
+    memberManagement: {
+      inviteMembers: "allowed" | "denied" | "unknown",
+      changeRoles: "allowed" | "denied" | "unknown",
+      removeMembers: "allowed" | "denied" | "unknown",
+    },
+    query: {
+      aggregateStructuredRead: "allowed" | "denied" | "unknown",
+      scopedQueryCredential: "available" | "missing" | "unknown",
+    },
+    sensitiveRead: {
+      persons: "allowed" | "denied" | "unknown",
+      replay: "allowed" | "denied" | "unknown",
+      rawEvents: "allowed" | "denied" | "unknown",
+      exports: "allowed" | "denied" | "unknown",
+    },
+    writes: {
+      projectSettings: "allowed" | "denied" | "unknown",
+      instrumentation: "allowed" | "denied" | "unknown",
+      featureFlags: "allowed" | "denied" | "unknown",
+      cohorts: "allowed" | "denied" | "unknown",
+      dashboards: "allowed" | "denied" | "unknown",
+      retention: "allowed" | "denied" | "unknown",
+      annotations: "allowed" | "denied" | "unknown",
+      projectData: "allowed" | "denied" | "unknown",
+      members: "allowed" | "denied" | "unknown",
+    },
+    additionalVisibleCapabilities: [{
+      providerCapability: observedCapability.name,
+      effect: "read" | "write" | "manage",
+      access: "allowed" | "denied" | "unknown",
+    }],
+  },
+  leastPrivilegeProven: true | false,
+  broaderMembershipConfirmed: true | false,
+  acceptedAt: "ISO timestamp",
+  approvedWindow: {
+    startAt: "canonical UTC midnight timestamp",
+    endAt: "canonical UTC midnight timestamp exactly 24 hours later",
+    interval: "day",
+    windowDigest: lowercaseSha256,
+    schemaObservationId: exactSchemaFactsPreflightId,
+    schemaFactsDigest: exactSchemaFactsDigest,
+  },
+  approvedQueryHashes: {
+    "telemetry-freshness": {
+      primary: lowercaseSha256,
+      sampleCount: null,
+      pairDigest: null,
+      auxiliary: null,
+      windowDigest: exactApprovedWindowDigest,
+    },
+    "js-exception-rate": {
+      primary: lowercaseSha256,
+      sampleCount: null,
+      pairDigest: null,
+      auxiliary: { exceptionFingerprint: lowercaseSha256 } | null,
+      windowDigest: exactApprovedWindowDigest,
+    },
+    "web-vitals-lcp-p75": {
+      primary: lowercaseSha256,
+      sampleCount: lowercaseSha256,
+      pairDigest: lowercaseSha256,
+      auxiliary: null,
+      windowDigest: exactApprovedWindowDigest,
+    },
+  },
+}
+~~~
+
+`host` is one canonical HTTPS origin from the freshly reviewed exact allowlist;
+`queryEndpointPath` is exactly
+`/api/projects/{targetProjectResourceId}/query/`, with no redirect, template,
+query string, or caller override. `approvedWindow` is the exact frozen adapter
+window plus `windowDigest = digestJson({ startAt, endAt, interval })`; it also
+binds the fresh schema observation. A different window, observation, or digest
+invalidates every hash and requires a new preflight. The map cannot be approved
+with a null/partial window.
+
+`approvedQueryHashes` contains only executable metrics whose complete request
+shape has been reviewed. Non-p75 entries require `sampleCount: null` and
+`pairDigest: null`; an executable p75 entry requires three non-null approved
+digests. `auxiliary` is null except for the optional fully built exception-
+fingerprint query on `js-exception-rate`; it can never authorize a generic
+query. Every record's `windowDigest` equals `approvedWindow.windowDigest`.
+NOT_INSTRUMENTED and pre-query BLOCKED metrics have no key. When a
+p75 percentile query was completed but its exact companion was unsupported or
+invalid, the private structured-query catalog retains the primary hash and
+UNAVAILABLE status, but no partial access-lock entry authorizes transport. The
+adapter rejects scalar legacy values, partial executable p75 entries, a reused
+hash across roles, and any pair digest that does not recompute through the
+shared helper.
+
+`displayedRole`, organization membership labels, project visibility, and
+resource-level enum labels are bounded read-back information only and never
+authorize a query. `unknown` is not equivalent to denied. Authorization uses
+every explicit capability cell: the inventory must be complete; aggregate
+structured query and scoped credential must be allowed/available; every
+management, sensitive-read, write, additional capability, accessible project,
+and target-resource cell must be explicit rather than unknown; and either
+least privilege is proven or the exact broader matrix was action-time
+confirmed. Least privilege is proven only when all accessible
+projects/resource levels are enumerated, invite/member management and every
+write/sensitive-read capability are denied, the visible capability inventory
+is complete, every additional visible capability is enumerated, and aggregate
+structured query is the only allowed target capability. A broader exact matrix
+may be accepted only after the user confirms that precise consequence; an
+unknown or incomplete matrix cannot.
+`accessibleProjects` is sorted by unique exact resource ID and contains the
+target resource exactly once; `additionalVisibleCapabilities` is sorted by
+unique capability/effect and cannot omit an observed cell.
+`effectiveCapabilities.inventory.preflightId` is a canonical injected UUID and
+must equal `schemaFacts.observation.preflightId` and
+`approvedWindow.schemaObservationId`; this binds capability read-back, schema
+inspection, manifest, and query approvals to one baseline preflight.
+The exact target project resource and endpoint path are allowed private scope
+metadata. No event/person/session/device identifier is written.
+
+### Task 1: Build Pure Aggregate Schema and Privacy Normalization
+
+**Files:**
+- Create: `tools/nuanu-app-graph/telemetry-contract.mjs`
+- Create: `tools/nuanu-app-graph/telemetry.mjs`
+- Create: `tests/nuanu-app-graph/telemetry.test.mjs`
+- Create: `tests/nuanu-app-graph/fixtures/posthog/aggregate-safe.json`
+- Create: `tests/nuanu-app-graph/fixtures/posthog/aggregate-forbidden.json`
+
+**Interfaces:**
+- Consumes: already joined in-memory candidates using the exact locked shape,
+  structural upstream attestations, a catalog-wide public-value allowlist map,
+  injected UUID source, access-lock digest, and fixed capture time; no raw
+  provider response, browser, network, account, graph, schema-facts, manifest,
+  or Flow dependency.
+- Produces: shared canonical p75 digest helpers, strict privacy-normalized
+  metric records, and the exact aggregate catalog wrapper/digest.
+
+- [ ] **Step 1: Write failing normalization tests**
+
+Create tests with these exact titles:
+
+~~~js
+test("normalizes one aggregate into count rate or p75 only", () => {});
+test("canonical p75 pair digest uses the one exact nested role object", () => {});
+test("accepts only structural p75 source hashes roles and recomputed pair digest", () => {});
+test("rejects equal p75 role hashes malformed digest input and a wrong pair digest", () => {});
+test("requires queryHash for available unavailable and post-query blocked candidates", () => {});
+test("allows null queryHash only for not instrumented and pre-query blocked candidates", () => {});
+test("enforces the exact p75 pairing status union and null for every non-p75 metric", () => {});
+test("suppressed p75 retains valid pairing but no percentile or cohort identity", () => {});
+test("persists an exact allowlisted public categorical value only after twenty samples", () => {});
+test("rejects a public-mode value outside its allowlist without randomizing it", () => {});
+test("uses random-ID mode only when the dimension is omitted from public allowlists", () => {});
+test("reuses one random ID per distinct raw value across the whole catalog", () => {});
+test("uses distinct IDs for distinct values and a fresh private memo per catalog", () => {});
+test("rejects a random UUID collision between distinct raw values", () => {});
+test("returns no raw-value reverse map from normalization or catalog build", () => {});
+test("never derives a cohort identity from an unkeyed hash", () => {});
+test("suppresses an overall sample below twenty", () => {});
+test("drops cohorts below twenty and increments only the suppression count", () => {});
+test("treats provider fingerprint evidence as a structural attestation only", () => {});
+test("drops exception groups without a structural attestation and keeps totals", () => {});
+test("requires the empty/null exception pair and rejects non-empty/non-null evidence on every non-js metric", () => {});
+test("rejects raw event person replay and export shaped fields", () => {});
+test("rejects URL query identifier IP GPS contact and search fields", () => {});
+test("rejects exception detail code variables headers and bodies", () => {});
+test("rejects unknown fields prototypes accessors symbols and sparse arrays", () => {});
+test("rejects unknown metric status dimension limitation and malformed numbers", () => {});
+test("catalog wrapper has the exact six fields and sorted unique metrics", () => {});
+test("catalog digest excludes only itself and includes capturedAt and accessLockDigest", () => {});
+test("catalog ordering and digest are deterministic for fixed injected inputs", () => {});
+test("unavailable metrics retain status without invented zero values", () => {});
+~~~
+
+The safe fixture contains only synthetic aggregate counts/rates/p75 values,
+structural p75 pair attestation, reviewed public categorical
+browser/OS/device/PWA/release labels, a synthetic non-public candidate value,
+one synthetic provider fingerprint attestation attached only to an exact
+`js-exception-rate` candidate, and p75 bucket timestamps equal to the fixture's
+canonical approved window end. The test injects UUIDs;
+the fixture never supplies a finished catalog-local ID or reverse map. Its
+schema digest is intentionally structural and makes no freshness/binding
+claim. The forbidden
+fixture enumerates keys representing raw events, persons, recordings, exports,
+URLs, query values, direct IDs, IP, latitude/longitude, email, phone, search
+text, exception message, stack, source variables, request headers, and bodies.
+It contains no live product value.
+
+- [ ] **Step 2: Verify red**
+
+~~~bash
+node --test tests/nuanu-app-graph/telemetry.test.mjs
+~~~
+
+Expected: module resolution fails because the Task 1 modules do not exist.
+
+- [ ] **Step 3: Implement strict allowlist validation**
+
+Implement the constants and shared digest functions in
+`telemetry-contract.mjs`; Task 1 must not import a Task 2 module. Accept only
+the exact candidate keys from Locked Interfaces. Metric IDs are the nine
+values in `TELEMETRY_METRIC_IDS`. Statuses are AVAILABLE,
+NOT_INSTRUMENTED, UNAVAILABLE, and BLOCKED. Dimensions are browser, os,
+device, pwa_mode, and release. Limitations are exact stable codes:
+
+~~~text
+NO_REVIEWED_THRESHOLD
+FIELD_NOT_PROVEN
+EVENT_NOT_PROVEN
+QUERY_UNAVAILABLE
+ACCESS_BLOCKED
+CAPABILITY_MATRIX_BLOCKED
+APP_HOST_SCOPE_BLOCKED
+SCOPED_TRANSPORT_BLOCKED
+STRUCTURED_QUERY_BLOCKED
+P75_COUNT_COMPANION_UNAVAILABLE
+P75_COUNT_PAIR_MISMATCH
+P75_COUNT_PAIR_AMBIGUOUS
+HTTP_AUTH_BLOCKED
+HTTP_RATE_LIMIT_BLOCKED
+HTTP_PROVIDER_BLOCKED
+LOW_SAMPLE_SUPPRESSED
+FRESHNESS_UNKNOWN
+~~~
+
+Require UTC ISO timestamps, finite non-negative counts/p75 values, rates from
+0 through 1, non-negative safe-integer sample sizes, and exactly one non-null
+aggregate value. Reject `NaN`, infinities, negative zero, extra/missing keys,
+non-plain/prototype-bearing objects, accessors, symbols, sparse arrays, and
+unsupported strings before hashing or persistence.
+
+Enforce the locked status/`queryHash`/payload union exactly. For p75 AVAILABLE,
+validate only the structural `p75Pairing`: exact source literal, canonical
+digest input, distinct hashes, primary-hash equality, and pair digest through
+the shared helper. Task 1 has no raw companion result and never compares a
+sample size with provider rows or converts raw mismatch/ambiguity into a
+status. It accepts Task 2's UNAVAILABLE p75 only with a retained primary hash,
+`p75Pairing: null`, and no measured payload. The exception-fingerprint
+attestation likewise receives exact-shape/digest-format validation only;
+freshness, schema binding, and opacity proof belong exclusively to Task 2.
+Require both `exceptionGroups` and
+`providerExceptionFingerprintAttestation` on every candidate. Whenever
+`metricId` is not exactly `js-exception-rate`, require the exact empty/null
+pair, including for all three Web Vitals; reject non-empty/non-null
+cross-metric exception evidence rather than silently dropping it.
+
+- [ ] **Step 4: Implement cohort privacy without reversible hashing**
+
+Validate `publicValueAllowlists` as the exact optional-dimension map from
+Locked Interfaces. A present dimension key is public mode and requires an
+exact value match; mismatch rejects rather than randomizes. An omitted key is
+random-ID mode. `buildTelemetryCatalog` sorts candidates first, creates one
+private memo, injects its `randomIdForValue` closure into every normalizer call,
+uses one UUID per distinct exact raw value catalog-wide, and clears the memo in
+`finally`. Reject a malformed UUID or collision that would assign one ID to two
+different values; do not retry silently. Do not derive or compare an unkeyed
+hash of the value.
+
+For JavaScript exceptions, Task 1 may persist an existing provider fingerprint
+only when the candidate has the exact structural attestation and the group
+passes the same 20-observation floor. Without it, discard all exception groups
+and retain only total exception count/rate. Do not claim Task 1 proved the
+manifest binding, evidence freshness, or provider opacity.
+
+For each sample below 20, omit the whole aggregate/cohort identity and numeric
+payload, increment `suppressedCohortCount`, and add
+`LOW_SAMPLE_SUPPRESSED`. Sort remaining public breakdowns by dimension/value,
+random buckets by catalog-local ID, exception groups by provider fingerprint,
+and metrics by metric ID. Return only the locked six-field catalog wrapper.
+Hash its canonical content for integrity, excluding only `catalogDigest` and
+including the timestamp; that digest is not described as anonymization. Do not
+infer zeros or event names. For p75, evaluate the floor against Task 2's joined
+candidate sample size and suppress the percentile before
+public-value/random-ID handling while retaining valid pairing metadata.
+
+- [ ] **Step 5: Verify pure tests and privacy scan**
+
+~~~bash
+node --test tests/nuanu-app-graph/telemetry.test.mjs
+rg -n 'rawEvents|persons|sessionReplay|exactUrl|queryValue|distinctId|ipAddress|latitude|longitude|email|phone|searchText|exceptionMessage|stackTrace|codeVariables|requestHeaders|responseBody|fingerprintCohort' tools/nuanu-app-graph/telemetry.mjs tests/nuanu-app-graph/fixtures/posthog
+~~~
+
+Expected: all tests pass. The search matches only explicit rejection lists and
+negative fixtures, never a normalized output fixture.
+
+- [ ] **Step 6: Commit Task 1**
+
+~~~bash
+git add tools/nuanu-app-graph/telemetry-contract.mjs tools/nuanu-app-graph/telemetry.mjs tests/nuanu-app-graph/telemetry.test.mjs tests/nuanu-app-graph/fixtures/posthog/aggregate-safe.json tests/nuanu-app-graph/fixtures/posthog/aggregate-forbidden.json
+git diff --cached --check
+git commit -m "feat: normalize Nuanu App aggregate telemetry"
+~~~
+
+### Task 2: Add Code-Owned Structured Queries and Exact Production Transport
+
+**Files:**
+- Create: `tools/nuanu-app-graph/posthog-query-builders.mjs`
+- Create: `tools/nuanu-app-graph/posthog-read.mjs`
+- Create: `tests/nuanu-app-graph/posthog-query-builders.test.mjs`
+- Create: `tests/nuanu-app-graph/posthog-read.test.mjs`
+- Create: `tests/nuanu-app-graph/fixtures/posthog/access-lock.synthetic.json`
+- Create: `tests/nuanu-app-graph/fixtures/posthog/schema-facts.synthetic.json`
+- Create: `tests/nuanu-app-graph/fixtures/posthog/query-manifest.synthetic.json`
+
+**Interfaces:**
+- Consumes: Task 1 telemetry constants/shared p75 digest helper, synthetic
+  access lock/capability matrix, schema facts, body-free
+  identifier manifest, caller-supplied exact immutable 24-hour UTC `window`,
+  injected host-secret POST provider, and freshness clock. It consumes no
+  credential value, generic URL/query input, or implicit current-time window.
+- Produces: recursively validated structured queries and p75/count query pairs,
+  a validated `publicValueAllowlists` map, `readMetric({ queryId })`,
+  `readAvailableMetrics()`, and exact pre-normalization Task 1 candidates. Task
+  2 alone validates schema/manifest freshness and same-preflight identity,
+  joins provider coordinates, and converts the bounded envelope to candidates.
+
+- [ ] **Step 1: Write failing builder security tests**
+
+~~~js
+test("builds only TrendsQuery FunnelsQuery and nested EventsNode", () => {});
+test("accepts only a canonical UTC-midnight exact 24-hour day window", () => {});
+test("defensively freezes the window and never derives one from now", () => {});
+test("query hashes change when the validated window changes", () => {});
+test("maps all nine query IDs to exact builder IDs series arity order and sample origin", () => {});
+test("injects exact app.nuanu.com equality scope into every generated query", () => {});
+test("rejects HogQLQuery before the injected client is called", () => {});
+test("rejects SQL HogQL text and math hogql before the client is called", () => {});
+test("rejects raw event table columns select source and join fields", () => {});
+test("rejects persons replay recordings warehouse and raw event query nodes", () => {});
+test("rejects URL person and session properties in bindings and generated queries", () => {});
+test("rejects every unknown root or nested query field", () => {});
+test("rejects a missing duplicate or non-exact host predicate", () => {});
+test("builds every p75 with an independent total-count companion", () => {});
+test("p75 pair has identical window host event filters and breakdown", () => {});
+test("p75 pair uses the shared canonical digest input and helper", () => {});
+test("rejects missing extra reversed or mismatched p75 pair fields before client use", () => {});
+test("builder validators are structural and accept only binding query and window", () => {});
+~~~
+
+These are pure tests with no client. Bindings use synthetic identifiers; the
+builder does not claim they are fresh or live. It validates only exact closed
+binding/query/window structure and the code-owned map.
+
+- [ ] **Step 2: Write failing access and transport tests**
+
+~~~js
+test("rejects an incomplete or unknown effective capability matrix", async () => {});
+test("never infers capability from displayed role or a readOnly boolean", async () => {});
+test("accepts only exact organization visibility resource and capability enums", async () => {});
+test("requires exact host project resource and query endpoint path", async () => {});
+test("requires every schema fact status including all nine metric IDs", async () => {});
+test("rejects stale future digest-mismatched or mixed-preflight schema facts", async () => {});
+test("proves schema freshness in the read layer rather than the builder", async () => {});
+test("rejects AVAILABLE p75 when its value aggregation or population proof is absent", async () => {});
+test("manifest omits NOT_INSTRUMENTED and contains every AVAILABLE or UNAVAILABLE ID", async () => {});
+test("rejects empty partial reordered or status-bearing executable bindings", async () => {});
+test("derives public mode only from an exact reviewed dimension allowlist", async () => {});
+test("rejects conflicting public allowlists instead of changing persistence mode", async () => {});
+test("omits a null-allowlist dimension from public mode for random-ID normalization", async () => {});
+test("a private manifest cannot contain request body query columns status or window", async () => {});
+test("requires the exact immutable approved window and window-dependent hashes", async () => {});
+test("blocks an approved future window without deriving a replacement", async () => {});
+test("accepts only POST through the injected host-secret provider", async () => {});
+test("rejects every forbidden structured query fixture before the provider call", async () => {});
+test("rejects caller URL path project headers credential and body fields", async () => {});
+test("rebuilds validates and hashes the structured query before transport", async () => {});
+test("rejects a complete query hash absent from the approved allowlist", async () => {});
+test("validates both p75 queries and pair digest before the first POST", async () => {});
+test("pairs p75 and total count by metric bucket and dimensions not response order", async () => {});
+test("emits P75_COUNT_PAIR_MISMATCH for missing extra or mismatched full join keys", async () => {});
+test("allows duplicate coordinates structurally only in p75 primary and count envelopes", async () => {});
+test("response fields cannot opt a non-p75 or auxiliary envelope into p75 duplicate allowance", async () => {});
+test("emits P75_COUNT_PAIR_AMBIGUOUS after duplicate p75 full join keys pass envelope validation", async () => {});
+test("maps duplicate non-p75 primary coordinates to HTTP_PROVIDER_BLOCKED with zero candidate", async () => {});
+test("duplicate exception auxiliary coordinates discard primary and auxiliary with zero candidate", async () => {});
+test("p75 candidate bucketEndedAt equals the exact canonical window end", async () => {});
+test("never infers p75 sample size from rows buckets quantile shape or metadata", async () => {});
+test("emits an exact joined p75 candidate with no raw provider coordinates", async () => {});
+test("emits unavailable with primary queryHash and null pairing on invalid count join", async () => {});
+test("discards both p75 responses when either companion request fails", async () => {});
+test("unsupported p75 count companion retains primary queryHash and makes no provider call", async () => {});
+test("emits null queryHash only before a complete query exists", async () => {});
+test("retains queryHash for unavailable and post-query blocked candidates", async () => {});
+test("uses exact count denominator and first-step origins for every non-p75 metric", async () => {});
+test("rejects reordered missing extra zero or impossible non-p75 populations", async () => {});
+test("exception fingerprint query is exclusive with a normal breakdown", async () => {});
+test("emits safe fingerprint aggregates only after fresh proven-opaque schema agreement", async () => {});
+test("retains aggregate exceptions but emits FIELD_NOT_PROVEN when proof is absent", async () => {});
+test("normalizes and discards the success response before returning", async () => {});
+test("maps 401 403 429 and 5xx to BLOCKED without retaining response data", async () => {});
+test("maps malformed envelope shape types bounds redirect status and forbidden duplicates to HTTP_PROVIDER_BLOCKED", async () => {});
+test("rejects unknown envelope fields raw rows and invalid coordinate types or bounds", async () => {});
+test("browser invite session is never accepted as query authentication", async () => {});
+test("missing scoped query credential or connector blocks only telemetry", async () => {});
+test("records NOT_INSTRUMENTED without invoking the secret provider", async () => {});
+~~~
+
+The fake authorized provider records only exact host, exact path, request hash,
+window digest, and whether POST was used. It has no authentication-value field.
+All hosts, projects, capabilities, identifiers, schema observations, windows,
+envelopes, and aggregate results are synthetic. Every validation rejection
+asserts zero injected-provider calls; no test opens a network connection.
+
+- [ ] **Step 3: Verify red**
+
+~~~bash
+node --test tests/nuanu-app-graph/posthog-query-builders.test.mjs tests/nuanu-app-graph/posthog-read.test.mjs
+~~~
+
+Expected: module resolution fails because the two implementation modules do
+not exist.
+
+- [ ] **Step 4: Implement immutable builders and recursive validation**
+
+Implement the exact node/field/aggregation/operator allowlists from Locked
+Interfaces as frozen constants. Each logical query ID maps in code to exactly
+one versioned builder, exact ordered role list, series arity, durable value,
+and sample-size origin from the table. Builder inputs are only an exact
+structural binding and `validateAndFreezePostHogWindow(window)` result;
+identifier strings are inserted as structured scalar values, never
+concatenated into text. Accept only the exact UTC-midnight 24-hour day window,
+freeze a defensive copy, render it into every query, and never import/sample a
+clock. Changing the window must change every complete query hash.
+
+Validate the full object recursively before hashing. Reject all forbidden
+nodes/fields from Step 1, prototype-bearing objects, accessors, symbols,
+non-finite values, duplicate properties, and any identifier outside the exact
+binding. Require exactly one global event-property
+predicate with `operator: "exact"` and `value: "app.nuanu.com"`. There is no
+text-query fallback. Future HogQL rejects before transport and uses the existing
+candidate limitation `STRUCTURED_QUERY_BLOCKED` pending a reviewed AST allowlist.
+The builder module never imports or receives access locks, schema facts,
+manifests, freshness time, or provider evidence. Fresh schema matching is the
+read layer's later responsibility, so validation is non-circular.
+
+Implement the exact route-attempt/success and eligible-session/exception
+ordered two-series rate builders. Implement the exact two-/three-/two-step
+funnel builders with a 24-hour funnel window. The binding supplies identifiers
+only; it cannot rename roles, change arity/order/math, choose a numerator or
+denominator, or change the funnel window.
+
+Import `createP75PairDigestInput` and `digestP75Pair` from Task 1; do not define
+a local digest projection or algorithm. For each p75 metric, first build and
+hash the complete primary percentile query, then derive the count companion
+from the same binding/window. Allow only the exact `math: "total"`/no-value-
+aggregation difference. Prove the event population, host predicate, filters,
+interval, date range, and breakdown are otherwise identical. Hash both queries,
+build the one canonical nested-role object, and compute `pairDigest` through
+the shared helper.
+
+If the primary cannot be completed, emit pre-query BLOCKED with a null hash.
+If the primary exists but the official structured schema cannot express/prove
+the exact companion, emit UNAVAILABLE with the primary hash, null pairing, and
+no provider call. Never emit UNAVAILABLE with `queryHash: null`.
+
+- [ ] **Step 5: Implement body-free manifest and capability validation**
+
+Require the exact schema-facts, manifest, and access-lock schemas from Locked
+Interfaces. Validate schema facts first: all nine metric statuses and five
+dimension statuses in exact order, the one observation identity, recomputed
+digest, target project/capability-evidence binding, and at most 30-minute age
+against one sampled `now`. Then require the same preflight ID/digest in the
+manifest and approved window. Reject unknown keys, future/stale/mixed evidence,
+duplicate/unknown logical IDs, unsupported builder IDs,
+body/query/request/columns/status/window fields in the manifest, target-host
+mismatch, and any binding absent from or unequal to its corresponding non-
+NOT_INSTRUMENTED schema fact.
+The manifest binding set must equal the AVAILABLE-or-UNAVAILABLE set exactly.
+An UNAVAILABLE p75 may contain only its complete primary binding and is never
+authorized or transported. A NOT_INSTRUMENTED metric exists only in schema
+facts, has no manifest entry, and
+never invokes transport; empty/partial executable bindings are invalid.
+Require `p75SampleCountCompanion` plus exact population-semantics evidence for
+the three p75 bindings, reject it for non-p75 bindings, and reject any attempt
+to provide companion event/filter/window/dimension/query fields.
+
+Validate every breakdown allowlist against fresh schema facts. Derive one
+catalog-wide `publicValueAllowlists` map: a present dimension key is public
+mode and requires identical reviewed values in every declaration; a
+null-allowlist dimension is omitted and becomes random-ID mode in Task 1.
+Reject conflicts, empty/unsorted/duplicate values, and any separate persistence
+flag. Validate the exception-fingerprint property and evidence digest against
+the same current schema observation. Its dedicated code-owned auxiliary query
+is allowed only on `js-exception-rate`, only when `PROVEN_OPAQUE`, and only
+when ordinary breakdown is null; reject any property collision/reuse. With
+`FIELD_NOT_PROVEN`, produce no query/hash/group/attestation and retain the
+primary exception aggregate with that limitation. Only a fully proven result
+copies the exact structural attestation into a candidate. Task 1 performs no
+freshness/binding lookup.
+
+Validate the exact organization-membership, project-visibility,
+project-resource-level, capability-access, and transport enums; every matrix
+field, inventory timestamp/digest, completeness assertion, and sorted unique
+list of additional capabilities is mandatory. `unknown` or an incomplete
+inventory cannot authorize. Displayed role, membership/resource labels, and
+any legacy `readOnly` field are informational and cannot authorize a query.
+Authorization requires explicit aggregate structured read, a separately
+available scoped-query transport, every capability cell complete, and either
+least privilege or exact broader-membership confirmation. Sensitive/browser
+membership capabilities are recorded but never exercised.
+
+- [ ] **Step 6: Implement the exact secret-provider-backed transport**
+
+`createExactPostHogTransport` accepts the exact immutable `window` and an
+injected action-time `now` clock; the read
+layer validates the lock, body-free manifest, and fresh schema facts before it
+constructs exactly one HTTPS destination from the lock and
+requires the exact path
+`/api/projects/{targetProjectResourceId}/query/`. It exposes only
+`postStructuredQuery({ queryId, queryHash, query, window })` and
+`postStructuredP75Pair({ metricId, pair, window })`. It requires the exact
+approved window and window digest. Every public transport call samples its
+clock once and revalidates the closed schema/capability/manifest evidence
+against the 30-minute limit before any provider call; stale or invalid evidence
+returns `ACCESS_BLOCKED` and performs zero POSTs. The pair method validates both queries,
+both approved role hashes, and the approved pair digest before the first
+provider call, then delegates exactly two POSTs to
+`authorizedPostProvider.postJsonWithHostSecret`.
+The provider is a preconfigured macOS Keychain/CI secret-store broker and
+injects the scoped credential internally. No adapter parameter, environment
+example, CLI option, log, artifact, or chat field carries its value.
+
+Accept only the exact bounded provider envelope from Locked Interfaces. Reject
+redirects, unlisted statuses, project/path drift, caller-supplied headers,
+generic fetch, unknown fields, over-limit coordinates, wrong series
+arity/order, any raw rows/persons/replays/events, and duplicate full coordinates
+for every non-p75 primary or exception auxiliary request. Such a forbidden
+duplicate is a malformed 200, maps exactly to `HTTP_PROVIDER_BLOCKED`, and
+emits zero candidates; an auxiliary failure also discards its primary and may
+not fall back to `FIELD_NOT_PROVEN`. Do not add a limitation code. Normalize a
+valid aggregate response immediately, then release the raw object. For p75,
+buffer both aggregate responses only in memory, join by immutable metric ID,
+completed bucket, ordered dimension IDs, and exact breakdown coordinate, and
+require one count per percentile. Reject position-based joins. After envelope
+validation—which alone permits duplicates for the percentile-primary and
+sample-count envelopes inside this validated pair call—map a duplicate full
+join key or multiple matches to UNAVAILABLE /
+`P75_COUNT_PAIR_AMBIGUOUS`; map missing, extra, or mismatched keys to
+UNAVAILABLE / `P75_COUNT_PAIR_MISMATCH`. Neither semantic pairing result is
+`HTTP_PROVIDER_BLOCKED`. Translate 401, 403, 429, and
+every 5xx to stable BLOCKED limitation codes with no response body, headers,
+message, or stack retained. A semantic pair failure is UNAVAILABLE and both
+responses are discarded. This Task 2 join—not Task 1 normalization—is the only
+place that proves sample size came from the independent count response. Task 2
+transport tests are synthetic-only; production envelope compatibility stays
+UNVERIFIED until Task 4 live schema and connector-contract read-back.
+
+- [ ] **Step 7: Implement the closed adapter surface**
+
+`createPostHogReadAdapter` returns only:
+
+~~~js
+{
+  readMetric: async ({ queryId }) => ({ capturedAt, candidate, publicValueAllowlists }),
+  readAvailableMetrics: async () => ({ capturedAt, candidates, publicValueAllowlists }),
+}
+~~~
+
+Construction requires exact `{accessLock, queryManifest, schemaFacts, window,
+transport, now}`. Validate and freeze `window` once; reject any mismatch with
+`approvedWindow`, its digest, or its schema observation, and never derive a
+window from `now`. Reject all read-call keys except `queryId`. Rebuild the code-owned query, recursively
+validate it, compute its canonical complete hash, compare it with
+`accessLock.approvedQueryHashes[queryId].primary` and matching window digest,
+then invoke the exact
+transport once for non-p75 metrics. For p75, rebuild and validate the pair,
+compare the percentile hash, count hash, and pair digest with the three approved
+values, then invoke `postStructuredP75Pair`.
+
+Two status branches occur before approval lookup: a NOT_INSTRUMENTED schema
+fact emits the null-hash candidate without a manifest binding, builder, or
+provider call; a schema-level UNAVAILABLE p75 builds/hashes its complete
+primary binding, verifies that no approved-query entry exists, and emits the
+primary-hash/null-pairing candidate without transport. Every AVAILABLE metric
+must have one exact complete approval record.
+The adapter never receives a URL, path, project, query body, headers, or
+credential. Without the scoped provider/approved connector, return BLOCKED and
+continue core QA. It assigns `sampleSize` only from the paired total result;
+it never reads result length, bucket length, quantile array size, or response
+metadata as a count. A successfully joined count, including one below 20,
+stays in an AVAILABLE in-memory candidate; Task 1 alone applies the privacy
+floor and emits SUPPRESSED. Missing, mismatched, or ambiguous counts become
+UNAVAILABLE before Task 1.
+
+For non-p75 metrics, use only the code-owned series origin: sole total count,
+index-0 rate denominator, or index-0 funnel first step. Verify exact arity/order
+and numerator/population constraints before candidate emission. Require unique
+full coordinates structurally; any duplicate makes the read BLOCKED with
+`HTTP_PROVIDER_BLOCKED` and emits zero candidates. For the optional
+exception-fingerprint query, compare its separate auxiliary hash and window
+digest before the call and apply the same structural uniqueness rule; emit only
+aggregate fingerprint counts and derive any rate against the matching primary
+eligible-session denominator. A duplicate auxiliary coordinate discards both
+responses and emits zero candidates rather than degrading to aggregate-only
+`FIELD_NOT_PROVEN`.
+
+More exactly, the adapter emits AVAILABLE p75 candidates with non-null
+structural pairing only after a successful one-to-one join. Missing, extra,
+or mismatched companion evidence emits UNAVAILABLE with
+`P75_COUNT_PAIR_MISMATCH`; a duplicate full join key or multiple valid matches
+emits UNAVAILABLE with `P75_COUNT_PAIR_AMBIGUOUS`; unsupported companion
+evidence uses `P75_COUNT_COMPANION_UNAVAILABLE`. Each retains the primary
+percentile hash, null pairing, and no measured payload. HTTP failures after a complete query emit BLOCKED with the primary
+hash and null pairing; earlier capability/scope/query-construction blockers may
+emit BLOCKED with a null hash. NOT_INSTRUMENTED is the only other null-hash
+case. Every candidate contains no raw result, row count, coordinate, or reverse
+map before Task 1 receives it.
+
+`readAvailableMetrics()` samples injected `now()` exactly once and assigns that
+same UTC `capturedAt` to every emitted candidate; callers pass the identical
+timestamp into `buildTelemetryCatalog`. `readMetric()` likewise samples once
+for its single candidate. The read layer requires
+`window.endAt <= capturedAt` but never derives or shifts either boundary from
+that clock. A future approved window emits BLOCKED with the already approved
+primary hash and existing `STRUCTURED_QUERY_BLOCKED` limitation, with no
+provider call. `telemetry-freshness.bucketEndedAt` equals the approved window end;
+its non-negative age is report-only with no baseline threshold. Task 1 rejects a catalog build whose candidate times
+do not equal the wrapper time.
+
+- [ ] **Step 8: Verify synthetic-only behavior**
+
+~~~bash
+node --test tests/nuanu-app-graph/posthog-query-builders.test.mjs tests/nuanu-app-graph/posthog-read.test.mjs tests/nuanu-app-graph/telemetry.test.mjs
+git diff --check
+~~~
+
+Expected: no live host, browser, account, secret store, or network is used;
+every rejection test proves zero injected-provider calls.
+
+- [ ] **Step 9: Commit Task 2**
+
+~~~bash
+git add tools/nuanu-app-graph/posthog-query-builders.mjs tools/nuanu-app-graph/posthog-read.mjs tests/nuanu-app-graph/posthog-query-builders.test.mjs tests/nuanu-app-graph/posthog-read.test.mjs tests/nuanu-app-graph/fixtures/posthog/access-lock.synthetic.json tests/nuanu-app-graph/fixtures/posthog/schema-facts.synthetic.json tests/nuanu-app-graph/fixtures/posthog/query-manifest.synthetic.json
+git diff --cached --check
+git commit -m "feat: guard Nuanu App structured telemetry queries"
+~~~
+
+### Task 3: Add Reviewed Telemetry Mappings and Planner Policy
+
+**Files:**
+- Create: `tools/nuanu-app-graph/telemetry-policy.mjs`
+- Create: `tests/nuanu-app-graph/telemetry-policy.test.mjs`
+- Modify: `tools/nuanu-app-graph/cli.mjs` only if the optional reviewed-signal
+  file input is not yet available
+- Modify: `tests/nuanu-app-graph/cli.test.mjs` only with the matching synthetic
+  CLI contract tests
+- Generated private: `docs/local/nuanu-app/telemetry/mappings.v1.json`
+- Generated private: `docs/local/nuanu-app/telemetry/telemetry-signals.json`
+
+**Interfaces:**
+- Consumes: valid Nuanu App graph, exact normalized telemetry catalog, matching
+  credential-free access lock, and reviewed mapping/policy entries.
+- Consumes unchanged: the already migrated Foundation Task 6 planner contract,
+  including distinct sorted `unverified` and add-only `telemetrySignals`; this
+  task does not modify `planner.mjs` or its tests.
+- Produces: exact planner `telemetrySignals`; never a test result, source lock,
+  runtime catalog, deployment identity, finding, outbox entry, or Flow payload.
+
+- [ ] **Step 1: Write failing policy tests**
+
+~~~js
+test("baseline metrics default to observe_only informational signals", () => {});
+test("mapped select targets only existing runtime observed product nodes", () => {});
+test("nullable mapping is represented as mappingId null with empty targets", () => {});
+test("missing instrumentation access and sample dispositions never select", () => {});
+test("missing app.nuanu.com host scope or structured query proof never selects", () => {});
+test("missing scoped transport and blocked HTTP status never selects", () => {});
+test("unavailable p75 with null pairing and primary hash never selects", () => {});
+test("available p75 with invalid structural pairing rejects the catalog", () => {});
+test("a reviewed mapped signal only adds runnable read-only automated tests", () => {});
+test("an elevated unmapped regression expands only the safe fallback", () => {});
+test("deterministic reasons survive alongside telemetry reasons", () => {});
+test("telemetry never promotes blocked unverified manual unsafe or not deployed work", () => {});
+test("telemetry catalog mismatch rejects every signal", () => {});
+test("catalog accessLockDigest must match the exact validated access lock", () => {});
+test("signal IDs and output ordering are deterministic", () => {});
+~~~
+
+- [ ] **Step 2: Verify red**
+
+~~~bash
+node --test tests/nuanu-app-graph/telemetry-policy.test.mjs
+~~~
+
+Expected: module resolution fails because `telemetry-policy.mjs` does not
+exist.
+
+- [ ] **Step 3: Implement exact private mapping validation**
+
+Use this exact schema:
+
+~~~js
+{
+  version: 1,
+  productId: "nuanu-app",
+  catalogDigest: lowercaseSha256,
+  entries: [{
+    mappingId: "napp-telemetry-map-v1:route-health" | null,
+    metricId: "route-health",
+    disposition: "select" | "observe_only" | "suppressed" | "blocked",
+    kind: "observed" | "regression",
+    priority: "informational" | "elevated",
+    targetNodeIds: ["nuanu-app:route:root"],
+    reviewedAt: "ISO timestamp",
+    reviewEvidenceDigest: lowercaseSha256,
+  }],
+}
+~~~
+
+Require the catalog's exact six-field wrapper, recomputed catalog digest,
+`digestJson(accessLock) === catalog.accessLockDigest`, exact product/catalog
+digest, unique mapping IDs, unique metric policy
+entries, sorted unique targets, existing Nuanu App non-source nodes, and
+runtime or source-and-runtime provenance for any `select` target. A nullable
+mapping is JSON `null`, never omission, and requires an empty target list.
+Telemetry catalog statuses BLOCKED, NOT_INSTRUMENTED, UNAVAILABLE, or
+SUPPRESSED force non-selection regardless of a stale requested policy.
+The same is true when the catalog lacks fresh app-host scope evidence, a valid
+structured-query hash, a complete effective capability read-back, or an
+available separately scoped query transport.
+For p75 AVAILABLE, catalog validation requires the exact structural pairing
+union, primary hash equality, two distinct role hashes, and recomputed shared
+pair digest. SUPPRESSED p75 retains valid pairing but cannot select. An
+UNAVAILABLE p75 has a required primary hash and null pairing; Task 3 does not
+reinterpret raw count rows or try to diagnose mismatch/ambiguity already
+resolved by Task 2.
+
+The first baseline mapping policy is always `kind: "observed"`,
+`priority: "informational"`, and `disposition: "observe_only"`. No threshold
+is inferred from the first data window. A future `kind: "regression"` or
+`priority: "elevated"` requires a separate reviewed policy change with a new
+evidence digest.
+
+- [ ] **Step 4: Implement deterministic planner signals**
+
+Build each exact Foundation Task 6 selector. Derive `id` as
+`napp-telemetry-v1-` plus the SHA-256 of canonical product, catalog digest,
+nullable mapping, metric, disposition, kind, priority, and targets. Do not copy
+counts, rates, p75 values, breakdown values/IDs, provider exception
+fingerprints, generated structured queries, or schema names into the signal.
+
+Run `buildTestPlan` with and without signals and prove:
+
+1. deterministic selection is byte-for-byte stable when signals are absent;
+2. observe-only/suppressed/blocked signals are reportable but select nothing;
+3. mapped select adds only runnable read-only AUTOMATED tests through reverse
+   `verifies` edges and typed `reasons[]`;
+4. only an elevated unmapped regression may invoke `full_fallback` and mobile
+   safety;
+5. source-only UNVERIFIED stays in the planner's distinct sorted `unverified`
+   bucket and is never folded into blocked or telemetry dispositions;
+6. no signal changes PASS/FAIL or produces a finding/outbox/Flow object.
+
+- [ ] **Step 5: Add the optional CLI file input without credential support**
+
+If the graph CLI cannot yet consume reviewed signals, add only:
+
+~~~text
+plan --telemetry-signals <private-json-path> --dry-run
+~~~
+
+The file must validate through `buildTelemetrySignals` before planning. The
+flag accepts no host, project, credential, event/property name, query text, or
+raw result. Omitting the flag is the deterministic plan. A missing/invalid file
+fails before execution; a valid file whose metrics are BLOCKED selects nothing
+and reports telemetry BLOCKED without failing the campaign.
+
+- [ ] **Step 6: Verify and commit Task 3**
+
+~~~bash
+node --test tests/nuanu-app-graph/telemetry-policy.test.mjs tests/nuanu-app-graph/planner.test.mjs tests/nuanu-app-graph/cli.test.mjs
+node --test tests/nuanu-app-graph/*.test.mjs
+npm run typecheck
+git diff --check
+git add tools/nuanu-app-graph/telemetry-policy.mjs tests/nuanu-app-graph/telemetry-policy.test.mjs tools/nuanu-app-graph/cli.mjs tests/nuanu-app-graph/cli.test.mjs
+git diff --cached --name-status
+git diff --cached --check
+git commit -m "feat: map aggregate telemetry to Nuanu App tests"
+~~~
+
+Before commit, remove any unchanged or unrelated listed path from the index.
+Keep generated private mappings/signals untracked.
+
+### Task 4: Confirm Access, Accept One Invite, and Capture the First Baseline
+
+**Files:**
+- Generated private only:
+  `docs/local/nuanu-app/telemetry/access-lock.v1.json`
+- Generated private only:
+  `docs/local/nuanu-app/telemetry/schema-facts.v1.json`
+- Generated private only:
+  `docs/local/nuanu-app/telemetry/query-manifest.v1.json`
+- Generated private only:
+  `docs/local/nuanu-app/telemetry/structured-query-catalog.json`
+- Generated private only:
+  `docs/local/nuanu-app/telemetry/telemetry-catalog.json`
+- Generated private only:
+  `docs/local/nuanu-app/telemetry/telemetry-signals.json`
+- Generated private only:
+  `docs/local/nuanu-app/telemetry/baselines/${RUN_ID}/aggregate-baseline.json`
+- External state: accept at most one exact PostHog invitation.
+
+**Interfaces:**
+- Consumes: current invitation UI, existing authenticated user session,
+  reviewed synthetic adapter, optional host-secret/approved connector,
+  and validated graph.
+- Produces: exact effective capability-matrix read-back and a
+  privacy-normalized non-gating aggregate baseline, or an explicit
+  telemetry-only blocker.
+
+- [ ] **Step 1: Refresh live-operation capabilities without accepting**
+
+Read the current `browser:control-in-app-browser` skill completely. Inspect
+available browser/connector tools and the invitation landing page read-only.
+Do not click Accept, Join, Continue, or any equivalent control in this step.
+Do not paste, reveal, request, or persist authentication material. The browser
+session may be used for invitation/scope/schema inspection only.
+
+- [ ] **Step 2: Inspect every visible pre-acceptance capability**
+
+Record in the transient action summary:
+
+~~~text
+Host: exact visible PostHog host
+Organization: exact visible organization name
+Project: exact visible project name
+Displayed role: exact visible role, informational only
+Organization membership level: none/member/admin/owner/unknown
+Every accessible project default visibility: private/organization/public/unknown
+Every accessible project resource level: none/view/edit/admin/unknown
+Target project resource levels: project/query/persons/replay/raw-events
+Invite/member management: invite/change-role/remove allowed, denied, or unknown
+Aggregate structured query: allowed, denied, or unknown
+Sensitive reads: persons/replay/raw-events/exports allowed, denied, or unknown
+Writes: settings/instrumentation/flags/cohorts/dashboards/retention/annotations/data/members
+Every additional visible read/write/manage capability: exact list or unknown
+Visible capability inventory complete: true or false
+Least privilege proven: true or false
+Mutation on confirmation: accept this one invitation once
+~~~
+
+Do not derive any matrix cell from the displayed role. If any consequence is
+unknown or the visible inventory is incomplete, the exact broader consequence
+cannot be stated: stop, mark telemetry BLOCKED, and continue core QA. If the
+complete visible matrix is broader than least privilege, acceptance may
+proceed only when the user confirms every listed broader membership
+consequence. Do not accept merely to discover scope later.
+
+- [ ] **Step 3: Obtain action-time confirmation**
+
+Show the user the exact host, organization, target project, displayed role,
+every accessible project/default visibility/resource level, all management,
+query, sensitive-read, write, and additional visible capabilities, whether the
+inventory is complete, and whether least privilege is proven. For a broader
+matrix, say exactly which extra capabilities membership grants. Ask for
+explicit confirmation immediately before the acceptance click.
+The confirmation covers that one exact membership consequence and one invite
+acceptance only; it does not authorize exercising broader writes or sensitive
+reads.
+
+- [ ] **Step 4: Accept once and read back immediately**
+
+After confirmation, click the exact acceptance control once. Immediately
+generate one injected canonical baseline preflight ID, then rebuild every
+effective capability-matrix cell from account/project UI under that identity and
+enumerate all accessible projects. Navigation, a toast, the displayed role, or
+the click itself is not proof. Any mismatch, new accessible project, unknown
+cell, or broader unconfirmed capability stops all queries. Do not change or
+downgrade membership automatically.
+
+- [ ] **Step 5: Preflight the separate production query transport**
+
+Inspect whether an approved connector or preconfigured host secret provider
+offers a separately scoped `query:read` capability for the exact target
+project. For a host provider, accept only macOS Keychain or CI secret-store
+backing and the `postJsonWithHostSecret` capability from Locked Interfaces. Do
+not request, paste, print, or store the credential value and do not add an
+environment variable example.
+
+The invitation browser session, cookies, local storage, and UI network session
+are not API authentication. If no scoped credential/connector exists, mark
+automated telemetry BLOCKED and continue core QA. Membership acceptance, if
+already confirmed, remains a separately reported external state.
+
+Read back the connector/broker contract without executing a metric: exact
+host/project/path, POST-only behavior, redirect behavior, and whether its
+normalized success/error envelope can satisfy the bounded Task 2 schema. Task
+2 synthetic tests do not prove this. Until the live schema and connector
+contract are both read back, production compatibility is UNVERIFIED and no
+query runs. A mismatch remains telemetry-only BLOCKED; do not widen the
+adapter or accept raw provider payloads during this baseline.
+
+- [ ] **Step 6: Stage the exact access scope without partial authorization**
+
+Using only the verified read-back, stage the credential-free access-lock
+fields in memory. Store exact host, organization/project names, target
+project resource, exact query endpoint path, displayed role as informational,
+the complete effective matrix, least-privilege/broader-confirmation outcome,
+transport availability, acceptance time, and the capability evidence digest.
+The exact target resource/path are permitted scope metadata. Store no
+event/person/session/device identifier. Validate the closed capability/scope
+substructure, but do not write or call a value `access-lock.v1.json` yet: the
+locked full schema forbids a null/partial approved window or an empty/partial
+executable hash authorization. Step 8 adds one exact schema-bound window and
+complete hashes, then writes and validates the full access lock once.
+
+- [ ] **Step 7: Prove schema facts and mandatory app host scope**
+
+Use only schema/definition metadata available to the inspected membership or
+approved connector. First identify a freshly observed existing event-level
+host/environment property whose exact equality value scopes data to
+`app.nuanu.com`. Reuse the exact Step 4 preflight ID and record the exact closed
+`schema-facts.v1.json` observation, target project, capability evidence digest,
+observation time, and evidence digest. The host scope, all metric facts, all
+breakdown facts, and exception proof share this one identity. The inspection
+must occur in this baseline preflight and be no older than 30 minutes when the
+adapter reads; do not reuse a prior run's attestation. Do not persist any
+observed URL value.
+
+A dedicated-project assertion alone is insufficient. An authoritative project
+environment read-back is usable only when it exposes a reliable property that
+the structured builder can render as the same exact-equality predicate. If no
+such mapping exists, mark all telemetry BLOCKED or NOT_INSTRUMENTED, generate
+no selectable signals, and continue core QA.
+
+Then establish whether schema identifiers exist for these logical metrics:
+
+~~~text
+telemetry-freshness
+route-health
+funnel-discovery
+funnel-search
+funnel-place-detail
+js-exception-rate
+web-vitals-lcp-p75
+web-vitals-cls-p75
+web-vitals-inp-p75
+browser breakdown
+OS breakdown
+device breakdown
+PWA/browser-mode breakdown
+release breakdown
+~~~
+
+For each Web Vital, separately prove that a structured `total` companion can
+count the exact same percentile-eligible event population under the same
+window, app-host predicate, filters, and breakdown. Record only the
+population-semantics evidence digest. If this cannot be proven or expressed by
+the allowed structured fields, mark that p75 metric UNAVAILABLE; do not infer a
+count from a percentile response. Record that metric as schema-level
+UNAVAILABLE with its proven primary event/value facts and null population-
+semantics digest; do not mark it AVAILABLE and do not create a partial
+executable authorization.
+
+Store exactly all nine metric IDs in constant order with AVAILABLE,
+NOT_INSTRUMENTED, or the restricted p75 UNAVAILABLE status, exact code-owned
+event roles/order, strictly validated identifiers, value-property nullability,
+and population-semantics digest. NOT_INSTRUMENTED stores no identifier;
+AVAILABLE has every required fact. Store exactly all five breakdown IDs in
+constant order with AVAILABLE/property or NOT_INSTRUMENTED/null. Recompute the
+schema-facts digest over every field except itself.
+An integrity digest is not described as anonymization. Do not query sample
+events or persons to discover names. Never bind exact URL/path, search term,
+person/session identifier, or exception message/stack/code-variable property.
+
+For exception grouping, bind a provider fingerprint only when current official
+schema metadata explicitly proves it is provider-generated and already opaque;
+otherwise set the schema status to `FIELD_NOT_PROVEN` and configure aggregate
+total count/rate only. Schema facts contain no public-value policy. In Step 8,
+the reviewed manifest records exact sorted unique allowlisted values for a
+public categorical breakdown and `null` for every other breakdown allowlist;
+Task 2 omits the latter dimension from `publicValueAllowlists`, selecting
+catalog-local random-ID mode. The resulting
+official-schema evidence digest is a structural attestation only after Task 2
+has freshly matched it to this schema read-back and manifest binding; Task 1
+does not repeat or claim that live proof.
+
+- [ ] **Step 8: Build, recursively validate, and hash structured queries**
+
+Write `query-manifest.v1.json` with only target-host scope, schema-bound
+identifiers, builder IDs, nullable public breakdown allowlists, and exception-
+fingerprint proof. It omits every NOT_INSTRUMENTED ID and includes every
+AVAILABLE or restricted UNAVAILABLE p75 ID; it contains no status. Reject any
+request/body/query/columns/window field or empty/partial AVAILABLE binding.
+
+Before building, choose and record one explicit reviewed baseline `window`
+with canonical UTC-midnight start/end exactly 24 hours apart. Pass this
+immutable object to every builder and adapter call; do not derive it from the
+current time. Compute its canonical digest and bind the schema preflight ID and
+digest in `approvedWindow`. For every AVAILABLE metric,
+invoke its code-owned builder, inject and verify
+the `app.nuanu.com` predicate, recursively validate the complete structured
+query, then compute its full canonical hash.
+
+For each p75 metric, build both the percentile query and independent `total`
+count companion. Validate exact event/window/host/filter/breakdown equality,
+compute both role hashes and the immutable metric/dimensions pair digest only
+with the shared canonical helper, and do all of this before either query can
+run. Reject missing or reused hashes. An unsupported companion leaves the p75
+UNAVAILABLE with its completed primary hash, null pairing, no access-lock
+authorization, and no query execution.
+
+For a schema-level UNAVAILABLE p75, build and hash only its complete primary
+binding, record the primary-only UNAVAILABLE evidence in the structured-query
+catalog, and create no approved-query entry. For exception grouping, build the
+dedicated auxiliary query only when schema facts prove opacity, the manifest
+ordinary breakdown is null, and its separate hash is reviewed; otherwise
+retain only the aggregate exception query with `FIELD_NOT_PROVEN`.
+
+Show logical ID, builder ID, scope evidence digest, and generated hash for
+review. For p75, also show the companion builder ID, both role hashes, ordered
+dimension IDs, and pair digest. Store only that metadata in
+`structured-query-catalog.json` and copy the exact hash record into
+`accessLock.approvedQueryHashes` only for an executable complete query/pair,
+including the matching window digest and optional dedicated exception hash.
+Retain a primary-only p75 hash/status in the structured-query catalog but never
+as a partial transport authorization. Never persist a generated body. If a metric
+needs `HogQLQuery`, raw rows, joins, arbitrary columns, or an unknown field,
+mark it pre-query BLOCKED. Unsupported primary p75 math is likewise pre-query
+BLOCKED with null hash; an already-hashed percentile whose exact total-count
+companion is unsupported is UNAVAILABLE with its primary hash. Future HogQL
+stays BLOCKED until a separate AST allowlist is approved.
+
+After the approved window and hash map are final, assemble and write the first
+`access-lock.v1.json`, validate it in full, and compute
+`accessLockDigest = digestJson(accessLock)`. This exact digest—not a
+digest of the earlier empty map—is the value passed to catalog construction
+and later matched by telemetry policy.
+
+- [ ] **Step 9: Execute the first aggregate baseline**
+
+Only when the exact access lock, capability matrix, host scope, structured
+query-hash record, schema facts are still within 30 minutes, the connector
+envelope is no longer UNVERIFIED, and separately scoped transport all validate,
+construct the adapter with the exact approved immutable `window` and call
+`readAvailableMetrics()`. Rebuild/validate/hash each query again before the
+exact-host/project/path POST. For p75, rebuild the immutable pair and require
+the approved percentile hash, sample-count hash, and pair digest before either
+request. Execute only through `postStructuredP75Pair`; join one percentile to
+one count by metric ID, completed bucket, ordered dimensions, and exact
+in-memory breakdown coordinate, never by response position.
+
+Task 2 emits `{ capturedAt, candidates, publicValueAllowlists }` only after
+normalizing provider responses in memory and discarding them. It emits query
+hashes under the locked tagged union, requires every p75 candidate
+`bucketEndedAt` to equal the approved canonical `window.endAt`, and performs
+every raw p75 missing/extra/mismatch/ambiguity decision before Task 1. Then call
+`buildTelemetryCatalog({ accessLockDigest, capturedAt, candidates,
+publicValueAllowlists, randomUUID })` once for the baseline so one private
+catalog-wide random-ID memo covers every metric.
+
+HTTP 401, 403,
+429, or 5xx, a malformed 200, redirect, unlisted status, or any forbidden
+response field mark the metric BLOCKED with the exact existing limitation and no
+raw artifact. A duplicate full coordinate in a non-p75 primary or exception
+auxiliary envelope is one such malformed response: use
+`HTTP_PROVIDER_BLOCKED` and emit zero candidates. Only in the two envelopes of
+an already validated p75 pair call may duplicates survive structural
+validation; there, a duplicate full join key or multiple valid matches makes
+only that p75 metric UNAVAILABLE with `P75_COUNT_PAIR_AMBIGUOUS`. A missing,
+extra, or mismatched full join key uses `P75_COUNT_PAIR_MISMATCH`. Neither p75
+semantic pairing outcome is `HTTP_PROVIDER_BLOCKED`. If the approved structured query cannot
+produce an exact independent same-window, same-host, same-filter,
+same-breakdown total count, leave the p75 UNAVAILABLE. Never infer sample size
+from result count, returned-row count, bucket count, quantile payload, or
+percentile metadata. Task 1 validates structural pair attestation only and
+suppresses a valid p75 and its cohort identity when the joined candidate count
+is below 20. Non-p75 sample sizes come only from the sole total, ordered rate
+denominator, or exact first funnel step. Capture only:
+
+~~~text
+telemetry freshness
+route health aggregate
+discovery/search/place-detail funnel aggregate where instrumented
+JavaScript exception aggregate count/rate
+p75 LCP/CLS/INP where instrumented and independently counted at n >= 20
+allowlisted public browser/OS/device/PWA/release categories or random catalog-local IDs
+provider exception fingerprint only when officially proven opaque and cohort >=20
+metric availability and privacy suppression counts
+~~~
+
+Set every AVAILABLE first-window mapping to observe-only informational. Do not
+derive thresholds, regression status, release status, or confirmed defects.
+PostHog RUM remains separate from lab performance.
+
+- [ ] **Step 10: Validate private artifacts and continue on lane blockers**
+
+~~~bash
+node --test tests/nuanu-app-graph/telemetry.test.mjs tests/nuanu-app-graph/posthog-query-builders.test.mjs tests/nuanu-app-graph/posthog-read.test.mjs tests/nuanu-app-graph/telemetry-policy.test.mjs tests/nuanu-app-graph/planner.test.mjs
+npm run nuanu-app:graph -- validate
+npm run nuanu-app:graph -- plan --runtime-only --dry-run --telemetry-signals docs/local/nuanu-app/telemetry/telemetry-signals.json
+git status --short -- docs/local/nuanu-app/telemetry
+~~~
+
+Expected: private artifacts remain ignored; no manifest contains a query body;
+schema facts contain all nine metric and five breakdown statuses under one
+fresh preflight; the manifest omits NOT_INSTRUMENTED and has no partial
+executable binding; every executed query had the exact approved 24-hour window,
+matching window-dependent hash, app-host predicate, and code-owned structured
+shape; the bounded provider envelope passed or production telemetry remained
+UNVERIFIED/BLOCKED; the baseline has no raw/identifying fields or unkeyed cohort hashes;
+`telemetry-catalog.json` has exactly
+`schemaVersion`, `provider`, `accessLockDigest`, `capturedAt`, `metrics`, and
+`catalogDigest`; its digest excludes only itself and includes the timestamp;
+one private memo assigned one ID per distinct non-public raw value catalog-wide
+and no reverse map survived. Every public-mode value exactly matched its
+dimension allowlist, while omitted dimensions alone used random-ID mode.
+every persisted p75 had `bucketEndedAt === window.endAt`, a structurally matched independent count companion,
+both approved query hashes, a valid pair digest, and companion-derived sample
+size at or above 20. A duplicate full join key or multiple valid matches yields
+UNAVAILABLE / `P75_COUNT_PAIR_AMBIGUOUS`; a missing, extra, or mismatched key
+yields UNAVAILABLE / `P75_COUNT_PAIR_MISMATCH`; an unsupported companion yields
+UNAVAILABLE, and a valid sub-20 pair yields SUPPRESSED. None persists a p75
+value. Each non-p75 sample size matches its code-owned count, denominator, or
+first-step origin. No unproven exception fingerprint group survives; absence
+uses `FIELD_NOT_PROVEN` while keeping the aggregate. Initial observe-only
+signals select no tests. If capability read-back,
+host scope, scoped transport, instrumentation, structured-query support,
+provider availability, or sufficient sample is missing, record the exact
+telemetry status and continue the deterministic safe plan.
+
+### Task 5: Integrate Telemetry Documentation, Flow Coverage, and Reporting
+
+**Files:**
+- Create: `docs/nuanu-app/TELEMETRY.md`
+- Modify: `docs/nuanu-app/TEST-STRATEGY.md`
+- Modify: `docs/nuanu-app/TEST-CASES.md`
+- Modify: `docs/nuanu-app/COVERAGE-MAP.md`
+- Modify: `docs/nuanu-app/BASELINE-RUNBOOK.md`
+- Generated private: `docs/local/nuanu-app/evidence/${RUN_ID}/run-report.json`
+- External read-back: NAPP coverage item
+  `Establish read-only PostHog telemetry baseline`
+
+**Interfaces:**
+- Consumes: verified adapter/policy tests, optional normalized baseline,
+  deterministic campaign results, and Flow control-plane read-back.
+- Produces: operator policy, exact telemetry status/report contract, and
+  verified non-defect Flow coverage linkage.
+
+- [ ] **Step 1: Write the tracked telemetry policy**
+
+`TELEMETRY.md` must state all of the following explicitly:
+
+1. PostHog is optional aggregate evidence and add-only test-selection input.
+2. It cannot supply PASS/FAIL, deployment/source/runtime proof, release gate,
+   or automatic Bugs creation.
+3. The exact allowed logical metrics and five conditional breakdown types.
+4. NOT_INSTRUMENTED, UNAVAILABLE, BLOCKED, and SUPPRESSED semantics.
+5. The 20-observation floor, reviewed public-category persistence,
+   catalog-local random IDs without reverse maps, and ban on privacy claims for
+   unkeyed hashes. A present dimension allowlist is strict public mode; an
+   omitted dimension is random-ID mode, and mismatches never silently switch.
+6. The complete prohibited-data list from Global Constraints.
+7. The complete code-owned query-ID map, ordered series/funnel roles, explicit
+   count/denominator/first-step sample-size origins, recursive query validation, and complete
+   rejection of `HogQLQuery`/SQL/HogQL/raw nodes/joins/unknown fields; future
+   HogQL remains BLOCKED pending an AST allowlist.
+8. Every metric carries a freshly attested exact equality scope to
+   `app.nuanu.com`; one closed schema-facts observation has all nine statuses,
+   five breakdown statuses, a digest, and 30-minute freshness; missing scope or
+   stale/mixed facts block only telemetry. Builder validation is structural;
+   the read layer owns freshness and manifest binding.
+9. Effective capability matrix inspection/read-back; a role name or
+   `readOnly` flag never proves least privilege.
+10. Exact host/project/path POST transport backed by macOS Keychain/CI secret
+    provider or approved connector, with an explicit immutable UTC-midnight
+    24-hour UTC window, window-dependent hashes, and the bounded provider
+    envelope. The invite browser session is not API auth, and production
+    compatibility remains UNVERIFIED until live schema/connector read-back.
+11. Credentials never enter arguments, environment examples, logs, artifacts,
+    commands, or chat; 401/403/429/5xx are BLOCKED and responses are discarded.
+12. Every p75 and p75 breakdown uses an independent total-count companion over
+    the identical window, app host, event population, filters, and breakdown;
+    immutable metric/dimensions pairing is exact, sample size is never inferred
+    from result or quantile shape, invalid pairing is UNAVAILABLE, and n < 20
+    is SUPPRESSED.
+13. Task 2 alone joins raw provider coordinates and emits exact candidates;
+    Task 1 validates structural pair/schema attestations, applies privacy, and
+    never claims raw-origin, freshness, or binding proof.
+14. `queryHash` and `p75Pairing` follow the locked tagged unions, including a
+    retained primary hash for UNAVAILABLE and post-query BLOCKED metrics and
+    retained valid pairing for SUPPRESSED p75.
+15. One catalog build owns one ephemeral random-ID memo across all candidates,
+    and returns the exact six-field catalog wrapper whose digest excludes only
+    itself and includes `capturedAt`.
+16. Exception fingerprints use a mutually exclusive dedicated query only when
+    freshly proven provider-opaque; otherwise groups/attestation/hash are
+    omitted with `FIELD_NOT_PROVEN` while aggregate exceptions remain.
+17. The first baseline has no thresholds and RUM does not replace lab results.
+
+- [ ] **Step 2: Update strategy, registry, map, and runbook**
+
+Add one telemetry lane with exact status separate from Playwright case status.
+Map only reviewed signal IDs to existing graph nodes/tests; do not invent a
+PASS/FAIL test row for an analytics query. The runbook order is:
+
+~~~text
+validate source/runtime graph
+load optional normalized telemetry status
+verify effective capability matrix and exact membership consequence
+verify one fresh exact schema-facts preflight and app.nuanu.com host predicate
+verify explicit immutable 24-hour UTC window and window-dependent approvals
+verify code-owned structured query map and complete approved hash record
+verify each p75 percentile/count pair, pair digest, and exact population scope
+verify non-p75 count/denominator/first-step sample origins
+verify separate scoped query transport and bounded envelope or mark telemetry BLOCKED
+join provider coordinates and emit exact Task 1 candidates in Task 2
+build one exact catalog with one private random-ID memo
+build deterministic dry-run plan
+apply reviewed add-only telemetry signals when READY/PARTIAL
+continue unchanged when telemetry is BLOCKED
+execute safe tests
+triage with deterministic reproduction
+report telemetry separately
+~~~
+
+Document that no telemetry-only observation can enter the outbox or Bugs.
+
+- [ ] **Step 3: Verify the Flow coverage item without mutation**
+
+Read back NAPP and require one non-defect Backlog item with exact title
+`Establish read-only PostHog telemetry baseline`, execution mode `assist`, and
+exact labels `Coverage`, `Analytics`, `Desktop`, `iOS Web`, and `Android Web`.
+If it does not exist, defer creation to Flow control-plane Task 6 and its
+action-time confirmed fourteen-item batch. Do not create it individually and
+do not move it to Bugs because telemetry is blocked or anomalous.
+
+- [ ] **Step 4: Add the exact run-report telemetry block**
+
+Persist only this normalized structure:
+
+~~~js
+{
+  telemetry: {
+    status: "READY" | "PARTIAL" | "BLOCKED" | "NOT_REQUESTED",
+    capturedAt: "ISO timestamp" | null,
+    catalogDigest: lowercaseSha256 | null,
+    membershipCapabilities: "LEAST_PRIVILEGE" | "BROADER_CONFIRMED" | "BLOCKED" | "NOT_REQUESTED",
+    targetHostScope: "VERIFIED" | "BLOCKED" | "NOT_INSTRUMENTED" | "NOT_REQUESTED",
+    schemaFacts: "FRESH_BOUND" | "BLOCKED" | "NOT_REQUESTED",
+    queryWindow: "EXACT_24H_UTC_APPROVED" | "BLOCKED" | "NOT_REQUESTED",
+    queryShape: "STRUCTURED_ONLY" | "BLOCKED" | "NOT_REQUESTED",
+    queryTransport: "SCOPED_QUERY_READ" | "APPROVED_CONNECTOR" | "BLOCKED" | "NOT_REQUESTED",
+    providerEnvelope: "VERIFIED" | "UNVERIFIED" | "BLOCKED" | "NOT_REQUESTED",
+    sampleOriginPolicy: "CODE_OWNED_V1" | "BLOCKED" | "NOT_REQUESTED",
+    thresholds: "UNREVIEWED",
+    metrics: [{
+      metricId: "web-vitals-lcp-p75",
+      status: "AVAILABLE" | "NOT_INSTRUMENTED" | "UNAVAILABLE" | "BLOCKED" | "SUPPRESSED",
+      queryHash: lowercaseSha256 | null,
+      p75Pairing: {
+        p75PairDigestInput: {
+          metricId: "web-vitals-lcp-p75",
+          dimensions: ["browser"],
+          percentile: { role: "p75_value", queryHash: lowercaseSha256 },
+          sampleCount: { role: "sample_count", queryHash: differentLowercaseSha256 },
+        },
+        pairDigest: lowercaseSha256,
+        sampleSizeSource: "independent_total_count",
+      } | null,
+      sampleSize: 200 | null,
+      count: null,
+      rate: null,
+      p75: 2100.5 | null,
+      bucketEndedAt: exactApprovedWindowEndAt | null,
+      breakdowns: [{
+        dimension: "browser",
+        publicValue: "Synthetic Browser" | null,
+        catalogLocalId: null | "napp-telemetry-bucket-" + randomUuid,
+        sampleSize: 100,
+        count: null,
+        rate: null,
+        p75: 2050.25 | null,
+      }],
+      suppressedCohortCount: 0,
+    }],
+    addOnlySelectedTestIds: [],
+    limitations: ["NO_REVIEWED_THRESHOLD"],
+    rumReplacesLabPerformance: false,
+    gatesRelease: false,
+    createsBugs: false,
+  },
+}
+~~~
+
+Use `null` for unavailable measured fields rather than zero. Do not include
+host, organization/project/user IDs, capability-matrix details, generated query
+bodies, schema names, unreviewed/non-public breakdown values, observed
+URL/query values, event/person/session/device identifiers, exception
+message/stack/code variables, headers, or bodies in the run report. A public
+category must match its reviewed allowlist. Every report metric contains
+`exceptionGroups`; only `js-exception-rate` may make that array non-empty, and
+the provider attestation is never included in the report. An exception group
+must carry only an officially proven opaque provider
+fingerprint above the privacy floor. A
+p75 AVAILABLE metric has non-null structural `p75Pairing` only after Task 2
+validated both role hashes/digest and joined the exact coordinates. A p75
+SUPPRESSED metric retains that pairing; an invalid/unsupported/missing
+companion is UNAVAILABLE with null pairing and a retained primary `queryHash`.
+Every non-p75 metric has null pairing. `queryHash` is null only for
+NOT_INSTRUMENTED or pre-query BLOCKED with no complete query; it is required
+otherwise. Never retain the joined raw coordinate or infer n from result
+count, rows, buckets, quantile shape, or percentile metadata.
+`providerEnvelope: "UNVERIFIED"` permits no live query and makes telemetry
+BLOCKED while the safe campaign continues. `CODE_OWNED_V1` means only the
+locked count, rate-denominator, funnel-first-step, and independent p75 count
+origins were used; it is not a provider result-shape inference.
+Report a duplicate full coordinate in a non-p75 primary or exception auxiliary
+envelope only as provider-envelope BLOCKED / `HTTP_PROVIDER_BLOCKED`; no metric
+candidate or aggregate may be copied into the report. A duplicate coordinate
+may appear as `P75_COUNT_PAIR_AMBIGUOUS` only when it came from the percentile
+primary or sample-count envelope of one validated p75 pair call.
+
+A present public-dimension allowlist requires an exact value match; an omitted
+dimension alone uses a catalog-local random ID. Verify repeated identical
+non-public raw values share one ID across the catalog, distinct values do not,
+and no reverse map exists. The report copies only normalized metrics from a
+validated six-field catalog whose digest includes `capturedAt` and excludes
+only its own digest field.
+
+- [ ] **Step 5: Run full verification**
+
+~~~bash
+node --test tests/nuanu-app-graph/*.test.mjs
+npm run typecheck
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app
+npm run nuanu-app:graph -- validate
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+git diff --check
+~~~
+
+When a validated signal file exists, additionally run:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run --telemetry-signals docs/local/nuanu-app/telemetry/telemetry-signals.json
+~~~
+
+Compare deterministic selections before/after: the telemetry plan may be a
+strict superset only. Verify every added test is discovered, read-only,
+AUTOMATED, and has typed telemetry reasons. Verify source-only UNVERIFIED cases
+remain in the distinct sorted `unverified` bucket, separate from `blocked` and
+`telemetrySignals`. If telemetry is BLOCKED, the first five commands still
+define a successful deterministic verification.
+
+Also verify every generated query is `TrendsQuery` or `FunnelsQuery`, contains
+exactly one validated `app.nuanu.com` equality predicate, has no forbidden raw
+node/field or unknown key, and matches its approved complete hash. Prove
+rejection occurs before the host-secret provider is called. Confirm the browser
+invite session was never used as query authentication.
+
+For every p75, verify the builder creates an independent total-count companion
+with identical event population, UTC window, host, filters, and breakdown;
+both queries and their pair digest must match the approved hash record before
+the first provider call. Verify one-to-one response pairing by immutable metric
+ID, completed bucket, ordered dimensions, and exact coordinate, and verify each
+emitted p75 `bucketEndedAt` equals the approved `window.endAt`. A duplicate full
+join key or multiple valid matches must produce UNAVAILABLE /
+`P75_COUNT_PAIR_AMBIGUOUS`; a missing, extra, or mismatched key must produce
+UNAVAILABLE / `P75_COUNT_PAIR_MISMATCH`; an unsupported companion must remain
+UNAVAILABLE in Task 2. Valid counts below 20 must become SUPPRESSED in Task 1.
+Raw-row mismatch/ambiguity and inference tests belong to Task 2. Task 1 tests
+only the source literal, distinct hashes, shared digest recomputation, tagged
+unions, and privacy suppression; it never claims to prove raw origin.
+
+Separately verify that every non-p75 primary and exception-fingerprint
+auxiliary envelope has structurally unique full coordinates. A duplicate must
+map to `HTTP_PROVIDER_BLOCKED`, emit zero candidates, and never be reclassified
+as `P75_COUNT_PAIR_AMBIGUOUS` or reach Task 1/report normalization.
+
+Verify the `queryHash` and `p75Pairing` unions for every status, exact public-
+allowlist versus omitted-dimension random mode, one catalog-wide ephemeral ID
+memo, no reverse map, and the exact six-field catalog wrapper/digest including
+`capturedAt`. Confirm Task 1 treats provider schema evidence structurally while
+Task 2 rejects stale or unbound evidence. These statuses block only that
+optional telemetry signal, so deterministic verification continues unchanged.
+
+- [ ] **Step 6: Inspect privacy and exact owned diff**
+
+~~~bash
+git status --short
+git diff -- docs/nuanu-app/TELEMETRY.md docs/nuanu-app/TEST-STRATEGY.md docs/nuanu-app/TEST-CASES.md docs/nuanu-app/COVERAGE-MAP.md docs/nuanu-app/BASELINE-RUNBOOK.md
+git check-ignore docs/local/nuanu-app/telemetry/access-lock.v1.json docs/local/nuanu-app/telemetry/telemetry-catalog.json docs/local/nuanu-app/telemetry/telemetry-signals.json
+~~~
+
+Expected: every private file is ignored; tracked documentation contains no
+live access value, direct identifier, raw analytics data, or threshold claim.
+
+- [ ] **Step 7: Commit tracked documentation only**
+
+~~~bash
+git add docs/nuanu-app/TELEMETRY.md docs/nuanu-app/TEST-STRATEGY.md docs/nuanu-app/TEST-CASES.md docs/nuanu-app/COVERAGE-MAP.md docs/nuanu-app/BASELINE-RUNBOOK.md
+git diff --cached --name-status
+git diff --cached --check
+git commit -m "docs: define Nuanu App aggregate telemetry"
+~~~
+
+## Telemetry Exit Gate
+
+The PostHog lane is complete only when:
+
+- pure normalization, structured-query builder, recursive guard, and exact
+  transport tests pass using synthetic data;
+- no credential appears in an argument, example, environment contract, log,
+  artifact, command, or chat;
+- exact host/project/path and every complete generated query hash are
+  allowlisted and read back;
+- every persisted p75 has an independently queried total-count companion over
+  the identical event population, UTC window, exact app host, filters, and
+  breakdown; both role hashes and the immutable metric/dimensions pair digest
+  are approved before either request;
+- each p75 sample size comes only from its exact one-to-one companion count;
+  each emitted p75 `bucketEndedAt` equals the approved canonical `window.endAt`;
+  duplicate full join keys or multiple valid matches are UNAVAILABLE /
+  `P75_COUNT_PAIR_AMBIGUOUS`, missing/extra/mismatched full keys are UNAVAILABLE
+  / `P75_COUNT_PAIR_MISMATCH`, unsupported evidence is UNAVAILABLE, n < 20 is
+  SUPPRESSED, and none persists the percentile or selects a test;
+- duplicate full coordinates are structurally permitted only in the two
+  envelopes of a validated p75 pair call; a duplicate in any non-p75 primary or
+  exception auxiliary envelope is `HTTP_PROVIDER_BLOCKED`, emits zero
+  candidates, and never reaches Task 1 or the run report;
+- Task 2 alone performs raw coordinate pairing and emits exact candidates;
+  Task 1 recomputes only the shared structural pair digest, enforces the status
+  unions/privacy floor, and makes no raw-origin or schema-freshness claim;
+- `queryHash` is null only for NOT_INSTRUMENTED or pre-query BLOCKED without a
+  complete query; p75 pairing is non-null only for AVAILABLE and valid-pair
+  SUPPRESSED p75 metrics;
+- `HogQLQuery`, text query, raw rows/tables/columns, persons/replay, joins,
+  identifier properties, and unknown query fields fail before client use;
+- every executable metric has the fresh exact `app.nuanu.com` predicate, or
+  that metric/project remains BLOCKED/NOT_INSTRUMENTED and selects no tests;
+- invitation acceptance occurred only after visible capability-matrix
+  inspection and action-time confirmation of the exact membership consequence;
+- the complete effective matrix was read back after acceptance; unknown or
+  mismatched capability stopped all queries;
+- an exact broader matrix was used only after explicit confirmation, and none
+  of its extra write/sensitive-read capabilities were exercised;
+- automated queries used a separate scoped host-secret provider or approved
+  connector; the invite browser session was never API authentication;
+- 401/403/429/5xx results remained BLOCKED and raw responses were discarded;
+- every durable metric is aggregate-only, small cohorts are suppressed, and no
+  prohibited raw/identifying field survives normalization;
+- every public-mode breakdown exactly matches its dimension allowlist;
+  omitted dimensions alone use one catalog-wide ephemeral random-ID memo, and
+  no mismatch is silently randomized or reverse map retained;
+- the telemetry catalog has exactly the locked six fields and its canonical
+  digest excludes only itself while including `capturedAt`;
+- no low-cardinality value is privacy-wrapped with an unkeyed hash; only
+  reviewed public categories, mapless catalog-local random IDs, or an officially
+  proven opaque provider exception fingerprint above the floor persist;
+- missing access/instrumentation/query/sample blocks only telemetry;
+- baseline signals remain observe-only until thresholds are separately
+  reviewed;
+- optional planner output is a safe strict superset or unchanged, never a
+  narrower plan or broadened action authority;
+- PostHog RUM remains separate from lab performance and release gates;
+- no telemetry-only observation created an outbox entry or Bugs item;
+- the Flow item, when present, is a read-back-verified Backlog/assist coverage
+  item with the exact five labels, not a defect;
+- the final report keeps telemetry status and aggregates separate from test
+  verdicts, deployment identity, and confirmed-defect counts.

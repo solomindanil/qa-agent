@@ -1,0 +1,1585 @@
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+} from '@playwright/test';
+import { CleanupLedger, SANDBOX } from './fixtures/sandbox-data';
+import {
+  SANDBOX_WORKSPACE_ID,
+  type CreatedArtifact,
+  type CreatedSavedView,
+  KnowledgeFeaturesPage,
+  ProvisionalWikiRecoveryLedger,
+  assertArtifactUploadPayload,
+  assertExactKnowledgeCleanupTarget,
+  assertExactProvisionalWikiCleanupTarget,
+  cleanupArtifactEmergency,
+  cleanupCapturedArtifactBatch,
+  cleanupCapturedSavedViewBatch,
+  cleanupWikiAfterFailedSave,
+  extractArtifactResponseIdentity,
+  orderResponseOwnedCleanupBatch,
+  parseArtifactReservation,
+  parseCreatedArtifact,
+  parseCreatedSavedView,
+  parseNamedWikiPage,
+  parseProvisionalWikiPage,
+  reconcileRejectedSavedViewExactId,
+  reconcileRejectedWikiExactId,
+  runSandboxMutation,
+  waitForArtifactAdmission,
+} from './pages/knowledge-features.page';
+import { captureExactFeaturePosts } from './pages/project-features.page';
+
+const SYNTHETIC_ORIGIN = 'https://qa.invalid';
+const SYNTHETIC_VIEW_ENDPOINT = `${SYNTHETIC_ORIGIN}/views/`;
+const OWNED_NAME = 'QA E2E synthetic saved view';
+const IDS = Object.freeze({
+  view: '11111111-1111-4111-8111-111111111111',
+  view2: '66666666-6666-4666-8666-666666666666',
+  wiki: '22222222-2222-4222-8222-222222222222',
+  artifact: '33333333-3333-4333-8333-333333333333',
+  artifact2: '77777777-7777-4777-8777-777777777777',
+  other: '44444444-4444-4444-8444-444444444444',
+  state: '55555555-5555-4555-8555-555555555555',
+});
+
+const openSyntheticPage = async (page: Page) => {
+  await page.route(`${SYNTHETIC_ORIGIN}/**`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<button id="save">Save</button>',
+    });
+  });
+  await page.goto(SYNTHETIC_ORIGIN);
+};
+
+const savedViewBody = (overrides: Record<string, unknown> = {}) => ({
+  id: IDS.view,
+  name: OWNED_NAME,
+  project: SANDBOX.projectId,
+  access: 1,
+  rich_filters: {
+    and: [{ priority__in: 'urgent' }, { state_id__in: IDS.state }],
+  },
+  ...overrides,
+});
+
+const syntheticResponse = (status: number, body: unknown = undefined) => ({
+  status: () => status,
+  json: async () => body,
+});
+
+const nestedErrorMessages = (error: unknown): string[] => {
+  if (!(error instanceof Error)) return [String(error)];
+  return [
+    error.message,
+    ...(error instanceof AggregateError
+      ? error.errors.flatMap(nestedErrorMessages)
+      : []),
+  ];
+};
+
+const PRIVATE_ARTIFACT_NAME =
+  'QA E2E current-run workspace artifact.txt';
+
+const privateArtifact = (): CreatedArtifact => ({
+  kind: 'artifact',
+  id: IDS.artifact,
+  name: PRIVATE_ARTIFACT_NAME,
+  workspaceId: SANDBOX_WORKSPACE_ID,
+  scope: 'private',
+});
+
+const privateArtifactBody = (
+  status: string,
+  overrides: Record<string, unknown> = {},
+) => ({
+  id: IDS.artifact,
+  name: PRIVATE_ARTIFACT_NAME,
+  workspace: SANDBOX_WORKSPACE_ID,
+  scope: 'private',
+  kind: 'document',
+  status,
+  links: [],
+  ...overrides,
+});
+
+const artifactCleanupHarness = async (
+  page: Page,
+  options: {
+    body?: unknown;
+    detailStatus?: number;
+    deleteStatus?: number;
+    suffix: string;
+  },
+) => {
+  const detailEndpoint =
+    `${SYNTHETIC_ORIGIN}/artifacts/${IDS.artifact}/`;
+  const collectionEndpoint = `${SYNTHETIC_ORIGIN}/artifacts/`;
+  const uiPath = `${SYNTHETIC_ORIGIN}/artifact-ui-${options.suffix}/`;
+  let exists = options.detailStatus !== 404;
+  const calls: string[] = [];
+  const body = options.body ?? privateArtifactBody('pending');
+  const requestContext = {
+    get: async (url: string) => {
+      if (url === detailEndpoint) {
+        calls.push('GET detail');
+        return syntheticResponse(exists ? (options.detailStatus ?? 200) : 404, body);
+      }
+      if (url === collectionEndpoint) {
+        calls.push('GET collection');
+        return syntheticResponse(200, exists ? [body] : []);
+      }
+      throw new Error(`Unexpected synthetic GET: ${url}`);
+    },
+    delete: async (url: string) => {
+      if (url !== detailEndpoint) {
+        throw new Error(`Unexpected synthetic DELETE: ${url}`);
+      }
+      calls.push('DELETE detail');
+      const status = options.deleteStatus ?? 204;
+      if (status === 204) exists = false;
+      return syntheticResponse(status);
+    },
+  };
+  await page.route(uiPath, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: exists ? `<div>${PRIVATE_ARTIFACT_NAME}</div>` : '<div>empty</div>',
+    });
+  });
+  return {
+    calls,
+    created: privateArtifact(),
+    detailEndpoint,
+    collectionEndpoint,
+    uiPath,
+    requestContext,
+    assertSandbox: async () => {
+      calls.push('assertSandbox');
+    },
+    exists: () => exists,
+  };
+};
+
+const savedViewPomHarness = async (
+  page: Page,
+  options: {
+    createBody?: unknown;
+    createLeavesRecord?: boolean;
+    detailResponse?: (
+      ordinal: number,
+      deleted: boolean,
+    ) => ReturnType<typeof syntheticResponse>;
+  } = {},
+) => {
+  const viewPath =
+    `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/views/`;
+  const apiPath =
+    `/be/api/workspaces/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/views/`;
+  const calls: string[] = [];
+  let collectionResidual = false;
+  let uiResidual = false;
+  let deleted = false;
+  let detailOrdinal = 0;
+
+  await page.route(`**${viewPath}**`, async (route) => {
+    calls.push('GET UI');
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: [
+        '<div>Views</div>',
+        ...(uiResidual
+          ? [`<div>${IDS.view}</div>`, `<div>${OWNED_NAME}</div>`]
+          : []),
+      ].join(''),
+    });
+  });
+  await page.route(`**${apiPath}`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.fulfill({ status: 405 });
+      return;
+    }
+    collectionResidual = options.createLeavesRecord ?? true;
+    uiResidual = options.createLeavesRecord ?? true;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(options.createBody ?? savedViewBody()),
+    });
+  });
+
+  const requestContext = {
+    get: async (url: string) => {
+      const pathname = new URL(url).pathname;
+      if (pathname === apiPath) {
+        calls.push('GET collection');
+        return syntheticResponse(
+          200,
+          collectionResidual ? [savedViewBody()] : [],
+        );
+      }
+      if (pathname === `${apiPath}${IDS.view}/`) {
+        calls.push('GET detail');
+        const ordinal = detailOrdinal++;
+        return options.detailResponse?.(ordinal, deleted) ??
+          (deleted
+            ? syntheticResponse(200, { deleted: true })
+            : syntheticResponse(200, savedViewBody()));
+      }
+      throw new Error(`Unexpected saved-view POM GET: ${url}`);
+    },
+    delete: async (url: string) => {
+      if (new URL(url).pathname !== `${apiPath}${IDS.view}/`) {
+        throw new Error(`Unexpected saved-view POM DELETE: ${url}`);
+      }
+      calls.push('DELETE detail');
+      deleted = true;
+      collectionResidual = false;
+      uiResidual = false;
+      return syntheticResponse(204);
+    },
+  };
+  const assertSandbox = async () => {
+    calls.push('assertSandbox');
+  };
+  return {
+    calls,
+    knowledge: new KnowledgeFeaturesPage(
+      page,
+      assertSandbox,
+      requestContext as unknown as APIRequestContext,
+    ),
+    setCollectionResidual: (value: boolean) => {
+      collectionResidual = value;
+    },
+    setUiResidual: (value: boolean) => {
+      uiResidual = value;
+    },
+  };
+};
+
+test('parses exact saved-view, provisional/named Wiki, and artifact identities', () => {
+  expect(parseCreatedSavedView(savedViewBody(), OWNED_NAME, IDS.state)).toEqual({
+    kind: 'saved-view',
+    id: IDS.view,
+    name: OWNED_NAME,
+    projectId: SANDBOX.projectId,
+    stateId: IDS.state,
+  });
+
+  const provisional = parseProvisionalWikiPage({
+    id: IDS.wiki,
+    name: '',
+    project_ids: [SANDBOX.projectId],
+  });
+  expect(provisional).toEqual({
+    kind: 'wiki-provisional',
+    id: IDS.wiki,
+    name: '',
+    projectIds: [SANDBOX.projectId],
+  });
+  expect(
+    parseNamedWikiPage(
+      { id: IDS.wiki, name: 'QA E2E synthetic wiki' },
+      provisional,
+      'QA E2E synthetic wiki',
+    ),
+  ).toEqual({
+    kind: 'wiki',
+    id: IDS.wiki,
+    name: 'QA E2E synthetic wiki',
+    projectIds: [SANDBOX.projectId],
+  });
+
+  expect(
+    parseCreatedArtifact(
+      {
+        id: IDS.artifact,
+        name: 'QA E2E synthetic project artifact.txt',
+        workspace: SANDBOX_WORKSPACE_ID,
+        scope: 'project',
+        kind: 'document',
+        status: 'stored',
+        links: [
+          {
+            entity_type: 'project',
+            entity_id: SANDBOX.projectId,
+            relation: 'about',
+          },
+        ],
+      },
+      'QA E2E synthetic project artifact.txt',
+      'project',
+    ),
+  ).toMatchObject({
+    kind: 'artifact',
+    id: IDS.artifact,
+    scope: 'project',
+    projectId: SANDBOX.projectId,
+  });
+});
+
+test('rejects malformed and cross-scope knowledge responses', () => {
+  expect(() =>
+    parseCreatedSavedView(
+      savedViewBody({ id: 'not-a-uuid' }),
+      OWNED_NAME,
+      IDS.state,
+    ),
+  ).toThrow(/exact ID/);
+  expect(() =>
+    parseCreatedSavedView(
+      savedViewBody({ project: IDS.other }),
+      OWNED_NAME,
+      IDS.state,
+    ),
+  ).toThrow(/project scope/);
+  expect(() =>
+    parseCreatedSavedView(
+      savedViewBody({
+        rich_filters: {
+          and: [
+            { priority__in: 'urgent' },
+            { state_id__in: IDS.other },
+          ],
+        },
+      }),
+      OWNED_NAME,
+      IDS.state,
+    ),
+  ).toThrow(/deterministic filters/);
+  expect(() =>
+    parseProvisionalWikiPage({
+      id: IDS.wiki,
+      name: '',
+      project_ids: [IDS.other],
+    }),
+  ).toThrow(/project scope/);
+  expect(() =>
+    parseCreatedArtifact(
+      {
+        id: IDS.artifact,
+        name: 'QA E2E synthetic workspace artifact.txt',
+        workspace: SANDBOX_WORKSPACE_ID,
+        scope: 'private',
+        kind: 'document',
+        status: 'stored',
+        links: [
+          {
+            entity_type: 'project',
+            entity_id: SANDBOX.projectId,
+            relation: 'about',
+          },
+        ],
+      },
+      'QA E2E synthetic workspace artifact.txt',
+      'private',
+    ),
+  ).toThrow(/cross-scope/);
+  expect(() =>
+    parseCreatedArtifact(
+      {
+        id: IDS.artifact,
+        name: 'QA E2E synthetic workspace artifact.txt',
+        workspace: IDS.other,
+        scope: 'private',
+        kind: 'document',
+        status: 'stored',
+        links: [],
+      },
+      'QA E2E synthetic workspace artifact.txt',
+      'private',
+    ),
+  ).toThrow(/workspace/);
+});
+
+test('cleanup guards refuse ID, name, and scope mismatches', () => {
+  const owned = parseCreatedSavedView(savedViewBody(), OWNED_NAME, IDS.state);
+  expect(
+    assertExactKnowledgeCleanupTarget(savedViewBody(), owned),
+  ).toMatchObject({ id: IDS.view, name: OWNED_NAME });
+  expect(() =>
+    assertExactKnowledgeCleanupTarget(
+      savedViewBody({ id: IDS.other }),
+      owned,
+    ),
+  ).toThrow(/ownership/);
+  expect(() =>
+    assertExactKnowledgeCleanupTarget(
+      savedViewBody({ name: 'QA E2E another run view' }),
+      owned,
+    ),
+  ).toThrow(/ownership/);
+  expect(() =>
+    assertExactKnowledgeCleanupTarget(
+      savedViewBody({ project: IDS.other }),
+      owned,
+    ),
+  ).toThrow(/ownership/);
+});
+
+test('captures the exact response-owned artifact ID before detail validation', () => {
+  const response = {
+    artifact: {
+      id: IDS.artifact,
+      workspace: SANDBOX_WORKSPACE_ID,
+    },
+  };
+  expect(extractArtifactResponseIdentity(response)).toEqual({
+    observedId: IDS.artifact,
+    exactId: IDS.artifact,
+  });
+  expect(
+    parseArtifactReservation(
+      response,
+      'QA E2E current-run project artifact.txt',
+      'project',
+    ),
+  ).toEqual({
+    kind: 'artifact',
+    id: IDS.artifact,
+    name: 'QA E2E current-run project artifact.txt',
+    workspaceId: SANDBOX_WORKSPACE_ID,
+    scope: 'project',
+    projectId: SANDBOX.projectId,
+  });
+  expect(() =>
+    parseArtifactReservation(
+      { artifact: { id: IDS.artifact, workspace: IDS.other } },
+      'QA E2E current-run project artifact.txt',
+      'project',
+    ),
+  ).toThrow(/workspace/);
+});
+
+test('artifact chooser accepts only an exact current-run in-memory payload', () => {
+  expect(() =>
+    assertArtifactUploadPayload(
+      {
+        name: 'QA E2E current-run project artifact.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('synthetic'),
+      },
+      'QA E2E current-run project artifact.txt',
+    ),
+  ).not.toThrow();
+  expect(() =>
+    assertArtifactUploadPayload(
+      {
+        name: 'QA E2E stale-run project artifact.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('synthetic'),
+      },
+      'QA E2E current-run project artifact.txt',
+    ),
+  ).toThrow(/exact owned name/);
+  expect(() =>
+    assertArtifactUploadPayload(
+      {
+        name: 'QA E2E current-run/project artifact.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('synthetic'),
+      },
+      'QA E2E current-run/project artifact.txt',
+    ),
+  ).toThrow(/basename/);
+});
+
+test('artifact cleanup guard requires exact private or project link identity without requiring stored', () => {
+  const name = 'QA E2E current-run project artifact.txt';
+  const owned: CreatedArtifact = {
+    kind: 'artifact',
+    id: IDS.artifact,
+    name,
+    workspaceId: SANDBOX_WORKSPACE_ID,
+    scope: 'project',
+    projectId: SANDBOX.projectId,
+  };
+  const exactProjectBody = {
+    id: IDS.artifact,
+    name,
+    workspace: SANDBOX_WORKSPACE_ID,
+    scope: 'project',
+    kind: 'document',
+    status: 'processing',
+    links: [
+      {
+        entity_type: 'project',
+        entity_id: SANDBOX.projectId,
+        relation: 'about',
+      },
+    ],
+  };
+  expect(
+    assertExactKnowledgeCleanupTarget(exactProjectBody, owned),
+  ).toMatchObject({ id: IDS.artifact, status: 'processing' });
+  for (const body of [
+    { ...exactProjectBody, id: IDS.other },
+    { ...exactProjectBody, name: 'QA E2E another-run project artifact.txt' },
+    { ...exactProjectBody, workspace: IDS.other },
+    { ...exactProjectBody, scope: 'private' },
+    {
+      ...exactProjectBody,
+      links: [
+        {
+          entity_type: 'project',
+          entity_id: IDS.other,
+          relation: 'about',
+        },
+      ],
+    },
+  ]) {
+    expect(() => assertExactKnowledgeCleanupTarget(body, owned)).toThrow(
+      /cleanup/,
+    );
+  }
+  expect(() =>
+    assertExactKnowledgeCleanupTarget(
+      privateArtifactBody('pending', {
+        links: [
+          {
+            entity_type: 'project',
+            entity_id: SANDBOX.projectId,
+            relation: 'about',
+          },
+        ],
+      }),
+      privateArtifact(),
+    ),
+  ).toThrow(/project-link/);
+});
+
+test('emergency cleanup deletes exact pending, failed, and processing artifacts without waiting for stored', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  for (const status of ['pending', 'failed', 'processing']) {
+    const harness = await artifactCleanupHarness(page, {
+      body: privateArtifactBody(status),
+      suffix: status,
+    });
+    await expect(
+      cleanupArtifactEmergency({
+        page,
+        requestContext: harness.requestContext,
+        assertSandbox: harness.assertSandbox,
+        created: harness.created,
+        detailEndpoint: harness.detailEndpoint,
+        collectionEndpoint: harness.collectionEndpoint,
+        uiPath: harness.uiPath,
+      }),
+    ).resolves.toBeUndefined();
+    expect(harness.exists()).toBe(false);
+    expect(harness.calls).toEqual([
+      'GET detail',
+      'assertSandbox',
+      'DELETE detail',
+      'GET collection',
+    ]);
+  }
+});
+
+test('emergency cleanup treats exact detail 404 as absent and verifies list and UI', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  const harness = await artifactCleanupHarness(page, {
+    detailStatus: 404,
+    suffix: 'absent',
+  });
+  await expect(
+    cleanupArtifactEmergency({
+      page,
+      requestContext: harness.requestContext,
+      assertSandbox: harness.assertSandbox,
+      created: harness.created,
+      detailEndpoint: harness.detailEndpoint,
+      collectionEndpoint: harness.collectionEndpoint,
+      uiPath: harness.uiPath,
+    }),
+  ).resolves.toBeUndefined();
+  expect(harness.calls).toEqual(['GET detail', 'GET collection']);
+});
+
+test('emergency cleanup refuses a foreign workspace and surfaces the exact residual ID', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  const harness = await artifactCleanupHarness(page, {
+    body: privateArtifactBody('processing', { workspace: IDS.other }),
+    suffix: 'foreign-workspace',
+  });
+  await expect(
+    cleanupArtifactEmergency({
+      page,
+      requestContext: harness.requestContext,
+      assertSandbox: harness.assertSandbox,
+      created: harness.created,
+      detailEndpoint: harness.detailEndpoint,
+      collectionEndpoint: harness.collectionEndpoint,
+      uiPath: harness.uiPath,
+    }),
+  ).rejects.toThrow(new RegExp(`residual ID: ${IDS.artifact}`));
+  expect(harness.exists()).toBe(true);
+  expect(harness.calls).toEqual(['GET detail', 'GET collection']);
+});
+
+test('emergency cleanup reports an exact residual when guarded DELETE is not 204', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  const harness = await artifactCleanupHarness(page, {
+    body: privateArtifactBody('failed'),
+    deleteStatus: 500,
+    suffix: 'delete-error',
+  });
+  await expect(
+    cleanupArtifactEmergency({
+      page,
+      requestContext: harness.requestContext,
+      assertSandbox: harness.assertSandbox,
+      created: harness.created,
+      detailEndpoint: harness.detailEndpoint,
+      collectionEndpoint: harness.collectionEndpoint,
+      uiPath: harness.uiPath,
+    }),
+  ).rejects.toThrow(new RegExp(`residual ID: ${IDS.artifact}`));
+  expect(harness.exists()).toBe(true);
+  expect(harness.calls).toEqual([
+    'GET detail',
+    'assertSandbox',
+    'DELETE detail',
+    'GET collection',
+  ]);
+});
+
+test('saved-view recovery uses minimal exact ownership, not the failed behavior contract', async () => {
+  const cleaned: string[] = [];
+  await expect(
+    reconcileRejectedSavedViewExactId({
+      id: IDS.view,
+      requestedName: OWNED_NAME,
+      requestedStateId: IDS.state,
+      inspect: async () => ({
+        status: 200,
+        body: savedViewBody({ access: 99, rich_filters: { evolved: true } }),
+      }),
+      cleanup: async (created) => {
+        cleaned.push(created.id);
+      },
+    }),
+  ).resolves.toBeUndefined();
+  expect(cleaned).toEqual([IDS.view]);
+
+  let foreignCleanupCalls = 0;
+  await expect(
+    reconcileRejectedSavedViewExactId({
+      id: IDS.view,
+      requestedName: OWNED_NAME,
+      requestedStateId: IDS.state,
+      inspect: async () => ({
+        status: 200,
+        body: savedViewBody({ project: IDS.other }),
+      }),
+      cleanup: async () => {
+        foreignCleanupCalls += 1;
+      },
+    }),
+  ).rejects.toThrow(new RegExp(`residual ID: ${IDS.view}`));
+  expect(foreignCleanupCalls).toBe(0);
+});
+
+test('owned saved-view cleanup is idempotent across an identity-free 200 tombstone', async ({
+  page,
+}) => {
+  const harness = await savedViewPomHarness(page);
+  const created = await harness.knowledge.createSavedView(
+    OWNED_NAME,
+    IDS.state,
+    () => {},
+  );
+  await expect(
+    harness.knowledge.cleanupOwnedSavedView(created),
+  ).resolves.toBeUndefined();
+  await expect(
+    harness.knowledge.cleanupOwnedSavedView(created),
+  ).resolves.toBeUndefined();
+  expect(harness.calls.filter((call) => call === 'GET detail')).toHaveLength(1);
+  expect(harness.calls.filter((call) => call === 'DELETE detail')).toHaveLength(1);
+  expect(harness.calls.filter((call) => call === 'GET collection')).toHaveLength(2);
+});
+
+test('idempotent saved-view cleanup fails closed when collection and UI retain its exact identity', async ({
+  page,
+}) => {
+  const harness = await savedViewPomHarness(page);
+  const created = await harness.knowledge.createSavedView(
+    OWNED_NAME,
+    IDS.state,
+    () => {},
+  );
+  await harness.knowledge.cleanupOwnedSavedView(created);
+  harness.setCollectionResidual(true);
+  harness.setUiResidual(true);
+  await expect(
+    harness.knowledge.cleanupOwnedSavedView(created),
+  ).rejects.toThrow(new RegExp(`residual ID: ${IDS.view}`));
+  expect(harness.calls.filter((call) => call === 'GET detail')).toHaveLength(1);
+  expect(harness.calls.filter((call) => call === 'DELETE detail')).toHaveLength(1);
+  expect(harness.calls.filter((call) => call === 'GET collection')).toHaveLength(2);
+});
+
+test('parser-rejected saved-view ID survives an initial detail 404 and is batch-deleted when it appears', async ({
+  page,
+}) => {
+  const harness = await savedViewPomHarness(page, {
+    createBody: savedViewBody({ project: IDS.other }),
+    detailResponse: (ordinal, deleted) => {
+      if (ordinal === 0) return syntheticResponse(404);
+      return deleted
+        ? syntheticResponse(200, { deleted: true })
+        : syntheticResponse(200, savedViewBody());
+    },
+  });
+  await expect(
+    harness.knowledge.createSavedView(OWNED_NAME, IDS.state, () => {}),
+  ).rejects.toThrow();
+  expect(harness.calls.filter((call) => call === 'GET detail')).toHaveLength(2);
+  expect(harness.calls.filter((call) => call === 'DELETE detail')).toHaveLength(1);
+  expect(harness.calls.filter((call) => call === 'GET collection')).toHaveLength(1);
+});
+
+test('parser-rejected saved-view ID still verifies batch absence after two detail 404s', async ({
+  page,
+}) => {
+  const harness = await savedViewPomHarness(page, {
+    createBody: savedViewBody({ project: IDS.other }),
+    createLeavesRecord: false,
+    detailResponse: () => syntheticResponse(404),
+  });
+  await expect(
+    harness.knowledge.createSavedView(OWNED_NAME, IDS.state, () => {}),
+  ).rejects.toThrow();
+  expect(harness.calls.filter((call) => call === 'GET detail')).toHaveLength(2);
+  expect(harness.calls.filter((call) => call === 'DELETE detail')).toHaveLength(0);
+  expect(harness.calls.filter((call) => call === 'GET collection')).toHaveLength(1);
+  expect(harness.calls.filter((call) => call === 'GET UI')).toHaveLength(2);
+});
+
+test('parser-rejected saved-view ID fails closed when two detail 404s disagree with collection and UI', async ({
+  page,
+}) => {
+  const harness = await savedViewPomHarness(page, {
+    createBody: savedViewBody({ project: IDS.other }),
+    detailResponse: () => syntheticResponse(404),
+  });
+  const error = await harness.knowledge
+    .createSavedView(OWNED_NAME, IDS.state, () => {})
+    .then(
+      () => undefined,
+      (caught: unknown) => caught,
+    );
+  expect(nestedErrorMessages(error).join('\n')).toContain(
+    `residual ID: ${IDS.view}`,
+  );
+  expect(harness.calls.filter((call) => call === 'GET detail')).toHaveLength(2);
+  expect(harness.calls.filter((call) => call === 'DELETE detail')).toHaveLength(0);
+  expect(harness.calls.filter((call) => call === 'GET collection')).toHaveLength(1);
+  expect(harness.calls.filter((call) => call === 'GET UI')).toHaveLength(2);
+});
+
+test('sandbox guard runs immediately before the mutating action', async () => {
+  const calls: string[] = [];
+  await runSandboxMutation(
+    async () => {
+      calls.push('assertSandbox');
+    },
+    async () => {
+      calls.push('action');
+    },
+  );
+  expect(calls).toEqual(['assertSandbox', 'action']);
+});
+
+test('drains a delayed successful response after the action errors', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  await page.route(SYNTHETIC_VIEW_ENDPOINT, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(savedViewBody()),
+    });
+  });
+
+  const registered: string[] = [];
+  const capture = await captureExactFeaturePosts<CreatedSavedView>({
+    page,
+    endpoint: SYNTHETIC_VIEW_ENDPOINT,
+    parse: (body) => parseCreatedSavedView(body, OWNED_NAME, IDS.state),
+    register: (created) => registered.push(created.id),
+    quietMs: 30,
+    maxAdmissionMs: 300,
+    action: async () => {
+      await page.evaluate((endpoint) => {
+        void fetch(endpoint, { method: 'POST' });
+      }, SYNTHETIC_VIEW_ENDPOINT);
+      throw new Error('synthetic action error');
+    },
+  });
+
+  expect(capture.actionError).toHaveProperty('message', 'synthetic action error');
+  expect(capture.created.map(({ id }) => id)).toEqual([IDS.view]);
+  expect(registered).toEqual([IDS.view]);
+});
+
+test('awaits asynchronous response registration before settling', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  await page.route(SYNTHETIC_VIEW_ENDPOINT, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(savedViewBody()),
+    });
+  });
+
+  let registrationStarted = false;
+  let releaseRegistration = () => {};
+  const registrationGate = new Promise<void>((resolve) => {
+    releaseRegistration = resolve;
+  });
+  let settled = false;
+  const settling = captureExactFeaturePosts<CreatedSavedView>({
+    page,
+    endpoint: SYNTHETIC_VIEW_ENDPOINT,
+    parse: (body) => parseCreatedSavedView(body, OWNED_NAME, IDS.state),
+    register: async () => {
+      registrationStarted = true;
+      await registrationGate;
+    },
+    quietMs: 30,
+    maxAdmissionMs: 300,
+    action: () =>
+      page.evaluate((endpoint) => {
+        void fetch(endpoint, { method: 'POST' });
+      }, SYNTHETIC_VIEW_ENDPOINT),
+  }).then((capture) => {
+    settled = true;
+    return capture;
+  });
+
+  await expect.poll(() => registrationStarted).toBe(true);
+  expect(settled).toBe(false);
+  releaseRegistration();
+  await expect(settling).resolves.toMatchObject({
+    attemptCount: 1,
+    responseCount: 1,
+    registrationErrors: [],
+  });
+});
+
+test('records malformed and cross-project responses without registration', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  await page.route(SYNTHETIC_VIEW_ENDPOINT, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(savedViewBody({ project: IDS.other })),
+    });
+  });
+  let registrations = 0;
+  const capture = await captureExactFeaturePosts<CreatedSavedView>({
+    page,
+    endpoint: SYNTHETIC_VIEW_ENDPOINT,
+    parse: (body) => parseCreatedSavedView(body, OWNED_NAME, IDS.state),
+    register: () => {
+      registrations += 1;
+    },
+    quietMs: 30,
+    maxAdmissionMs: 200,
+    action: () =>
+      page.evaluate((endpoint) => {
+        void fetch(endpoint, { method: 'POST' });
+      }, SYNTHETIC_VIEW_ENDPOINT),
+  });
+
+  expect(capture.created).toEqual([]);
+  expect(capture.contractErrors).toHaveLength(1);
+  expect(registrations).toBe(0);
+});
+
+test('batch cleanup deletes two captured same-name saved views before shared absence checks', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  let responseOrdinal = 0;
+  await page.route(SYNTHETIC_VIEW_ENDPOINT, async (route) => {
+    const id = responseOrdinal++ === 0 ? IDS.view : IDS.view2;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(savedViewBody({ id })),
+    });
+  });
+
+  const capture = await captureExactFeaturePosts<CreatedSavedView>({
+    page,
+    endpoint: SYNTHETIC_VIEW_ENDPOINT,
+    parse: (body) => parseCreatedSavedView(body, OWNED_NAME, IDS.state),
+    register: () => {},
+    quietMs: 30,
+    maxAdmissionMs: 300,
+    action: () =>
+      page.evaluate(async (endpoint) => {
+        await Promise.all([
+          fetch(endpoint, { method: 'POST' }),
+          fetch(endpoint, { method: 'POST' }),
+        ]);
+      }, SYNTHETIC_VIEW_ENDPOINT),
+  });
+  expect(capture.attemptCount).toBe(2);
+  expect(capture.created.map(({ id }) => id).sort()).toEqual(
+    [IDS.view, IDS.view2].sort(),
+  );
+
+  const live = new Map(
+    capture.created.map((created) => [created.id, created]),
+  );
+  const detailRoot = `${SYNTHETIC_ORIGIN}/batch-views/`;
+  const collectionEndpoint = `${SYNTHETIC_ORIGIN}/batch-views/`;
+  const uiPath = `${SYNTHETIC_ORIGIN}/batch-views-ui/`;
+  const calls: string[] = [];
+  const requestContext = {
+    get: async (url: string) => {
+      if (url === collectionEndpoint) {
+        calls.push('GET collection');
+        return syntheticResponse(
+          200,
+          [...live.values()].map((created) =>
+            savedViewBody({ id: created.id }),
+          ),
+        );
+      }
+      const id = url.slice(detailRoot.length, -1);
+      calls.push(`GET ${id}`);
+      const created = live.get(id);
+      return created
+        ? syntheticResponse(200, savedViewBody({ id }))
+        : syntheticResponse(404);
+    },
+    delete: async (url: string) => {
+      const id = url.slice(detailRoot.length, -1);
+      calls.push(`DELETE ${id}`);
+      return syntheticResponse(live.delete(id) ? 204 : 404);
+    },
+  };
+  await page.route(uiPath, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: [...live.values()]
+        .map((created) => `<div>${created.name}</div>`)
+        .join(''),
+    });
+  });
+  await expect(
+    cleanupCapturedSavedViewBatch({
+      page,
+      requestContext,
+      assertSandbox: async () => {
+        calls.push('assertSandbox');
+      },
+      created: capture.created,
+      detailEndpoint: (id) => `${detailRoot}${id}/`,
+      collectionEndpoint,
+      uiPath,
+    }),
+  ).resolves.toBeUndefined();
+  expect(live.size).toBe(0);
+  expect(calls.slice(0, 2).sort()).toEqual(
+    [`GET ${IDS.view}`, `GET ${IDS.view2}`].sort(),
+  );
+  expect(calls.filter((call) => call === 'assertSandbox')).toHaveLength(2);
+  expect(calls.filter((call) => call.startsWith('DELETE ')).sort()).toEqual(
+    [`DELETE ${IDS.view}`, `DELETE ${IDS.view2}`].sort(),
+  );
+  expect(calls.at(-1)).toBe('GET collection');
+});
+
+test('mixed saved-view outcomes preserve request order for LIFO batch cleanup', async ({
+  page,
+}) => {
+  const endpoint = `${SYNTHETIC_ORIGIN}/views-mixed-order/`;
+  await openSyntheticPage(page);
+  await page.route(endpoint, async (route) => {
+    const id =
+      route.request().headers()['x-qa-outcome'] === 'registration-error'
+        ? IDS.view
+        : IDS.view2;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(savedViewBody({ id })),
+    });
+  });
+  const capture = await captureExactFeaturePosts<CreatedSavedView>({
+    page,
+    endpoint,
+    parse: (body) => parseCreatedSavedView(body, OWNED_NAME, IDS.state),
+    register: (created) => {
+      if (created.id === IDS.view) {
+        throw new Error('synthetic registration error');
+      }
+    },
+    quietMs: 30,
+    maxAdmissionMs: 300,
+    action: () =>
+      page.evaluate(async (requestUrl) => {
+        await fetch(requestUrl, {
+          method: 'POST',
+          headers: { 'x-qa-outcome': 'registration-error' },
+        });
+        await fetch(requestUrl, {
+          method: 'POST',
+          headers: { 'x-qa-outcome': 'success' },
+        });
+      }, endpoint),
+  });
+  expect(capture.registrationErrors[0]?.requestOrdinal).toBe(0);
+  expect(capture.createdEntries[0]?.requestOrdinal).toBe(1);
+  const ordered = orderResponseOwnedCleanupBatch([
+    ...capture.createdEntries,
+    ...capture.registrationErrors.map(({ requestOrdinal, created }) => ({
+      requestOrdinal,
+      created,
+    })),
+  ]);
+  expect(ordered.map(({ id }) => id)).toEqual([IDS.view, IDS.view2]);
+
+  const live = new Map(ordered.map((created) => [created.id, created]));
+  const detailRoot = `${SYNTHETIC_ORIGIN}/views-mixed-cleanup/`;
+  const collectionEndpoint = `${SYNTHETIC_ORIGIN}/views-mixed-cleanup/`;
+  const uiPath = `${SYNTHETIC_ORIGIN}/views-mixed-cleanup-ui/`;
+  const calls: string[] = [];
+  const requestContext = {
+    get: async (url: string) => {
+      if (url === collectionEndpoint) {
+        calls.push('GET collection');
+        return syntheticResponse(
+          200,
+          [...live.values()].map(({ id }) => savedViewBody({ id })),
+        );
+      }
+      const id = url.slice(detailRoot.length, -1);
+      calls.push(`GET ${id}`);
+      return live.has(id)
+        ? syntheticResponse(200, savedViewBody({ id }))
+        : syntheticResponse(404);
+    },
+    delete: async (url: string) => {
+      const id = url.slice(detailRoot.length, -1);
+      calls.push(`DELETE ${id}`);
+      return syntheticResponse(live.delete(id) ? 204 : 404);
+    },
+  };
+  await page.route(uiPath, async (route) => {
+    await route.fulfill({ status: 200, contentType: 'text/html', body: '' });
+  });
+  await cleanupCapturedSavedViewBatch({
+    page,
+    requestContext,
+    assertSandbox: async () => {
+      calls.push('assertSandbox');
+    },
+    created: ordered,
+    detailEndpoint: (id) => `${detailRoot}${id}/`,
+    collectionEndpoint,
+    uiPath,
+  });
+  expect(calls.filter((call) => call.startsWith('DELETE '))).toEqual([
+    `DELETE ${IDS.view2}`,
+    `DELETE ${IDS.view}`,
+  ]);
+  expect(live.size).toBe(0);
+});
+
+const captureDuplicateArtifacts = async (page: Page) => {
+  const endpoint = `${SYNTHETIC_ORIGIN}/artifact-reservations/`;
+  let responseOrdinal = 0;
+  await page.route(endpoint, async (route) => {
+    const id = responseOrdinal++ === 0 ? IDS.artifact : IDS.artifact2;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        artifact: {
+          id,
+          name: PRIVATE_ARTIFACT_NAME,
+          workspace: SANDBOX_WORKSPACE_ID,
+          scope: 'private',
+          links: [],
+        },
+      }),
+    });
+  });
+  return captureExactFeaturePosts<CreatedArtifact>({
+    page,
+    endpoint,
+    extractResponseIdentity: extractArtifactResponseIdentity,
+    parse: (body) =>
+      parseArtifactReservation(body, PRIVATE_ARTIFACT_NAME, 'private'),
+    register: () => {},
+    quietMs: 30,
+    maxAdmissionMs: 300,
+    action: () =>
+      page.evaluate(async (requestUrl) => {
+        await Promise.all([
+          fetch(requestUrl, { method: 'POST' }),
+          fetch(requestUrl, { method: 'POST' }),
+        ]);
+      }, endpoint),
+  });
+};
+
+const artifactBatchHarness = async (
+  page: Page,
+  created: CreatedArtifact[],
+  options: { failDeleteId?: string; failGetId?: string; suffix: string },
+) => {
+  const live = new Map(created.map((artifact) => [artifact.id, artifact]));
+  const detailRoot = `${SYNTHETIC_ORIGIN}/artifact-batch/`;
+  const collectionEndpoint = `${SYNTHETIC_ORIGIN}/artifact-batch/`;
+  const uiPath = `${SYNTHETIC_ORIGIN}/artifact-batch-ui-${options.suffix}/`;
+  const calls: string[] = [];
+  const resolved: string[] = [];
+  const requestContext = {
+    get: async (url: string) => {
+      if (url === collectionEndpoint) {
+        calls.push('GET collection');
+        return syntheticResponse(
+          200,
+          [...live.values()].map(({ id }) =>
+            privateArtifactBody('processing', { id }),
+          ),
+        );
+      }
+      const id = url.slice(detailRoot.length, -1);
+      calls.push(`GET ${id}`);
+      if (id === options.failGetId) {
+        throw new Error(`Synthetic detail GET failed for ${id}.`);
+      }
+      return live.has(id)
+        ? syntheticResponse(200, privateArtifactBody('processing', { id }))
+        : syntheticResponse(404);
+    },
+    delete: async (url: string) => {
+      const id = url.slice(detailRoot.length, -1);
+      calls.push(`DELETE ${id}`);
+      if (id === options.failDeleteId) return syntheticResponse(500);
+      return syntheticResponse(live.delete(id) ? 204 : 404);
+    },
+  };
+  await page.route(uiPath, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: [...live.values()]
+        .map(({ name }) => `<div>${name}</div>`)
+        .join(''),
+    });
+  });
+  return {
+    calls,
+    collectionEndpoint,
+    detailEndpoint: (id: string) => `${detailRoot}${id}/`,
+    live,
+    onResolved: (artifact: CreatedArtifact) => resolved.push(artifact.id),
+    requestContext,
+    resolved,
+    uiPath,
+  };
+};
+
+test('batch artifact cleanup deletes two captured same-name reservations before absence checks', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  const capture = await captureDuplicateArtifacts(page);
+  expect(capture.created.map(({ id }) => id).sort()).toEqual(
+    [IDS.artifact, IDS.artifact2].sort(),
+  );
+  const harness = await artifactBatchHarness(page, capture.created, {
+    suffix: 'success',
+  });
+  await expect(
+    cleanupCapturedArtifactBatch({
+      page,
+      requestContext: harness.requestContext,
+      assertSandbox: async () => {
+        harness.calls.push('assertSandbox');
+      },
+      created: capture.created,
+      detailEndpoint: harness.detailEndpoint,
+      collectionEndpoint: harness.collectionEndpoint,
+      uiPath: harness.uiPath,
+      onResolved: harness.onResolved,
+    }),
+  ).resolves.toBeUndefined();
+  expect(harness.live.size).toBe(0);
+  expect(harness.calls.filter((call) => call.startsWith('DELETE '))).toEqual([
+    `DELETE ${IDS.artifact2}`,
+    `DELETE ${IDS.artifact}`,
+  ]);
+  expect(harness.calls.at(-1)).toBe('GET collection');
+  expect(harness.resolved.sort()).toEqual(
+    [IDS.artifact, IDS.artifact2].sort(),
+  );
+});
+
+test('artifact batch continues after one DELETE error and reports only the exact residual ID', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  const capture = await captureDuplicateArtifacts(page);
+  const harness = await artifactBatchHarness(page, capture.created, {
+    failDeleteId: IDS.artifact2,
+    suffix: 'delete-error',
+  });
+  const error = await cleanupCapturedArtifactBatch({
+    page,
+    requestContext: harness.requestContext,
+    assertSandbox: async () => {
+      harness.calls.push('assertSandbox');
+    },
+    created: capture.created,
+    detailEndpoint: harness.detailEndpoint,
+    collectionEndpoint: harness.collectionEndpoint,
+    uiPath: harness.uiPath,
+    onResolved: harness.onResolved,
+  }).then(
+    () => undefined,
+    (caught: unknown) => caught,
+  );
+  expect(error).toBeInstanceOf(AggregateError);
+  expect((error as Error).message).toContain(IDS.artifact2);
+  expect((error as Error).message).not.toContain(IDS.artifact);
+  expect([...harness.live.keys()]).toEqual([IDS.artifact2]);
+  expect(harness.resolved).toEqual([IDS.artifact]);
+  expect(harness.calls.filter((call) => call.startsWith('DELETE '))).toEqual([
+    `DELETE ${IDS.artifact2}`,
+    `DELETE ${IDS.artifact}`,
+  ]);
+  expect(harness.calls.indexOf('GET collection')).toBeGreaterThan(
+    harness.calls.lastIndexOf(`DELETE ${IDS.artifact}`),
+  );
+});
+
+test('artifact batch continues after one detail GET error and deletes the later safe ID', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  const capture = await captureDuplicateArtifacts(page);
+  const harness = await artifactBatchHarness(page, capture.created, {
+    failGetId: IDS.artifact,
+    suffix: 'get-error',
+  });
+  const error = await cleanupCapturedArtifactBatch({
+    page,
+    requestContext: harness.requestContext,
+    assertSandbox: async () => {
+      harness.calls.push('assertSandbox');
+    },
+    created: capture.created,
+    detailEndpoint: harness.detailEndpoint,
+    collectionEndpoint: harness.collectionEndpoint,
+    uiPath: harness.uiPath,
+    onResolved: harness.onResolved,
+  }).then(
+    () => undefined,
+    (caught: unknown) => caught,
+  );
+  expect(error).toBeInstanceOf(AggregateError);
+  expect((error as Error).message).toContain(IDS.artifact);
+  expect((error as Error).message).not.toContain(IDS.artifact2);
+  expect([...harness.live.keys()]).toEqual([IDS.artifact]);
+  expect(harness.resolved).toEqual([IDS.artifact2]);
+  expect(harness.calls.filter((call) => call.startsWith('DELETE '))).toEqual([
+    `DELETE ${IDS.artifact2}`,
+  ]);
+});
+
+test('preserves a nested artifact exact ID when its reservation contract fails', async ({
+  page,
+}) => {
+  const endpoint = `${SYNTHETIC_ORIGIN}/artifacts/`;
+  await openSyntheticPage(page);
+  await page.route(endpoint, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        artifact: { id: IDS.artifact, workspace: IDS.other },
+      }),
+    });
+  });
+
+  const capture = await captureExactFeaturePosts<CreatedArtifact>({
+    page,
+    endpoint,
+    extractResponseIdentity: extractArtifactResponseIdentity,
+    parse: (body) =>
+      parseArtifactReservation(
+        body,
+        'QA E2E current-run workspace artifact.txt',
+        'private',
+      ),
+    register: () => {
+      throw new Error('must not register a malformed reservation');
+    },
+    quietMs: 30,
+    maxAdmissionMs: 200,
+    action: () =>
+      page.evaluate((requestUrl) => {
+        void fetch(requestUrl, { method: 'POST' });
+      }, endpoint),
+  });
+
+  expect(capture.created).toEqual([]);
+  expect(capture.contractErrors).toHaveLength(1);
+  expect(capture.contractErrors[0]?.exactId).toBe(IDS.artifact);
+  expect(capture.registrationErrors).toEqual([]);
+});
+
+test('artifact admission wait settles quickly when the chooser fails before any POST', async ({
+  page,
+}) => {
+  await openSyntheticPage(page);
+  const startedAt = Date.now();
+  const capture = await captureExactFeaturePosts<CreatedArtifact>({
+    page,
+    endpoint: `${SYNTHETIC_ORIGIN}/artifacts/`,
+    extractResponseIdentity: extractArtifactResponseIdentity,
+    parse: (body) =>
+      parseArtifactReservation(
+        body,
+        'QA E2E current-run workspace artifact.txt',
+        'private',
+      ),
+    register: () => {},
+    waitBeforeAdmissionClose: waitForArtifactAdmission,
+    quietMs: 30,
+    maxAdmissionMs: 300,
+    action: async () => {
+      throw new Error('synthetic chooser failure');
+    },
+  });
+
+  expect(Date.now() - startedAt).toBeLessThan(1_000);
+  expect(capture.attemptCount).toBe(0);
+  expect(capture.actionError).toHaveProperty(
+    'message',
+    'synthetic chooser failure',
+  );
+});
+
+test('artifact admission drain awaits an admitted late 201 after action error', async ({
+  page,
+}) => {
+  const endpoint = `${SYNTHETIC_ORIGIN}/artifacts/`;
+  await openSyntheticPage(page);
+  await page.route(endpoint, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 70));
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        artifact: {
+          id: IDS.artifact,
+          workspace: SANDBOX_WORKSPACE_ID,
+        },
+      }),
+    });
+  });
+  const registered: string[] = [];
+  const capture = await captureExactFeaturePosts<CreatedArtifact>({
+    page,
+    endpoint,
+    extractResponseIdentity: extractArtifactResponseIdentity,
+    parse: (body) =>
+      parseArtifactReservation(
+        body,
+        'QA E2E current-run workspace artifact.txt',
+        'private',
+      ),
+    register: (created) => registered.push(created.id),
+    waitBeforeAdmissionClose: waitForArtifactAdmission,
+    quietMs: 30,
+    maxAdmissionMs: 300,
+    action: async () => {
+      await page.evaluate((requestUrl) => {
+        void fetch(requestUrl, { method: 'POST' });
+      }, endpoint);
+      throw new Error('synthetic post-admission action error');
+    },
+  });
+
+  expect(capture.actionError).toHaveProperty(
+    'message',
+    'synthetic post-admission action error',
+  );
+  expect(capture.attemptCount).toBe(1);
+  expect(capture.responseCount).toBe(1);
+  expect(capture.created.map(({ id }) => id)).toEqual([IDS.artifact]);
+  expect(registered).toEqual([IDS.artifact]);
+});
+
+test('provisional unnamed Wiki recovery cannot leak through CleanupLedger gap', async () => {
+  const standard = new CleanupLedger();
+  expect(() =>
+    standard.register({
+      kind: 'wiki',
+      id: IDS.wiki,
+      name: '',
+      workspaceSlug: SANDBOX.workspaceSlug,
+      cleanup: async () => {},
+    }),
+  ).toThrow(/Cleanup name/);
+
+  const provisional = parseProvisionalWikiPage({
+    id: IDS.wiki,
+    name: '',
+    project_ids: [SANDBOX.projectId],
+  });
+  const cleaned: string[] = [];
+  const recovery = new ProvisionalWikiRecoveryLedger();
+  recovery.register(provisional, async () => {
+    cleaned.push(provisional.id);
+  });
+  await expect(recovery.cleanupAll()).resolves.toEqual([]);
+  expect(cleaned).toEqual([IDS.wiki]);
+  expect(recovery.size).toBe(0);
+});
+
+test('a promoted Wiki is still recovered when body formatting fails', async () => {
+  const provisional = parseProvisionalWikiPage({
+    id: IDS.wiki,
+    name: '',
+    project_ids: [SANDBOX.projectId],
+  });
+  const named = parseNamedWikiPage(
+    { id: IDS.wiki, name: 'QA E2E synthetic wiki' },
+    provisional,
+    'QA E2E synthetic wiki',
+  );
+  const recovery = new ProvisionalWikiRecoveryLedger();
+  recovery.register(provisional, async () => {
+    throw new Error('promoted provisional cleanup must not run');
+  });
+  recovery.promote(provisional, named);
+  expect(recovery.size).toBe(0);
+
+  const cleaned: string[] = [];
+  await expect(
+    cleanupWikiAfterFailedSave({
+      promoted: true,
+      named,
+      provisionalRecovery: recovery,
+      cleanupNamed: async (created) => {
+        cleaned.push(created.id);
+      },
+    }),
+  ).resolves.toEqual([]);
+  expect(cleaned).toEqual([IDS.wiki]);
+});
+
+test('parser-rejected Wiki exact IDs are safely recovered or explicitly refused', async () => {
+  const cleaned: string[] = [];
+  await expect(
+    reconcileRejectedWikiExactId({
+      id: IDS.wiki,
+      requestedName: 'QA E2E synthetic wiki',
+      inspect: async () => ({
+        status: 200,
+        body: {
+          id: IDS.wiki,
+          name: '',
+          project_ids: [SANDBOX.projectId],
+          evolved_response_shape: true,
+        },
+      }),
+      cleanup: async (provisional) => {
+        cleaned.push(provisional.id);
+      },
+    }),
+  ).resolves.toBeUndefined();
+  expect(cleaned).toEqual([IDS.wiki]);
+
+  let foreignCleanupCalls = 0;
+  await expect(
+    reconcileRejectedWikiExactId({
+      id: IDS.wiki,
+      requestedName: 'QA E2E synthetic wiki',
+      inspect: async () => ({
+        status: 200,
+        body: {
+          id: IDS.wiki,
+          name: 'Existing Wiki',
+          project_ids: [SANDBOX.projectId],
+        },
+      }),
+      cleanup: async () => {
+        foreignCleanupCalls += 1;
+      },
+    }),
+  ).rejects.toThrow(new RegExp(`residual ID: ${IDS.wiki}`));
+  expect(foreignCleanupCalls).toBe(0);
+});
+
+test('provisional Wiki cleanup refuses malformed or cross-project detail', () => {
+  const provisional = parseProvisionalWikiPage({
+    id: IDS.wiki,
+    name: '',
+    project_ids: [SANDBOX.projectId],
+  });
+  expect(
+    assertExactProvisionalWikiCleanupTarget(
+      {
+        id: IDS.wiki,
+        name: 'QA E2E synthetic wiki',
+        project_ids: [SANDBOX.projectId],
+      },
+      provisional,
+      'QA E2E synthetic wiki',
+    ),
+  ).toMatchObject({ id: IDS.wiki });
+  expect(() =>
+    assertExactProvisionalWikiCleanupTarget(
+      { id: IDS.wiki, name: '', project_ids: [IDS.other] },
+      provisional,
+      'QA E2E synthetic wiki',
+    ),
+  ).toThrow(/provisional ownership/);
+  expect(() =>
+    assertExactProvisionalWikiCleanupTarget(
+      {
+        id: IDS.wiki,
+        name: 'Existing Wiki',
+        project_ids: [SANDBOX.projectId],
+      },
+      provisional,
+      'QA E2E synthetic wiki',
+    ),
+  ).toThrow(/provisional ownership/);
+});

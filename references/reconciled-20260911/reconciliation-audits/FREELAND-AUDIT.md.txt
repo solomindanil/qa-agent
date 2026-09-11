@@ -1,0 +1,199 @@
+# Freeland lineage reconciliation — 2026-09-11
+
+## Decision
+
+Keep accepted Freeland `9c2509e32462319d5b96ccb49d5ae2070df7b18d` active. Most historical Freeland QA branches are already represented by explicit source imports, later replacements, or patch-equivalent integration. Three substantial **inactive preservation / review candidates** remain: the dirty FreelandQA semantic transformation proof, the clean source-access bootstrap, and the standalone graph proof/archive implementation. Smaller diagnostics are listed separately. None is qualified for automatic activation by this audit.
+
+This was a read-only source/history audit. No product, tracker, environment, credentials, shared graph/current, registration, installed skill, or source pin was changed. No tests, browser probes, npm installs, watchers or live CLI commands were run. Only this report was written.
+
+## Anchors and method
+
+- Accepted normal restored component: `/Users/danilsolomin/projectsnew/qa-agent/.local/qa-h001-review-20260911.gx5j0h/cold/components/freeland`, HEAD `9c2509e32462319d5b96ccb49d5ae2070df7b18d`, 126 reachable commits, root `8ff6d4f9fe7bf2d887ba27c26c58f363bb87fc0c`.
+- Read installed `freeland-release-qa`, applicable AGENTS, `~/.codex/qa-workspaces.md`, owner checkpoint and accepted provenance merge decisions. Skill used for owner/source boundaries; no release campaign was requested or started.
+- Current owner `/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-release-20260910.YLMtOu`: harness remains `9c2509e`; current `git status` shows only the pre-existing `docs/local/freeland/product-graph/current/graph.json` delta. Owner confirms no later reusable source commit. Preserve original unresolved invoice/state ownership; diagnostic PASS is not release acceptance.
+- Compared all Freeland branch tips, reachable branch-only commits, registered Freeland worktree HEADs and dirty QA paths. Used Git ancestry **within donor history**, stable patch IDs, accepted manifest/blob provenance, accepted reachable blob membership, and surviving orphan-file hashes. Different repository roots mean `not ancestor of 9c2509e` alone is not missing integration.
+- NuanuFlowQA has 433 all-ref commits; FreelandQA has 8; standalone graph has 31. NuanuFlowQA Codex turn-diff refs resolve to five **trees**, not development commits: `ce03b2ac`, `368f066b`, `26ae7331`, `dc932420`, `f1acba81`. They are unreviewed tooling snapshots, not independent accepted branch heads; do not bulk export them because their scope includes unrelated/dirty workspace material.
+- Generic Nuanu/Starter/Paydemo work is outside this Freeland sub-audit and belongs to the sibling reconciliation. Product repository history is reference-only, not a QA merge source.
+
+## Repository/worktree dispositions
+
+| Location under `/Users/danilsolomin/projectsnew` | Identity / finding | Disposition |
+|---|---|---|
+| `NuanuFlowQA` | `6274b6d51ebabde6092e8123fbf130c1779e651e`; 18 tracked dirty files plus large mixed untracked workspace | Historical donor; do not run or copy wholesale. Relevant deltas below. |
+| `FreelandQA` | clean `61033683d33fd2305ebcf8ea8a692b97fb79800c` | Earlier bootstrap, accepted baseline lineage is task2 `27e1a39`. |
+| `NuanuFlowQA/.worktrees/freelandqa-task2` | `27e1a392a9c173a8f841137807d5acfbf08824e9` + 7 dirty/new paths | Accepted commit imported; dirty semantic-proof work is **not imported**, preserve atomically. |
+| `FreelandQAmain-agent-skills` | orphan `.git` points at missing `/private/tmp/freeland-s2-velvet.b7yVok/checkout/.git/worktrees/FreelandQAmain-agent-skills` | All 527 non-private/non-env tracked files match exact accepted ancestor `3d0088ec86b16a2802aa09cca975ca65cc2ede32`; zero missing/different. No new source found. |
+| `FreelandQAmain-release-0549361c` | orphan `.git` points at missing `/private/tmp/FreelandQAmain-build.lu0Tgp/.git/worktrees/FreelandQAmain-release-0549361c` | Best accepted-tree match `586b51c3e0fb30e04063fb825e6675520b620902`: 509 equal, 2 different, 0 missing in non-private/non-env tracked set. Differences: auth setup timeout + provenance row; diagnostic candidate only. Dependencies/dist excluded. |
+| `FreelandQAmain-release-0549361c-source` | clean product snapshot `0549361cea0606544bfccddab182fcbe37aaae42` | Product source/reference, not reusable QA implementation; do not copy app/history into qa-agent. |
+| `freeland-qa` | managed Starter scaffold, no Git root; AGENTS says initialization stops at DISCOVERING | Registration/model state and generated adapters are not a replacement Freeland runner. Preserve where owned, do not migrate/register/execute. |
+| `freeland_graph` | `da8ec6ca9803a92f407094272b1e11c30b5dcb57`; later preserved branch `86e8330cba47c99ea50b52ec1af43f8d258609e1` | Separate graph archive/proof implementation, not accepted harness source. Dirty Obsidian graph/canvas and staging notes are generated views/evidence, not code. |
+
+The registered Freeland NuanuFlowQA worktrees were individually inspected. Besides task2, executable-source deltas occur only in `freeland-lean-graph`, `freeland-real-corpus-fix`, `freeland-tc02-approved-integration`, and `freeland-verdict-v0`; the rest are clean or have only docs/private/generated material. Detached review HEADs `50b119c`, `27dcb07`, `aeeb685`, `f3cbbdf`, `6d90852`, `63a0959` represent donor baselines/reviews, not newer unintegrated implementations. Missing `/private/tmp` registered worktrees were not recreated or pruned.
+
+## Already imported: authoritative provenance
+
+Accepted `provenance/source-manifest.v1.json` and `provenance/merge-decisions.md` establish these source authorities. Imported files may have later accepted edits; old source must not overwrite them.
+
+| Source | Frozen donor commit | Accepted treatment |
+|---|---|---|
+| Safety | `79567d30ec7b2e77345d3d2567bba89775dde3e7` | Imported safety/campaign/graph/verdict closure, including previous `790337b` and `3a8214a` overlays. |
+| Controlled email | `18a07d174009165b5a78229ec1684a565c9e8cd9` | Safety/Mail collision provenance retained; controlled lane imported. |
+| Recovery TC05 | `94361b6347a622b4ccbfa7cf0f96decacc207c6e` | 29-file S1 recovery closure, replacing earlier 2-file oracle import. |
+| Transport | `dc3ca0fc03be25eb5a57b838f7097af5cfc6ba9e` | Seven exact transport files. |
+| Product-CI coverage | `e35eba2b98d121eb83dab57de97092fd31cfa45e` | Integrated as `f911f440ef3f1788cecee423f06f266dfc09a3e6`, ancestor of Safety; 16 introduced test titles retained. |
+| Baseline | `27e1a392a9c173a8f841137807d5acfbf08824e9` | 164-case package in `packages/freeland-baseline`; excludes subsequent dirty task2 work. |
+| Embedded Console | `acf8ec54a8fe4ee16351464f65ec90a95a5fe769` | Historical Freeland embedded Console, not current universal Console. |
+| Canary | `068fcf05aba3f6703f5e6654849e0b6cda7b5528` | Approved 43-file archival closure only; VPN fixture is text-only, not runnable. |
+
+These NuanuFlowQA branch heads have **zero commits outside the union of the five frozen Nuanu donor ancestries**: `freeland-controlled-email-fd4-fix` `1c4ceda`, `freeland-controlled-email-shadow` `c6da4be`, `freeland-coverage-closure` `e35eba2`, `freeland-dialogue-qa-slice0` `94361b6`, `freeland-graph-hardening` `c6c5daf`, `freeland-mailtm-token-schema` `18a07d1`, `freeland-release-safety-spine-integration` `79567d3`, `freeland-tc02-approved-integration` `3a8214a`, `freeland-tc05-canonical-integration` `94361b6`, `freeland-verdict-v0` `dc3ca0f`. This proves donor lineage coverage, not wholesale import of every unrelated path in those commits.
+
+### Remaining 35 donor commits: explicit disposition
+
+| Commit(s) | Disposition |
+|---|---|
+| `10ed154e34f9b39b2ca4e56b8e52a03b7caacaf1` | Stable patch-ID equals imported-lineage `86d9089d95ede1814d6e34f8dc3ec7aee90af848`; TC09 already integrated. |
+| `f3cbbdf736cf830f0dff7e09eb450f0c637d722c` | Patch-equivalent to `27dcb07f627c4d31a449d5f7c07fc9d069c8e6e5`. |
+| `875cb55c06e0ddc3f42131b17817c82e42274992` | Patch-equivalent to `fd5fc5f887616bb296d6c99862f892256d9df02c`. |
+| `aeeb685651857adc7e2960ebdec613e39cc4d117` | Patch-equivalent to `31cc5f5dced74cfabe0a31152c6348c245fb9717`. |
+| `a881cfa776ff6c30301124528fefafb8d4ca4713` | Patch-equivalent to `0aa0a4c2eebe0d72e3a00c519d0b31bd4b702bc5`. |
+| `441432a0633b3a5283d1e37d2a81587a67feefca` | Patch-equivalent to `18b3676b0e8d495fa579d530fad462334901e2d3`. |
+| `6a3444b9d4486cb3c9015c64b83168befe0f580f` | Two oracle files explicitly imported then replaced by stronger S1 recovery closure. |
+| `e557656`, `c40f583`, `8f4e0a8`, `54b8815`, `86d2b84`, `3d56981`, `67da03c`, `33dd907`, `1e8d5e3`, `6aafcb8` | Old TC05 automation/hardening lineage. No whole-commit patch-ID equality, but reviewed re-integration `4697f42` + `54629b0` + `94361b6` is the explicit accepted replacement. Later canonical changes add evidence module and stronger authorization/navigation. Preserve history; do not cherry-pick old branch over current lane. |
+| `79e1bc3`, `e055474` | Public-runtime commit and its explicit revert; pre-TC02 branch is not a newer desired state. |
+| `69f0c6c`, `8ce8735`, `85ffbc5` | Historical safety/private-corpus planning boundaries, superseded by accepted consolidation/provenance. Reference, not missing runtime. |
+| `8d79e56`, `48c80d9`, `9026fc9`, `b25c64d`, `91cbff0`, `cda50cb` | Early real-corpus/lean graph implementation. Accepted model/planner already contain Unicode case grammar, normalized invariants, ordinal references, strict unresolved accounting, explicit list reporter and canonical test paths. Preserve historical design only; no reason to downgrade current graph. |
+| `9f92eceee6eda41c8693dcc4822182a3b692e87a`, `efac3e58e8642f70853273d19bcad41708a7dd56`, `7f933a06fc0bef69551d82e6ca1d195b3f5989c5`, `81c9c0cc5666d90a98c438cc403b804de1e35a4a`, `6dba9b3b4229da3efd4c84f28bf859983a5e0cbd`, `9456576418945bef096964ac7bf09b7e2563d679`, `0e7fc478aadc92eacee878291b1d9dae89c266b8` | **Not imported, no exact commit-patch match**: complete source-access bootstrap series, candidate below. |
+
+## Candidate A — semantic baseline transformation proof (highest preservation priority)
+
+Source: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-task2`, base `27e1a39`, six modified tracked files and one untracked generator. Every dirty file hash is absent from accepted reachable blob history.
+
+The current accepted contract verifies supplied byte spans/hashes, AST kind, reconstruction and counts. The dirty version additionally derives an allowlisted semantic operation set from source AST, rejects broad/partial/self-consistently repinned edits, pins retired export spans, and cross-links snapshot/source/target/proof identity. The new proof inventory contains **119 descriptors** with per-file and per-category counts. This is material hardening, not a cosmetic duplicate.
+
+Atomic review set and SHA256:
+
+```text
+bdaf40decd58184916f9aa9d9185f75acfdb450ae21d5f65d44013822043c29b  package.json
+e77326f0d897b4daaad196a6b2f3b133b9e10796396b6fc78ad0ecb0d00b2bf6  tests/coverage/baseline-contract.test.ts
+4735efb74fd285db3f922733f3c7189b9a1d54d7658d7e303512c8bd4034b5bc  tests/coverage/baseline-contract.ts
+6f326cbb989a2326277596d5c2f32ceb48318d111f653d8bc2f557e9c479197e  tests/coverage/baseline-files.test.ts
+8d4e2d6f1126ae3086fc25d3af9e617fd341669a8de6371187f8cc57670b6ddb  tests/coverage/freeland-baseline.manifest.json
+fac3497871f3a23e14480ef1d9bbb1b89d7654269dd7b478d8e0dcaf4414d296  tests/playwright/freeland/auth.setup.ts
+d2a2f358289d12a5e16017b65cddfc543b50b3099306f17da689b97f36b8ada6  tests/coverage/generate-freeland-baseline-manifest.ts
+```
+
+Qualification recommendation: preserve the seven files and exact base first; review against `packages/freeland-baseline`, with `baseline-contract.test.ts` pure mutant tests before whole-package verification. Run the generator **without `--write`** into an isolated output only after reviewing its inputs; verify reconstructed 29-file set and 164-case discovery separately. The dirty auth.setup change is whitespace/import shape required by exact reconstruction, not a behavior fix. Do not activate `baseline:regenerate --write` in accepted source as a preservation step. No independent acceptance record or reviewed safe bundle for this dirty delta was found in this audit.
+
+## Candidate B — source-access bootstrap
+
+Source: clean `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-source-access-bootstrap`, head `0e7fc47`, seven-commit series above. Six-file executable/test closure, plus one historical plan edit outside closure. It implements atomic key-custody preparation, no-clobber promotion, cleanup identity, readonly access verification and a closed-output CLI. Accepted Freeland has no `scripts/freeland-source-access` closure.
+
+```text
+e5af849e0adf92d5ce060b738052eb56e82947c798125a85cb5409217dee6036  scripts/freeland-source-access/cli.mjs
+ee8fa1cd8ccf7ed99672232fefa3ba18f4f183a3ed56afb834cc993c28ca1a18  scripts/freeland-source-access/constants.mjs
+8a1c9b0dc8a19464c28562ea3022e3696597c83e4176b65d307212249a4bf07f  scripts/freeland-source-access/lib.mjs
+9111768aace426d8fdbf8278d23059e603bb100e2ae14f551ccce5f4f5b7d191  tests/freeland-source-access/cli.test.mjs
+84d17fa35c54ecf1fe381092a3a0f39319e6eb01195a2d392b6d25b9f0a0edce  tests/freeland-source-access/prepare.test.mjs
+fa7bba1b3a24da90c8d301e9f4512702df231869bf431c003bd1c86cbc9efe27  tests/freeland-source-access/verify.test.mjs
+```
+
+Preserve as inactive provisioning reference, not a default runner. Constants pin the product repo and a home-directory custody path; operational CLI can create key material and verify remote write denial, so never run it during source reconciliation. The tests use fake operations/temp fixtures and include subprocess cleanup tests; audit closure, deny network and use a task-owned temporary root before `node --test tests/freeland-source-access/*.test.mjs`. No source access credential files belong in an archive. No already-reviewed qa-agent bundle for this closure was identified.
+
+## Candidate C — standalone graph proof archive
+
+Standalone source is **not newer accepted Freeland graph state**. Main `5af2f40` and map branch `9249e74` are ancestors of checked-out `da8ec6c`; remote main/HEAD also resolve to `da8ec6c`. `codex/gap-wave1-evidence` and its remote preserve the later `86e8330` head. Missing historical graph worktrees were not restored. Current dirty files are Obsidian generated UI state and untracked September QA notes, excluded.
+
+The 11 commits through `da8ec6c` cover initial snapshots, production-map locator fixes, proof records, complete diff-impact classification, coverage ownership, artifact publication, and concurrent rebuild sealing. The subsequent 20 commits are:
+
+```text
+a99e3b0b24d4391edfb017be49a2b01ff954c962 B11 closure
+0e1deee297c7da2579ba255af023cbd67292ccfd G5/G6 closure
+5f264bc00da6bfd6fa941b58cbe69e3a5b19405d production-release report observation
+def6468b0138e0378f14345faf31864c78bce014 nested report exclusion
+38d642e0b77c756343172a34db7e8c1dd9593969 G4/G15/G16 closure
+9cca2a3e6f448b6c442c0564c7fde46747e1a214 B2/D7 closure
+aaaf217a9ae97f2fee0284ef46a21a8d946cb1ad D5/G11/E8 closure
+c1ab6015f4032513cca67a20d66adf6306e20b09 D4/C11 closure
+4af8616f5f79528d8c16f5b93523b6604033cac8 D2/D16/F12 closure
+d33b2a36b28ddb490f617f1e686a26fe988bbe88 F16/F4/C13 closure
+0edaebf2835525af4f7c58f208e52d72cba740cd B5/F2/C12 closure
+8e838763944d9bc515996661e3054caa7c2ab1be C4/C1/C18 closure
+0772a957383c0341c9d210dd6a7243946798daf4 C5/D9/B13 closure
+0c991084fd45c4bd36d19b73d7bd7b7ac5557200 C20/A3/C2 closure
+839874342748ef90a4d5adce07ccfd4063c7a47d A5/E6/A18 closure
+1b91e223dc124881b0509d4b683e824ad8c0ea44 A17/A6/F18 closure
+572f939291215a6f9bccea937ac029a288a48d3c audited-gap reconciliation
+248303a03a30b1296fca596f3b1fa32ec3841adc reconciliation regressions
+4bfb90deb8086bd4db6e0426597ad3372880e078 wave15 reconciliation
+86e8330cba47c99ea50b52ec1af43f8d258609e1 final catalog/closure
+```
+
+The range changes 58 files, mostly candidate-bound historical evidence. Exactly seven implementation/test paths change: `scripts/build-final-gap-product-catalog.mjs`, `scripts/seal-product-ci-run.mjs`, `src/audited-gap-reconciliation.mjs`, `src/repository.mjs`, `tests/audited-gap-reconciliation.test.mjs`, `tests/product-ci-proof.test.mjs`, `tests/repository.test.mjs`.
+
+Useful source concepts absent under the same APIs in accepted harness: line/blob-hash semantic locator reviews (`src/proof.mjs:49`), complete changed-file classification (`src/impact-proof.mjs:34`), coverage ownership (`src/coverage-proof.mjs:26`), machine-report parsers (`src/product-ci-proof.mjs`), transaction/lock/snapshot publication (`src/rebuild.mjs:398`, `:417`, `:546`), and exact set-based gap accounting (`src/audited-gap-reconciliation.mjs`). These warrant design comparison, not copying a second graph engine into active commands.
+
+Critical boundaries: `src/repository.mjs` hard-pins historical product `5b75d6b`, graph counts/digests and 47 known gaps. The reconciliation validator hardcodes a 47-gap inventory. `build-final-gap-product-catalog.mjs` assigns `coverage: full` to a historical list of source selectors; neither those labels nor old closure files are current `d3ec8b` acceptance. Accepted `9c2509e` explicitly repairs locators **without closing acceptance debt**. Retain that distinction.
+
+Inactive source-only preservation allowlist at `86e8330` (34 files, SHA256):
+
+```text
+1c0a69662dda5772c1a4964e19aef878061e5a910c166572056539ac76e50f75 package-lock.json
+abb3fe501e847a9463609a1f960c329357edecffd167ef81907cbd1a24179e71 package.json
+a235d726e1f8e8e2e2123b28e55e6386688f7677ea3d8961eba6fae8240129af scripts/build-coverage-ownership.mjs
+8b5c5d49fc0f1d5b00b9a1bce0c470ea27bed167e57af1752cd25d725f3fa618 scripts/build-final-gap-product-catalog.mjs
+f3b93a31b9a93eab93bad2fb8bea74cf757f546be2aea3d40fbffa0c922b1b71 scripts/build-product-test-bindings.mjs
+b195ede6fa273bb59d5c216158e96cc1cd3641594b7b99f1d0a51ea4bc91d60f scripts/check.mjs
+d9b5a4fc0f81ce91fcde7ce97d0e38422aa93281b2c2e007a5b7b116beb51c60 scripts/merge-source-locator-decisions.mjs
+359a8958944cc0bccdc94a7ea7c0b5cd4e1a2e48f13ec1fcc648b8ecadb41a2a scripts/rebuild.mjs
+de414aecf4b90be672d3aec60259e01f6aabfb4910145ed163649cdc572c8372 scripts/render-locator-corrected-product-map.mjs
+4970d26cd48ae7ea6e619214559a07f07b33f434b6eb1bbf15cae21fd548a5cc scripts/review-changed-files.mjs
+89a6ccf0e73316ab29a5c55094225c6d2b41425454bae52d84c156689438e52d scripts/review-source-locators.mjs
+599fea41a7f2c3f7edb6d0f2183d29b9de3b58973b09eecfc093a81094674542 scripts/seal-changed-file-classifications.mjs
+b374178ba249be594af87fc16fa57d2b4eafdd503cec6cd3381ceecba2e68fb3 scripts/seal-product-ci-run.mjs
+474034f7d147cb54bb1ff80fbf1d336dcd36909e74afe2f7b74dcab1a7022627 scripts/seal-source-locator-reviews.mjs
+d7dfb91b9495ca88d6d5f3eb3771cba20207e57a8bac19301f835712ec1a01e1 scripts/validate.mjs
+f915ec10143e71ae433e46a8d130748c9bfe5d18bd8efd82109ff7826bc2549e scripts/verify-rebuild-determinism.mjs
+b5474925879250431c3daf8710896b01d27f8e4679f7d0dcb4cf7b964b89f6d7 scripts/verify-snapshot.mjs
+05d1babec984ee75f17f992d583249a9f4a25158cfe00db2966d92266eade588 src/audited-gap-reconciliation.mjs
+e7c6bb2fc16515b7042d79c8f1f23342f0e995e8dce52e3a679e9f06b5aa3964 src/coverage-builder.mjs
+ce3924fb18863b416f8e4ecac3886dfd5e2c797efbd185ddd0adea799e6a78c2 src/coverage-proof.mjs
+06a48af8f53ddd9c26d3978ccc80b4b4e00fb96b69406d4ade977d7d0142c5fe src/impact-proof.mjs
+070f592a9a92951b3b4c5bf4fa6cd14a9dd82357f2b16e9d382a71a9d4456325 src/model.mjs
+6d0c09ad714b6cab59bc90b0b3c5cfe6edfe7f8ea98888e17caaa54b89f67646 src/obsidian.mjs
+10ffc0eca6890de772452900c89f9aef03fbbc99e3fe9ac7545456ba1e327050 src/product-ci-proof.mjs
+98298b90d3163503684af09010dc8e56c147f57c2aaed67b45cd9f64010d8cf2 src/proof.mjs
+38bdd53f9ae9f68a8c1d516183aac5e3f68aaac49e83f037a76e0b9e77f14d7f src/rebuild.mjs
+4011607146a4c15f8c6765b40a0d83798b90d98759e1f42906d28fb02b3d0dca src/repository.mjs
+5e3d5a36b3a74fb5ccc58eb3a6ef0dc8b4843e6cb48853fc4dd4ccde03144640 tests/audited-gap-reconciliation.test.mjs
+69f7e311587a0b060a2e76dff0c2bb6784de14cd3916057ae933a1ac85b7fff4 tests/coverage-proof.test.mjs
+929488afe64ffbc59344b30a229fa87c47cd57243dcb00b2ed1e70d977c81f2b tests/impact-proof.test.mjs
+acd5ac5b7ed12666572418fc01753678aacf1b841fc3b6c3e811182ede1eafaf tests/product-ci-proof.test.mjs
+e548167da6781986b9372ca918f11ece0b980108875feb0e89fd406de1e456df tests/proof.test.mjs
+f78918608dce4e8be9cee3f28b35526d46ca9bf83f645bfb355e31f6da1be47a tests/repository.test.mjs
+d882c6afa3cc335c2dca4f955e7cce75de0d5302698b29e08fe754ce8fc8dc2c tests/source-locator-proof.test.mjs
+```
+
+This is a **source-only archival allowlist**, not a runnable standalone package: repository tests/scripts require deliberately excluded historical contracts/snapshots/proofs. Preserve commit identifiers/log separately. Before any future runnable fixture archive, inspect/redact/select synthetic proof inputs instead of copying `graph/current`, `proof/candidates`, contracts, Obsidian or owner evidence. No existing reviewed source-only graph bundle was found.
+
+## Smaller dirty work: do not lose, do not promote blindly
+
+- NuanuFlowQA root planner/CLI dirty changes (explicit `--reporter=list`, setup-project discovery, `tests/` path normalization, public/replacement corpus identity) are semantically present in accepted `tools/freeland-graph/planner.mjs:416,424,449,910` and CLI `:1577`. Root controlled-email files are older divergent bytes; accepted source imports later Mail plus safety/authority fixes. Root manual contract/inventory files and public TC09 bytes are already present in accepted history.
+- `freeland-lean-graph` dirty `model.mjs` and real-corpus test implement parsing fixes now in accepted model (`CASE_ID_SOURCE`, `normalizeInvariants`, `coverageSummary`, ordinal references). `freeland-real-corpus-fix` untracked real-corpus test is byte-present in accepted history. No downgrade import.
+- `freeland-tc02-approved-integration`: 19 of 20 relevant dirty/new QA source paths are exact accepted historical blobs; the remaining manual-replacements test is divergent integration scaffolding. Keep accepted Mail/Safety reconciliation instead of wholesale dirty overlay.
+- `freeland-verdict-v0` adds a VIP-invariant title alias preserving `invariant:vip-card-entitlement-gate` when the title expands to referral attribution; alias/test are absent accepted model. Preserve as an unreviewed contract-migration candidate, needing exact current product/contract evidence. Do **not** copy its historical coverage counts `57/16/2`: accepted is `57/17/1` and counts do not establish acceptance.
+- That worktree's `tests/product-graph/freeland-inbox-read-state.test.mjs` has four useful monotonic/missing-anchor/source-version scenarios, but accepted helpers do not export `assessInboxReadStateConvergence`; this is incomplete closure, not a runnable drop-in test. Its three `freeland-staging-preflight.test.mjs` cases target an existing accepted helper and are potential small regression additions; they require a correct TS runtime and import safety review, not broad Playwright execution.
+- Orphan release auth setup adds only `setup.setTimeout(120_000)` for combined main/purchase UI logins, plus provenance change. Accepted `tests/freeland/auth.setup.ts` has no such timeout. Preserve patch with old base; require reproducible timeout evidence and bounded fixture before adoption.
+- Root `fresh-*`, `wave3-*`, `qa-*`, `ui-e2e-*`, scratch/probe files are exploratory diagnostics, often tied to old account/candidate/browser state. Do not promote raw scripts or copy secrets. Extract a specific reproducible invariant only with its dependency/authority review.
+- Current owner's `autonomous*`, `freel398-web-20260911` and `retained-fixture` contain task-local runners/tests; copied `source/apps` and `source/packages` are product snapshots. `freel398-web.../source/apps/web/tests/telegram-synthetic-account-hint.qa-extra.test.tsx` is QA-authored diagnostic coverage, not an accepted source commit. Original payment/session material stays with owner. These candidates require the owner's separate source handoff and sanitized closure, not directory copy.
+
+## Safe qualification and durable preservation next
+
+1. Preserve unique A/B/C closures beneath an explicitly inactive `qa-agent/references/...` namespace (or ignored task archive with a tracked provenance index), with source repo/commit, dirty status, exact allowlist and SHA256 manifest. Do not modify `sources/manifest.v1.json` or active component pin merely to retain history. A complete legacy Git bundle is **not** a safe default: reachable history includes unrelated material. Preserve selected source bytes/patches only after scanning; do not copy env, custody keys, accounts, generated current, test reports or registration state.
+2. Already accepted history is recoverable from the current reviewed assembly's `sources/freeland.bundle` and manifest, not dependent on the broken `/private/tmp` worktree parents. Use existing restore/verify workflow for that accepted bundle; the report does not newly qualify it. Unique dirty task2 work has no commit and needs explicit durable preservation before anyone cleans its donor.
+3. For a no-network current-`9c2509e` qualification, begin in a disposable exact restored component with clean env and task-owned temporary/output roots. The smallest inspected graph check is `node --test tests/product-graph/freeland-real-corpus-format.test.mjs` (imports only Node built-ins and accepted model; seven cases). The pure accepted baseline contract test is `packages/freeland-baseline/tests/coverage/baseline-contract.test.ts`, using the exact available `tsx` runtime and no discovery runner. Broader provenance tests create temporary fixtures; use them only in the isolated restore, not the active owner. No stale `npm test`.
+4. Candidate A first qualification: pure semantic mutation tests + deterministic no-write generator comparison; then isolated discovery/coverage and accepted provenance requalification if promoted. Candidate B: fake-operation unit suites with network denied; never invoke operational prepare/verify against real custody. Candidate C: synthetic pure `proof`, `impact-proof`, `coverage-proof`, and gap-reconciliation tests after a dedicated closure review; avoid archive `npm run check`, rebuild, seal, and repository tests until their historical input/output dependencies are explicitly isolated.
+5. Integration requires a fresh reviewed source change, provenance update and relevant component gates. Preserving a candidate, passing its unit tests, having a graph mapping, or finding historical QA evidence does not authorize current live execution or mark any Freeland acceptance gap closed.
+
+## Audit limitations
+
+This identifies meaningful retained source and documents exclusion boundaries; it does not attest every historical report, unknown deleted temp directory, ignored private probe, or Codex snapshot tree. No existing donor was cleaned. The report is not a release verdict, a deployment attestation, or approval to run stale source. Product snapshots and historical graph proof data are retained as references at their existing owners, not imported as active QA source.

@@ -1,0 +1,190 @@
+import { createHash } from "node:crypto";
+import { readFile, realpath } from "node:fs/promises";
+import { isAbsolute, relative, resolve, sep } from "node:path";
+
+import { canonicalJson, digestCanonical } from "./model.mjs";
+
+const REVIEW_KEYS = Object.freeze([
+  "assertions",
+  "contentSha256",
+  "fileBlobOid",
+  "lines",
+  "ownerNodeId",
+  "path",
+  "rationale",
+  "rawToken",
+]);
+
+export function sourceLocatorReviewKey(value) {
+  return `${String(value?.ownerNodeId ?? "")}\u0000${String(value?.rawToken ?? "")}`;
+}
+
+export function digestFileBlob(bytes) {
+  const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  return createHash("sha1")
+    .update(Buffer.from(`blob ${buffer.length}\0`))
+    .update(buffer)
+    .digest("hex");
+}
+
+export function digestReviewedLines(text, lines) {
+  const selected = reviewedLineText(text, lines);
+  return `sha256:${createHash("sha256").update(selected, "utf8").digest("hex")}`;
+}
+
+export function buildSourceLocatorReviewDocument({ sourceSha, reviews }) {
+  if (!Array.isArray(reviews)) throw new TypeError("SOURCE_REVIEW_LIST_INVALID");
+  const body = {
+    schemaVersion: 1,
+    sourceSha,
+    reviews: [...reviews].sort((left, right) => {
+      const leftKey = canonicalJson([sourceLocatorReviewKey(left), left?.path, left?.lines]);
+      const rightKey = canonicalJson([sourceLocatorReviewKey(right), right?.path, right?.lines]);
+      return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+    }),
+  };
+  return { ...body, reviewDigest: digestCanonical(body) };
+}
+
+export async function validateSourceLocatorReviews({
+  document,
+  locators,
+  sourceRoot,
+  sourceSha,
+  requireComplete = false,
+}) {
+  assertExactKeys(document, ["reviewDigest", "reviews", "schemaVersion", "sourceSha"], "SOURCE_REVIEW_DOCUMENT");
+  if (document.schemaVersion !== 1) throw new TypeError("SOURCE_REVIEW_SCHEMA_INVALID");
+  if (!isGitSha(sourceSha) || document.sourceSha !== sourceSha) throw new TypeError("SOURCE_REVIEW_SHA_MISMATCH");
+  if (!Array.isArray(document.reviews)) throw new TypeError("SOURCE_REVIEW_LIST_INVALID");
+  const { reviewDigest, ...body } = document;
+  if (reviewDigest !== digestCanonical(body)) throw new TypeError("SOURCE_REVIEW_DIGEST_MISMATCH");
+  if (!Array.isArray(locators)) throw new TypeError("SOURCE_REVIEW_LOCATORS_INVALID");
+
+  const root = await realpath(sourceRoot);
+  const locatorByKey = new Map(locators.map(locator => [sourceLocatorReviewKey(locator), locator]));
+  const reviewByKey = new Map();
+
+  for (const review of document.reviews) {
+    assertExactKeys(review, REVIEW_KEYS, "SOURCE_REVIEW");
+    const key = sourceLocatorReviewKey(review);
+    if (!review.ownerNodeId || !review.rawToken || !locatorByKey.has(key)) {
+      throw new TypeError(`SOURCE_REVIEW_LOCATOR_UNKNOWN ${key}`);
+    }
+    if (reviewByKey.has(key)) throw new TypeError(`SOURCE_REVIEW_DUPLICATE ${key}`);
+    if (!isSafeRelativePath(review.path)) throw new TypeError(`SOURCE_REVIEW_PATH_INVALID ${review.path}`);
+    if (!isLineInterval(review.lines)) throw new TypeError(`SOURCE_REVIEW_LINES_INVALID ${canonicalJson(review.lines)}`);
+    if (!/^[a-f0-9]{40}$/.test(String(review.fileBlobOid ?? ""))) throw new TypeError("SOURCE_REVIEW_BLOB_INVALID");
+    if (!/^sha256:[a-f0-9]{64}$/.test(String(review.contentSha256 ?? ""))) throw new TypeError("SOURCE_REVIEW_CONTENT_DIGEST_INVALID");
+    if (String(review.rationale ?? "").trim().length < 16) throw new TypeError("SOURCE_REVIEW_RATIONALE_INVALID");
+    if (!Array.isArray(review.assertions) || review.assertions.length === 0) {
+      throw new TypeError("SOURCE_REVIEW_ASSERTIONS_INVALID");
+    }
+
+    const joined = resolve(root, review.path);
+    let filePath;
+    try {
+      filePath = await realpath(joined);
+    } catch {
+      throw new TypeError(`SOURCE_REVIEW_FILE_MISSING ${review.path}`);
+    }
+    if (!isWithin(root, filePath)) throw new TypeError(`SOURCE_REVIEW_PATH_INVALID ${review.path}`);
+    const bytes = await readFile(filePath);
+    if (digestFileBlob(bytes) !== review.fileBlobOid) throw new TypeError(`SOURCE_REVIEW_BLOB_MISMATCH ${review.path}`);
+
+    const text = bytes.toString("utf8");
+    const lineCount = sourceLines(text).length;
+    if (review.lines[1] > lineCount) {
+      throw new TypeError(`SOURCE_REVIEW_LINES_OUT_OF_RANGE ${review.path}:${review.lines.join("-")}`);
+    }
+    if (digestReviewedLines(text, review.lines) !== review.contentSha256) {
+      throw new TypeError(`SOURCE_REVIEW_CONTENT_MISMATCH ${review.path}:${review.lines.join("-")}`);
+    }
+    const selectedText = reviewedLineText(text, review.lines);
+    for (const assertion of review.assertions) validateSemanticAssertion(assertion, { selectedText, fileText: text });
+    reviewByKey.set(key, Object.freeze({ ...review, sourceSha }));
+  }
+
+  const requiredKeys = new Set(locators.filter(isCodeSourceLocator).map(sourceLocatorReviewKey));
+  const missing = [...requiredKeys].filter(key => !reviewByKey.has(key)).sort();
+  if (requireComplete && missing.length) {
+    throw new TypeError(`SOURCE_REVIEW_INCOMPLETE ${missing.length} ${missing.join(",")}`);
+  }
+  return {
+    ok: true,
+    reviewed: reviewByKey.size,
+    required: requiredKeys.size,
+    missing,
+    byKey: reviewByKey,
+  };
+}
+
+export function isCodeSourceLocator(locator) {
+  const token = String(locator?.resolverToken ?? locator?.rawToken ?? "")
+    .trim()
+    .replace(/:(\d+)(?:[-–]\d+)?$/, "")
+    .replace(/#L\d+(?:-L?\d+)?$/i, "")
+    .replaceAll("\\|", "|");
+  return /(?:^|\/)[^/]+\.(?:[cm]?[jt]sx?|sql|json|ya?ml|toml|sh|py|go|rs|java|kt|swift|css|scss|html|astro|vue|svelte|conf)$/i.test(token);
+}
+
+function reviewedLineText(text, lines) {
+  if (!isLineInterval(lines)) throw new TypeError(`SOURCE_REVIEW_LINES_INVALID ${canonicalJson(lines)}`);
+  const values = sourceLines(text);
+  if (lines[1] > values.length) throw new TypeError(`SOURCE_REVIEW_LINES_OUT_OF_RANGE ${lines.join("-")}`);
+  return values.slice(lines[0] - 1, lines[1]).join("\n");
+}
+
+function sourceLines(text) {
+  const lines = String(text).split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  return lines;
+}
+
+function isLineInterval(value) {
+  return Array.isArray(value)
+    && value.length === 2
+    && value.every(Number.isSafeInteger)
+    && value[0] >= 1
+    && value[1] >= value[0];
+}
+
+function isGitSha(value) {
+  return /^[a-f0-9]{40}$/.test(String(value ?? ""));
+}
+
+function isSafeRelativePath(value) {
+  const path = String(value ?? "");
+  return path.length > 0
+    && !isAbsolute(path)
+    && !path.includes("\\")
+    && !path.split("/").some(part => part === "" || part === "." || part === "..");
+}
+
+function isWithin(root, path) {
+  const rel = relative(root, path);
+  return rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+}
+
+function validateSemanticAssertion(assertion, { selectedText, fileText }) {
+  assertExactKeys(assertion, ["kind", "value"], "SOURCE_REVIEW_ASSERTION");
+  const value = String(assertion.value ?? "");
+  if (value.trim().length < 3) throw new TypeError("SOURCE_REVIEW_ASSERTION_VALUE_INVALID");
+  const haystack = assertion.kind.startsWith("file_") ? fileText : selectedText;
+  const present = haystack.includes(value);
+  if (assertion.kind === "contains" || assertion.kind === "file_contains") {
+    if (!present) throw new TypeError(`SOURCE_REVIEW_ASSERTION_MISMATCH ${assertion.kind}:${value}`);
+    return;
+  }
+  if (assertion.kind === "not_contains" || assertion.kind === "file_not_contains") {
+    if (present) throw new TypeError(`SOURCE_REVIEW_ASSERTION_MISMATCH ${assertion.kind}:${value}`);
+    return;
+  }
+  throw new TypeError(`SOURCE_REVIEW_ASSERTION_KIND_INVALID ${assertion.kind}`);
+}
+
+function assertExactKeys(value, expected, code) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`${code}_INVALID`);
+  const actual = Object.keys(value).sort();
+  if (canonicalJson(actual) !== canonicalJson([...expected].sort())) throw new TypeError(`${code}_KEYS_INVALID`);
+}

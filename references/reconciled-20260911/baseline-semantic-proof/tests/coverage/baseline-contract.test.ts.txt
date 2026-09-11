@@ -1,0 +1,321 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import test from 'node:test';
+
+import {
+  assertBaselineProofContract,
+  assertDiscoveryInventory,
+  assertManifestIsRepositoryOwned,
+  assertReconstructedTarget,
+  assertSnapshotHashes,
+  assertTargetAstContract,
+  assertTargetHashes,
+  createSemanticTransformationRecord,
+  type BaselineManifest,
+  type EditCategory,
+  type EditDescriptor,
+  type TransformationRecord,
+} from './baseline-contract.js';
+
+const tinySource = "import { title } from './title';\n";
+const tinyTarget = "import { title } from './title.js';\n";
+const tinyRecord = createSemanticTransformationRecord('tiny.spec.ts', tinySource, tinyTarget);
+
+const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
+
+function repinEdit(
+  record: TransformationRecord,
+  source: string,
+  patch: Partial<EditDescriptor>,
+): TransformationRecord {
+  const original = record.edits[0];
+  assert.ok(original);
+  const edit = { ...original, ...patch };
+  const slice = Buffer.from(source).subarray(edit.sourceByteStart, edit.sourceByteEnd).toString();
+  return {
+    ...record,
+    edits: [
+      {
+        ...edit,
+        sourceSliceSha256: sha256(slice),
+        replacementSha256: sha256(edit.replacement),
+      },
+    ],
+  };
+}
+
+test('rejects snapshot source mutation, descriptor mutation, target drift, overlap, and order drift', () => {
+  const tinyEdit = tinyRecord.edits[0];
+  assert.ok(tinyEdit);
+  assert.throws(
+    () =>
+      assertReconstructedTarget(tinySource, tinyTarget, {
+        ...tinyRecord,
+        edits: [{ ...tinyEdit, category: 'canonical-validated-edit' as unknown as EditCategory }],
+      }),
+    /unknown descriptor category/,
+  );
+  assert.throws(
+    () =>
+      assertReconstructedTarget(tinySource, tinyTarget, {
+        ...tinyRecord,
+        edits: [{ ...tinyEdit, category: 'remove-suite-base-url-skip' }],
+      }),
+    /category\/span mismatch/,
+  );
+  assert.throws(
+    () => assertSnapshotHashes({ sample: "import { title } from './tampered';\n" }, { sample: tinyRecord }),
+    /snapshot SHA-256 mismatch/,
+  );
+  assert.throws(
+    () => assertReconstructedTarget(tinySource, tinyTarget, repinEdit(tinyRecord, tinySource, { sourceByteStart: 23 })),
+    /category\/span mismatch|descriptor location/,
+  );
+  assert.throws(
+    () =>
+      assertReconstructedTarget(tinySource, tinyTarget, {
+        ...tinyRecord,
+        edits: [{ ...tinyEdit, expectedNodeKind: 'Identifier' }],
+      }),
+    /node-kind/,
+  );
+  assert.throws(
+    () =>
+      assertReconstructedTarget(tinySource, tinyTarget, {
+        ...tinyRecord,
+        edits: [{ ...tinyEdit, replacement: 'bad' }],
+      }),
+    /replacement/,
+  );
+  assert.throws(
+    () => assertReconstructedTarget(tinySource, "import { title } from './title.js!';\n", tinyRecord),
+    /target SHA-256 mismatch|reconstruction/,
+  );
+  assert.throws(
+    () => assertReconstructedTarget(tinySource, tinyTarget, { ...tinyRecord, edits: [tinyEdit, { ...tinyEdit }] }),
+    /overlap|order/,
+  );
+  assert.throws(
+    () =>
+      assertReconstructedTarget(tinySource, tinyTarget, {
+        ...tinyRecord,
+        edits: [tinyEdit, { ...tinyEdit, sourceByteStart: 0, sourceByteEnd: 0 }],
+      }),
+    /order/,
+  );
+});
+
+test('rejects partial and broad spans even when all hashes are self-consistently repinned', () => {
+  const edit = tinyRecord.edits[0];
+  assert.ok(edit);
+  assert.throws(
+    () =>
+      assertReconstructedTarget(
+        tinySource,
+        tinyTarget,
+        repinEdit(tinyRecord, tinySource, {
+          sourceByteStart: edit.sourceByteStart + 1,
+          sourceByteEnd: edit.sourceByteEnd - 1,
+          sourceColumn: edit.sourceColumn + 1,
+          replacement: './title.js',
+        }),
+      ),
+    /category\/span mismatch/,
+  );
+  assert.throws(
+    () =>
+      assertReconstructedTarget(
+        tinySource,
+        tinyTarget,
+        repinEdit(tinyRecord, tinySource, {
+          sourceByteStart: 0,
+          sourceByteEnd: Buffer.byteLength(tinySource) - 1,
+          sourceColumn: 1,
+          replacement: tinyTarget.trimEnd(),
+          expectedNodeKind: 'ImportDeclaration',
+        }),
+      ),
+    /category\/span mismatch/,
+  );
+});
+
+test('rejects a self-consistently repinned semantic operation in an unapproved file', () => {
+  const source = 'const TEST_EMAIL = process.env.FREELAND_TEST_EMAIL;\n';
+  assert.throws(
+    () => createSemanticTransformationRecord('unapproved.spec.ts', source, ''),
+    /production credential declarations are not permitted/,
+  );
+});
+
+test('auth setup skip proof pins both separators and the following preflight comment', () => {
+  const source = [
+    "import { expect, test as setup } from '@playwright/test';",
+    "import { FREELAND_AUTH_FILE, isStaging, loginViaUi, resolveCreds } from './helpers';",
+    '',
+    'export { FREELAND_AUTH_FILE };',
+    '',
+    "setup('authenticate', async ({ page, baseURL }) => {",
+    '  const { email, password } = resolveCreds(baseURL);',
+    "  setup.skip(!email || !password, 'test credentials are not set for this target');",
+    '',
+    '  // Staging is reachable only through the mesh — fail fast with a clear',
+    '  // message instead of letting every spec die on 30s navigation timeouts.',
+    '  if (isStaging(baseURL)) {',
+    '    const up = await page.request.get(baseURL!, { timeout: 8_000 }).catch(() => null);',
+    '    const meshConfigured = !!process.env.FREELAND_STAGING_MESH_IP;',
+    '    if (!up || (up.status() === 403 && !meshConfigured)) throw new Error(`unreachable ${baseURL}`);',
+    '  }',
+    '',
+    '  await loginViaUi(page, baseURL);',
+    '  await page.context().storageState({ path: FREELAND_AUTH_FILE });',
+    '});',
+    '',
+  ].join('\n');
+  const tampered = source.replace('  // Staging is reachable', '  // Staging was reachable');
+  const missingSeparator = source.replace(
+    "'test credentials are not set for this target');\n\n  // Staging",
+    "'test credentials are not set for this target');\n  // Staging",
+  );
+  assert.throws(
+    () => createSemanticTransformationRecord('auth.setup.ts', missingSeparator, missingSeparator),
+    /blank separator/,
+  );
+  assert.throws(
+    () => createSemanticTransformationRecord('auth.setup.ts', tampered, tampered),
+    /pinned staging-preflight comment/,
+  );
+});
+
+function proofManifest(record: TransformationRecord): BaselineManifest {
+  return {
+    schemaVersion: 1,
+    sourceSnapshot: { algorithm: 'sha256', sha256: 'a'.repeat(64) },
+    sourceIdentity: { algorithm: 'sha256', files: { [record.file]: record.sourceSha256 } },
+    target: { algorithm: 'sha256', files: { [record.file]: record.targetSha256 } },
+    discovery: { files: {}, total: 164, fileCount: 24 },
+    transformations: {},
+    proofInventory: {
+      total: 1,
+      categories: { 'local-import-module-specifier': 1 },
+      files: { [record.file]: 1 },
+    },
+    targetAst: {},
+    transformationProof: { files: { [record.file]: record } },
+  };
+}
+
+test('cross-links proof hashes to source identity, target identity, and snapshot content', () => {
+  const manifest = proofManifest(tinyRecord);
+  assert.doesNotThrow(() => assertBaselineProofContract(manifest, { [tinyRecord.file]: tinySource }, 'a'.repeat(64)));
+  assert.throws(
+    () =>
+      assertBaselineProofContract(
+        { ...manifest, sourceIdentity: { algorithm: 'sha256', files: { [tinyRecord.file]: '0'.repeat(64) } } },
+        { [tinyRecord.file]: tinySource },
+        'a'.repeat(64),
+      ),
+    /proof source hash cross-link mismatch/,
+  );
+  assert.throws(
+    () =>
+      assertBaselineProofContract(
+        { ...manifest, target: { algorithm: 'sha256', files: { [tinyRecord.file]: '0'.repeat(64) } } },
+        { [tinyRecord.file]: tinySource },
+        'a'.repeat(64),
+      ),
+    /proof target hash cross-link mismatch/,
+  );
+  assert.throws(
+    () => assertBaselineProofContract(manifest, { [tinyRecord.file]: tinySource }, '0'.repeat(64)),
+    /source snapshot file hash cross-link mismatch/,
+  );
+});
+
+test('rejects exact total, per-category, and per-file proof inventory mismatches', () => {
+  const manifest = proofManifest(tinyRecord);
+  assert.throws(
+    () => assertBaselineProofContract({ ...manifest, proofInventory: { ...manifest.proofInventory, total: 2 } }, { [tinyRecord.file]: tinySource }, 'a'.repeat(64)),
+    /proof descriptor total mismatch/,
+  );
+  assert.throws(
+    () =>
+      assertBaselineProofContract(
+        { ...manifest, proofInventory: { ...manifest.proofInventory, categories: { 'local-import-module-specifier': 2 } } },
+        { [tinyRecord.file]: tinySource },
+        'a'.repeat(64),
+      ),
+    /proof descriptor category inventory mismatch/,
+  );
+  assert.throws(
+    () =>
+      assertBaselineProofContract(
+        { ...manifest, proofInventory: { ...manifest.proofInventory, files: { [tinyRecord.file]: 2 } } },
+        { [tinyRecord.file]: tinySource },
+        'a'.repeat(64),
+      ),
+    /proof descriptor file inventory mismatch/,
+  );
+});
+
+test('rejects an absolute or external baseline contract location', () => {
+  assert.throws(
+    () => assertManifestIsRepositoryOwned('/Users/example/tests/coverage/baseline.json', '/repo'),
+    /repository-relative/,
+  );
+});
+
+test('rejects a discovery reporter per-file count mismatch', () => {
+  assert.throws(
+    () =>
+      assertDiscoveryInventory(
+        {
+          suites: [
+            {
+              file: 'tests/playwright/freeland/smoke.spec.ts',
+              specs: [{ file: 'tests/playwright/freeland/smoke.spec.ts', tests: [{}] }],
+            },
+          ],
+        },
+        { 'smoke.spec.ts': 2 },
+      ),
+    /discovery inventory mismatch/,
+  );
+});
+
+test('rejects a canonical hash mismatch before a suite can drift', () => {
+  assert.throws(
+    () =>
+      assertTargetHashes(
+        { 'smoke.spec.ts': '0'.repeat(64) },
+        'tests/playwright/freeland',
+        (file) => (file.endsWith('smoke.spec.ts') ? '1'.repeat(64) : '0'.repeat(64)),
+      ),
+    /canonical SHA-256 mismatch/,
+  );
+});
+
+test('rejects a pinned AST transformation-count mismatch', () => {
+  assert.throws(
+    () =>
+      assertTargetAstContract('tests/playwright/freeland', {
+        schemaVersion: 1,
+        sourceSnapshot: { algorithm: 'sha256', sha256: '0'.repeat(64) },
+        sourceIdentity: { algorithm: 'sha256', files: { 'smoke.spec.ts': '0'.repeat(64) } },
+        target: { algorithm: 'sha256', files: { 'smoke.spec.ts': '0'.repeat(64) } },
+        discovery: { files: { 'smoke.spec.ts': 1 }, total: 164, fileCount: 24 },
+        transformations: {},
+        proofInventory: { total: 0, categories: {}, files: {} },
+        transformationProof: { files: {} },
+        targetAst: {
+          baseUrlSkipCalls: 1,
+          localStorageStateUses: 0,
+          authFileIdentifiers: 0,
+          paymentDryRunGateExports: 0,
+          requireProjectAuthFileCalls: 0,
+          localJsImports: 0,
+          testFailCalls: 0,
+        },
+      }),
+    /narrow target AST contract mismatch/,
+  );
+});

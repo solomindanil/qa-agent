@@ -1,0 +1,71 @@
+import { test as base } from '@playwright/test';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { env } from './env';
+
+// TODO(Phase 1): подставить реальные имена инструментов продуктового MCP
+// после первого прогона handshake.spec.ts (tools/list).
+export const TOOLS = {
+  search: 'search',
+  purchase: 'purchase',
+  status: 'status',
+} as const;
+
+export interface PurchaseArgs {
+  readonly [key: string]: unknown;
+  readonly maxPrice?: number;
+  readonly price?: number;
+  readonly amount?: number;
+}
+
+type McpWorkerFixtures = {
+  mcp: Client;
+};
+
+type McpTestFixtures = {
+  /**
+   * Единственный разрешённый путь к инструменту покупки в тестах.
+   * Бросает исключение при превышении MAX_PURCHASE_AMOUNT — кап
+   * структурный, а не поведенческий. Прямой mcp.callTool('purchase', ...)
+   * в спеках запрещён (см. GUARDRAILS.md).
+   */
+  buy: (args: PurchaseArgs) => Promise<Awaited<ReturnType<Client['callTool']>>>;
+};
+
+export const test = base.extend<McpTestFixtures, McpWorkerFixtures>({
+  mcp: [
+    async ({}, use) => {
+      if (!env.mcpServerUrl) throw new Error('MCP_SERVER_URL не задан в .env');
+      const client = new Client({ name: 'qa-harness', version: '1.0.0' });
+      const transport = new StreamableHTTPClientTransport(new URL(env.mcpServerUrl), {
+        requestInit: env.mcpAuthToken
+          ? { headers: { Authorization: `Bearer ${env.mcpAuthToken}` } }
+          : undefined,
+      });
+      await client.connect(transport);
+      await use(client);
+      await client.close();
+    },
+    { scope: 'worker' },
+  ],
+
+  buy: async ({ mcp }, use) => {
+    const cappedBuy = async (args: PurchaseArgs) => {
+      const requested = [args.maxPrice, args.price, args.amount]
+        .filter((v): v is number => typeof v === 'number');
+      if (requested.length === 0) {
+        throw new Error('buy(): укажи явную цену/лимит (maxPrice|price|amount) — покупки без капа запрещены');
+      }
+      const over = requested.find((v) => v > env.maxPurchaseAmount);
+      if (over !== undefined) {
+        throw new Error(
+          `buy(): сумма ${over} превышает MAX_PURCHASE_AMOUNT=${env.maxPurchaseAmount} — см. GUARDRAILS.md`,
+        );
+      }
+      return mcp.callTool({ name: TOOLS.purchase, arguments: { ...args } });
+    };
+    await use(cappedBuy);
+  },
+});
+
+export { expect } from '@playwright/test';

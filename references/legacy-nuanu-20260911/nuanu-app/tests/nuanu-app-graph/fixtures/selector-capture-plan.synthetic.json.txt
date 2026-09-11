@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "productId": "nuanu-app",
+  "baseUrl": "https://app.nuanu.com",
+  "steps": [
+    {
+      "kind": "observe",
+      "state": "root",
+      "postcondition": { "role": "application", "name": "Synthetic shell" }
+    },
+    {
+      "kind": "activate",
+      "fromState": "root",
+      "toState": "places",
+      "purpose": "open_places",
+      "target": { "role": "link", "name": "Synthetic places entry" },
+      "postcondition": { "role": "region", "name": "Synthetic places surface" }
+    },
+    {
+      "kind": "activate",
+      "fromState": "places",
+      "toState": "map",
+      "purpose": "open_map",
+      "target": { "role": "link", "name": "Synthetic map entry" },
+      "postcondition": { "role": "region", "name": "Synthetic map surface" }
+    }
+  ],
+  "capturePlanDigest": "99817a5258bfca16e874932e774034a51a891e3d8d4462bbc6c447653a88aa13"
+}

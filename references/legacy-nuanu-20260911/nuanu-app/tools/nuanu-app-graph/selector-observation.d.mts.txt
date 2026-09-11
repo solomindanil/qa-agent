@@ -1,0 +1,46 @@
+import type { Browser, BrowserType, Page } from '@playwright/test';
+
+import type {
+  RuntimeCatalog,
+  RuntimeContractBundle,
+  RuntimeRole,
+  RuntimeState,
+  ReviewedRuntimeContract,
+  SelectorCapturePlan,
+  SelectorObservation,
+} from './runtime-contract.mjs';
+
+export type AccessibleRoleNameRecord = Readonly<{
+  role: RuntimeRole;
+  name: string;
+  matchCount?: number;
+}>;
+
+export type EligibleAccessibleRecord = Readonly<{
+  role: RuntimeRole;
+  name: string;
+  matchCount: number;
+}>;
+
+export type SelectorObservationDependencies = Readonly<{
+  chromium: Pick<BrowserType<Browser>, 'launch'>;
+  catalog: RuntimeCatalog;
+  capturePlan: SelectorCapturePlan;
+  now?: () => Date;
+  readAccessibleRecords?: (
+    page: Page,
+    state: RuntimeState,
+  ) => Promise<readonly AccessibleRoleNameRecord[]>;
+}>;
+
+export function collectEligibleAccessibleRecords(
+  page: Page,
+): Promise<readonly EligibleAccessibleRecord[]>;
+
+export function produceSelectorObservation(
+  dependencies: SelectorObservationDependencies,
+): Promise<SelectorObservation>;
+
+export function createContractCandidate(
+  bundle: RuntimeContractBundle,
+): ReviewedRuntimeContract;

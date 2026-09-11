@@ -1,0 +1,2434 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+import ts from "typescript";
+
+import { settleRootCandidateSnapshots } from "../../tools/nuanu-app-graph/runtime.mjs";
+
+const RUNTIME_PATH = join(dirname(fileURLToPath(import.meta.url)), "../../tools/nuanu-app-graph/runtime.mjs");
+const EMPTY = Object.freeze({ surfaces: [], controls: [], taxonomy: [] });
+
+function snapshot({ surfaces = [], controls = [], taxonomy = [] } = {}) {
+  return { surfaces, controls, taxonomy };
+}
+
+function canonicalBytes(value) {
+  return Buffer.from(JSON.stringify({
+    surfaces: value.surfaces,
+    controls: value.controls,
+    taxonomy: value.taxonomy,
+  }), "utf8");
+}
+
+function snapshotDigest(value) {
+  return createHash("sha256").update(canonicalBytes(value)).digest("hex");
+}
+
+function fakeTiming({ onSchedule } = {}) {
+  let current = 0;
+  const requested = [];
+  return {
+    clock: {
+      now: () => current,
+      set: (value) => { current = value; },
+    },
+    requested,
+    scheduler: (deadline) => {
+      if (deadline >= 5_000) {
+        return Object.assign(new Promise(() => {}), {
+          cancel() {},
+        });
+      }
+      requested.push(deadline);
+      current = deadline;
+      return Promise.resolve(onSchedule?.(deadline, {
+        now: () => current,
+        setNow: (value) => { current = value; },
+      }));
+    },
+  };
+}
+
+async function settle(samples, { assertBoundary = () => {}, onSchedule, onCollect } = {}) {
+  const timing = fakeTiming({ onSchedule });
+  let index = 0;
+  const result = await settleRootCandidateSnapshots({
+    clock: timing.clock,
+    scheduler: timing.scheduler,
+    assertBoundary,
+    collectSnapshot: async () => {
+      const sample = samples[index];
+      await onCollect?.(index, {
+        now: () => timing.clock.now(),
+        setNow: timing.clock.set,
+      });
+      index += 1;
+      return sample;
+    },
+  });
+  return { result, timing, collected: index };
+}
+
+test("semantic settle emits each closed outcome from synthetic snapshots", async () => {
+  const full = snapshot({ controls: [{ name: "Open synthetic directory", role: "button" }] });
+
+  const stableNonempty = await settle([full, full]);
+  assert.deepEqual(stableNonempty.result, {
+    projection: full,
+    settle: {
+      status: "STABLE_NONEMPTY",
+      sampleCount: 2,
+      initialSnapshotEmpty: false,
+      candidateSnapshotDigest: snapshotDigest(full),
+    },
+  });
+  assert.deepEqual(stableNonempty.timing.requested, [250]);
+
+  const stableEmpty = await settle([EMPTY, EMPTY]);
+  assert.equal(stableEmpty.result.settle.status, "STABLE_EMPTY");
+  assert.equal(stableEmpty.result.settle.sampleCount, 2);
+  assert.equal(stableEmpty.result.settle.initialSnapshotEmpty, true);
+  assert.equal(stableEmpty.result.settle.candidateSnapshotDigest, snapshotDigest(EMPTY));
+
+  const lateHydration = await settle([EMPTY, full, full]);
+  assert.equal(lateHydration.result.settle.status, "LATE_HYDRATION");
+  assert.equal(lateHydration.result.settle.sampleCount, 3);
+  assert.deepEqual(lateHydration.result.projection, full);
+
+  const changing = Array.from({ length: 20 }, (_, index) => snapshot({ taxonomy: [`Synthetic category ${index}`] }));
+  const neverSettles = await settle(changing);
+  assert.deepEqual(neverSettles.result, {
+    projection: EMPTY,
+    settle: {
+      status: "NEVER_SETTLES",
+      sampleCount: 20,
+      initialSnapshotEmpty: false,
+      candidateSnapshotDigest: null,
+    },
+  });
+  assert.equal(neverSettles.collected, 20);
+  assert.deepEqual(neverSettles.timing.requested, Array.from({ length: 19 }, (_, index) => (index + 1) * 250));
+});
+
+test("semantic settle compares canonical bytes, preserves truthful initial emptiness, and retains no history", async () => {
+  const first = snapshot({ controls: [{ name: "Alpha", role: "button" }, { name: "Beta", role: "link" }] });
+  const reordered = snapshot({ controls: [{ name: "Beta", role: "link" }, { name: "Alpha", role: "button" }] });
+  const result = await settle([first, reordered, reordered]);
+  assert.equal(result.result.settle.status, "STABLE_NONEMPTY");
+  assert.equal(result.result.settle.sampleCount, 3);
+  assert.deepEqual(result.result.projection, reordered);
+  assert.deepEqual(Object.keys(result.result), ["projection", "settle"]);
+  assert.equal(JSON.stringify(result.result).includes("snapshots"), false);
+
+  const nonemptyThenEmpty = await settle([first, EMPTY, EMPTY]);
+  assert.deepEqual(nonemptyThenEmpty.result.settle, {
+    status: "STABLE_EMPTY",
+    sampleCount: 3,
+    initialSnapshotEmpty: false,
+    candidateSnapshotDigest: snapshotDigest(EMPTY),
+  });
+});
+
+test("semantic settle enforces exact candidate and byte caps before retaining a projection", async () => {
+  const records64 = snapshot({
+    controls: Array.from({ length: 64 }, (_, index) => ({ name: `Synthetic ${index}`, role: "button" })),
+  });
+  const accepted = await settle([records64, records64]);
+  assert.equal(accepted.result.settle.status, "STABLE_NONEMPTY");
+
+  const records65 = snapshot({
+    controls: Array.from({ length: 65 }, (_, index) => ({ name: `Synthetic ${index}`, role: "button" })),
+  });
+  await assert.rejects(() => settle([records65]), { code: "RUNTIME_ROOT_CANDIDATE_OVERFLOW" });
+
+  const emptyTaxonomySnapshot = snapshot({ taxonomy: [""] });
+  const byteBoundary = snapshot({ taxonomy: ["x".repeat(16_384 - canonicalBytes(emptyTaxonomySnapshot).length)] });
+  assert.equal(canonicalBytes(byteBoundary).length, 16_384);
+  assert.equal((await settle([byteBoundary, byteBoundary])).result.settle.status, "STABLE_NONEMPTY");
+  const byteOverflow = snapshot({ taxonomy: ["x".repeat(byteBoundary.taxonomy[0].length + 1)] });
+  await assert.rejects(() => settle([byteOverflow]), { code: "RUNTIME_ROOT_SNAPSHOT_BYTES_OVERFLOW" });
+});
+
+test("semantic settle rejects samples that miss the deadline before or after collection", async () => {
+  const full = snapshot({ controls: [{ name: "Synthetic root control", role: "button" }] });
+
+  await assert.rejects(() => settle([full, full], {
+    onSchedule: async (_deadline, state) => {
+      state.setNow(5_000);
+    },
+  }), { code: "RUNTIME_SETTLE_DEADLINE_EXCEEDED" });
+
+  await assert.rejects(() => settle([full, full], {
+    onCollect: async (index, state) => {
+      if (index === 1) state.setNow(5_000);
+    },
+  }), { code: "RUNTIME_SETTLE_DEADLINE_EXCEEDED" });
+});
+
+test("semantic settle anchors normative deadlines after successful sample0 while keeping a separate sample0 watchdog", async () => {
+  const full = snapshot({ controls: [{ name: "Synthetic root control", role: "button" }] });
+  let current = 0;
+  let sample = 0;
+  const deadlines = [];
+  const result = await settleRootCandidateSnapshots({
+    clock: { now: () => current },
+    scheduler: (deadline) => {
+      deadlines.push(deadline);
+      if (deadline >= 5_000) {
+        return Object.assign(new Promise(() => {}), { cancel() {} });
+      }
+      current = deadline;
+      return Promise.resolve();
+    },
+    assertBoundary: () => {},
+    collectSnapshot: async () => {
+      sample += 1;
+      if (sample === 1) current = 1_000;
+      return full;
+    },
+  });
+
+  assert.equal(result.settle.status, "STABLE_NONEMPTY");
+  assert.deepEqual(deadlines, [5_000, 1_250, 6_000]);
+});
+
+test("semantic settle permits a sample to begin exactly on its scheduled cadence deadline", async () => {
+  const full = snapshot({ controls: [{ name: "Synthetic root control", role: "button" }] });
+  let current = 0;
+  const result = await settleRootCandidateSnapshots({
+    clock: { now: () => current },
+    scheduler: async (deadline) => {
+      if (deadline >= 5_000) return Object.assign(new Promise(() => {}), { cancel() {} });
+      current = deadline;
+    },
+    assertBoundary: () => {},
+    collectSnapshot: async () => full,
+  });
+
+  assert.equal(result.settle.status, "STABLE_NONEMPTY");
+  assert.equal(result.settle.sampleCount, 2);
+});
+
+test("semantic settle never collects early when the injected scheduler resolves before the sample deadline", async () => {
+  const full = snapshot({ controls: [{ name: "Synthetic root control", role: "button" }] });
+  let current = 0;
+  const startedAt = [];
+  const result = await settleRootCandidateSnapshots({
+    clock: { now: () => current },
+    scheduler: async (deadline) => {
+      if (deadline >= 5_000) return Object.assign(new Promise(() => {}), { cancel() {} });
+      current = Math.min(deadline, current + 100);
+    },
+    assertBoundary: () => {},
+    collectSnapshot: async () => {
+      startedAt.push(current);
+      if (startedAt.length === 1) {
+        current = 1_000;
+        return full;
+      }
+      return full;
+    },
+  });
+
+  assert.equal(result.settle.status, "STABLE_NONEMPTY");
+  assert.deepEqual(startedAt, [0, 1_250]);
+});
+
+test("semantic settle rejects a regressing monotonic clock after sample0", async () => {
+  const full = snapshot({ controls: [{ name: "Synthetic root control", role: "button" }] });
+  let current = 0;
+  await assert.rejects(() => settleRootCandidateSnapshots({
+    clock: { now: () => current },
+    scheduler: async (deadline) => {
+      if (deadline >= 5_000) return Object.assign(new Promise(() => {}), { cancel() {} });
+      current = 900;
+    },
+    assertBoundary: () => {},
+    collectSnapshot: async () => {
+      current = 1_000;
+      return full;
+    },
+  }), { code: "INVALID_RUNTIME_SETTLE" });
+});
+
+test("semantic settle turns an early-resolving hard-deadline scheduler into a terminal deadline rejection", async () => {
+  const full = snapshot({ controls: [{ name: "Synthetic root control", role: "button" }] });
+  let current = 0;
+  let sample = 0;
+  const pending = new Promise(() => {});
+  const result = settleRootCandidateSnapshots({
+    clock: { now: () => current },
+    scheduler: async (deadline) => {
+      if (deadline === 250) {
+        current = deadline;
+        return;
+      }
+      current = Math.min(deadline, current + 1_000);
+    },
+    assertBoundary: () => {},
+    collectSnapshot: async () => {
+      sample += 1;
+      return sample === 1 ? full : pending;
+    },
+  });
+
+  const redWitness = Array.from({ length: 12 }).reduce(
+    (promise) => promise.then(() => Promise.resolve()),
+    Promise.resolve(),
+  ).then(() => {
+      const error = new Error("early-resolving hard-deadline scheduler did not settle terminally");
+      error.code = "RED_WITNESS_TIMEOUT";
+      throw error;
+    });
+
+  await assert.rejects(() => Promise.race([result, redWitness]), {
+    code: "RUNTIME_SETTLE_DEADLINE_EXCEEDED",
+  });
+});
+
+test("semantic settle rejects clock regression while re-awaiting an early scheduler", async () => {
+  const full = snapshot({ controls: [{ name: "Synthetic root control", role: "button" }] });
+  let current = 0;
+  let cadenceCalls = 0;
+  await assert.rejects(() => settleRootCandidateSnapshots({
+    clock: { now: () => current },
+    scheduler: async (deadline) => {
+      if (deadline >= 5_000) return Object.assign(new Promise(() => {}), { cancel() {} });
+      cadenceCalls += 1;
+      current = cadenceCalls === 1 ? 1_100 : 1_050;
+    },
+    assertBoundary: () => {},
+    collectSnapshot: async () => {
+      current = 1_000;
+      return full;
+    },
+  }), { code: "INVALID_RUNTIME_SETTLE" });
+});
+
+test("semantic settle rejects an early-resolving scheduler that makes no monotonic progress", async () => {
+  const full = snapshot({ controls: [{ name: "Synthetic root control", role: "button" }] });
+  let current = 0;
+  const result = settleRootCandidateSnapshots({
+    clock: { now: () => current },
+    scheduler: async (deadline) => {
+      if (deadline >= 5_000) return;
+    },
+    assertBoundary: () => {},
+    collectSnapshot: async () => {
+      current = 1_000;
+      return full;
+    },
+  });
+
+  const redWitness = Array.from({ length: 12 }).reduce(
+    (promise) => promise.then(() => Promise.resolve()),
+    Promise.resolve(),
+  ).then(() => {
+    const error = new Error("constant-clock early scheduler microtask-spun instead of settling terminally");
+    error.code = "RED_WITNESS_TIMEOUT";
+    throw error;
+  });
+
+  await assert.rejects(() => Promise.race([result, redWitness]), {
+    code: "INVALID_RUNTIME_SETTLE",
+  });
+});
+
+test("semantic settle terminates a pending collector when the injected hard deadline fires", async () => {
+  const full = snapshot({ controls: [{ name: "Synthetic root control", role: "button" }] });
+  let hardDeadlineRelease = () => {};
+  let hardDeadlineArmCount = 0;
+  let secondHardDeadlineArmed = () => {};
+  let current = 0;
+  let sample = 0;
+  const pending = new Promise(() => {});
+  const armed = new Promise((resolve) => {
+    secondHardDeadlineArmed = resolve;
+  });
+  const result = settleRootCandidateSnapshots({
+    clock: { now: () => current },
+    scheduler: (deadline) => {
+      if (deadline === 250) {
+        current = 250;
+        return Promise.resolve();
+      }
+      return Object.assign(new Promise((resolve) => {
+        hardDeadlineArmCount += 1;
+        if (hardDeadlineArmCount === 2) secondHardDeadlineArmed();
+        hardDeadlineRelease = () => {
+          current = deadline;
+          resolve();
+        };
+      }), {
+        cancel() {},
+      });
+    },
+    assertBoundary: () => {},
+    collectSnapshot: async () => {
+      sample += 1;
+      return sample === 1 ? full : pending;
+    },
+  });
+
+  const redWitness = armed
+    .then(() => {
+      hardDeadlineRelease();
+      return Promise.resolve();
+    })
+    .then(() => Promise.resolve())
+    .then(() => Promise.resolve())
+    .then(() => {
+      const error = new Error("pending collector was not terminated by the injected hard deadline");
+      error.code = "RED_WITNESS_TIMEOUT";
+      throw error;
+    });
+
+  await assert.rejects(() => Promise.race([result, redWitness]), {
+    code: "RUNTIME_SETTLE_DEADLINE_EXCEEDED",
+  });
+});
+
+test("semantic settle makes boundary checks observable before and after each sample", async () => {
+  const full = snapshot({ controls: [{ name: "Synthetic root control", role: "button" }] });
+  const events = [];
+  let phase = "before-initial";
+  const result = await settle([EMPTY, full, full], {
+    assertBoundary: () => {
+      events.push(phase);
+      if (phase === "before-initial") phase = "after-initial";
+      else if (phase === "after-initial") phase = "before-sample-2";
+      else if (phase === "before-sample-2") phase = "after-sample-2";
+      else if (phase === "after-sample-2") phase = "before-sample-3";
+      else if (phase === "before-sample-3") phase = "after-sample-3";
+    },
+    onSchedule: async (deadline, state) => {
+      events.push(`schedule:${deadline}`);
+      state.setNow(deadline);
+    },
+  });
+
+  assert.equal(result.result.settle.status, "LATE_HYDRATION");
+  assert.deepEqual(events, [
+    "before-initial",
+    "after-initial",
+    "schedule:250",
+    "before-sample-2",
+    "after-sample-2",
+    "schedule:500",
+    "before-sample-3",
+    "after-sample-3",
+  ]);
+});
+
+function functionsNamed(source, name) {
+  const found = [];
+  const visit = (node) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === name) found.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return found;
+}
+
+function createCheckedProgram(sourceText) {
+  const runtimeFile = "/virtual/runtime.mjs";
+  const probeFile = "/virtual/probe.mjs";
+  const playwrightFile = "/virtual/node_modules/playwright/index.d.ts";
+  const playwrightSource = `
+    declare module "playwright" {
+      export class Page {
+        locator(value: string): Locator;
+        goto(value: string, options?: any): Promise<any>;
+        on(event: "popup", listener: (page: Page) => void): void;
+        on(event: "request", listener: (...args: any[]) => void): void;
+        on(event: "framenavigated", listener: (...args: any[]) => void): void;
+        url(): string;
+        close(): Promise<void>;
+        content(): Promise<string>;
+        $(value: string): Promise<any>;
+      }
+      export class Locator {
+        evaluate<T>(callback: (...args: any[]) => T, argument?: any): Promise<T>;
+      }
+      export class BrowserContext {
+        newPage(): Promise<Page>;
+        pages(): Page[];
+        waitForEvent(event: "page"): Promise<Page>;
+        on(event: "page", listener: (page: Page) => void): void;
+        route(value: string, listener: (...args: any[]) => void): Promise<void>;
+        request: any;
+      }
+      export class Browser {
+        newContext(value?: any): Promise<BrowserContext>;
+        close(): Promise<void>;
+        newPage(): Promise<Page>;
+      }
+    }
+  `;
+  const probeSource = `
+    /** @param {import("playwright").Page} page */
+    export function seedPage(page) {}
+    /** @param {import("playwright").BrowserContext} context */
+    export function seedContext(context) {}
+    /** @param {import("playwright").Browser} browser */
+    export function seedBrowser(browser) {}
+    /** @param {import("playwright").Locator} locator */
+    export function seedLocator(locator) {}
+  `;
+  const options = {
+    allowJs: true,
+    checkJs: true,
+    noEmit: true,
+    target: ts.ScriptTarget.ESNext,
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    skipLibCheck: true,
+  };
+  const host = ts.createCompilerHost(options);
+  const files = new Map([[runtimeFile, sourceText], [probeFile, probeSource], [playwrightFile, playwrightSource]]);
+  host.fileExists = (fileName) => files.has(fileName) || ts.sys.fileExists(fileName);
+  host.readFile = (fileName) => files.get(fileName) ?? ts.sys.readFile(fileName);
+  host.getSourceFile = (fileName, languageVersion) => {
+    const text = files.get(fileName) ?? ts.sys.readFile(fileName);
+    return text === undefined ? undefined : ts.createSourceFile(
+      fileName,
+      text,
+      languageVersion,
+      true,
+      fileName.endsWith(".mjs") ? ts.ScriptKind.JS : ts.ScriptKind.TS,
+    );
+  };
+  host.resolveModuleNames = (names) => names.map((name) =>
+    name === "playwright" ? { resolvedFileName: playwrightFile, extension: ts.Extension.Dts } : undefined);
+  const program = ts.createProgram([runtimeFile, probeFile], options, host);
+  return {
+    program,
+    source: program.getSourceFile(runtimeFile),
+    probe: program.getSourceFile(probeFile),
+  };
+}
+
+function capabilityProofDiagnostics(sourceText) {
+  const parsed = ts.createSourceFile("runtime.mjs", sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  assert.equal(parsed.parseDiagnostics.length, 0, ts.formatDiagnosticsWithColorAndContext(parsed.parseDiagnostics, {
+    getCanonicalFileName: (fileName) => fileName,
+    getCurrentDirectory: () => ".",
+    getNewLine: () => "\n",
+  }));
+  for (const name of ["observePublicRuntimeSession", "publicSnapshot", "settleRootCandidateSnapshots"]) {
+    assert.equal(functionsNamed(parsed, name).length, 1, `exactly one FunctionDeclaration named ${name} is required`);
+  }
+
+  const { program, source, probe } = createCheckedProgram(sourceText);
+  assert.ok(source, "virtual checked-JS source must load");
+  assert.ok(probe, "virtual typed probe source must load");
+  const checker = program.getTypeChecker();
+  const diagnostics = [];
+  const targetSymbols = new Map();
+  for (const statement of probe.statements) {
+    if (!ts.isFunctionDeclaration(statement) || statement.parameters.length !== 1) continue;
+    const parameter = statement.parameters[0];
+    const type = checker.getTypeAtLocation(parameter.name);
+    const symbol = type.aliasSymbol ?? type.getSymbol?.();
+    if (statement.name?.text === "seedPage") targetSymbols.set("Page", symbol);
+    if (statement.name?.text === "seedContext") targetSymbols.set("BrowserContext", symbol);
+    if (statement.name?.text === "seedBrowser") targetSymbols.set("Browser", symbol);
+    if (statement.name?.text === "seedLocator") targetSymbols.set("Locator", symbol);
+  }
+  assert.deepEqual([...targetSymbols.keys()].sort(), ["Browser", "BrowserContext", "Locator", "Page"]);
+
+  const CAP_PAGE = "page";
+  const CAP_CONTEXT = "context";
+  const CAP_BROWSER = "browser";
+  const CAP_LOCATOR = "locator";
+  const CAP_DOM = "dom";
+  const symbolCaps = new Map();
+  const functionInfos = new Map();
+  const symbolIds = new WeakMap();
+  const typedCapsCache = new WeakMap();
+  const directReturnExpressionsCache = new WeakMap();
+  let accessCapsCache = null;
+  let valueCapsCache = null;
+  let symbolId = 0;
+
+  const getSymbolId = (symbol) => {
+    if (!symbolIds.has(symbol)) symbolIds.set(symbol, `${symbol.name}:${symbolId += 1}`);
+    return symbolIds.get(symbol);
+  };
+  const addCaps = (symbol, caps) => {
+    if (!symbol || caps.size === 0) return false;
+    const existing = symbolCaps.get(symbol) ?? new Set();
+    let changed = false;
+    for (const cap of caps) {
+      if (!existing.has(cap)) {
+        existing.add(cap);
+        changed = true;
+      }
+    }
+    if (changed) symbolCaps.set(symbol, existing);
+    return changed;
+  };
+  const capsOf = (symbol) => new Set(symbolCaps.get(symbol) ?? []);
+  const unionCaps = (...sets) => {
+    const merged = new Set();
+    for (const set of sets) {
+      for (const cap of set ?? []) merged.add(cap);
+    }
+    return merged;
+  };
+  const symbolFromNode = (node) => {
+    if (!node || !ts.isIdentifier(node)) return null;
+    if (ts.isShorthandPropertyAssignment(node.parent) && node.parent.name === node) {
+      return checker.getShorthandAssignmentValueSymbol(node.parent) ?? checker.getSymbolAtLocation(node);
+    }
+    return checker.getSymbolAtLocation(node);
+  };
+  const isDomGlobalSymbol = (symbol) => Boolean(symbol?.declarations?.every((declaration) => declaration.getSourceFile() !== source));
+  const isLocalDomGlobal = (node) =>
+    ts.isIdentifier(node) &&
+    ["document", "window", "globalThis", "localStorage", "sessionStorage"].includes(node.text) &&
+    isDomGlobalSymbol(symbolFromNode(node));
+
+  const isWithin = (node, ancestor) => {
+    let current = node;
+    while (current) {
+      if (current === ancestor) return true;
+      current = current.parent;
+    }
+    return false;
+  };
+
+  const typeIncludesTargetSymbol = (type, targetSymbol, seen = new Set()) => {
+    if (!type || !targetSymbol || seen.has(type)) return false;
+    seen.add(type);
+    const symbol = type.aliasSymbol ?? type.getSymbol?.();
+    if (symbol === targetSymbol) return true;
+    if (type.isUnionOrIntersection?.()) return type.types.some((child) => typeIncludesTargetSymbol(child, targetSymbol, seen));
+    if (checker.isArrayType(type)) return typeIncludesTargetSymbol(checker.getElementTypeOfArrayType(type), targetSymbol, seen);
+    if (checker.isTupleType(type)) {
+      return checker.getTypeArguments(type).some((child) => typeIncludesTargetSymbol(child, targetSymbol, seen));
+    }
+    if (checker.getPromisedTypeOfPromise(type)) {
+      return typeIncludesTargetSymbol(checker.getPromisedTypeOfPromise(type), targetSymbol, seen);
+    }
+    const properties = type.getProperties?.() ?? [];
+    return properties.some((property) => {
+      const declarations = property.declarations ?? [];
+      return declarations.some((declaration) => typeIncludesTargetSymbol(checker.getTypeOfSymbolAtLocation(property, declaration), targetSymbol, seen));
+    });
+  };
+
+  const typedCaps = (node) => {
+    if (typedCapsCache.has(node)) return new Set(typedCapsCache.get(node));
+    let type;
+    try {
+      type = checker.getTypeAtLocation(node);
+    } catch {
+      return new Set();
+    }
+    const caps = unionCaps(
+      typeIncludesTargetSymbol(type, targetSymbols.get("Page")) ? new Set([CAP_PAGE]) : new Set(),
+      typeIncludesTargetSymbol(type, targetSymbols.get("BrowserContext")) ? new Set([CAP_CONTEXT]) : new Set(),
+      typeIncludesTargetSymbol(type, targetSymbols.get("Browser")) ? new Set([CAP_BROWSER]) : new Set(),
+      typeIncludesTargetSymbol(type, targetSymbols.get("Locator")) ? new Set([CAP_LOCATOR]) : new Set(),
+    );
+    typedCapsCache.set(node, caps);
+    return new Set(caps);
+  };
+
+  const bindPattern = (name, caps) => {
+    if (ts.isIdentifier(name)) {
+      return addCaps(symbolFromNode(name), unionCaps(caps, typedCaps(name)));
+    }
+    if (ts.isArrayBindingPattern(name)) {
+      let changed = false;
+      for (const element of name.elements) {
+        if (ts.isBindingElement(element)) changed = bindPattern(element.name, new Set()) || changed;
+      }
+      return changed;
+    }
+    if (ts.isObjectBindingPattern(name)) {
+      let changed = false;
+      for (const property of name.elements) changed = bindPattern(property.name, new Set()) || changed;
+      return changed;
+    }
+    return false;
+  };
+
+  const hasNamedFunctionAncestor = (node, name) => {
+    for (let current = node; current; current = current.parent) {
+      if (ts.isFunctionDeclaration(current) && current.name?.text === name) return true;
+    }
+    return false;
+  };
+
+  const isInsideFunction = (node, name) => hasNamedFunctionAncestor(node, name);
+  const isInsideSession = (node) => isInsideFunction(node, "observePublicRuntimeSession");
+  const isInsidePublicSnapshot = (node) => isInsideFunction(node, "publicSnapshot");
+  const isInsideOuterObserver = (node) => hasNamedFunctionAncestor(node, "observePublicRuntime");
+  const nearestFunctionAncestor = (node) => {
+    for (let current = node?.parent; current; current = current.parent) {
+      if (ts.isFunctionDeclaration(current) || ts.isFunctionExpression(current) || ts.isArrowFunction(current)) return current;
+    }
+    return null;
+  };
+  const isDirectReturnInFunction = (node, name) => {
+    const owner = nearestFunctionAncestor(node);
+    return ts.isFunctionDeclaration(owner) && owner.name?.text === name;
+  };
+  const directPublicSnapshotCall = (node) =>
+    ts.isCallExpression(node) &&
+    ts.isIdentifier(node.expression) &&
+    checker.getSymbolAtLocation(node.expression) === exactSymbols.publicSnapshot;
+  const allowedSessionCapabilityCallbackCall = (node) => {
+    if (!ts.isCallExpression(node) || !isInsideSession(node) || !ts.isPropertyAccessExpression(node.expression)) return false;
+    const ownerCaps = unionCaps(accessCaps(node.expression.expression), typedCaps(node.expression.expression));
+    return (
+      (ownerCaps.has(CAP_CONTEXT) && ["on", "route"].includes(node.expression.name.text)) ||
+      (ownerCaps.has(CAP_PAGE) && node.expression.name.text === "on")
+    );
+  };
+  const allowedCapabilityContainer = (node) =>
+    ts.isObjectLiteralExpression(node) &&
+    ts.isCallExpression(node.parent) &&
+    node.parent.arguments.includes(node) &&
+    ts.isIdentifier(node.parent.expression) &&
+    checker.getSymbolAtLocation(node.parent.expression) === exactSymbols.observePublicRuntimeSession;
+  const allowedOuterCapabilityCall = (node) =>
+    ts.isCallExpression(node) &&
+    (
+      (ts.isPropertyAccessExpression(node.expression) &&
+        ts.isIdentifier(node.expression.expression) &&
+        node.expression.expression.text === "chromium" &&
+        node.expression.name.text === "launch") ||
+      (ts.isPropertyAccessExpression(node.expression) &&
+        ts.isIdentifier(node.expression.expression) &&
+        node.expression.expression.text === "browser" &&
+        ["newContext", "close"].includes(node.expression.name.text)) ||
+      (ts.isIdentifier(node.expression) && node.expression.text === "observePublicRuntimeSession")
+    );
+
+  const accessCaps = (node) => {
+    if (!node) return new Set();
+    if (accessCapsCache?.has(node)) return accessCapsCache.get(node);
+    let caps;
+    if (ts.isIdentifier(node)) {
+      caps = isLocalDomGlobal(node) ? new Set([CAP_DOM]) : unionCaps(capsOf(symbolFromNode(node)), typedCaps(node));
+    } else if (ts.isAwaitExpression(node) || ts.isParenthesizedExpression(node)) {
+      caps = accessCaps(node.expression);
+    } else if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      caps = unionCaps(accessCaps(node.expression), typedCaps(node));
+    } else if (ts.isCallExpression(node)) {
+      const info = functionInfos.get(node.expression);
+      const localReturn = info ? info.returnCaps : new Set();
+      caps = unionCaps(accessCaps(node.expression), typedCaps(node), localReturn);
+    } else if (ts.isArrayLiteralExpression(node)) {
+      caps = unionCaps(...node.elements.map(accessCaps));
+    } else if (ts.isObjectLiteralExpression(node)) {
+      caps = unionCaps(...node.properties.map((property) => {
+        if (ts.isShorthandPropertyAssignment(property)) return accessCaps(property.name);
+        if (ts.isPropertyAssignment(property)) return accessCaps(property.initializer);
+        if (ts.isSpreadAssignment(property)) return accessCaps(property.expression);
+        return new Set();
+      }));
+    } else if (ts.isConditionalExpression(node)) {
+      caps = unionCaps(accessCaps(node.whenTrue), accessCaps(node.whenFalse));
+    } else if (ts.isBinaryExpression(node)) {
+      caps = accessCaps(node.right);
+    } else {
+      caps = typedCaps(node);
+    }
+    accessCapsCache?.set(node, caps);
+    return caps;
+  };
+
+  const valueCaps = (node) => {
+    if (!node) return new Set();
+    if (valueCapsCache?.has(node)) return valueCapsCache.get(node);
+    let caps;
+    if (ts.isIdentifier(node)) caps = unionCaps(capsOf(symbolFromNode(node)), typedCaps(node));
+    else if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) {
+      caps = functionInfos.get(node)?.returnCaps ?? new Set();
+    } else if (ts.isAwaitExpression(node) || ts.isParenthesizedExpression(node)) caps = valueCaps(node.expression);
+    else if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) caps = unionCaps(typedCaps(node), accessCaps(node));
+    else if (ts.isCallExpression(node)) {
+      const info = getFunctionInfoFromExpression(node.expression);
+      caps = unionCaps(typedCaps(node), info?.returnCaps);
+    } else if (ts.isArrayLiteralExpression(node)) caps = unionCaps(...node.elements.map(valueCaps));
+    else if (ts.isObjectLiteralExpression(node)) {
+      caps = unionCaps(...node.properties.map((property) => {
+        if (ts.isShorthandPropertyAssignment(property)) return valueCaps(property.name);
+        if (ts.isPropertyAssignment(property)) return valueCaps(property.initializer);
+        if (ts.isSpreadAssignment(property)) return valueCaps(property.expression);
+        return new Set();
+      }));
+    } else if (ts.isConditionalExpression(node)) caps = unionCaps(valueCaps(node.whenTrue), valueCaps(node.whenFalse));
+    else if (ts.isBinaryExpression(node)) caps = valueCaps(node.right);
+    else caps = typedCaps(node);
+    valueCapsCache?.set(node, caps);
+    return caps;
+  };
+
+  const bindingValue = (name, sourceValue) => {
+    if (ts.isIdentifier(name)) return sourceValue;
+    if (ts.isObjectBindingPattern(name) && ts.isObjectLiteralExpression(sourceValue)) {
+      return new Map(name.elements.map((element) => {
+        const bindingName = element.propertyName && ts.isIdentifier(element.propertyName) ? element.propertyName.text :
+          ts.isIdentifier(element.name) ? element.name.text : null;
+        const property = bindingName
+          ? sourceValue.properties.find((candidate) =>
+            (ts.isPropertyAssignment(candidate) || ts.isShorthandPropertyAssignment(candidate)) &&
+            ts.isIdentifier(candidate.name) && candidate.name.text === bindingName)
+          : null;
+        if (ts.isPropertyAssignment(property)) return [element, property.initializer];
+        if (ts.isShorthandPropertyAssignment(property)) return [element, property.name];
+        return [element, null];
+      }));
+    }
+    if (ts.isArrayBindingPattern(name) && ts.isArrayLiteralExpression(sourceValue)) {
+      return new Map(name.elements.map((element, index) => [element, sourceValue.elements[index] ?? null]));
+    }
+    return null;
+  };
+
+  const bindValuePattern = (name, sourceValue) => {
+    if (ts.isIdentifier(name)) {
+      return addCaps(symbolFromNode(name), valueCaps(sourceValue));
+    }
+    const boundValues = bindingValue(name, sourceValue);
+    if (ts.isArrayBindingPattern(name)) {
+      let changed = false;
+      for (const [index, element] of name.elements.entries()) {
+        if (!ts.isBindingElement(element)) continue;
+        changed = bindValuePattern(element.name, boundValues?.get(element) ?? sourceValue.elements?.[index] ?? sourceValue) || changed;
+      }
+      return changed;
+    }
+    if (ts.isObjectBindingPattern(name)) {
+      let changed = false;
+      for (const element of name.elements) {
+        changed = bindValuePattern(element.name, boundValues?.get(element) ?? sourceValue) || changed;
+      }
+      return changed;
+    }
+    return false;
+  };
+
+  const collectFunctions = (node) => {
+    if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node) || ts.isMethodDeclaration(node)) {
+      const info = { node, returnCaps: new Set() };
+      functionInfos.set(node, info);
+      if (node.name) functionInfos.set(node.name, info);
+    }
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer &&
+      (ts.isFunctionExpression(node.initializer) || ts.isArrowFunction(node.initializer))) {
+      const info = { node: node.initializer, returnCaps: new Set() };
+      functionInfos.set(node.name, info);
+      functionInfos.set(node.initializer, info);
+    }
+    ts.forEachChild(node, collectFunctions);
+  };
+  collectFunctions(source);
+
+  const resolveBoundNode = (node, bindings = new Map(), seenSymbols = new Set()) => {
+    if (!node) return null;
+    if (ts.isIdentifier(node)) {
+      const symbol = symbolFromNode(node);
+      if (symbol && bindings.has(symbol)) {
+        return resolveBoundNode(bindings.get(symbol), bindings, seenSymbols);
+      }
+      if (!symbol || seenSymbols.has(symbol)) return node;
+      seenSymbols.add(symbol);
+      for (const declaration of symbol.declarations ?? []) {
+        if (ts.isVariableDeclaration(declaration) && declaration.initializer) {
+          return resolveBoundNode(declaration.initializer, bindings, seenSymbols);
+        }
+      }
+      return node;
+    }
+    if (ts.isParenthesizedExpression(node) || ts.isAwaitExpression(node)) {
+      return resolveBoundNode(node.expression, bindings, seenSymbols);
+    }
+    return node;
+  };
+
+  const bindCallArguments = (fnNode, callArgs, bindings = new Map()) => {
+    const nextBindings = new Map(bindings);
+    const parameters = fnNode.parameters ?? [];
+    for (const [index, parameter] of parameters.entries()) {
+      if (!ts.isIdentifier(parameter.name)) continue;
+      const parameterSymbol = symbolFromNode(parameter.name);
+      if (!parameterSymbol) continue;
+      const argument = callArgs[index] ?? parameter.initializer ?? null;
+      if (argument) nextBindings.set(parameterSymbol, resolveBoundNode(argument, bindings));
+    }
+    return nextBindings;
+  };
+
+  const propertyNameText = (node) => {
+    if (ts.isPropertyAccessExpression(node)) return node.name.text;
+    if (ts.isElementAccessExpression(node) && ts.isStringLiteralLike(node.argumentExpression)) return node.argumentExpression.text;
+    return null;
+  };
+
+  const isGlobalUnshadowedIdentifier = (node, text) =>
+    ts.isIdentifier(node) &&
+    node.text === text &&
+    !((symbolFromNode(node)?.declarations ?? []).some((declaration) => declaration.getSourceFile() === source));
+
+  const arrayLikeType = (node) => {
+    if (!node) return false;
+    try {
+      const type = checker.getTypeAtLocation(node);
+      return checker.isArrayType(type) || checker.isTupleType(type);
+    } catch {
+      return false;
+    }
+  };
+
+  const localPropertyFunctionInfos = (expression, bindings = new Map(), seenCalls = new Set(), seenFunctions = new Set()) => {
+    const name = propertyNameText(expression);
+    if (!name) return [];
+    const receiver = resolveBoundNode(expression.expression, bindings);
+    if (!receiver || !ts.isObjectLiteralExpression(receiver)) return [];
+    const results = [];
+    for (const property of receiver.properties) {
+      if (!property.name) continue;
+      const propertyName = ts.isIdentifier(property.name)
+        ? property.name.text
+        : ts.isStringLiteralLike(property.name)
+          ? property.name.text
+          : null;
+      if (propertyName !== name) continue;
+      if (ts.isMethodDeclaration(property)) {
+        const info = functionInfos.get(property) ?? null;
+        if (info) results.push(info);
+      } else if (ts.isPropertyAssignment(property)) {
+        results.push(...getFunctionInfosFromExpression(property.initializer, bindings, seenCalls, seenFunctions));
+      } else if (ts.isShorthandPropertyAssignment(property)) {
+        results.push(...getFunctionInfosFromExpression(property.name, bindings, seenCalls, seenFunctions));
+      }
+    }
+    return [...new Map(results.filter(Boolean).map((entry) => [entry.node, entry])).values()];
+  };
+
+  const invokedFunctionTargets = (node, bindings = new Map(), seenCalls = new Set(), seenFunctions = new Set()) => {
+    if (!ts.isCallExpression(node)) return [];
+    if ((ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression))) {
+      const propertyName = propertyNameText(node.expression);
+      if (propertyName === "call" || propertyName === "apply") {
+        const calleeInfos = getFunctionInfosFromExpression(node.expression.expression, bindings, seenCalls, seenFunctions);
+        const effectiveArgs = propertyName === "call"
+          ? node.arguments.slice(1)
+          : (node.arguments[1] && ts.isArrayLiteralExpression(node.arguments[1]) ? [...node.arguments[1].elements] : []);
+        return calleeInfos.map((info) => ({ info, args: effectiveArgs }));
+      }
+    }
+    return getFunctionInfosFromExpression(node.expression, bindings, seenCalls, seenFunctions)
+      .map((info) => ({ info, args: [...node.arguments] }));
+  };
+
+  const builtinCallKind = (node, bindings = new Map()) => {
+    if (!ts.isCallExpression(node) || !(ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression))) return null;
+    const propertyName = propertyNameText(node.expression);
+    if (!propertyName) return null;
+    const receiver = resolveBoundNode(node.expression.expression, bindings);
+    if (["map", "flatMap", "filter", "reduce", "find", "forEach", "some", "every"].includes(propertyName) && arrayLikeType(receiver ?? node.expression.expression)) {
+      return { kind: "array", method: propertyName, receiver: receiver ?? node.expression.expression };
+    }
+    if (propertyName === "stringify" && receiver && isGlobalUnshadowedIdentifier(receiver, "JSON")) {
+      return { kind: "jsonStringify" };
+    }
+    return null;
+  };
+
+  const getFunctionInfosFromExpression = (expression, bindings = new Map(), seenCalls = new Set(), seenFunctions = new Set()) => {
+    const resolvedExpression = resolveBoundNode(expression, bindings);
+    if (!resolvedExpression) return [];
+    if (ts.isIdentifier(resolvedExpression)) {
+      const symbol = symbolFromNode(resolvedExpression);
+      const results = [];
+      for (const declaration of symbol?.declarations ?? []) {
+        if (ts.isVariableDeclaration(declaration) && declaration.initializer && ts.isIdentifier(declaration.initializer)) {
+          results.push(...getFunctionInfosFromExpression(declaration.initializer, bindings, seenCalls, seenFunctions));
+          continue;
+        }
+        if (ts.isFunctionDeclaration(declaration) ||
+          ts.isFunctionExpression(declaration) ||
+          ts.isArrowFunction(declaration)) {
+          const info = functionInfos.get(declaration) ?? null;
+          if (info) results.push(info);
+          continue;
+        }
+        if (ts.isVariableDeclaration(declaration) && declaration.initializer &&
+          (ts.isFunctionExpression(declaration.initializer) || ts.isArrowFunction(declaration.initializer))) {
+          const info = functionInfos.get(declaration.initializer) ?? null;
+          if (info) results.push(info);
+        }
+      }
+      const info = functionInfos.get(resolvedExpression) ?? null;
+      if (info) results.push(info);
+      return [...new Map(results.map((entry) => [entry.node, entry])).values()];
+    }
+    if (ts.isFunctionExpression(resolvedExpression) || ts.isArrowFunction(resolvedExpression)) {
+      const info = functionInfos.get(resolvedExpression) ?? null;
+      return info ? [info] : [];
+    }
+    if (ts.isMethodDeclaration(resolvedExpression)) {
+      const info = functionInfos.get(resolvedExpression) ?? null;
+      return info ? [info] : [];
+    }
+    if (ts.isPropertyAccessExpression(resolvedExpression) || ts.isElementAccessExpression(resolvedExpression)) {
+      return localPropertyFunctionInfos(resolvedExpression, bindings, seenCalls, seenFunctions);
+    }
+    if (ts.isCallExpression(resolvedExpression)) {
+      if (seenCalls.has(resolvedExpression)) return [];
+      seenCalls.add(resolvedExpression);
+      const infos = invokedFunctionTargets(resolvedExpression, bindings, new Set(seenCalls), new Set(seenFunctions));
+      const results = [];
+      for (const { info, args } of infos) {
+        if (!info?.node || seenFunctions.has(info.node)) continue;
+        const callBindings = bindCallArguments(info.node, args, bindings);
+        const nextSeenFunctions = new Set(seenFunctions);
+        nextSeenFunctions.add(info.node);
+        for (const expression of directReturnExpressions(info.node)) {
+          results.push(...getFunctionInfosFromExpression(expression, callBindings, new Set(seenCalls), nextSeenFunctions));
+        }
+      }
+      return [...new Map(results.map((entry) => [entry.node, entry])).values()];
+    }
+    return [];
+  };
+
+  const getFunctionInfoFromExpression = (expression, bindings = new Map()) => getFunctionInfosFromExpression(expression, bindings)[0] ?? null;
+
+  const isPromiseResolveCall = (node) =>
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    ts.isIdentifier(node.expression.expression) &&
+    node.expression.expression.text === "Promise" &&
+    node.expression.name.text === "resolve";
+
+  const isJsonStringifyCall = (node) =>
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    ts.isIdentifier(node.expression.expression) &&
+    node.expression.expression.text === "JSON" &&
+    node.expression.name.text === "stringify";
+
+  const arrayTransformCallback = (node) =>
+    ts.isCallExpression(node) &&
+    ts.isPropertyAccessExpression(node.expression) &&
+    ["map", "flatMap"].includes(node.expression.name.text)
+      ? node.arguments[0] ?? null
+      : null;
+
+  const callbackReturnsResultCallback = (node, seenSymbols = new Set(), seenFunctions = new Set(), bindings = new Map()) => {
+    if (!node) return false;
+    const callback = functionLikeNode(resolveBoundNode(node, bindings) ?? node);
+    if (callback) {
+      if (seenFunctions.has(callback)) return false;
+      const nextSeenFunctions = new Set(seenFunctions);
+      nextSeenFunctions.add(callback);
+      return directReturnExpressions(callback).some((expression) =>
+        containsResultCallbackValue(expression, new Set(seenSymbols), nextSeenFunctions, bindings)
+      );
+    }
+    const infos = getFunctionInfosFromExpression(node, bindings, new Set(), seenFunctions);
+    return infos.some((info) => {
+      if (!info?.node || seenFunctions.has(info.node)) return false;
+      const nextSeenFunctions = new Set(seenFunctions);
+      nextSeenFunctions.add(info.node);
+      return directReturnExpressions(info.node).some((expression) =>
+        containsResultCallbackValue(expression, new Set(seenSymbols), nextSeenFunctions, bindings)
+      );
+    });
+  };
+
+  const isFunctionLikeValue = (node) => {
+    if (!node) return false;
+    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return true;
+    if (ts.isIdentifier(node)) return Boolean(getFunctionInfoFromExpression(node));
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) return Boolean(getFunctionInfoFromExpression(node));
+    return false;
+  };
+
+  const functionLikeNode = (node) => {
+    if (!node) return null;
+    if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return node;
+    return getFunctionInfoFromExpression(node)?.node ?? null;
+  };
+
+  const directReturnExpressions = (fnNode) => {
+    if (!fnNode?.body) return [];
+    if (directReturnExpressionsCache.has(fnNode)) return directReturnExpressionsCache.get(fnNode);
+    const returns = [];
+    const visit = (node) => {
+      if (node !== fnNode.body &&
+        (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node))) {
+        return;
+      }
+      if (ts.isReturnStatement(node) && node.expression) returns.push(node.expression);
+      ts.forEachChild(node, visit);
+    };
+    if (ts.isBlock(fnNode.body)) visit(fnNode.body);
+    else returns.push(fnNode.body);
+    directReturnExpressionsCache.set(fnNode, returns);
+    return returns;
+  };
+
+  const parameterIndexForSymbol = (fnNode, symbol) => {
+    if (!fnNode || !symbol) return -1;
+    return fnNode.parameters.findIndex((parameter) =>
+      ts.isIdentifier(parameter.name) && symbolFromNode(parameter.name) === symbol);
+  };
+
+  const resolveCallBoundValue = (node, fnNode, callArgs, seenSymbols = new Set()) => {
+    if (!node) return null;
+    if (ts.isIdentifier(node)) {
+      const symbol = symbolFromNode(node);
+      const parameterIndex = parameterIndexForSymbol(fnNode, symbol);
+      if (parameterIndex >= 0) return callArgs[parameterIndex] ?? node;
+      if (!symbol || seenSymbols.has(symbol)) return node;
+      seenSymbols.add(symbol);
+      const declaration = (symbol.declarations ?? []).find((candidate) =>
+        ts.isVariableDeclaration(candidate) && candidate.initializer);
+      return declaration?.initializer ? resolveCallBoundValue(declaration.initializer, fnNode, callArgs, seenSymbols) : node;
+    }
+    if (ts.isParenthesizedExpression(node) || ts.isAwaitExpression(node)) {
+      return resolveCallBoundValue(node.expression, fnNode, callArgs, seenSymbols);
+    }
+    return node;
+  };
+
+  const exactSymbols = Object.fromEntries(["observePublicRuntime", "observePublicRuntimeSession", "publicSnapshot", "settleRootCandidateSnapshots"]
+    .map((name) => {
+      const declaration = functionsNamed(source, name)[0];
+      return [name, declaration?.name ? checker.getSymbolAtLocation(declaration.name) : null];
+    }));
+
+  const containsCallbackValue = (node, seenSymbols = new Set()) => {
+    if (!node) return false;
+    if (isFunctionLikeValue(node)) return true;
+    if (ts.isIdentifier(node)) {
+      const symbol = symbolFromNode(node);
+      if (!symbol || seenSymbols.has(symbol)) return false;
+      seenSymbols.add(symbol);
+      return (symbol.declarations ?? []).some((declaration) =>
+        ts.isVariableDeclaration(declaration) && declaration.initializer
+          ? containsCallbackValue(declaration.initializer, seenSymbols)
+          : false);
+    }
+    if (ts.isParenthesizedExpression(node) || ts.isAwaitExpression(node)) return containsCallbackValue(node.expression, seenSymbols);
+    if (ts.isCallExpression(node)) {
+      return node.arguments.some((argument) => containsCallbackValue(argument, seenSymbols));
+    }
+    if (ts.isNewExpression(node)) {
+      return (node.arguments ?? []).some((argument) => containsCallbackValue(argument, seenSymbols));
+    }
+    if (ts.isArrayLiteralExpression(node)) return node.elements.some((element) => containsCallbackValue(element, seenSymbols));
+    if (ts.isObjectLiteralExpression(node)) {
+      return node.properties.some((property) => {
+        if (ts.isShorthandPropertyAssignment(property)) return containsCallbackValue(property.name, seenSymbols);
+        if (ts.isPropertyAssignment(property)) return containsCallbackValue(property.initializer, seenSymbols);
+        if (ts.isSpreadAssignment(property)) return containsCallbackValue(property.expression, seenSymbols);
+        return false;
+      });
+    }
+    if (ts.isConditionalExpression(node)) return containsCallbackValue(node.whenTrue, seenSymbols) || containsCallbackValue(node.whenFalse, seenSymbols);
+    if (ts.isBinaryExpression(node)) return containsCallbackValue(node.right, seenSymbols);
+    return false;
+  };
+
+  const containsResultCallbackValue = (node, seenSymbols = new Set(), seenFunctions = new Set(), bindings = new Map()) => {
+    if (!node) return false;
+    const resolvedNode = resolveBoundNode(node, bindings);
+    if (resolvedNode !== node) return containsResultCallbackValue(resolvedNode, seenSymbols, seenFunctions, bindings);
+    if (isFunctionLikeValue(node)) return true;
+    if (ts.isIdentifier(node)) {
+      const symbol = symbolFromNode(node);
+      if (!symbol || seenSymbols.has(symbol)) return false;
+      seenSymbols.add(symbol);
+      return (symbol.declarations ?? []).some((declaration) =>
+        ts.isVariableDeclaration(declaration) && declaration.initializer
+          ? containsResultCallbackValue(declaration.initializer, seenSymbols, seenFunctions, bindings)
+          : false);
+    }
+    if (ts.isParenthesizedExpression(node) || ts.isAwaitExpression(node)) return containsResultCallbackValue(node.expression, seenSymbols, seenFunctions, bindings);
+    if (ts.isCallExpression(node)) {
+      const localTargets = invokedFunctionTargets(node, bindings, new Set(), seenFunctions);
+      if (localTargets.length > 0) {
+        return localTargets.some(({ info, args }) => {
+          if (!info?.node || seenFunctions.has(info.node)) return false;
+          const nextSeenFunctions = new Set(seenFunctions);
+          nextSeenFunctions.add(info.node);
+          const callBindings = bindCallArguments(info.node, args, bindings);
+          return directReturnExpressions(info.node).some((expression) =>
+            containsResultCallbackValue(expression, new Set(seenSymbols), nextSeenFunctions, callBindings)
+          );
+        });
+      }
+      const builtin = builtinCallKind(node, bindings);
+      if (builtin?.kind === "jsonStringify") {
+        return false;
+      }
+      if (builtin?.kind === "array") {
+        if (["map", "flatMap", "reduce"].includes(builtin.method)) {
+          return containsResultCallbackValue(builtin.receiver, new Set(seenSymbols), new Set(seenFunctions), bindings) ||
+            callbackReturnsResultCallback(node.arguments[0] ?? null, new Set(seenSymbols), new Set(seenFunctions), bindings) ||
+            (builtin.method === "reduce" && containsResultCallbackValue(node.arguments[1] ?? null, new Set(seenSymbols), new Set(seenFunctions), bindings));
+        }
+        if (["filter", "find"].includes(builtin.method)) {
+          return containsResultCallbackValue(builtin.receiver, new Set(seenSymbols), new Set(seenFunctions), bindings);
+        }
+        return false;
+      }
+      if (isPromiseResolveCall(node)) {
+        return containsResultCallbackValue(node.arguments[0] ?? null, new Set(seenSymbols), new Set(seenFunctions), bindings);
+      }
+      return node.arguments.some((argument) => containsResultCallbackValue(argument, new Set(seenSymbols), new Set(seenFunctions), bindings));
+    }
+    if (ts.isNewExpression(node)) return (node.arguments ?? []).some((argument) => containsResultCallbackValue(argument, new Set(seenSymbols), new Set(seenFunctions), bindings));
+    if (ts.isArrayLiteralExpression(node)) return node.elements.some((element) => containsResultCallbackValue(element, new Set(seenSymbols), new Set(seenFunctions), bindings));
+    if (ts.isObjectLiteralExpression(node)) {
+      return node.properties.some((property) => {
+        if (ts.isShorthandPropertyAssignment(property)) return containsResultCallbackValue(property.name, new Set(seenSymbols), new Set(seenFunctions), bindings);
+        if (ts.isPropertyAssignment(property)) return containsResultCallbackValue(property.initializer, new Set(seenSymbols), new Set(seenFunctions), bindings);
+        if (ts.isSpreadAssignment(property)) return containsResultCallbackValue(property.expression, new Set(seenSymbols), new Set(seenFunctions), bindings);
+        return false;
+      });
+    }
+    if (ts.isConditionalExpression(node)) return containsResultCallbackValue(node.whenTrue, new Set(seenSymbols), new Set(seenFunctions), bindings) || containsResultCallbackValue(node.whenFalse, new Set(seenSymbols), new Set(seenFunctions), bindings);
+    if (ts.isBinaryExpression(node)) return containsResultCallbackValue(node.right, new Set(seenSymbols), new Set(seenFunctions), bindings);
+    return false;
+  };
+
+  const containsRawDomValue = (node, seenSymbols = new Set()) => {
+    if (!node) return false;
+    if (ts.isIdentifier(node)) {
+      if (isLocalDomGlobal(node)) return true;
+      const symbol = symbolFromNode(node);
+      if (!symbol || seenSymbols.has(symbol)) return false;
+      seenSymbols.add(symbol);
+      return (symbol.declarations ?? []).some((declaration) =>
+        ts.isVariableDeclaration(declaration) && declaration.initializer
+          ? containsRawDomValue(declaration.initializer, seenSymbols)
+          : false);
+    }
+    if (ts.isParenthesizedExpression(node) || ts.isAwaitExpression(node)) return containsRawDomValue(node.expression, seenSymbols);
+    if (ts.isPropertyAccessExpression(node)) {
+      return (
+        accessCaps(node.expression).has(CAP_DOM) &&
+        ["body", "documentElement", "head", "children", "firstElementChild", "lastElementChild", "parentElement", "parentNode", "cookie", "innerHTML", "outerHTML", "value"].includes(node.name.text)
+      );
+    }
+    if (ts.isElementAccessExpression(node)) {
+      return accessCaps(node.expression).has(CAP_DOM) &&
+        ts.isStringLiteralLike(node.argumentExpression) &&
+        ["body", "documentElement", "head", "children", "firstElementChild", "lastElementChild", "parentElement", "parentNode", "cookie", "innerHTML", "outerHTML", "value"].includes(node.argumentExpression.text);
+    }
+    if (ts.isCallExpression(node)) {
+      if (ts.isIdentifier(node.expression) && node.expression.text === "boundedMap") return false;
+      if (ts.isPropertyAccessExpression(node.expression) &&
+        accessCaps(node.expression.expression).has(CAP_DOM) &&
+        ["querySelector", "querySelectorAll", "getElementById", "closest"].includes(node.expression.name.text)) {
+        return true;
+      }
+      return containsRawDomValue(node.expression, seenSymbols) ||
+        node.arguments.some((argument) => containsRawDomValue(argument, seenSymbols));
+    }
+    if (ts.isObjectLiteralExpression(node)) {
+      return node.properties.some((property) => {
+        if (ts.isShorthandPropertyAssignment(property)) return containsRawDomValue(property.name, seenSymbols);
+        if (ts.isPropertyAssignment(property)) return containsRawDomValue(property.initializer, seenSymbols);
+        if (ts.isSpreadAssignment(property)) return containsRawDomValue(property.expression, seenSymbols);
+        return false;
+      });
+    }
+    if (ts.isArrayLiteralExpression(node)) return node.elements.some((element) => containsRawDomValue(element, seenSymbols));
+    if (ts.isConditionalExpression(node)) return containsRawDomValue(node.whenTrue, seenSymbols) || containsRawDomValue(node.whenFalse, seenSymbols);
+    if (ts.isBinaryExpression(node)) return containsRawDomValue(node.left, seenSymbols) || containsRawDomValue(node.right, seenSymbols);
+    return false;
+  };
+
+  const containsCapabilityValue = (node, seenSymbols = new Set()) => {
+    if (!node) return false;
+    if (ts.isIdentifier(node)) {
+      const caps = unionCaps(capsOf(symbolFromNode(node)), typedCaps(node));
+      if (caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER) || caps.has(CAP_LOCATOR)) return true;
+      const symbol = symbolFromNode(node);
+      if (!symbol || seenSymbols.has(symbol)) return false;
+      seenSymbols.add(symbol);
+      return (symbol.declarations ?? []).some((declaration) =>
+        ts.isVariableDeclaration(declaration) && declaration.initializer
+          ? containsCapabilityValue(declaration.initializer, seenSymbols)
+          : false);
+    }
+    if (ts.isParenthesizedExpression(node) || ts.isAwaitExpression(node)) return containsCapabilityValue(node.expression, seenSymbols);
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      const caps = typedCaps(node);
+      if (caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER) || caps.has(CAP_LOCATOR)) return true;
+      return containsCapabilityValue(node.expression, seenSymbols);
+    }
+    if (ts.isCallExpression(node)) {
+      const info = getFunctionInfoFromExpression(node.expression);
+      const caps = unionCaps(typedCaps(node), info?.returnCaps);
+      if (caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER) || caps.has(CAP_LOCATOR)) return true;
+      return node.arguments.some((argument) => containsCapabilityValue(argument, seenSymbols));
+    }
+    if (ts.isNewExpression(node)) {
+      const caps = typedCaps(node);
+      if (caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER) || caps.has(CAP_LOCATOR)) return true;
+      return (node.arguments ?? []).some((argument) => containsCapabilityValue(argument, seenSymbols));
+    }
+    if (ts.isArrayLiteralExpression(node)) return node.elements.some((element) => containsCapabilityValue(element, seenSymbols));
+    if (ts.isObjectLiteralExpression(node)) {
+      return node.properties.some((property) => {
+        if (ts.isShorthandPropertyAssignment(property)) return containsCapabilityValue(property.name, seenSymbols);
+        if (ts.isPropertyAssignment(property)) return containsCapabilityValue(property.initializer, seenSymbols);
+        if (ts.isSpreadAssignment(property)) return containsCapabilityValue(property.expression, seenSymbols);
+        return false;
+      });
+    }
+    if (ts.isConditionalExpression(node)) return containsCapabilityValue(node.whenTrue, seenSymbols) || containsCapabilityValue(node.whenFalse, seenSymbols);
+    if (ts.isBinaryExpression(node)) return containsCapabilityValue(node.right, seenSymbols);
+    return false;
+  };
+
+  const callbackLeaksCapability = (node) => {
+    const callback = functionLikeNode(node);
+    if (!callback?.body) return false;
+    let leaked = false;
+    const visit = (child) => {
+      if (leaked) return;
+      if (child !== callback.body &&
+        (ts.isFunctionDeclaration(child) || ts.isFunctionExpression(child) || ts.isArrowFunction(child))) {
+        return;
+      }
+      const caps = unionCaps(
+        typedCaps(child),
+        ts.isIdentifier(child) ? capsOf(symbolFromNode(child)) : new Set(),
+        (ts.isPropertyAccessExpression(child) || ts.isElementAccessExpression(child) || ts.isCallExpression(child))
+          ? unionCaps(accessCaps(child), valueCaps(child))
+          : new Set(),
+      );
+      if (caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER) || caps.has(CAP_LOCATOR)) {
+        leaked = true;
+        return;
+      }
+      if (ts.isIdentifier(child) && isLocalDomGlobal(child)) {
+        leaked = true;
+        return;
+      }
+      if (ts.isPropertyAccessExpression(child) &&
+        unionCaps(
+          typedCaps(child.expression),
+          ts.isIdentifier(child.expression) ? capsOf(symbolFromNode(child.expression)) : new Set(),
+        ).has(CAP_DOM) &&
+        ["body", "documentElement", "head", "children", "firstElementChild", "lastElementChild", "parentElement", "parentNode", "cookie", "innerHTML", "outerHTML", "value"].includes(child.name.text)) {
+        leaked = true;
+        return;
+      }
+      if (ts.isElementAccessExpression(child) &&
+        unionCaps(
+          typedCaps(child.expression),
+          ts.isIdentifier(child.expression) ? capsOf(symbolFromNode(child.expression)) : new Set(),
+        ).has(CAP_DOM) &&
+        ts.isStringLiteralLike(child.argumentExpression) &&
+        ["body", "documentElement", "head", "children", "firstElementChild", "lastElementChild", "parentElement", "parentNode", "cookie", "innerHTML", "outerHTML", "value"].includes(child.argumentExpression.text)) {
+        leaked = true;
+        return;
+      }
+      ts.forEachChild(child, visit);
+    };
+    visit(callback.body);
+    return leaked;
+  };
+
+  const callbackValueLeaksCapability = (node, seenSymbols = new Set(), seenFunctions = new Set(), bindings = new Map()) => {
+    if (!node) return false;
+    const resolvedNode = resolveBoundNode(node, bindings);
+    if (resolvedNode !== node) return callbackValueLeaksCapability(resolvedNode, seenSymbols, seenFunctions, bindings);
+    const callback = functionLikeNode(node);
+    if (callback) return callbackLeaksCapability(callback);
+    if (ts.isIdentifier(node)) {
+      const symbol = symbolFromNode(node);
+      if (!symbol || seenSymbols.has(symbol)) return false;
+      seenSymbols.add(symbol);
+      return (symbol.declarations ?? []).some((declaration) =>
+        ts.isVariableDeclaration(declaration) && declaration.initializer
+          ? callbackValueLeaksCapability(declaration.initializer, new Set(seenSymbols), new Set(seenFunctions), bindings)
+          : false);
+    }
+    if (ts.isParenthesizedExpression(node) || ts.isAwaitExpression(node)) {
+      return callbackValueLeaksCapability(node.expression, seenSymbols, seenFunctions, bindings);
+    }
+    if (ts.isCallExpression(node)) {
+      const infos = getFunctionInfosFromExpression(node.expression, bindings, new Set(), seenFunctions);
+      return infos.some((info) => {
+        if (!info?.node || seenFunctions.has(info.node)) return false;
+        const nextSeenFunctions = new Set(seenFunctions);
+        nextSeenFunctions.add(info.node);
+        const callBindings = bindCallArguments(info.node, node.arguments, bindings);
+        return directReturnExpressions(info.node).some((expression) =>
+          callbackValueLeaksCapability(expression, new Set(seenSymbols), nextSeenFunctions, callBindings)
+        );
+      });
+    }
+    return false;
+  };
+
+  const callbackArgumentLeaksCapability = (node, seenSymbols = new Set(), bindings = new Map()) => {
+    if (!node) return false;
+    const resolvedNode = resolveBoundNode(node, bindings);
+    if (resolvedNode !== node) return callbackArgumentLeaksCapability(resolvedNode, seenSymbols, bindings);
+    if (callbackValueLeaksCapability(node, new Set(seenSymbols), new Set(), bindings)) return true;
+    if (ts.isIdentifier(node)) {
+      const symbol = symbolFromNode(node);
+      if (!symbol || seenSymbols.has(symbol)) return false;
+      seenSymbols.add(symbol);
+      return (symbol.declarations ?? []).some((declaration) =>
+        ts.isVariableDeclaration(declaration) && declaration.initializer
+          ? callbackArgumentLeaksCapability(declaration.initializer, new Set(seenSymbols), bindings)
+          : false);
+    }
+    if (ts.isCallExpression(node)) {
+      return node.arguments.some((argument) => callbackArgumentLeaksCapability(argument, new Set(seenSymbols), bindings));
+    }
+    if (ts.isParenthesizedExpression(node) || ts.isAwaitExpression(node)) {
+      return callbackArgumentLeaksCapability(node.expression, seenSymbols, bindings);
+    }
+    return false;
+  };
+
+  const containsResultCapabilityValue = (node, seenSymbols = new Set(), bindings = new Map()) => {
+    if (!node) return false;
+    const resolvedNode = resolveBoundNode(node, bindings);
+    if (resolvedNode !== node) return containsResultCapabilityValue(resolvedNode, seenSymbols, bindings);
+    if (containsCapabilityValue(node, seenSymbols) || callbackArgumentLeaksCapability(node, new Set(seenSymbols), bindings)) {
+      return true;
+    }
+    if (ts.isCallExpression(node)) {
+      const infos = getFunctionInfosFromExpression(node.expression, bindings);
+      return infos.some((info) => {
+        if (!info?.node) return false;
+        const callBindings = bindCallArguments(info.node, node.arguments, bindings);
+        return directReturnExpressions(info.node).some((expression) =>
+          containsResultCapabilityValue(expression, new Set(seenSymbols), callBindings)
+        );
+      });
+    }
+    return false;
+  };
+
+  const containsLocatorEscape = (node, seenSymbols = new Set()) => {
+    if (!node) return false;
+    if (ts.isIdentifier(node)) {
+      const caps = unionCaps(capsOf(symbolFromNode(node)), typedCaps(node));
+      if (caps.has(CAP_LOCATOR)) return true;
+      const symbol = symbolFromNode(node);
+      if (!symbol || seenSymbols.has(symbol)) return false;
+      seenSymbols.add(symbol);
+      return (symbol.declarations ?? []).some((declaration) =>
+        ts.isVariableDeclaration(declaration) && declaration.initializer
+          ? containsLocatorEscape(declaration.initializer, seenSymbols)
+          : false);
+    }
+    if (ts.isParenthesizedExpression(node) || ts.isAwaitExpression(node)) return containsLocatorEscape(node.expression, seenSymbols);
+    if (ts.isCallExpression(node)) {
+      if (ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === "evaluate" &&
+        unionCaps(accessCaps(node.expression.expression), valueCaps(node.expression.expression)).has(CAP_LOCATOR)) {
+        return false;
+      }
+      const caps = unionCaps(accessCaps(node), valueCaps(node));
+      if (caps.has(CAP_LOCATOR)) return true;
+      return containsLocatorEscape(node.expression, seenSymbols) ||
+        node.arguments.some((argument) => containsLocatorEscape(argument, seenSymbols));
+    }
+    if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+      const caps = unionCaps(accessCaps(node), valueCaps(node));
+      return caps.has(CAP_LOCATOR) || containsLocatorEscape(node.expression, seenSymbols);
+    }
+    if (ts.isObjectLiteralExpression(node)) {
+      return node.properties.some((property) => {
+        if (ts.isShorthandPropertyAssignment(property)) return containsLocatorEscape(property.name, seenSymbols);
+        if (ts.isPropertyAssignment(property)) return containsLocatorEscape(property.initializer, seenSymbols);
+        if (ts.isSpreadAssignment(property)) return containsLocatorEscape(property.expression, seenSymbols);
+        return false;
+      });
+    }
+    if (ts.isArrayLiteralExpression(node)) return node.elements.some((element) => containsLocatorEscape(element, seenSymbols));
+    if (ts.isConditionalExpression(node)) return containsLocatorEscape(node.whenTrue, seenSymbols) || containsLocatorEscape(node.whenFalse, seenSymbols);
+    if (ts.isBinaryExpression(node)) return containsLocatorEscape(node.left, seenSymbols) || containsLocatorEscape(node.right, seenSymbols);
+    return false;
+  };
+
+  const seedNode = (node) => {
+    if (ts.isParameter(node)) {
+      bindPattern(node.name, typedCaps(node));
+    }
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer &&
+      (ts.isFunctionExpression(node.initializer) || ts.isArrowFunction(node.initializer))) {
+      bindPattern(node.name, typedCaps(node.initializer));
+    }
+    if (ts.isCallExpression(node) &&
+      (ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression)) &&
+      node.arguments.length === 2 &&
+      node.arguments[0].kind === ts.SyntaxKind.StringLiteral &&
+      node.arguments[0].text === "page") {
+      const listener = node.arguments[1];
+      if (ts.isArrowFunction(listener) || ts.isFunctionExpression(listener)) {
+        const first = listener.parameters[0];
+        if (first) bindPattern(first.name, new Set([CAP_PAGE]));
+      }
+    }
+    ts.forEachChild(node, seedNode);
+  };
+  seedNode(source);
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    accessCapsCache = new WeakMap();
+    valueCapsCache = new WeakMap();
+    const visit = (node) => {
+      if (ts.isVariableDeclaration(node) && node.initializer) {
+        changed = addCaps(
+          symbolFromNode(ts.isIdentifier(node.name) ? node.name : null),
+          unionCaps(typedCaps(node), valueCaps(node.initializer)),
+        ) || changed;
+        if (ts.isIdentifier(node.name)) changed = bindPattern(node.name, valueCaps(node.initializer)) || changed;
+        else changed = bindValuePattern(node.name, node.initializer) || changed;
+      }
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+        if (ts.isIdentifier(node.left)) changed = addCaps(symbolFromNode(node.left), valueCaps(node.right)) || changed;
+        if (ts.isArrayLiteralExpression(node.left) || ts.isObjectLiteralExpression(node.left)) {
+          for (const property of node.left.elements ?? node.left.properties ?? []) {
+            if (ts.isIdentifier(property)) changed = addCaps(symbolFromNode(property), valueCaps(node.right)) || changed;
+          }
+        }
+      }
+      if (ts.isCallExpression(node)) {
+        const info = getFunctionInfoFromExpression(node.expression);
+        if (info?.node) {
+          node.arguments.forEach((argument, index) => {
+            const parameter = info.node.parameters[index];
+            if (parameter) changed = bindPattern(parameter.name, valueCaps(argument)) || changed;
+          });
+        }
+      }
+      if ((ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) && node.body) {
+        const info = functionInfos.get(node) ?? { returnCaps: new Set() };
+        if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) {
+          const next = unionCaps(info.returnCaps, valueCaps(node.body));
+          if (next.size !== info.returnCaps.size) {
+            info.returnCaps = next;
+            changed = true;
+          }
+        }
+        const recordReturn = (child) => {
+          if (child !== node.body && (ts.isFunctionDeclaration(child) || ts.isFunctionExpression(child) || ts.isArrowFunction(child))) {
+            return;
+          }
+          if (ts.isReturnStatement(child) && child.expression) {
+            const next = unionCaps(info.returnCaps, valueCaps(child.expression));
+            if (next.size !== info.returnCaps.size) {
+              info.returnCaps = next;
+              changed = true;
+            }
+          }
+          ts.forEachChild(child, recordReturn);
+        };
+        recordReturn(node.body);
+        functionInfos.set(node, info);
+      }
+      if (ts.isCatchClause(node) && node.variableDeclaration) {
+        changed = bindPattern(node.variableDeclaration.name, typedCaps(node.variableDeclaration)) || changed;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  accessCapsCache = new WeakMap();
+  valueCapsCache = new WeakMap();
+
+  const pushDiagnostic = (code, node) => {
+    const line = source.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+    diagnostics.push(`${code}@${line}`);
+  };
+
+  const isCollectorReference = (node) =>
+    ts.isIdentifier(node) && node.text === "collectSnapshot";
+
+  const validateSessionCollector = () => {
+    const session = functionsNamed(source, "observePublicRuntimeSession")[0];
+    if (!session?.body) return;
+    const collectors = [];
+    const visit = (node) => {
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "collectSnapshot") {
+        collectors.push(node);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(session.body);
+    if (collectors.length !== 1) {
+      pushDiagnostic("INVALID_SESSION_COLLECTOR", session.name ?? session);
+      return;
+    }
+    const collector = collectors[0];
+    const collectorSymbol = symbolFromNode(collector.name);
+    const initializer = collector.initializer;
+    if (!initializer || !(ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) || initializer.parameters.length !== 0) {
+      pushDiagnostic("INVALID_SESSION_COLLECTOR", collector.name);
+      return;
+    }
+    let canonicalSnapshotCall = false;
+    const inspectCollectorBody = (node) => {
+      if (ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        checker.getSymbolAtLocation(node.expression) === exactSymbols.publicSnapshot &&
+        node.arguments.length === 1) {
+        const argCaps = valueCaps(node.arguments[0]);
+        if (argCaps.has(CAP_PAGE) && !argCaps.has(CAP_CONTEXT) && !argCaps.has(CAP_BROWSER)) canonicalSnapshotCall = true;
+      }
+      ts.forEachChild(node, inspectCollectorBody);
+    };
+    inspectCollectorBody(initializer.body);
+    if (!canonicalSnapshotCall) {
+      pushDiagnostic("INVALID_SESSION_COLLECTOR", collector.name);
+      return;
+    }
+    const inspectSessionFunctions = (node) => {
+      if (node !== initializer && (ts.isArrowFunction(node) || ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node))) {
+        const info = functionInfos.get(node);
+        const retained = info?.returnCaps ?? new Set();
+        if (node.parameters.length === 0 &&
+          (retained.has(CAP_PAGE) || retained.has(CAP_CONTEXT) || retained.has(CAP_BROWSER) || retained.has(CAP_LOCATOR))) {
+          pushDiagnostic("INVALID_SESSION_COLLECTOR", node);
+        }
+      }
+      if (ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        checker.getSymbolAtLocation(node.expression) === exactSymbols.publicSnapshot &&
+        node.arguments.length === 1 &&
+        !isWithin(node, initializer)) {
+        const argCaps = valueCaps(node.arguments[0]);
+        if (argCaps.has(CAP_PAGE) || argCaps.has(CAP_CONTEXT) || argCaps.has(CAP_BROWSER) || argCaps.has(CAP_LOCATOR)) {
+          pushDiagnostic("INVALID_SESSION_COLLECTOR", node);
+        }
+      }
+      ts.forEachChild(node, inspectSessionFunctions);
+    };
+    inspectSessionFunctions(session.body);
+    const validateUsage = (node) => {
+      if (node !== collector.name && isCollectorReference(node) && symbolFromNode(node) === collectorSymbol) {
+        const property = node.parent;
+        const objectLiteral = (ts.isShorthandPropertyAssignment(property) || ts.isPropertyAssignment(property))
+          ? property.parent
+          : null;
+        const allowedReducerCall = Boolean(objectLiteral) &&
+          ts.isObjectLiteralExpression(objectLiteral) &&
+          ts.isCallExpression(objectLiteral.parent) &&
+          ts.isIdentifier(objectLiteral.parent.expression) &&
+          checker.getSymbolAtLocation(objectLiteral.parent.expression) === exactSymbols.settleRootCandidateSnapshots &&
+          objectLiteral.properties.length === 4 &&
+          ["clock", "scheduler", "collectSnapshot", "assertBoundary"].every((key) =>
+            objectLiteral.properties.some((candidate) =>
+              (ts.isShorthandPropertyAssignment(candidate) || ts.isPropertyAssignment(candidate)) &&
+              ts.isIdentifier(candidate.name) &&
+              candidate.name.text === key &&
+              (
+                (key !== "collectSnapshot") ||
+                (ts.isShorthandPropertyAssignment(candidate) && candidate.name === node) ||
+                (ts.isPropertyAssignment(candidate) && candidate.initializer === node)
+              )
+            ));
+        if (!allowedReducerCall) pushDiagnostic("INVALID_SESSION_COLLECTOR", node);
+      }
+      ts.forEachChild(node, validateUsage);
+    };
+    validateUsage(session.body);
+  };
+  validateSessionCollector();
+
+  const validateSessionReturnShape = () => {
+    const session = functionsNamed(source, "observePublicRuntimeSession")[0];
+    if (!session?.body || !ts.isBlock(session.body)) return;
+    const topLevelReturns = [];
+    const declarations = [];
+    const visit = (node) => {
+      if (node !== session.body && (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node))) return;
+      if (ts.isReturnStatement(node)) topLevelReturns.push(node);
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === "session") declarations.push(node);
+      ts.forEachChild(node, visit);
+    };
+    visit(session.body);
+    if (topLevelReturns.length !== 1) {
+      pushDiagnostic("INVALID_SESSION_RESULT", session.name ?? session);
+      return;
+    }
+    const returned = topLevelReturns[0].expression;
+    if (!returned || !ts.isIdentifier(returned) || returned.text !== "session") {
+      pushDiagnostic("INVALID_SESSION_RESULT", topLevelReturns[0]);
+      return;
+    }
+    const declaration = declarations[0];
+    const propertyValue = (objectLiteral, key) => {
+      const property = objectLiteral.properties.find((candidate) =>
+        (ts.isShorthandPropertyAssignment(candidate) || ts.isPropertyAssignment(candidate)) &&
+          ts.isIdentifier(candidate.name) &&
+          candidate.name.text === key);
+      if (ts.isShorthandPropertyAssignment(property)) return property.name;
+      if (ts.isPropertyAssignment(property)) return property.initializer;
+      return null;
+    };
+    const resolveValueNode = (node, seenSymbols = new Set()) => {
+      if (!node) return null;
+      if (ts.isIdentifier(node)) {
+        const symbol = symbolFromNode(node);
+        if (!symbol || seenSymbols.has(symbol)) return node;
+        seenSymbols.add(symbol);
+        const declaration = (symbol.declarations ?? []).find((candidate) =>
+          ts.isVariableDeclaration(candidate) && candidate.initializer);
+        return declaration?.initializer ? resolveValueNode(declaration.initializer, seenSymbols) : node;
+      }
+      if (ts.isAwaitExpression(node) || ts.isParenthesizedExpression(node)) return resolveValueNode(node.expression, seenSymbols);
+      return node;
+    };
+    const sessionObject = declaration?.initializer;
+    if (!sessionObject || !ts.isObjectLiteralExpression(sessionObject) ||
+      sessionObject.properties.length !== 5 ||
+      !["root", "manifest", "probe", "requestEvidence", "overflow"].every((key) => propertyValue(sessionObject, key))) {
+      pushDiagnostic("INVALID_SESSION_RESULT", declaration?.name ?? session);
+      return;
+    }
+    const rootValue = resolveValueNode(propertyValue(sessionObject, "root"));
+    const manifestValue = resolveValueNode(propertyValue(sessionObject, "manifest"));
+    const probeValue = resolveValueNode(propertyValue(sessionObject, "probe"));
+    const requestEvidenceValue = resolveValueNode(propertyValue(sessionObject, "requestEvidence"));
+    const overflowValue = resolveValueNode(propertyValue(sessionObject, "overflow"));
+    const sessionValues = [rootValue, manifestValue, probeValue, requestEvidenceValue, overflowValue];
+    const callbackValueCache = new WeakMap();
+    const capabilityValueCache = new WeakMap();
+    const hasResultCallbackValue = (value) => {
+      if (!value || typeof value !== "object") return false;
+      if (callbackValueCache.has(value)) return callbackValueCache.get(value);
+      const result = containsResultCallbackValue(value);
+      callbackValueCache.set(value, result);
+      return result;
+    };
+    const hasCapabilityValue = (value) => {
+      if (!value || typeof value !== "object") return false;
+      if (capabilityValueCache.has(value)) return capabilityValueCache.get(value);
+      const result = containsResultCapabilityValue(value);
+      capabilityValueCache.set(value, result);
+      return result;
+    };
+    const sessionHasCallback = sessionValues.some((value) => hasResultCallbackValue(value));
+    const sessionHasCapability = sessionValues.some((value) => hasCapabilityValue(value));
+    if (sessionHasCallback) {
+      pushDiagnostic("CALLBACK_ESCAPE", declaration?.name ?? session);
+    }
+    if (sessionHasCapability) {
+      pushDiagnostic("PAGE_ESCAPE", declaration?.name ?? session);
+    }
+    const rootProjectionValue = ts.isObjectLiteralExpression(rootValue) ? propertyValue(rootValue, "projection") : null;
+    const rootSettleValue = ts.isObjectLiteralExpression(rootValue) ? propertyValue(rootValue, "settle") : null;
+    const rootMetadataValue = ts.isObjectLiteralExpression(rootValue) ? propertyValue(rootValue, "metadata") : null;
+    const resolvedRootMetadataValue = resolveValueNode(rootMetadataValue);
+    const rootValid = ts.isObjectLiteralExpression(rootValue) &&
+      rootValue.properties.length === 3 &&
+      ts.isPropertyAccessExpression(rootProjectionValue) &&
+      ts.isIdentifier(rootProjectionValue.expression) &&
+      rootProjectionValue.expression.text === "root" &&
+      rootProjectionValue.name.text === "projection" &&
+      ts.isPropertyAccessExpression(rootSettleValue) &&
+      ts.isIdentifier(rootSettleValue.expression) &&
+      rootSettleValue.expression.text === "root" &&
+      rootSettleValue.name.text === "settle" &&
+      Boolean(rootMetadataValue) &&
+      (ts.isIdentifier(rootMetadataValue) ||
+        ts.isObjectLiteralExpression(resolvedRootMetadataValue) ||
+        ts.isCallExpression(resolvedRootMetadataValue) ||
+        ts.isConditionalExpression(resolvedRootMetadataValue)) &&
+      !hasCapabilityValue(rootValue) &&
+      !hasResultCallbackValue(rootValue);
+    const probeStatusValue = ts.isObjectLiteralExpression(probeValue) ? propertyValue(probeValue, "status") : null;
+    const probeValid = ts.isObjectLiteralExpression(probeValue) &&
+      probeValue.properties.length === 2 &&
+      ["route", "status"].every((key) => propertyValue(probeValue, key)) &&
+      ((ts.isIdentifier(propertyValue(probeValue, "route")) && propertyValue(probeValue, "route").text === "RUNTIME_PROBE_ROUTE") ||
+        (ts.isStringLiteralLike(propertyValue(probeValue, "route")) && propertyValue(probeValue, "route").text === "/__napp_runtime_probe__")) &&
+      ((ts.isIdentifier(probeStatusValue) && probeStatusValue.text === "status") ||
+        (ts.isNumericLiteral(probeStatusValue) &&
+          Number.isSafeInteger(Number(probeStatusValue.text)) &&
+          Number(probeStatusValue.text) >= 100 &&
+          Number(probeStatusValue.text) <= 599)) &&
+      !hasCapabilityValue(probeValue) &&
+      !hasResultCallbackValue(probeValue);
+    const requestEvidenceValid = ts.isObjectLiteralExpression(requestEvidenceValue) &&
+      requestEvidenceValue.properties.length === 2 &&
+      ["apiHosts", "dependencies"].every((key) => {
+        const value = propertyValue(requestEvidenceValue, key);
+        return ts.isArrayLiteralExpression(value) &&
+          value.elements.every((element) => ts.isSpreadElement(element) || ts.isStringLiteralLike(element));
+      }) &&
+      !hasCapabilityValue(requestEvidenceValue) &&
+      !hasResultCallbackValue(requestEvidenceValue);
+    const overflowValid = ts.isObjectLiteralExpression(overflowValue) &&
+      overflowValue.properties.length === 2 &&
+      propertyValue(overflowValue, "candidateRecords")?.kind === ts.SyntaxKind.FalseKeyword &&
+      propertyValue(overflowValue, "snapshotBytes")?.kind === ts.SyntaxKind.FalseKeyword;
+    const manifestValid =
+      (manifestValue?.kind === ts.SyntaxKind.NullKeyword ||
+        ts.isIdentifier(manifestValue) ||
+        ts.isObjectLiteralExpression(manifestValue) ||
+        ts.isCallExpression(manifestValue) ||
+        ts.isConditionalExpression(manifestValue)) &&
+      !hasCapabilityValue(manifestValue) &&
+      !hasResultCallbackValue(manifestValue);
+    if (!rootValid || !manifestValid || !probeValid || !requestEvidenceValid || !overflowValid) {
+      pushDiagnostic("INVALID_SESSION_RESULT", declaration?.name ?? session);
+    }
+  };
+  validateSessionReturnShape();
+
+  const isAllowedSnapshotChain = (node) => {
+    const topCall =
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === "evaluate"
+        ? node
+        : (() => {
+          let current = node;
+          while (ts.isPropertyAccessExpression(current?.parent) && current.parent.expression === current) {
+            current = current.parent;
+          }
+          if (!ts.isCallExpression(current?.parent) || current.parent.expression !== current) return null;
+          return current.parent;
+        })();
+    if (!topCall) return false;
+    return (
+      ts.isReturnStatement(topCall.parent) &&
+      ts.isPropertyAccessExpression(topCall.expression) &&
+      topCall.expression.name.text === "evaluate" &&
+      ts.isCallExpression(topCall.expression.expression) &&
+      ts.isPropertyAccessExpression(topCall.expression.expression.expression) &&
+      ts.isIdentifier(topCall.expression.expression.expression.expression) &&
+      topCall.expression.expression.expression.expression.text === "page" &&
+      topCall.expression.expression.expression.name.text === "locator"
+    );
+  };
+
+  const validatePublicSnapshotBoundary = () => {
+    const snapshot = functionsNamed(source, "publicSnapshot")[0];
+    if (!snapshot?.body) return;
+    const allowedDomCalls = new Set(["querySelector", "querySelectorAll", "getAttribute", "hasAttribute", "closest", "escape"]);
+    const visit = (node) => {
+      if (ts.isCallExpression(node) &&
+        (ts.isPropertyAccessExpression(node.expression) || ts.isElementAccessExpression(node.expression))) {
+        const ownerCaps = accessCaps(node.expression.expression);
+        if (ownerCaps.has(CAP_PAGE) || ownerCaps.has(CAP_BROWSER) || ownerCaps.has(CAP_CONTEXT)) {
+          if (!isAllowedSnapshotChain(node)) pushDiagnostic("INVALID_PUBLIC_SNAPSHOT", node);
+        }
+        if (ownerCaps.has(CAP_DOM)) {
+          const callName = ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text :
+            ts.isStringLiteralLike(node.expression.argumentExpression) ? node.expression.argumentExpression.text : null;
+          if (!callName || !allowedDomCalls.has(callName)) pushDiagnostic("INVALID_PUBLIC_SNAPSHOT", node);
+        }
+      }
+      if (ts.isElementAccessExpression(node) &&
+        accessCaps(node.expression).has(CAP_DOM) &&
+        ts.isStringLiteralLike(node.argumentExpression) &&
+        !["0"].includes(node.argumentExpression.text) &&
+        containsRawDomValue(node)) {
+        pushDiagnostic("PUBLIC_SNAPSHOT_RAW_DOM_ESCAPE", node);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(snapshot.body);
+  };
+  validatePublicSnapshotBoundary();
+
+  const scan = (node) => {
+    if (ts.isIdentifier(node) && isLocalDomGlobal(node) && !isInsidePublicSnapshot(node)) {
+      pushDiagnostic(isInsideFunction(node, "settleRootCandidateSnapshots")
+        ? "SEMANTIC_SETTLE_RAW_DOM_FORBIDDEN"
+        : "RAW_DOM_OUTSIDE_PUBLIC_SNAPSHOT", node);
+    }
+    if ((ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) &&
+      !isInsideSession(node) &&
+      !isInsidePublicSnapshot(node) &&
+      !isInsideOuterObserver(node)) {
+      const caps = accessCaps(node.expression);
+      if (caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER)) pushDiagnostic("PAGE_OR_CONTEXT_OUTSIDE_SESSION", node);
+    }
+    if (ts.isCallExpression(node)) {
+      if (ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === "newContext" &&
+        isInsideSession(node)) {
+        pushDiagnostic("PAGE_ESCAPE", node);
+      }
+      if (ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === "newContext" &&
+        isInsidePublicSnapshot(node)) {
+        pushDiagnostic("INVALID_PUBLIC_SNAPSHOT", node);
+      }
+      if (isInsideOuterObserver(node) &&
+        !allowedOuterCapabilityCall(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        ts.isIdentifier(node.expression.expression) &&
+        ["browser", "context", "page"].includes(node.expression.expression.text)) {
+        pushDiagnostic("INVALID_OBSERVER_BOUNDARY", node);
+      }
+      const caps = accessCaps(node.expression);
+      if (!isInsideSession(node) &&
+        !isInsidePublicSnapshot(node) &&
+        (!isInsideOuterObserver(node) || !allowedOuterCapabilityCall(node)) &&
+        (caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER) || caps.has(CAP_LOCATOR))) {
+        pushDiagnostic("PAGE_OR_CONTEXT_OUTSIDE_SESSION", node);
+      }
+      if (!directPublicSnapshotCall(node) &&
+        !(isInsideOuterObserver(node) &&
+          ts.isIdentifier(node.expression) &&
+          checker.getSymbolAtLocation(node.expression) === exactSymbols.observePublicRuntimeSession) &&
+        node.arguments.some((argument) => {
+        const argCaps = valueCaps(argument);
+        return argCaps.has(CAP_PAGE) || argCaps.has(CAP_CONTEXT) || argCaps.has(CAP_BROWSER) || argCaps.has(CAP_LOCATOR);
+      })) {
+        pushDiagnostic("PAGE_ESCAPE", node);
+      }
+      if (isInsideSession(node) &&
+        !allowedSessionCapabilityCallbackCall(node) &&
+        node.arguments.some((argument) => callbackValueLeaksCapability(argument))) {
+        pushDiagnostic("PAGE_ESCAPE", node);
+      }
+      if (isInsideSession(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        unionCaps(accessCaps(node.expression.expression), typedCaps(node.expression.expression)).has(CAP_BROWSER)) {
+        pushDiagnostic("PAGE_ESCAPE", node);
+      }
+    }
+    if (ts.isCallExpression(node) &&
+      isInsideOuterObserver(node) &&
+      ts.isIdentifier(node.expression) &&
+      checker.getSymbolAtLocation(node.expression) === exactSymbols.observePublicRuntimeSession) {
+      const handoff = node.arguments[0];
+      const propertyFor = (key) => ts.isObjectLiteralExpression(handoff)
+        ? handoff.properties.find((property) =>
+          (ts.isShorthandPropertyAssignment(property) || ts.isPropertyAssignment(property)) &&
+            ts.isIdentifier(property.name) &&
+            property.name.text === key)
+        : null;
+      const initializerFor = (key) => {
+        const property = propertyFor(key);
+        if (ts.isShorthandPropertyAssignment(property)) return property.name;
+        if (ts.isPropertyAssignment(property)) return property.initializer;
+        return null;
+      };
+      const contextCaps = initializerFor("context")
+        ? unionCaps(valueCaps(initializerFor("context")), accessCaps(initializerFor("context")))
+        : new Set();
+      const invalidContext =
+        !contextCaps.has(CAP_CONTEXT) ||
+        contextCaps.has(CAP_PAGE) ||
+        contextCaps.has(CAP_BROWSER) ||
+        contextCaps.has(CAP_LOCATOR);
+      const invalidSiblingCapability = ["rootUrl", "now", "clock", "scheduler"].some((key) => {
+        const initializer = initializerFor(key);
+        if (!initializer) return true;
+        const caps = unionCaps(valueCaps(initializer), accessCaps(initializer));
+        return caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER) || caps.has(CAP_LOCATOR);
+      });
+      if (!ts.isObjectLiteralExpression(handoff) ||
+        handoff.properties.length !== 5 ||
+        !["context", "rootUrl", "now", "clock", "scheduler"].every((key) => propertyFor(key)) ||
+        invalidContext ||
+        invalidSiblingCapability) {
+        pushDiagnostic("INVALID_OBSERVER_BOUNDARY", node);
+      }
+    }
+    if (ts.isNewExpression(node) && (node.arguments ?? []).some((argument) => {
+      const caps = unionCaps(valueCaps(argument), accessCaps(argument));
+      return caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER) || caps.has(CAP_LOCATOR);
+    })) {
+      pushDiagnostic("PAGE_ESCAPE", node);
+    }
+    if (ts.isNewExpression(node) && (node.arguments ?? []).some((argument) => containsRawDomValue(argument))) {
+      pushDiagnostic("PUBLIC_SNAPSHOT_RAW_DOM_ESCAPE", node);
+    }
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
+      const caps = unionCaps(valueCaps(node.right), accessCaps(node.right));
+      const leftCaps = ts.isIdentifier(node.left) ? typedCaps(node.left) : new Set();
+      const allowedCapabilityAssignment =
+        ts.isIdentifier(node.left) &&
+        (isInsideSession(node) || isInsideOuterObserver(node)) &&
+        (
+          (caps.has(CAP_PAGE) && leftCaps.has(CAP_PAGE)) ||
+          (caps.has(CAP_CONTEXT) && leftCaps.has(CAP_CONTEXT)) ||
+          (caps.has(CAP_BROWSER) && leftCaps.has(CAP_BROWSER)) ||
+          (caps.has(CAP_LOCATOR) && leftCaps.has(CAP_LOCATOR))
+        );
+      if (!allowedCapabilityAssignment && (caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER) || caps.has(CAP_LOCATOR))) {
+        pushDiagnostic("PAGE_ESCAPE", node);
+      }
+      if (containsRawDomValue(node.right)) pushDiagnostic("PUBLIC_SNAPSHOT_RAW_DOM_ESCAPE", node);
+    }
+    if ((ts.isObjectLiteralExpression(node) || ts.isArrayLiteralExpression(node)) &&
+      !isInsidePublicSnapshot(node) &&
+      !allowedCapabilityContainer(node)) {
+      const caps = valueCaps(node);
+      if (caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER) || caps.has(CAP_LOCATOR)) {
+        pushDiagnostic("PAGE_ESCAPE", node);
+      }
+    }
+    if (ts.isReturnStatement(node) && node.expression) {
+      if (isDirectReturnInFunction(node, "observePublicRuntimeSession") && containsResultCallbackValue(node.expression)) {
+        pushDiagnostic("CALLBACK_ESCAPE", node);
+      }
+      if (isDirectReturnInFunction(node, "publicSnapshot")) {
+        if (!isAllowedSnapshotChain(node.expression) && containsCallbackValue(node.expression)) pushDiagnostic("CALLBACK_ESCAPE", node);
+        if (containsRawDomValue(node.expression)) pushDiagnostic("PUBLIC_SNAPSHOT_RAW_DOM_ESCAPE", node);
+        if (containsLocatorEscape(node.expression)) pushDiagnostic("LOCATOR_ESCAPE", node);
+      }
+      const caps = isInsidePublicSnapshot(node)
+        ? valueCaps(node.expression)
+        : unionCaps(valueCaps(node.expression), accessCaps(node.expression));
+      if (caps.has(CAP_PAGE) || caps.has(CAP_CONTEXT) || caps.has(CAP_BROWSER)) {
+        pushDiagnostic("PAGE_ESCAPE", node);
+      }
+    }
+    ts.forEachChild(node, scan);
+  };
+  scan(source);
+
+  assert.ok(checker.getSymbolAtLocation(source), "checked-JS source must have a module symbol");
+  return diagnostics;
+}
+
+test("AST session and collector capability boundaries", async () => {
+  const source = await readFile(RUNTIME_PATH, "utf8");
+  for (const [fragment, expected, replacesSession, replacesReducer, replacesPublicSnapshot = false] of [
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = context.pages()[0]; return { page }; }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.waitForEvent('page'); return page; }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const [page] = context.pages(); consume(page); }", "PAGE_ESCAPE", true, false],
+    ["/** @param {import('playwright').Browser} browser */ function helper(browser) { return browser.newContext(); }", "PAGE_ESCAPE", false, false],
+    ["/** @param {import('playwright').Page} currentPage */ function helper(currentPage) { return { currentPage }; }", "PAGE_ESCAPE", false, false],
+    ["/** @param {import('playwright').BrowserContext} currentContext */ function helper(currentContext) { return [currentContext]; }", "PAGE_ESCAPE", false, false],
+    ["async function observePublicRuntime({ chromium, rootUrl, now, clock, scheduler }) { /** @type {import('playwright').Browser} */ const browser = await chromium.launch(); return browser.newPage(); }", "INVALID_OBSERVER_BOUNDARY", false, false],
+    ["async function observePublicRuntime({ chromium, rootUrl, now, clock, scheduler }) { /** @type {import('playwright').Browser} */ const browser = await chromium.launch(); /** @type {import('playwright').BrowserContext} */ const context = await browser.newContext(); return context.route('**/*', () => {}); }", "INVALID_OBSERVER_BOUNDARY", false, false],
+    ["async function observePublicRuntime({ chromium, rootUrl, now, clock, scheduler }) { /** @type {import('playwright').Browser} */ const browser = await chromium.launch(); /** @type {import('playwright').BrowserContext} */ const context = await browser.newContext(); return observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler, leak: browser }); }", "INVALID_OBSERVER_BOUNDARY", false, false],
+    ["async function observePublicRuntime({ chromium, rootUrl, now, clock, scheduler }) { /** @type {import('playwright').Browser} */ const browser = await chromium.launch(); /** @type {import('playwright').Page} */ const page = await browser.newPage(); return observePublicRuntimeSession({ context: page, rootUrl, now, clock, scheduler }); }", "INVALID_OBSERVER_BOUNDARY", false, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); const holder = { page }; void holder; }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const bucket = [context]; void bucket; }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); let moduleSlot; function helper(value) { moduleSlot = value; return 42; } helper(page); }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); function helper(value) { return { ok: true }; } return helper(page); }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { /** @type {import('playwright').Browser} */ const browser = null; return browser.newContext(); }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); const holder = {}; holder.page = page; }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); class Wrapper { constructor(value) { this.value = value; } } new Wrapper(page); }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */ async function observePublicRuntimeSession({ context, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); consume(() => page); return settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); setTimeout(() => page.content(), 0); }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); Promise.resolve().then(() => page.content()); }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); function helper(callback) { return callback; } helper(() => page.content()); }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); return { root: await collectSnapshot(), leak: () => page }; }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); function escape(value) { return { value }; } return escape(page); }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); const { leaked } = { leaked: page }; return leaked; }", "PAGE_ESCAPE", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */ async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const extra = () => page; return settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); }", "INVALID_SESSION_COLLECTOR", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */ async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); publicSnapshot(page); return settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); }", "INVALID_SESSION_COLLECTOR", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */ async function observePublicRuntimeSession({ context, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = (mode) => publicSnapshot(page); return settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); }", "INVALID_SESSION_COLLECTOR", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */ async function observePublicRuntimeSession({ context, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); consume(collectSnapshot); return settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); }", "INVALID_SESSION_COLLECTOR", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */ async function observePublicRuntimeSession({ context, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const settleRootCandidateSnapshots = () => ({}); return settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); }", "INVALID_SESSION_COLLECTOR", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */ async function observePublicRuntimeSession({ context, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); return settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, leak: collectSnapshot, assertBoundary: () => {} }); }", "INVALID_SESSION_COLLECTOR", true, false],
+    ["/** @param {{ context: import('playwright').BrowserContext, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */ async function observePublicRuntimeSession({ context, clock, scheduler }) { const page = await context.newPage(); const publicSnapshot = () => ({ surfaces: [], controls: [], taxonomy: [] }); const collectSnapshot = () => publicSnapshot(page); return settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); }", "INVALID_SESSION_COLLECTOR", true, false],
+    ["/** @param {import('playwright').Page} currentPage */ function helper(currentPage) { currentPage.content(); }", "PAGE_OR_CONTEXT_OUTSIDE_SESSION", false, false],
+    ["/** @param {import('playwright').BrowserContext} currentContext */ function helper(currentContext) { const alias = currentContext; const [currentPage] = alias.pages(); currentPage['locator']('html'); }", "PAGE_OR_CONTEXT_OUTSIDE_SESSION", false, false],
+    ["function helper() { return document.body; }", "RAW_DOM_OUTSIDE_PUBLIC_SNAPSHOT", false, false],
+    ["function helper() { const dom = document; return dom.body; }", "RAW_DOM_OUTSIDE_PUBLIC_SNAPSHOT", false, false],
+    ["function settleRootCandidateSnapshots() { const root = window; return root.document.body; }", "SEMANTIC_SETTLE_RAW_DOM_FORBIDDEN", false, true],
+    ["function publicSnapshot(page) { return { nested: { body: document.body } }; }", "PUBLIC_SNAPSHOT_RAW_DOM_ESCAPE", false, false, true],
+    ["/** @param {import('playwright').Page} page */ function publicSnapshot(page) { const locator = page.locator('html'); return { nested: { locator } }; }", "LOCATOR_ESCAPE", false, false, true],
+    ["/** @param {import('playwright').Page} page */ function publicSnapshot(page) { return page.content(); }", "INVALID_PUBLIC_SNAPSHOT", false, false, true],
+    ["/** @param {import('playwright').Page} page */ function publicSnapshot(page) { return page.$('html'); }", "INVALID_PUBLIC_SNAPSHOT", false, false, true],
+    ["/** @param {import('playwright').Page} page */ function publicSnapshot(page) { page.locator('html'); return { surfaces: [], controls: [], taxonomy: [] }; }", "INVALID_PUBLIC_SNAPSHOT", false, false, true],
+    ["/** @param {import('playwright').Page} page */ function publicSnapshot(page) { /** @type {import('playwright').Browser} */ const browser = null; return browser.newContext(); }", "INVALID_PUBLIC_SNAPSHOT", false, false, true],
+    ["function publicSnapshot(page) { return { cookie: document.cookie }; }", "PUBLIC_SNAPSHOT_RAW_DOM_ESCAPE", false, false, true],
+    ["function publicSnapshot(page) { return document['body']; }", "PUBLIC_SNAPSHOT_RAW_DOM_ESCAPE", false, false, true],
+    ["function publicSnapshot(page) { localStorage.clear(); return { surfaces: [], controls: [], taxonomy: [] }; }", "INVALID_PUBLIC_SNAPSHOT", false, false, true],
+    ["function publicSnapshot(page) { const raw = document.body; return Promise.resolve(raw); }", "PUBLIC_SNAPSHOT_RAW_DOM_ESCAPE", false, false, true],
+    ["function publicSnapshot(page) { class Wrapper { constructor(value) { this.value = value; } } return new Wrapper(document.body); }", "PUBLIC_SNAPSHOT_RAW_DOM_ESCAPE", false, false, true],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = null; const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: 42, manifest, probe, requestEvidence, overflow }; return session; }", "INVALID_SESSION_RESULT", true, false],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: Promise.resolve(42), settle: 42, metadata: 42 }, manifest: null, probe, requestEvidence, overflow }; return session; }", "INVALID_SESSION_RESULT", true, false],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata: { capturedAt: now().toISOString() } }, manifest: 42, probe: { route: '/__napp_runtime_probe__', status: Promise.resolve(200) }, requestEvidence, overflow }; return session; }", "INVALID_SESSION_RESULT", true, false],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = null; const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [42], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "INVALID_SESSION_RESULT", true, false],
+  ]) {
+    const fixture = `${replacesSession ? "" : "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = null; const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }"}\n${replacesPublicSnapshot ? "" : "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }"}\n${replacesReducer ? "" : "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }"}\n${fragment}`;
+    assert.ok(
+      capabilityProofDiagnostics(fixture).some((entry) => entry.startsWith(expected)),
+      `${expected}: ${fragment}`,
+    );
+  }
+
+    assert.ok(capabilityProofDiagnostics([
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = null; const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }",
+    "function publicSnapshot(page) { return document.body; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n")).some((entry) => entry.startsWith("PUBLIC_SNAPSHOT_RAW_DOM_ESCAPE")));
+
+  for (const fragment of [
+    [
+      "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+      "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); try { throw new Error('synthetic'); } catch (page) { void page.message; } const alias = page; const collectSnapshot = () => publicSnapshot(alias); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = null; const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }",
+      "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+      "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+    ].join("\n"),
+    [
+      "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */ async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = null; const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }",
+      "/** @param {import('playwright').Page} currentPage */ function publicSnapshot(currentPage) { const alias = currentPage; return alias['locator'] ? { surfaces: [], controls: [], taxonomy: [] } : { surfaces: [], controls: [], taxonomy: [] }; }",
+      "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+    ].join("\n"),
+  ]) {
+    assert.deepEqual(capabilityProofDiagnostics(fragment), []);
+  }
+  const sessionResultTypedef = source.match(/@typedef \{Readonly<\{[\s\S]*?\}>} RuntimeObservationSessionResult/);
+  assert.ok(sessionResultTypedef);
+  assert.equal(sessionResultTypedef[0].includes("capturedAt"), false);
+  assert.match(sessionResultTypedef[0], /probe: Readonly<\{ route: "\/__napp_runtime_probe__", status: number \}>/);
+  assert.match(sessionResultTypedef[0], /requestEvidence: Readonly<\{ apiHosts: readonly string\[], dependencies: readonly string\[] \}>/);
+  assert.match(sessionResultTypedef[0], /overflow: Readonly<\{ candidateRecords: boolean, snapshotBytes: boolean \}>/);
+  assert.match(source, /\/\*\* @param \{PlaywrightPage\} page \*\/\s*function publicSnapshot\(page\)/);
+  assert.match(source, /observePublicRuntimeSession\s*\(\{\s*context,\s*rootUrl,\s*now,\s*clock,\s*scheduler\s*\}\)/);
+  assert.match(source, /const session = \{\s*root: \{ projection: root\.projection, settle: root\.settle, metadata \},\s*manifest,\s*probe: \{ route: RUNTIME_PROBE_ROUTE, status \},\s*requestEvidence: \{ apiHosts: \[\.\.\.apiHosts\], dependencies: \[\.\.\.dependencies\] \},\s*overflow: \{ candidateRecords: false, snapshotBytes: false \},\s*\};\s*SESSION_NAVIGATION_LATCH\.set\(session, navigation\);\s*return session;/s);
+  assert.deepEqual(capabilityProofDiagnostics(source), []);
+});
+
+test("AST callback factories are treated as callback values and capability escapes", () => {
+  for (const [fragment, expected] of [
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); return { root: await collectSnapshot(), leak: () => 42 }; }", "CALLBACK_ESCAPE"],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { const page = await context.newPage(); const leak = () => 42; const alias = leak; const payload = { nested: { alias } }; return payload; }", "CALLBACK_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const callback = () => 42; const manifest = Promise.resolve(callback); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { function makeResultCallback(value) { return () => value; } const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = makeResultCallback(42); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { function makeResultCallback(value) { return () => page.content() + value; } const page = await context.newPage(); setTimeout(makeResultCallback(42), 0); }", "PAGE_ESCAPE"],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { function makeResultCallback(value) { return () => page.content() + value; } const page = await context.newPage(); Promise.resolve().then(makeResultCallback(42)); }", "PAGE_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { function makeResultCallback(value) { return () => value; } const factory = makeResultCallback; const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = factory(42); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { function makeResultCallback(value) { return () => value; } function identity(value) { return value; } const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const leakValue = identity(makeResultCallback)(42); const manifest = leakValue; const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { function outer(value) { return function inner(next) { return () => value + next; }; } const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = outer(1)(2); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { function make(value) { return () => value; } const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = make.call(null, 42); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { function make(value) { return () => value; } const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = make.apply(null, [42]); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const xs = [1]; xs.map = (callback) => callback; const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = xs.map(() => 42); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const xs = [1]; xs['map'] = (callback) => callback; const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = xs.map(() => 42); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const xs = [1]; xs.map = (callback) => callback; const map = xs.map; const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = map(() => 42); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const xs = [1]; xs.map = (callback) => callback; const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = xs.map.call(xs, () => 42); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const xs = [1]; xs.map = (callback) => callback; const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const manifest = xs.map.apply(xs, [() => 42]); const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { function outer(value) { return function inner(next) { return () => page.content() + value + next; }; } const page = await context.newPage(); setTimeout(outer(1)(2), 0); }", "PAGE_ESCAPE"],
+    ["/** @param {{ context: import('playwright').BrowserContext }} options */ async function observePublicRuntimeSession({ context }) { function outer(value) { return function inner(next) { return () => page.content() + value + next; }; } const page = await context.newPage(); Promise.resolve().then(outer(1)(2)); }", "PAGE_ESCAPE"],
+    ["async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) { const page = await context.newPage(); const collectSnapshot = () => publicSnapshot(page); const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} }); const metadata = { capturedAt: now().toISOString() }; const leakValue = [1, 2].map((value) => () => String(value)); const manifest = leakValue; const probe = { route: '/__napp_runtime_probe__', status: 200 }; const requestEvidence = { apiHosts: [], dependencies: [] }; const overflow = { candidateRecords: false, snapshotBytes: false }; const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow }; return session; }", "CALLBACK_ESCAPE"],
+  ]) {
+    const fixture = `${fragment}\nfunction publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }\nfunction settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }`;
+    assert.ok(
+      capabilityProofDiagnostics(fixture).some((entry) => entry.startsWith(expected)),
+      `${expected}: ${fragment}`,
+    );
+  }
+
+  const safeFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  function compute(value, callback) {",
+    "    return callback(value);",
+    "  }",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = compute(42, (value) => String(value));",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.deepEqual(capabilityProofDiagnostics(safeFixture), []);
+
+  const safeArrayMapFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const leakValue = [1, 2].map((value) => String(value));",
+    "  const manifest = leakValue;",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.deepEqual(capabilityProofDiagnostics(safeArrayMapFixture), []);
+
+  const safeComputedArrayMapFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = [1, 2]['map']((value) => String(value));",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.deepEqual(capabilityProofDiagnostics(safeComputedArrayMapFixture), []);
+
+  const safeFilterFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = [1, 2].filter((value) => value > 1);",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.deepEqual(capabilityProofDiagnostics(safeFilterFixture), []);
+
+  const safeArrayFromFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = Array.from([1, 2], (value) => String(value));",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.deepEqual(capabilityProofDiagnostics(safeArrayFromFixture), []);
+
+  const safeReduceFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = [1, 2].reduce((acc, value) => ({ ...acc, [value]: String(value) }), {});",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.deepEqual(capabilityProofDiagnostics(safeReduceFixture), []);
+
+  const safeJsonStringifyFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = JSON.stringify({ a: 1 }, (key, value) => value);",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.deepEqual(capabilityProofDiagnostics(safeJsonStringifyFixture), []);
+
+  const safeReassignedPromiseResolveFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  Promise.resolve = (callback) => 42;",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = Promise.resolve(() => 42);",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.deepEqual(capabilityProofDiagnostics(safeReassignedPromiseResolveFixture), []);
+
+  const leakingComputeFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  function compute(value, callback) {",
+    "    return callback(value);",
+    "  }",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = compute(42, () => page.content());",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.ok(
+    capabilityProofDiagnostics(leakingComputeFixture).some((entry) => entry.startsWith("PAGE_ESCAPE")),
+    "PAGE_ESCAPE: local compute callback must stay capability-clean even when its result is data-only",
+  );
+
+  const leakingArrayMapFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = [1, 2].map(() => page.content());",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.ok(
+    capabilityProofDiagnostics(leakingArrayMapFixture).some((entry) => entry.startsWith("PAGE_ESCAPE")),
+    "PAGE_ESCAPE: array transform callback must stay capability-clean",
+  );
+
+  const leakingJsonStringifyFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = JSON.stringify({ a: 1 }, () => page.content());",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.ok(
+    capabilityProofDiagnostics(leakingJsonStringifyFixture).some((entry) => entry.startsWith("PAGE_ESCAPE")),
+    "PAGE_ESCAPE: JSON.stringify replacer must stay capability-clean",
+  );
+
+  const crashingCustomMapFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  const customMap = { map(callback) { return callback; } };",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = customMap.map(() => 42);",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.doesNotThrow(() => capabilityProofDiagnostics(crashingCustomMapFixture));
+  assert.ok(
+    capabilityProofDiagnostics(crashingCustomMapFixture).some((entry) => entry.startsWith("CALLBACK_ESCAPE")),
+    "CALLBACK_ESCAPE: unknown custom map callback result must fail closed without crashing",
+  );
+
+  const crashingShadowedJsonFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  const JSON = { stringify(callback) { return callback; } };",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = JSON.stringify(() => 42);",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.doesNotThrow(() => capabilityProofDiagnostics(crashingShadowedJsonFixture));
+  assert.ok(
+    capabilityProofDiagnostics(crashingShadowedJsonFixture).some((entry) => entry.startsWith("CALLBACK_ESCAPE")),
+    "CALLBACK_ESCAPE: shadowed JSON.stringify must not be treated as builtin",
+  );
+
+  const reassignedJsonFixture = [
+    "/** @param {{ context: import('playwright').BrowserContext, rootUrl: string, now: () => Date, clock: { now: () => number }, scheduler: (deadline: number) => Promise<void> }} options */",
+    "async function observePublicRuntimeSession({ context, rootUrl, now, clock, scheduler }) {",
+    "  JSON.stringify = (callback) => callback;",
+    "  const page = await context.newPage();",
+    "  const collectSnapshot = () => publicSnapshot(page);",
+    "  const root = await settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot, assertBoundary: () => {} });",
+    "  const metadata = { capturedAt: now().toISOString() };",
+    "  const manifest = JSON.stringify(() => 42);",
+    "  const probe = { route: '/__napp_runtime_probe__', status: 200 };",
+    "  const requestEvidence = { apiHosts: [], dependencies: [] };",
+    "  const overflow = { candidateRecords: false, snapshotBytes: false };",
+    "  const session = { root: { projection: root.projection, settle: root.settle, metadata }, manifest, probe, requestEvidence, overflow };",
+    "  return session;",
+    "}",
+    "function publicSnapshot(page) { return { surfaces: [], controls: [], taxonomy: [] }; }",
+    "function settleRootCandidateSnapshots() { return { projection: { surfaces: [], controls: [], taxonomy: [] }, settle: { status: 'STABLE_EMPTY', sampleCount: 2, initialSnapshotEmpty: true, candidateSnapshotDigest: 'x' } }; }",
+  ].join("\n");
+  assert.doesNotThrow(() => capabilityProofDiagnostics(reassignedJsonFixture));
+  assert.ok(
+    capabilityProofDiagnostics(reassignedJsonFixture).some((entry) => entry.startsWith("CALLBACK_ESCAPE")),
+    "CALLBACK_ESCAPE: reassigned JSON.stringify must resolve to the local implementation, not builtin semantics",
+  );
+});

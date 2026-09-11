@@ -1,0 +1,58 @@
+# G0 Task 3 — qa-bugfix and fix-prompt handoff
+
+Status: **independently reviewed and applied to local QA source**. No installation, commit, merge, push, product edit, tracker write or live QA. Overall G0 and actual dual-host qualification remain open.
+
+## What changed
+
+The root agent personally changed and integrated seven files. qa-bugfix now selects the registered product pack and its tracker instead of requiring Linear globally. Complete supplied issue snapshots support prepare-only work without a connector. The generated prompt separates product identity, registered checkout, tracker, exact issue IDs, environment/candidate and literal workflow states.
+
+Developer completion returns implementation evidence. A pack-defined, separately authorized developer-ready handoff remains valid; a QA-qualified state such as Ready for prod is not that handoff. Deployed-fix verification uses the selected product QA workflow and original-scenario evidence, not a title-only unexpected PASS.
+
+The template derives the product from its source clause/reference and the checkout independently from the actual registration locator. An omitted locator remains unresolved; preparation can continue without inventing a repository. Graph knowledge informs adjacent regression scope, but no graph/current or product files were changed.
+
+## Behavioral checks and what they prove
+
+- Original source: five fresh artifact samples. Three of five recommended Ready for prod as a developer-completion step before deployed QA. All five already chose the correct tracker and rejected a title-only expected-failure PASS; no improvement is claimed for those already-correct decisions.
+- V1 fixed the state-role shortcut but exposed identity hallucinations. V2 still confused product Orchard with tracker Nuanu Flow in two of five artifacts. Both iterations were rejected; raw artifacts and original/V1/V2 source bytes are preserved in the worktree ledger.
+- V3: five fresh gpt-5.6-sol/medium samples used the unchanged A/B/C scenarios. Each wrote its first answer once. Root and independent Lead AQA read all five fully. All five kept the correct product/tracker and unresolved checkout, no current prepare-only writes, no premature Ready for prod, no Done/marker change from the title-only test, and exact LYNX-8 In Progress → QA queue developer handoff with summary/readback.
+- Some outputs recommend later repair of inadequate regression coverage. That is follow-up within the selected QA process's actual authority, not permission to mutate source from a current read-only verification request.
+
+These are **synthetic decision/artifact rehearsals**, not live tracker effects or a statistical guarantee about future model behavior. Artifacts were not corrected after generation. Claude authentication failed before model execution in the prior host probe; no Claude behavior or dual-host acceptance is claimed.
+
+## Independent review and application
+
+Lead AQA reviewer `/root/g0_task3_lead_review`: **Spec PASS, Quality APPROVE** for this seven-file source slice. Previous findings addressed; no new blocking V3 regression. Source and actual artifacts, including untracked paths, were inspected.
+
+Worktree: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-g0-skill-entry-safety`, base `6274b6d51ebabde6092e8123fbf130c1779e651e`.
+Ledger: `.superpowers/sdd/2026-09-06-qa-g0/`.
+Review package: `task-3-v3-review-package.md`; first-output artifacts: `task-3-v3-sample-1.md` through `-5.md`.
+These are local retained artifacts, not published commit provenance.
+
+Root checked all seven main files against preserved pre-Task3 hashes and all candidate files against reviewed hashes immediately before one scoped apply_patch. Post-application readback matches the reviewed bytes; unrelated dirty changes were preserved.
+
+| Applied file | SHA256 |
+| --- | --- |
+| `skills/qa-bugfix/SKILL.md` | `8b18f439bb1db9bf3c85952abe95b76169f4deb3d6ba3bd1604b80ba7764aa7f` |
+| `.claude/skills/qa-bugfix/SKILL.md` | `8b18f439bb1db9bf3c85952abe95b76169f4deb3d6ba3bd1604b80ba7764aa7f` |
+| `skills/qa-bugfix/agents/openai.yaml` | `d02584dfa872d5b8a0a654d6151212477e2c9dc03a03f9b5afb032bf96773bfb` |
+| `templates/fix-prompt.md` | `ffeec727eca48f4050a841afff316fa411195cea60a53bd9340d4e54abedf780` |
+| `AGENTS.md` | `c4f8cad0a7bde866decde82a5510e1176359a5fd010fb368a256b74c17ff6b98` |
+| `CLAUDE.md` | `d8ef22568ae27003dd8d3977e123fb5cd532b28ce6ae9f7edb088db59ffa9a64` |
+| `README.md` | `1a5c2b360a06c0f1461e9ec806d07440a1baca088f48cfeb3cc92798973fe357` |
+
+## Controller verification
+
+- Exact before/candidate guards and applied hash readback: pass for all seven files.
+- Skill source/Claude mirror equality and Ruby/Psych frontmatter/metadata checks: pass. This is the equivalent structural check, not a claim that the bundled Python validator ran.
+- F1 installer no-mutation regressions: 2/2 pass in isolated and main checkout.
+- git diff --check: pass after application.
+- Isolated npm run typecheck: exit 0.
+- Main TypeScript 6.0.3 read-only compiler comparison: actual and virtual-before each have 143 diagnostics and identical 653 source inputs, with zero Markdown/YAML override reads. Diagnostic digest in this comparison format: `03c7789e1258833615468b95ce3ffaf37f95bfceef539700e574591f99c3ddc7`; input digest: `261655753e2d2463cca0977bf59735d5132bf75c4dd0ddedeec81c5e5d69685b`. The broad main gate remains failed; this source delta does not cause it. This digest format differs from the earlier Task2 report and is not a cross-format comparison.
+- Installed Freeland, Starter, qa-init, qa-check and qa-bugfix copies were not modified. Installed qa-bugfix still has original hash `93fc375fdadcb5939f109bf8afc6b07fb5fcc83fc7dfa7f166bbdf0c8ae76d3c`.
+
+## Remaining scope
+
+G0 is not complete. Next: legacy E2E worker and supporting financial/readiness/diagnostic guidance in the correct source ownership, followed by separately reviewed selective delivery and actual host/tool-effect qualification. Existing specialist product QA is not blocked by this consolidation.
+
+In parallel, Starter is fixing the separately reproduced unknown CLI flag issue in an isolated Console source slice. That is not a G1 live product pass; the real product owner window remains closed.
+

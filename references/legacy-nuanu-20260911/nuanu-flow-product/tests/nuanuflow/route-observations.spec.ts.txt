@@ -1,0 +1,322 @@
+import { expect, test } from '@playwright/test';
+import { SANDBOX } from './fixtures/sandbox-data';
+import {
+  KNOWN_REACT_418_MESSAGE,
+  KNOWN_REACT_423_MESSAGE,
+  KNOWN_REACT_CHUNK_SOURCE_PATH,
+  KNOWN_REACT_INDEX_SOURCE_PATH,
+  partitionRouteObservations,
+  safeConsoleEvidence,
+} from './route-observations';
+
+const projectPath = (suffix: string) =>
+  `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}${suffix}`;
+const homePath = `/${SANDBOX.workspaceSlug}/`;
+const firstPartyConsole = (
+  message: string,
+  sourcePath = KNOWN_REACT_INDEX_SOURCE_PATH,
+) => ({
+  message,
+  source: `https://flow.nuanu.com${sourcePath}`,
+  line: 1,
+  column: 2,
+});
+
+test('partitions only exact route-scoped Task 13 HTTP observations', () => {
+  const observations = partitionRouteObservations(
+    projectPath('/views/'),
+    [
+      { status: 500, url: 'https://flow.nuanu.com/be/api/views/' },
+      {
+        status: 404,
+        url: `https://flow.nuanu.com/be/api/projects/${SANDBOX.projectId}/intake-state/`,
+      },
+    ],
+    [],
+  );
+
+  expect(observations.knownHttp).toEqual([
+    '500 /be/api/views/',
+    `404 /be/api/projects/${SANDBOX.projectId}/intake-state/`,
+  ]);
+  expect(observations.knownConsole).toEqual([]);
+  expect(observations.unexpectedHttp).toEqual([]);
+  expect(observations.unexpectedConsole).toEqual([]);
+});
+
+test('rejects wrong route, project, and query shape', () => {
+  const observations = partitionRouteObservations(
+    projectPath('/views/'),
+    [
+      { status: 500, url: 'https://flow.nuanu.com/be/api/views/' },
+      { status: 500, url: 'https://flow.nuanu.com/be/api/views/' },
+      { status: 500, url: 'https://evil.example/be/api/views/' },
+      {
+        status: 404,
+        url: 'https://flow.nuanu.com/be/api/projects/not-the-qa-project/intake-state/',
+      },
+      {
+        status: 500,
+        url: 'https://flow.nuanu.com/api/users/me/agent-token?token=synthetic-test-value',
+      },
+      {
+        status: 500,
+        url: 'https://flow.nuanu.com/be/api/user-favorites/?all=false',
+      },
+    ],
+    [],
+  );
+
+  expect(observations.unexpectedHttp).toEqual([
+    '500 /be/api/views/',
+    '500 /be/api/views/',
+    '404 /be/api/projects/not-the-qa-project/intake-state/',
+    '500 /api/users/me/agent-token?token=<redacted>',
+    '500 /be/api/user-favorites/?all=<redacted>',
+  ]);
+  expect(observations.unexpectedConsole).toEqual([]);
+});
+
+test('rejects a verified endpoint when observed from the wrong route', () => {
+  const observations = partitionRouteObservations(
+    `/${SANDBOX.workspaceSlug}/`,
+    [{ status: 500, url: 'https://flow.nuanu.com/be/api/views/' }],
+    [],
+  );
+
+  expect(observations.knownHttp).toEqual([]);
+  expect(observations.unexpectedHttp).toEqual(['500 /be/api/views/']);
+});
+
+test('rejects a matching endpoint from a non-first-party origin', () => {
+  const observations = partitionRouteObservations(
+    projectPath('/views/'),
+    [{ status: 500, url: 'https://evil.example/be/api/views/' }],
+    [],
+  );
+
+  expect(observations.knownHttp).toEqual([]);
+  expect(observations.unexpectedHttp).toEqual(['500 /be/api/views/']);
+});
+
+test('rejects a known hydration message on an unverified route', () => {
+  const observations = partitionRouteObservations(
+    `/${SANDBOX.workspaceSlug}/qa-e2e-unverified/`,
+    [],
+    [firstPartyConsole(KNOWN_REACT_418_MESSAGE)],
+  );
+
+  expect(observations.knownConsole).toEqual([]);
+  expect(observations.unexpectedConsole).toHaveLength(1);
+  expect(observations.unexpectedConsole[0]).not.toContain(
+    KNOWN_REACT_418_MESSAGE,
+  );
+});
+
+test('accepts only the exact Home hydration fixture with a first-party source', () => {
+  const observations = partitionRouteObservations(
+    homePath,
+    [],
+    [
+      firstPartyConsole(
+        KNOWN_REACT_418_MESSAGE,
+        KNOWN_REACT_CHUNK_SOURCE_PATH,
+      ),
+      ...Array.from({ length: 3 }, () =>
+        firstPartyConsole(KNOWN_REACT_418_MESSAGE),
+      ),
+      firstPartyConsole(KNOWN_REACT_423_MESSAGE),
+    ],
+  );
+
+  expect(observations.knownConsole).toHaveLength(5);
+  expect(observations.unexpectedConsole).toEqual([]);
+});
+
+test('rejects a known hydration message on a different verified route', () => {
+  const observations = partitionRouteObservations(
+    projectPath('/views/'),
+    [],
+    [firstPartyConsole(KNOWN_REACT_418_MESSAGE)],
+  );
+
+  expect(observations.knownConsole).toEqual([]);
+  expect(observations.unexpectedConsole).toHaveLength(1);
+});
+
+test('rejects a known hydration message from a non-first-party source', () => {
+  const observations = partitionRouteObservations(
+    homePath,
+    [],
+    [
+      {
+        message: KNOWN_REACT_418_MESSAGE,
+        source: `https://evil.example${KNOWN_REACT_INDEX_SOURCE_PATH}?token=secret`,
+        line: 7,
+        column: 8,
+      },
+    ],
+  );
+
+  expect(observations.knownConsole).toEqual([]);
+  expect(observations.unexpectedConsole).toHaveLength(1);
+  expect(observations.unexpectedConsole[0]).not.toContain('secret');
+  expect(observations.unexpectedConsole[0]).not.toContain(
+    KNOWN_REACT_418_MESSAGE,
+  );
+});
+
+test('rejects exact hydration sources carrying URL credentials or a fragment', () => {
+  const observations = partitionRouteObservations(
+    homePath,
+    [],
+    [
+      {
+        message: KNOWN_REACT_418_MESSAGE,
+        source: `https://private-user:private-token@flow.nuanu.com${KNOWN_REACT_INDEX_SOURCE_PATH}`,
+        line: 23,
+        column: 24,
+      },
+      {
+        message: KNOWN_REACT_423_MESSAGE,
+        source: `https://flow.nuanu.com${KNOWN_REACT_INDEX_SOURCE_PATH}#private-fragment-sentinel`,
+        line: 25,
+        column: 26,
+      },
+    ],
+  );
+
+  expect(observations.knownConsole).toEqual([]);
+  expect(observations.unexpectedConsole).toHaveLength(2);
+  const serialized = JSON.stringify(observations);
+  expect(serialized).not.toContain('private-user');
+  expect(serialized).not.toContain('private-token');
+  expect(serialized).not.toContain('private-fragment-sentinel');
+  expect(serialized).toContain('<redacted-untrusted-source sha256:');
+});
+
+test('rejects an extra occurrence and altered console text without echoing either', () => {
+  const observations = partitionRouteObservations(
+    homePath,
+    [],
+    [
+      firstPartyConsole(
+        KNOWN_REACT_418_MESSAGE,
+        KNOWN_REACT_CHUNK_SOURCE_PATH,
+      ),
+      ...Array.from({ length: 4 }, () =>
+        firstPartyConsole(KNOWN_REACT_418_MESSAGE),
+      ),
+      firstPartyConsole(`${KNOWN_REACT_423_MESSAGE} altered`),
+    ],
+  );
+
+  expect(observations.knownConsole).toHaveLength(4);
+  expect(observations.unexpectedConsole).toHaveLength(2);
+  expect(observations.unexpectedConsole.join('\n')).not.toContain(
+    KNOWN_REACT_418_MESSAGE,
+  );
+  expect(observations.unexpectedConsole.join('\n')).not.toContain('altered');
+});
+
+test('safe console annotation evidence never contains unrelated message content', () => {
+  const evidence = safeConsoleEvidence({
+    message: 'private-customer-sentinel should stay memory-only',
+    source: 'https://flow.nuanu.com/app.js?account=private-source-sentinel',
+    line: 9,
+    column: 10,
+  }, homePath);
+
+  const serialized = JSON.stringify(evidence);
+  expect(serialized).not.toContain('private-customer-sentinel');
+  expect(serialized).not.toContain('private-source-sentinel');
+  expect(evidence.source).toMatch(
+    /^<redacted-untrusted-source sha256:[a-f0-9]{16}>$/,
+  );
+  expect(evidence.text).toBe('<redacted-non-hydration-console>');
+});
+
+test('safe console annotation evidence hides identity and token-like content in an untrusted source path', () => {
+  const evidence = safeConsoleEvidence({
+    message: KNOWN_REACT_418_MESSAGE,
+    source:
+      'https://evil.example/users/private-person@example.com/token-private-source-sentinel.js?account=private-query-sentinel',
+    line: 19,
+    column: 20,
+  }, homePath);
+
+  const serialized = JSON.stringify(evidence);
+  expect(evidence.source).toMatch(
+    /^<redacted-untrusted-source sha256:[a-f0-9]{16}>$/,
+  );
+  expect(serialized).not.toContain('private-person');
+  expect(serialized).not.toContain('example.com');
+  expect(serialized).not.toContain('private-source-sentinel');
+  expect(serialized).not.toContain('private-query-sentinel');
+});
+
+test('safe console evidence retains only an exact trusted Home hydration fixture', () => {
+  const evidence = safeConsoleEvidence({
+    message: KNOWN_REACT_418_MESSAGE,
+    source: `https://flow.nuanu.com${KNOWN_REACT_INDEX_SOURCE_PATH}`,
+    line: 11,
+    column: 12,
+  }, homePath);
+
+  expect(evidence.text).toBe(KNOWN_REACT_418_MESSAGE);
+});
+
+test('safe console evidence retains a changed trusted hydration suffix with query values redacted', () => {
+  const evidence = safeConsoleEvidence({
+    message: `${KNOWN_REACT_418_MESSAGE}?digest=private-hydration-sentinel`,
+    source: `https://flow.nuanu.com${KNOWN_REACT_INDEX_SOURCE_PATH}`,
+    line: 13,
+    column: 14,
+  }, homePath);
+
+  expect(evidence.text).toContain(KNOWN_REACT_418_MESSAGE);
+  expect(evidence.text).not.toContain('private-hydration-sentinel');
+  expect(evidence.text).toContain('digest=%3Credacted%3E');
+});
+
+test('safe console evidence hides a React-prefix message from an unverified first-party source path', () => {
+  const evidence = safeConsoleEvidence({
+    message: `${KNOWN_REACT_418_MESSAGE} private-new-source-sentinel`,
+    source: 'https://flow.nuanu.com/assets/new-deploy.js',
+    line: 15,
+    column: 16,
+  }, homePath);
+
+  expect(evidence.text).toBe('<redacted-non-hydration-console>');
+  expect(JSON.stringify(evidence)).not.toContain('private-new-source-sentinel');
+});
+
+test('safe console evidence hides a non-first-party React-prefix lookalike', () => {
+  const evidence = safeConsoleEvidence({
+    message: `${KNOWN_REACT_418_MESSAGE} private-lookalike-sentinel`,
+    source: `https://evil.example${KNOWN_REACT_INDEX_SOURCE_PATH}`,
+    line: 17,
+    column: 18,
+  }, homePath);
+
+  expect(evidence.text).toBe('<redacted-non-hydration-console>');
+  expect(JSON.stringify(evidence)).not.toContain('private-lookalike-sentinel');
+});
+
+test('safe console evidence rejects credentials embedded in an otherwise exact source URL', () => {
+  const evidence = safeConsoleEvidence({
+    message: `${KNOWN_REACT_418_MESSAGE} private-userinfo-message-sentinel`,
+    source: `https://private-user:private-token@flow.nuanu.com${KNOWN_REACT_INDEX_SOURCE_PATH}`,
+    line: 21,
+    column: 22,
+  }, homePath);
+
+  const serialized = JSON.stringify(evidence);
+  expect(evidence.source).toMatch(
+    /^<redacted-untrusted-source sha256:[a-f0-9]{16}>$/,
+  );
+  expect(evidence.text).toBe('<redacted-non-hydration-console>');
+  expect(serialized).not.toContain('private-user');
+  expect(serialized).not.toContain('private-token');
+  expect(serialized).not.toContain('private-userinfo-message-sentinel');
+});

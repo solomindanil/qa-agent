@@ -1,0 +1,223 @@
+import { test, expect } from '../fixtures/authenticated.fixture';
+import { SANDBOX } from '../fixtures/sandbox-data';
+import { WorkspaceOperationsPage } from '../pages/workspace-operations.page';
+
+const THEME_NAMES = [
+  'System preference',
+  'Light',
+  'Dark',
+  'Light high contrast',
+  'Dark high contrast',
+] as const;
+
+test.describe.configure({ mode: 'serial' });
+
+test.describe('Nuanu Flow Teams and settings', () => {
+  test('opens and cancels the exact Team form without creating a team', async ({
+    page,
+    assertSandbox,
+  }) => {
+    const operations = new WorkspaceOperationsPage(page);
+    const teamPosts: string[] = [];
+    const observeTeamPost = (request: {
+      method(): string;
+      url(): string;
+    }) => {
+      if (
+        request.method() === 'POST' &&
+        new URL(request.url()).pathname ===
+          `/be/api/workspaces/${SANDBOX.workspaceSlug}/teams/`
+      ) {
+        teamPosts.push(request.url());
+      }
+    };
+    page.on('request', observeTeamPost);
+
+    try {
+      await operations.gotoTeams();
+      await assertSandbox();
+      await expect(operations.addTeamButtons).toHaveCount(2);
+      await expect(operations.teamsEmptyHeading).toBeVisible();
+      await expect(
+        page.getByText(
+          'Create your first team to organize your workspace members and projects.',
+          { exact: true },
+        ),
+      ).toBeVisible();
+
+      const dialog = await operations.openTeamCreate();
+      await expect(
+        dialog.getByRole('textbox', {
+          name: 'Enter team name',
+          exact: true,
+        }),
+      ).toHaveValue('');
+      await expect(
+        dialog.getByRole('textbox', {
+          name: 'Enter team description',
+          exact: true,
+        }),
+      ).toHaveValue('');
+      await expect(
+        dialog.getByText('Team lead', { exact: true }),
+      ).toBeVisible();
+      const selfLead = dialog.getByRole('button', {
+        name: /solomindanilv/,
+      });
+      await expect(selfLead).toHaveCount(1);
+      await selfLead.click();
+      const leadOptions = page.getByRole('listbox').getByRole('option');
+      await expect(leadOptions).toHaveCount(1);
+      await expect(leadOptions.first()).toContainText('solomindanilv');
+      await expect(leadOptions.first()).toContainText('You');
+      await selfLead.press('Escape');
+      await expect(page.getByRole('listbox')).toBeHidden();
+      await expect(
+        dialog.getByRole('button', { name: /invite|member/i }),
+      ).toHaveCount(0);
+      await expect(
+        dialog.getByRole('textbox', { name: /invite|member|email/i }),
+      ).toHaveCount(0);
+      await expect(
+        dialog.getByRole('button', {
+          name: 'Create team',
+          exact: true,
+        }),
+      ).toBeEnabled();
+      await operations.cancelCreate(dialog);
+      await expect(operations.teamsEmptyHeading).toBeVisible();
+      expect(teamPosts).toEqual([]);
+    } finally {
+      page.off('request', observeTeamPost);
+    }
+  });
+
+  test('maps account preferences and theme choices without saving', async ({
+    page,
+    assertSandbox,
+  }) => {
+    const operations = new WorkspaceOperationsPage(page);
+
+    await operations.gotoAccountSettings();
+    await assertSandbox();
+    await expect(
+      page.getByRole('heading', { name: 'Profile', exact: true }),
+    ).toBeVisible();
+
+    await operations.gotoPreferences();
+    await assertSandbox();
+    for (const heading of [
+      'Theme',
+      'First day of the week',
+      'Timezone',
+      'Language',
+      'Office Hours',
+    ]) {
+      await expect(
+        page.getByRole('heading', { name: heading, exact: true }),
+      ).toBeVisible();
+    }
+    await expect(
+      page.getByRole('button', { name: 'Sunday', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'UTC', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'English', exact: true }),
+    ).toBeVisible();
+
+    const themeButton = page.getByRole('button', {
+      name: 'Select your theme',
+      exact: true,
+    });
+    await themeButton.click();
+    const themes = page.getByRole('listbox', {
+      name: 'Select your theme',
+      exact: true,
+    });
+    await expect(themes.getByRole('option')).toHaveText(THEME_NAMES);
+    await themeButton.press('Escape');
+    await expect(themes).toBeHidden();
+  });
+
+  test('preserves the exact read-only notification preference snapshot', async ({
+    page,
+    assertSandbox,
+  }) => {
+    const operations = new WorkspaceOperationsPage(page);
+
+    await operations.gotoNotifications();
+    await assertSandbox();
+    await expect(
+      page.getByRole('heading', {
+        name: 'Email notifications',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', {
+        name: 'Push notifications',
+        exact: true,
+      }),
+    ).toBeVisible();
+    const switches = page.getByRole('switch');
+    await expect(switches).toHaveCount(10);
+    for (let index = 0; index < 10; index += 1) {
+      await expect(switches.nth(index)).toBeChecked();
+    }
+  });
+
+  test('maps sandbox workspace and project settings without mutation', async ({
+    page,
+    assertSandbox,
+  }) => {
+    const operations = new WorkspaceOperationsPage(page);
+
+    await operations.gotoWorkspaceSettings();
+    await assertSandbox();
+    await expect(
+      page.getByRole('textbox', {
+        name: 'Workspace name',
+        exact: true,
+      }),
+    ).toHaveValue(SANDBOX.workspaceName);
+    await expect(
+      page.getByRole('button', {
+        name: 'Update workspace',
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    await operations.gotoProjectSettings();
+    await assertSandbox();
+    await expect(page.getByText('Public', { exact: true })).toBeVisible();
+
+    await operations.gotoProjectAutomationSettings();
+    await assertSandbox();
+    await expect(
+      page.getByText('Auto-archive closed work items', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Auto-close work items', { exact: true }),
+    ).toBeVisible();
+    const switches = page.getByRole('switch');
+    await expect(switches).toHaveCount(2);
+    await expect(switches.nth(0)).not.toBeChecked();
+    await expect(switches.nth(1)).not.toBeChecked();
+  });
+
+  test('creates, edits, reloads, and deletes one owned Team', async () => {
+    test.fixme(
+      true,
+      'The static create effect emits one Team POST with the current account as self lead and no separate invite/member write, but real success/update/delete statuses and event-time requestfailed ID recovery remain unproven; live CRUD is therefore blocked.',
+    );
+  });
+
+  test('changes and restores one sandbox-scoped setting', async () => {
+    test.fixme(
+      true,
+      'The two project automation switches are scoped correctly, but their exact PATCH response and reload/restoration contract was not observed; no blind setting mutation is allowed.',
+    );
+  });
+});

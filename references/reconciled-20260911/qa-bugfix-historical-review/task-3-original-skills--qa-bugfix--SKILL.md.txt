@@ -1,0 +1,50 @@
+---
+name: qa-bugfix
+description: Bugfix mode — pull open bugs from Linear via MCP, cluster them by root cause, and generate a self-contained fix prompt per cluster that the user pastes into their product's coding agent. Use when the user asks to fix bugs, prepare fix prompts, or process the bug backlog.
+---
+
+# QA Bugfix Mode
+
+Goal: turn the Linear bug backlog into ready-to-execute fix prompts. You do NOT fix the product code yourself (it lives in another repo) — you produce prompts so effective that any competent coding agent implements the fix on the first pass.
+
+## Workflow
+
+Use the available Linear integration for the current harness. In Claude Code this is usually the `linear-server` MCP from `.mcp.json`; in Codex it may be a local Linear connector or MCP server configured outside the repo.
+
+### 1. Fetch the backlog
+
+- `list_issues` with label `Bug`, states `Backlog`/`Todo` (triage states), for the chosen product's Linear project. Confirm scope with the user if multiple products exist.
+- For each issue: `get_issue` for the full description, attachments (screenshot URLs), and comments (may contain triage notes).
+
+### 2. Cluster
+
+Group bugs that should be fixed together; keep the rest separate.
+- **Merge** when bugs share a root cause or subsystem: same screen, same i18n dictionary, same formatter, same route handler. One prompt = one coherent PR a reviewer can approve.
+- **Split** when fixes touch unrelated code, need different owners, or differ wildly in risk (a copy fix must not ride along with a payment-logic change).
+- State your clustering rationale in the output so the user can override it.
+
+### 3. Generate a fix prompt per cluster
+
+Fill `templates/fix-prompt.md`. Quality bar for each prompt:
+- **Self-contained**: the executing agent has ZERO context about our QA session. Everything needed — repro steps, expected vs actual, evidence links, environment — must be inside the prompt. Never reference "the ticket above" without inlining its content.
+- **Evidence-first**: include exact strings ("Invalid login credentials"), endpoints, screenshot URLs from Linear attachments, curl outputs. This lets the agent locate the code by grepping for literals.
+- **Acceptance criteria as a checklist**: observable behaviors, not implementation prescriptions. Include: "the QA repo's `test.fail()` regression test for TICKET-ID must now fail as 'expected to fail, but passed' — i.e. the bug is gone" when such a test exists.
+- **Capability-adaptive recommendations** (the user's agent may have subagents/tools — include this block verbatim, adjusted per cluster):
+  - If you have subagents: use an explore/search agent to locate the code paths from the literals above before editing; after implementing, run an independent code-review subagent on the diff.
+  - If you have browser tools: reproduce the bug first, and re-verify visually after the fix.
+  - If you have a Linear MCP connection: move the ticket(s) to "In Progress" when starting; when finished, add a comment summarizing the change. Do NOT mark the ticket Done — QA verifies the fix on the live product and closes it.
+  - Always: plan first, keep the diff minimal, run the project's typecheck/lint/tests, don't refactor unrelated code.
+- **Commit convention**: `fix: <symptom> (<TICKET-IDs>)`.
+
+### 4. Deliver
+
+- Output every prompt in full, each in its own fenced block, ordered by severity (Urgent first).
+- Offer to also attach each prompt as a comment on its Linear issue(s) (`save_comment`) so it survives the session — do it if the user agrees.
+- Summarize: N bugs → M prompts, clustering rationale, anything blocked (e.g. bug needs product-owner input) — flagged separately.
+
+### 5. Verification & closure (Done is set only by QA)
+
+When the user says fixes are deployed:
+- Re-run the product suite. A regression test flipping to "Expected to fail, but passed" proves the bug is gone: flip it to a normal test, then `save_issue` state=**Done** with a comment "QA verified: <what was re-tested and how>".
+- If the regression still behaves as expected-fail (bug persists): comment the evidence on the ticket and move it back to **Todo** — never close an unverified fix.
+- Partially fixed bugs: comment what is fixed vs remaining, narrow the ticket scope, keep it open.

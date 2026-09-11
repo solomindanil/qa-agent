@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PayDemo</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main>
+      <h1>PayDemo</h1>
+      <p>Starter plan — $10.00</p>
+      <form id="checkout-form">
+        <fieldset>
+          <legend>Payment method</legend>
+          <label><input type="radio" name="payment-method" value="card" checked> Card</label>
+          <label><input type="radio" name="payment-method" value="bank"> Bank transfer</label>
+        </fieldset>
+        <button type="submit">Pay $10.00</button>
+      </form>
+      <p id="payment-status" role="status" aria-live="polite"></p>
+    </main>
+    <script type="module" src="/app.mjs"></script>
+  </body>
+</html>

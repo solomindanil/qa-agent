@@ -1,0 +1,1418 @@
+import {
+  type Locator,
+  type Page,
+  type Request,
+  type Response,
+  type Route,
+} from '@playwright/test';
+import { SANDBOX } from '../fixtures/sandbox-data';
+
+export const MEETING_SANDBOX_WORKSPACE_ID =
+  '8f081389-298d-4dc2-93d5-7cd80c5109da';
+
+const CANONICAL_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const QA_TITLE_PREFIX = 'QA E2E ';
+
+const exactRouteId = (id: string) => {
+  if (!isCanonicalId(id)) throw new Error('MEETING_ROUTE_ID');
+  return id;
+};
+
+export const MEETING_PATHS = Object.freeze({
+  home: `/${SANDBOX.workspaceSlug}/`,
+  collectionApi:
+    `/be/api/workspaces/${SANDBOX.workspaceSlug}/meetings/`,
+  detailApi: (id: string) =>
+    `/be/api/workspaces/${SANDBOX.workspaceSlug}/meetings/${exactRouteId(id)}/`,
+  createNotetakerApi:
+    `/be/api/workspaces/${SANDBOX.workspaceSlug}/meetings/create-notetaker/`,
+  assetCollectionApi:
+    `/be/api/assets/v2/workspaces/${SANDBOX.workspaceSlug}/`,
+  assetDetailApi: (id: string) =>
+    `/be/api/assets/v2/workspaces/${SANDBOX.workspaceSlug}/${exactRouteId(id)}/`,
+});
+
+type JsonRecord = Record<string, unknown>;
+
+export type MeetingRequestContext = Readonly<{
+  get: (url: string) => Promise<{
+    status: () => number;
+    json: () => Promise<unknown>;
+  }>;
+  delete: (url: string) => Promise<{
+    status: () => number;
+  }>;
+}>;
+
+const isRecord = (value: unknown): value is JsonRecord =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isCanonicalId = (value: unknown): value is string =>
+  typeof value === 'string' && CANONICAL_ID.test(value);
+
+const assertOwnedTitle = (title: string) => {
+  if (
+    !title.startsWith(QA_TITLE_PREFIX) ||
+    title.trim() !== title ||
+    title === QA_TITLE_PREFIX
+  ) {
+    throw new Error('MEETING_TITLE_CONTRACT');
+  }
+};
+
+const cleanupRanks: Readonly<Record<MeetingEntityKind, number>> = {
+  'transcription-job': 4,
+  transcript: 3,
+  upload: 2,
+  meeting: 1,
+};
+
+export type MeetingEntityKind =
+  | 'meeting'
+  | 'transcript'
+  | 'upload'
+  | 'transcription-job';
+
+export type OwnedMeetingEntity = Readonly<{
+  kind: MeetingEntityKind;
+  id: string;
+  title: string;
+  workspaceId: string;
+  workspaceSlug: string;
+  projectId?: string;
+  teamId?: string;
+  meetingId?: string;
+  uploadId?: string;
+  source?: 'manual' | 'upload';
+  requestOrdinal: number;
+  entityOrdinal: number;
+  cleanupRank: number;
+}>;
+
+const responseOwnedMeetingEntities = new WeakMap<
+  OwnedMeetingEntity,
+  OwnedMeetingEntity
+>();
+
+const sameEntitySnapshot = (
+  left: OwnedMeetingEntity,
+  right: OwnedMeetingEntity,
+) =>
+  left.kind === right.kind &&
+  left.id === right.id &&
+  left.title === right.title &&
+  left.workspaceId === right.workspaceId &&
+  left.workspaceSlug === right.workspaceSlug &&
+  left.projectId === right.projectId &&
+  left.teamId === right.teamId &&
+  left.meetingId === right.meetingId &&
+  left.uploadId === right.uploadId &&
+  left.source === right.source &&
+  left.requestOrdinal === right.requestOrdinal &&
+  left.entityOrdinal === right.entityOrdinal &&
+  left.cleanupRank === right.cleanupRank;
+
+const sameDurableEntityIdentity = (
+  left: OwnedMeetingEntity,
+  right: OwnedMeetingEntity,
+) =>
+  left.kind === right.kind &&
+  left.id === right.id &&
+  left.title === right.title &&
+  left.workspaceId === right.workspaceId &&
+  left.workspaceSlug === right.workspaceSlug &&
+  left.projectId === right.projectId &&
+  left.teamId === right.teamId &&
+  left.meetingId === right.meetingId &&
+  left.uploadId === right.uploadId &&
+  left.source === right.source &&
+  left.cleanupRank === right.cleanupRank;
+
+const requireResponseOwnedEntity = (entity: OwnedMeetingEntity) => {
+  const snapshot = responseOwnedMeetingEntities.get(entity);
+  if (!snapshot || !sameEntitySnapshot(entity, snapshot)) {
+    throw new Error('MEETING_ENTITY_OWNERSHIP');
+  }
+  return snapshot;
+};
+
+export type MeetingCleanupInspection = Readonly<{
+  status: number;
+  identity?: Readonly<{
+    kind: MeetingEntityKind;
+    id: string;
+    title: string;
+    workspaceId: string;
+    workspaceSlug: string;
+    projectId?: string;
+    teamId?: string;
+    meetingId?: string;
+    uploadId?: string;
+    source?: 'manual' | 'upload';
+    lifecycleStatus: string;
+  }>;
+}>;
+
+export const parseMeetingCleanupInspection = (
+  body: unknown,
+  entity: OwnedMeetingEntity,
+): MeetingCleanupInspection => {
+  let snapshot: OwnedMeetingEntity;
+  try {
+    snapshot = requireResponseOwnedEntity(entity);
+  } catch {
+    return { status: 422 };
+  }
+  if (snapshot.kind !== 'meeting') return { status: 409 };
+  if (!isRecord(body)) return { status: 422 };
+
+  const expectedProject = snapshot.projectId ?? null;
+  const expectedTeam = snapshot.teamId ?? null;
+  if (
+    body.id !== snapshot.id ||
+    body.title !== snapshot.title ||
+    body.workspace !== snapshot.workspaceId ||
+    body.project !== expectedProject ||
+    body.team !== expectedTeam ||
+    (snapshot.source !== 'manual' && snapshot.source !== 'upload') ||
+    body.source !== snapshot.source ||
+    typeof body.status !== 'string' ||
+    body.status.length === 0
+  ) {
+    return { status: 422 };
+  }
+
+  return Object.freeze({
+    status: 200,
+    identity: Object.freeze({
+      kind: 'meeting' as const,
+      id: snapshot.id,
+      title: snapshot.title,
+      workspaceId: snapshot.workspaceId,
+      workspaceSlug: snapshot.workspaceSlug,
+      ...(snapshot.projectId ? { projectId: snapshot.projectId } : {}),
+      ...(snapshot.teamId ? { teamId: snapshot.teamId } : {}),
+      ...(snapshot.source ? { source: snapshot.source } : {}),
+      lifecycleStatus: body.status,
+    }),
+  });
+};
+
+export type MeetingMutationContract = Readonly<{
+  routeKey: string;
+  endpoint: string;
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  successStatuses: readonly number[];
+  validateRequest: (request: Request) => void;
+  parseResponse: (
+    body: unknown,
+    requestOrdinal: number,
+    nextEntityOrdinal: () => number,
+  ) => readonly OwnedMeetingEntity[];
+  extractRecoveryCandidates: (
+    body: unknown,
+  ) => ReadonlyArray<{ kind: MeetingEntityKind; id: string }>;
+}>;
+
+export type MeetingMutationCapture = Readonly<{
+  actionError?: unknown;
+  attemptCount: number;
+  responseCount: number;
+  successfulEntries: ReadonlyArray<{
+    requestOrdinal: number;
+    routeKey: string;
+    entity: OwnedMeetingEntity;
+  }>;
+  nonSuccessResponses: ReadonlyArray<{
+    requestOrdinal: number;
+    routeKey: string;
+    status: number;
+  }>;
+  contractErrors: ReadonlyArray<{
+    requestOrdinal: number;
+    routeKey: string;
+    recoveryCandidates: ReadonlyArray<{
+      kind: MeetingEntityKind;
+      id: string;
+    }>;
+    code: string;
+  }>;
+  registrationErrors: ReadonlyArray<{
+    requestOrdinal: number;
+    routeKey: string;
+    entityId: string;
+    code: string;
+  }>;
+  requestFailedOutcomes: ReadonlyArray<{
+    requestOrdinal: number;
+    routeKey: string;
+  }>;
+  unexpectedMutationAttempts: ReadonlyArray<{
+    requestOrdinal: number;
+    routeKey: string;
+    method: string;
+  }>;
+}>;
+
+export type BlockedMeetingMutationCapture = Readonly<{
+  actionError?: { code: 'ACTION_FAILED' };
+  attemptCount: number;
+  attempts: ReadonlyArray<{
+    requestOrdinal: number;
+    method: string;
+    routeKey: 'blocked-mutation';
+  }>;
+}>;
+
+export const captureBlockedMeetingMutations = async ({
+  page,
+  guardPatterns,
+  action,
+  quietMs = 100,
+}: {
+  page: Page;
+  guardPatterns: readonly string[];
+  action: () => Promise<unknown>;
+  quietMs?: number;
+}): Promise<BlockedMeetingMutationCapture> => {
+  if (guardPatterns.length === 0 || quietMs < 0) {
+    throw new Error('MEETING_BLOCKED_CAPTURE_BOUNDS');
+  }
+  const attempts: Array<{
+    requestOrdinal: number;
+    method: string;
+    routeKey: 'blocked-mutation';
+  }> = [];
+  const guard = async (route: Route) => {
+    const method = route.request().method();
+    if (!MUTATION_METHODS.has(method)) {
+      await route.fallback();
+      return;
+    }
+    attempts.push({
+      requestOrdinal: attempts.length,
+      method,
+      routeKey: 'blocked-mutation',
+    });
+    await route.abort('blockedbyclient');
+  };
+  const routePatterns = [...new Set([...guardPatterns, '**/*'])];
+  for (const pattern of routePatterns) await page.route(pattern, guard);
+  let actionError: { code: 'ACTION_FAILED' } | undefined;
+  try {
+    try {
+      await action();
+    } catch {
+      actionError = { code: 'ACTION_FAILED' };
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, quietMs));
+  } finally {
+    for (const pattern of routePatterns) {
+      await page.unroute(pattern, guard).catch(() => {});
+    }
+  }
+  return Object.freeze({
+    ...(actionError ? { actionError } : {}),
+    attemptCount: attempts.length,
+    attempts: Object.freeze(attempts),
+  });
+};
+
+export const createManualMeetingCreateContract = (_options: {
+  endpoint: string;
+  requestedTitle: string;
+  transcriptText: string;
+  workspaceId: string;
+  workspaceSlug: string;
+}): MeetingMutationContract => {
+  const options = _options;
+  assertOwnedTitle(options.requestedTitle);
+  const endpoint = new URL(options.endpoint);
+  const expectedPath =
+    `/be/api/workspaces/${options.workspaceSlug}/meetings/`;
+  if (
+    options.workspaceSlug !== SANDBOX.workspaceSlug ||
+    options.workspaceId !== MEETING_SANDBOX_WORKSPACE_ID ||
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash ||
+    endpoint.protocol !== 'https:' ||
+    endpoint.pathname !== expectedPath
+  ) {
+    throw new Error('MEETING_ENDPOINT_CONTRACT');
+  }
+
+  return Object.freeze({
+    routeKey: 'meeting-create',
+    endpoint: endpoint.href,
+    method: 'POST' as const,
+    successStatuses: Object.freeze([201]),
+    validateRequest: (request: Request) => {
+      let body: unknown;
+      try {
+        body = request.postDataJSON();
+      } catch {
+        throw new Error('MEETING_CREATE_REQUEST_JSON');
+      }
+      if (
+        !isRecord(body) ||
+        Object.keys(body).length !== 4 ||
+        body.title !== options.requestedTitle ||
+        body.source !== 'manual' ||
+        body.status !== 'ready' ||
+        body.transcript_text !== options.transcriptText
+      ) {
+        throw new Error('MEETING_CREATE_REQUEST_CONTRACT');
+      }
+    },
+    parseResponse: (
+      body: unknown,
+      requestOrdinal: number,
+      nextEntityOrdinal: () => number,
+    ) => {
+      if (
+        !isRecord(body) ||
+        body.title !== options.requestedTitle ||
+        body.workspace !== options.workspaceId ||
+        body.project !== null ||
+        body.team !== null ||
+        body.source !== 'manual' ||
+        body.status !== 'ready' ||
+        body.transcript_text !== options.transcriptText
+      ) {
+        throw new Error('MEETING_CREATE_RESPONSE_CONTRACT');
+      }
+      return [parseOwnedMeetingEntityResponse({
+        id: body.id,
+        kind: 'meeting',
+        title: body.title,
+        workspace_id: body.workspace,
+        workspace_slug: options.workspaceSlug,
+        project_id: body.project,
+        team_id: body.team,
+        meeting_id: null,
+        upload_id: null,
+        source: body.source,
+      }, {
+        kind: 'meeting',
+        requestedTitle: options.requestedTitle,
+        workspaceId: options.workspaceId,
+        workspaceSlug: options.workspaceSlug,
+        source: 'manual',
+        requestOrdinal,
+        entityOrdinal: nextEntityOrdinal(),
+      })];
+    },
+    extractRecoveryCandidates: (body: unknown) =>
+      isRecord(body) && isCanonicalId(body.id)
+        ? [{ kind: 'meeting' as const, id: body.id }]
+        : [],
+  });
+};
+
+export const captureMeetingMutationTransaction = async (options: {
+  page: Page;
+  guardPatterns: readonly string[];
+  contracts: readonly MeetingMutationContract[];
+  action: () => Promise<unknown>;
+  register: (entity: OwnedMeetingEntity) => unknown | Promise<unknown>;
+  quietMs?: number;
+  minAdmissionMs?: number;
+  maxAdmissionMs?: number;
+}): Promise<MeetingMutationCapture> => {
+  const {
+    page,
+    guardPatterns,
+    contracts,
+    action,
+    register,
+    quietMs = 500,
+    minAdmissionMs = 0,
+    maxAdmissionMs = 2_000,
+  } = options;
+  if (
+    guardPatterns.length === 0 ||
+    contracts.length === 0 ||
+    quietMs < 0 ||
+    minAdmissionMs < 0 ||
+    maxAdmissionMs <= 0 ||
+    minAdmissionMs > maxAdmissionMs
+  ) {
+    throw new Error('MEETING_CAPTURE_BOUNDS');
+  }
+
+  let pageOrigin: string;
+  try {
+    pageOrigin = new URL(page.url()).origin;
+  } catch {
+    throw new Error('MEETING_CONTRACT_ORIGIN');
+  }
+  if (
+    pageOrigin === 'null' ||
+    contracts.some(({ endpoint }) => new URL(endpoint).origin !== pageOrigin)
+  ) {
+    throw new Error('MEETING_CONTRACT_ORIGIN');
+  }
+
+  const contractKeys = new Set<string>();
+  for (const contract of contracts) {
+    const key = `${contract.method} ${contract.endpoint}`;
+    if (contractKeys.has(key)) throw new Error('MEETING_CONTRACT_DUPLICATE');
+    contractKeys.add(key);
+  }
+
+  type Observed = {
+    requestOrdinal: number;
+    contract: MeetingMutationContract;
+    responseStarted: boolean;
+    terminalResolved: boolean;
+    terminal: Promise<void>;
+    resolveTerminal: () => void;
+  };
+  const observed = new Map<Request, Observed>();
+  const successfulEntries: Array<{
+    requestOrdinal: number;
+    routeKey: string;
+    entity: OwnedMeetingEntity;
+  }> = [];
+  const nonSuccessResponses: MeetingMutationCapture['nonSuccessResponses'] extends ReadonlyArray<infer T> ? T[] : never = [];
+  const contractErrors: MeetingMutationCapture['contractErrors'] extends ReadonlyArray<infer T> ? T[] : never = [];
+  const registrationErrors: MeetingMutationCapture['registrationErrors'] extends ReadonlyArray<infer T> ? T[] : never = [];
+  const requestFailedOutcomes: MeetingMutationCapture['requestFailedOutcomes'] extends ReadonlyArray<infer T> ? T[] : never = [];
+  const unexpectedMutationAttempts: MeetingMutationCapture['unexpectedMutationAttempts'] extends ReadonlyArray<infer T> ? T[] : never = [];
+  const validatedRequests = new WeakSet<Request>();
+  const responseOrdinals = new Set<number>();
+  let entityOrdinal = 0;
+  let admissionClosed = false;
+  let lastActivityAt = Date.now();
+
+  const matchingContract = (request: Request) => contracts.find(
+    (contract) =>
+      contract.method === request.method() &&
+      contract.endpoint === request.url(),
+  );
+
+  const admit = (request: Request, contract: MeetingMutationContract) => {
+    const existing = observed.get(request);
+    if (existing) return existing;
+    let resolveTerminal = () => {};
+    const terminal = new Promise<void>((resolve) => {
+      resolveTerminal = resolve;
+    });
+    const entry: Observed = {
+      requestOrdinal: observed.size,
+      contract,
+      responseStarted: false,
+      terminalResolved: false,
+      terminal,
+      resolveTerminal,
+    };
+    observed.set(request, entry);
+    lastActivityAt = Date.now();
+    return entry;
+  };
+
+  const finish = (entry: Observed) => {
+    if (entry.terminalResolved) return;
+    entry.terminalResolved = true;
+    lastActivityAt = Date.now();
+    entry.resolveTerminal();
+  };
+
+  const recordUnexpected = (
+    request: Request,
+    routeKey: string,
+  ) => {
+    unexpectedMutationAttempts.push({
+      requestOrdinal: unexpectedMutationAttempts.length,
+      routeKey,
+      method: request.method(),
+    });
+    lastActivityAt = Date.now();
+  };
+
+  const onRequest = (request: Request) => {
+    if (admissionClosed) return;
+    const contract = matchingContract(request);
+    if (contract) admit(request, contract);
+  };
+
+  const guard = async (route: Route) => {
+    const request = route.request();
+    if (!MUTATION_METHODS.has(request.method())) {
+      await route.fallback();
+      return;
+    }
+    const contract = matchingContract(request);
+    if (admissionClosed) {
+      recordUnexpected(request, contract?.routeKey ?? 'late-mutation');
+      await route.abort('blockedbyclient');
+      return;
+    }
+    if (!contract) {
+      recordUnexpected(request, 'unmatched-mutation');
+      await route.abort('blockedbyclient');
+      return;
+    }
+    const entry = admit(request, contract);
+    if (validatedRequests.has(request)) {
+      await route.fallback();
+      return;
+    }
+    try {
+      contract.validateRequest(request);
+      validatedRequests.add(request);
+      await route.fallback();
+    } catch {
+      contractErrors.push({
+        requestOrdinal: entry.requestOrdinal,
+        routeKey: contract.routeKey,
+        recoveryCandidates: [],
+        code: 'REQUEST_CONTRACT',
+      });
+      await route.abort('blockedbyclient');
+    }
+  };
+
+  const processResponse = async (entry: Observed, response: Response) => {
+    responseOrdinals.add(entry.requestOrdinal);
+    const { contract, requestOrdinal } = entry;
+    if (!contract.successStatuses.includes(response.status())) {
+      nonSuccessResponses.push({
+        requestOrdinal,
+        routeKey: contract.routeKey,
+        status: response.status(),
+      });
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        return;
+      }
+      const recoveryCandidates = contract.extractRecoveryCandidates(body);
+      if (recoveryCandidates.length > 0) {
+        contractErrors.push({
+          requestOrdinal,
+          routeKey: contract.routeKey,
+          recoveryCandidates,
+          code: 'UNEXPECTED_STATUS_WITH_IDENTITY',
+        });
+      }
+      return;
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+      const entities = contract.parseResponse(
+        body,
+        requestOrdinal,
+        () => entityOrdinal++,
+      );
+      for (const entity of entities) {
+        successfulEntries.push({
+          requestOrdinal,
+          routeKey: contract.routeKey,
+          entity,
+        });
+        try {
+          await register(entity);
+        } catch {
+          registrationErrors.push({
+            requestOrdinal,
+            routeKey: contract.routeKey,
+            entityId: entity.id,
+            code: 'REGISTRATION_FAILED',
+          });
+        }
+      }
+    } catch {
+      contractErrors.push({
+        requestOrdinal,
+        routeKey: contract.routeKey,
+        recoveryCandidates: contract.extractRecoveryCandidates(body),
+        code: 'RESPONSE_CONTRACT',
+      });
+    }
+  };
+
+  const onResponse = (response: Response) => {
+    const entry = observed.get(response.request());
+    if (!entry || entry.responseStarted) return;
+    entry.responseStarted = true;
+    void processResponse(entry, response).finally(() => finish(entry));
+  };
+
+  const onRequestFailed = (request: Request) => {
+    const entry = observed.get(request);
+    if (!entry || entry.responseStarted) return;
+    entry.responseStarted = true;
+    requestFailedOutcomes.push({
+      requestOrdinal: entry.requestOrdinal,
+      routeKey: entry.contract.routeKey,
+    });
+    finish(entry);
+  };
+
+  const delay = (milliseconds: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+  const routePatterns = [
+    ...new Set([
+      ...guardPatterns,
+      ...contracts.map(({ endpoint }) => endpoint),
+      '**/*',
+    ]),
+  ];
+  page.on('request', onRequest);
+  page.on('response', onResponse);
+  page.on('requestfailed', onRequestFailed);
+  for (const pattern of routePatterns) await page.route(pattern, guard);
+
+  let actionError: { code: 'ACTION_FAILED' } | undefined;
+  try {
+    try {
+      await action();
+    } catch {
+      actionError = { code: 'ACTION_FAILED' };
+    }
+
+    const settleStartedAt = Date.now();
+    lastActivityAt = Math.max(lastActivityAt, settleStartedAt);
+    while (Date.now() - settleStartedAt < maxAdmissionMs) {
+      const pending = [...observed.values()].some(
+        ({ terminalResolved }) => !terminalResolved,
+      );
+      if (
+        Date.now() - settleStartedAt >= minAdmissionMs &&
+        !pending &&
+        Date.now() - lastActivityAt >= quietMs
+      ) {
+        break;
+      }
+      await delay(Math.min(25, Math.max(1, quietMs)));
+    }
+    admissionClosed = true;
+    page.off('request', onRequest);
+    await Promise.allSettled(
+      [...observed.values()].map(({ terminal }) => terminal),
+    );
+  } finally {
+    admissionClosed = true;
+    page.off('request', onRequest);
+    page.off('response', onResponse);
+    page.off('requestfailed', onRequestFailed);
+    for (const pattern of routePatterns) {
+      await page.unroute(pattern, guard).catch(() => {});
+    }
+  }
+
+  const byRequestAndEntity = (
+    left: { requestOrdinal: number; entity?: OwnedMeetingEntity },
+    right: { requestOrdinal: number; entity?: OwnedMeetingEntity },
+  ) => left.requestOrdinal - right.requestOrdinal ||
+    (left.entity?.entityOrdinal ?? 0) -
+      (right.entity?.entityOrdinal ?? 0);
+  return Object.freeze({
+    ...(actionError ? { actionError } : {}),
+    attemptCount: observed.size,
+    responseCount: responseOrdinals.size,
+    successfulEntries: Object.freeze(successfulEntries.sort(byRequestAndEntity)),
+    nonSuccessResponses: Object.freeze(
+      nonSuccessResponses.sort(byRequestAndEntity),
+    ),
+    contractErrors: Object.freeze(contractErrors.sort(byRequestAndEntity)),
+    registrationErrors: Object.freeze(
+      registrationErrors.sort(byRequestAndEntity),
+    ),
+    requestFailedOutcomes: Object.freeze(
+      requestFailedOutcomes.sort(byRequestAndEntity),
+    ),
+    unexpectedMutationAttempts: Object.freeze(
+      unexpectedMutationAttempts.sort(byRequestAndEntity),
+    ),
+  });
+};
+
+export const parseOwnedMeetingEntityResponse = (
+  body: unknown,
+  expected: {
+    kind: MeetingEntityKind;
+    requestedTitle: string;
+    workspaceId: string;
+    workspaceSlug: string;
+    projectId?: string;
+    teamId?: string;
+    requestOrdinal: number;
+    entityOrdinal: number;
+    meetingId?: string;
+    uploadId?: string;
+    source?: 'manual' | 'upload';
+  },
+): OwnedMeetingEntity => {
+  assertOwnedTitle(expected.requestedTitle);
+  if (
+    !isRecord(body) ||
+    !isCanonicalId(body.id) ||
+    body.kind !== expected.kind ||
+    body.title !== expected.requestedTitle ||
+    body.workspace_id !== expected.workspaceId ||
+    body.workspace_slug !== expected.workspaceSlug ||
+    body.project_id !== (expected.projectId ?? null) ||
+    body.team_id !== (expected.teamId ?? null) ||
+    body.meeting_id !== (expected.meetingId ?? null) ||
+    body.upload_id !== (expected.uploadId ?? null) ||
+    body.source !== (expected.source ?? null) ||
+    !Number.isSafeInteger(expected.requestOrdinal) ||
+    expected.requestOrdinal < 0 ||
+    !Number.isSafeInteger(expected.entityOrdinal) ||
+    expected.entityOrdinal < 0
+  ) {
+    throw new Error('MEETING_ENTITY_RESPONSE_CONTRACT');
+  }
+  if (
+    expected.kind !== 'meeting' &&
+    !isCanonicalId(expected.meetingId)
+  ) {
+    throw new Error('MEETING_ENTITY_RELATION_CONTRACT');
+  }
+  if (
+    expected.kind === 'transcription-job' &&
+    !isCanonicalId(expected.uploadId)
+  ) {
+    throw new Error('MEETING_ENTITY_RELATION_CONTRACT');
+  }
+
+  const entity = Object.freeze({
+    kind: expected.kind,
+    id: body.id,
+    title: expected.requestedTitle,
+    workspaceId: expected.workspaceId,
+    workspaceSlug: expected.workspaceSlug,
+    ...(expected.projectId ? { projectId: expected.projectId } : {}),
+    ...(expected.teamId ? { teamId: expected.teamId } : {}),
+    ...(expected.meetingId ? { meetingId: expected.meetingId } : {}),
+    ...(expected.uploadId ? { uploadId: expected.uploadId } : {}),
+    ...(expected.source ? { source: expected.source } : {}),
+    requestOrdinal: expected.requestOrdinal,
+    entityOrdinal: expected.entityOrdinal,
+    cleanupRank: cleanupRanks[expected.kind],
+  });
+  responseOwnedMeetingEntities.set(entity, Object.freeze({ ...entity }));
+  return entity;
+};
+
+export type MeetingRecoveryInspection = Readonly<{
+  status: number;
+  body?: unknown;
+}>;
+
+export class MeetingCaptureRecoveryError extends Error {
+  constructor(readonly residualIds: readonly string[]) {
+    super(
+      `Meeting capture recovery failed for ${residualIds.length} exact ID(s).`,
+    );
+    this.name = 'MeetingCaptureRecoveryError';
+  }
+}
+
+export const reconcileMeetingCaptureRecovery = async (options: {
+  capture: MeetingMutationCapture;
+  contract: MeetingMutationContract;
+  requestedTitle: string;
+  transcriptText: string;
+  workspaceId: string;
+  workspaceSlug: string;
+  inspect: (candidate: {
+    kind: MeetingEntityKind;
+    id: string;
+  }) => Promise<MeetingRecoveryInspection>;
+  register: (entity: OwnedMeetingEntity) => unknown | Promise<unknown>;
+  cleanup: (entities: readonly OwnedMeetingEntity[]) => Promise<unknown>;
+}): Promise<void> => {
+  assertOwnedTitle(options.requestedTitle);
+  if (
+    options.workspaceId !== MEETING_SANDBOX_WORKSPACE_ID ||
+    options.workspaceSlug !== SANDBOX.workspaceSlug
+  ) {
+    throw new Error('MEETING_RECOVERY_SCOPE');
+  }
+
+  const cleanupEntities: OwnedMeetingEntity[] = [];
+  const residualIds = new Set<string>();
+  const registrationFailedIds = new Set(
+    options.capture.registrationErrors.map(({ entityId }) => entityId),
+  );
+  const candidates = new Map<
+    string,
+    { kind: MeetingEntityKind; id: string; requestOrdinal: number }
+  >();
+  for (const rejection of options.capture.contractErrors) {
+    for (const candidate of rejection.recoveryCandidates) {
+      const key = `${candidate.kind}:${candidate.id}`;
+      const existing = candidates.get(key);
+      if (!existing || rejection.requestOrdinal > existing.requestOrdinal) {
+        candidates.set(key, {
+          ...candidate,
+          requestOrdinal: rejection.requestOrdinal,
+        });
+      }
+    }
+  }
+
+  for (const { entity } of options.capture.successfulEntries) {
+    if (candidates.size > 0 || registrationFailedIds.has(entity.id)) {
+      cleanupEntities.push(entity);
+    }
+  }
+
+  let entityOrdinal = 0;
+  for (const candidate of candidates.values()) {
+    if (candidate.kind !== 'meeting' || !isCanonicalId(candidate.id)) {
+      if (isCanonicalId(candidate.id)) residualIds.add(candidate.id);
+      continue;
+    }
+
+    let inspection: MeetingRecoveryInspection;
+    try {
+      inspection = await options.inspect(candidate);
+    } catch {
+      residualIds.add(candidate.id);
+      continue;
+    }
+    if (inspection.status === 404) continue;
+    if (inspection.status !== 200 || !isRecord(inspection.body)) {
+      residualIds.add(candidate.id);
+      continue;
+    }
+
+    let entity: OwnedMeetingEntity;
+    try {
+      const parsed = options.contract.parseResponse(
+        inspection.body,
+        candidate.requestOrdinal,
+        () => entityOrdinal++,
+      );
+      if (
+        parsed.length !== 1 ||
+        parsed[0]?.kind !== candidate.kind ||
+        parsed[0].id !== candidate.id
+      ) {
+        throw new Error('MEETING_RECOVERY_IDENTITY');
+      }
+      entity = parsed[0];
+    } catch {
+      residualIds.add(candidate.id);
+      continue;
+    }
+
+    try {
+      await options.register(entity);
+    } catch {
+      // Exact cleanup below does not depend on ledger registration succeeding.
+    }
+    cleanupEntities.push(entity);
+  }
+
+  if (cleanupEntities.length > 0) {
+    const entities = cleanupEntities;
+    try {
+      await options.cleanup(entities);
+    } catch (error) {
+      const ownedIds = new Set(entities.map(({ id }) => id));
+      const reported = isRecord(error) && Array.isArray(error.residualIds)
+        ? error.residualIds.filter(
+          (id): id is string => typeof id === 'string' && ownedIds.has(id),
+        )
+        : [];
+      for (const id of reported.length > 0 ? reported : ownedIds) {
+        residualIds.add(id);
+      }
+    }
+  }
+
+  if (residualIds.size > 0) {
+    throw new MeetingCaptureRecoveryError([...residualIds].sort());
+  }
+};
+
+export class MeetingCleanupError extends Error {
+  constructor(readonly residualIds: readonly string[]) {
+    super(`Meeting cleanup failed for ${residualIds.length} exact ID(s).`);
+    this.name = 'MeetingCleanupError';
+  }
+}
+
+export const cleanupOwnedMeetingEntities = async (options: {
+  entities: readonly OwnedMeetingEntity[];
+  inspect: (entity: OwnedMeetingEntity) => Promise<MeetingCleanupInspection>;
+  remove: (entity: OwnedMeetingEntity) => Promise<{ status: number }>;
+  verifyExactAbsence: (entity: OwnedMeetingEntity) => Promise<{
+    detailAbsent: boolean;
+    collectionAbsent: boolean;
+    uiIdAbsent: boolean;
+  }>;
+  verifyTitleAbsence: (title: string) => Promise<boolean>;
+  assertSandbox: () => Promise<void>;
+}): Promise<void> => {
+  const residualIds = new Set<string>();
+  const unique = new Map<string, OwnedMeetingEntity>();
+  const conflictedKeys = new Set<string>();
+
+  for (const entity of options.entities) {
+    let snapshot: OwnedMeetingEntity;
+    try {
+      snapshot = requireResponseOwnedEntity(entity);
+    } catch {
+      if (isCanonicalId(entity.id)) residualIds.add(entity.id);
+      continue;
+    }
+    const key = `${snapshot.kind}:${snapshot.id}`;
+    if (conflictedKeys.has(key)) {
+      residualIds.add(snapshot.id);
+      continue;
+    }
+    const existing = unique.get(key);
+    if (!existing) {
+      unique.set(key, entity);
+    } else if (!sameDurableEntityIdentity(existing, entity)) {
+      residualIds.add(snapshot.id);
+      unique.delete(key);
+      conflictedKeys.add(key);
+    } else if (
+      snapshot.requestOrdinal > existing.requestOrdinal ||
+      (
+        snapshot.requestOrdinal === existing.requestOrdinal &&
+        snapshot.entityOrdinal > existing.entityOrdinal
+      )
+    ) {
+      unique.set(key, entity);
+    }
+  }
+
+  const ordered = [...unique.values()].sort(
+    (left, right) =>
+      right.cleanupRank - left.cleanupRank ||
+      right.requestOrdinal - left.requestOrdinal ||
+      right.entityOrdinal - left.entityOrdinal,
+  );
+  for (const entity of ordered) {
+    let inspection: MeetingCleanupInspection;
+    try {
+      inspection = await options.inspect(entity);
+    } catch {
+      residualIds.add(entity.id);
+      continue;
+    }
+    if (inspection.status === 404) continue;
+    if (
+      inspection.status !== 200 ||
+      !inspection.identity ||
+      inspection.identity.kind !== entity.kind ||
+      inspection.identity.id !== entity.id ||
+      inspection.identity.title !== entity.title ||
+      inspection.identity.workspaceId !== entity.workspaceId ||
+      inspection.identity.workspaceSlug !== entity.workspaceSlug ||
+      inspection.identity.projectId !== entity.projectId ||
+      inspection.identity.teamId !== entity.teamId ||
+      inspection.identity.meetingId !== entity.meetingId ||
+      inspection.identity.uploadId !== entity.uploadId ||
+      inspection.identity.source !== entity.source ||
+      typeof inspection.identity.lifecycleStatus !== 'string' ||
+      inspection.identity.lifecycleStatus.length === 0
+    ) {
+      residualIds.add(entity.id);
+      continue;
+    }
+    try {
+      await options.assertSandbox();
+      const removal = await options.remove(entity);
+      if (![200, 202, 204].includes(removal.status)) {
+        residualIds.add(entity.id);
+      }
+    } catch {
+      residualIds.add(entity.id);
+    }
+  }
+
+  for (const entity of unique.values()) {
+    try {
+      const absence = await options.verifyExactAbsence(entity);
+      if (
+        !absence.detailAbsent ||
+        !absence.collectionAbsent ||
+        !absence.uiIdAbsent
+      ) {
+        residualIds.add(entity.id);
+      }
+    } catch {
+      residualIds.add(entity.id);
+    }
+  }
+
+  const idsByTitle = new Map<string, Set<string>>();
+  for (const entity of options.entities) {
+    if (!isCanonicalId(entity.id)) continue;
+    const ids = idsByTitle.get(entity.title) ?? new Set<string>();
+    ids.add(entity.id);
+    idsByTitle.set(entity.title, ids);
+  }
+  for (const [title, ids] of idsByTitle) {
+    try {
+      if (await options.verifyTitleAbsence(title)) continue;
+    } catch {
+      // A failed shared-name verification remains unresolved.
+    }
+    for (const id of ids) residualIds.add(id);
+  }
+
+  if (residualIds.size > 0) {
+    throw new MeetingCleanupError([...residualIds].sort());
+  }
+};
+
+export class MeetingsPage {
+  readonly addTranscriptButton: Locator;
+  readonly uploadAudioButton: Locator;
+  readonly createMeetButton: Locator;
+  readonly manualDialog: Locator;
+  readonly manualTitleInput: Locator;
+  readonly manualDateTimeInput: Locator;
+  readonly manualParticipantsInput: Locator;
+  readonly manualTranscriptInput: Locator;
+  readonly manualCancelButton: Locator;
+  readonly manualSubmitButton: Locator;
+  readonly uploadDialog: Locator;
+  readonly uploadTitleInput: Locator;
+  readonly uploadDateTimeInput: Locator;
+  readonly uploadFileInput: Locator;
+  readonly uploadCancelButton: Locator;
+  readonly uploadSubmitButton: Locator;
+  readonly uploadValidationFeedback: Locator;
+  readonly startInstantMeetingButton: Locator;
+  readonly scheduleWithNotetakerButton: Locator;
+  readonly disconnectedDialog: Locator;
+  readonly disconnectedNotNowButton: Locator;
+  readonly disconnectedConnectButton: Locator;
+  readonly scheduleDialog: Locator;
+  readonly scheduleTitleInput: Locator;
+  readonly scheduleDateTimeInput: Locator;
+  readonly scheduleMinutesInput: Locator;
+  readonly scheduleCancelButton: Locator;
+  readonly scheduleSubmitButton: Locator;
+  readonly transcriptDrawerHeading: Locator;
+
+  constructor(
+    readonly page: Page,
+    readonly assertSandbox: () => Promise<void>,
+    readonly request: MeetingRequestContext = page.request,
+  ) {
+    this.addTranscriptButton = page.getByRole('button', {
+      name: 'Add Transcript',
+      exact: true,
+    });
+    this.uploadAudioButton = page.getByRole('button', {
+      name: 'Upload Audio',
+      exact: true,
+    });
+    this.createMeetButton = page.getByRole('button', {
+      name: 'Create Meet',
+      exact: true,
+    });
+    this.manualDialog = page.getByRole('dialog').filter({
+      has: page.getByRole('heading', {
+        name: 'Add meeting transcript',
+        exact: true,
+      }),
+    });
+    this.manualTitleInput = this.manualDialog.getByRole('textbox', {
+      name: 'e.g. Sprint Planning — Week 28',
+      exact: true,
+    });
+    this.manualDateTimeInput = this.manualDialog.locator(
+      'input[type="datetime-local"]',
+    );
+    this.manualParticipantsInput = this.manualDialog.getByRole('textbox', {
+      name: 'Comma-separated, e.g. Alice, Bob',
+      exact: true,
+    });
+    this.manualTranscriptInput = this.manualDialog.getByRole('textbox', {
+      name: 'Paste the raw meeting transcript here',
+      exact: true,
+    });
+    this.manualCancelButton = this.manualDialog.getByRole('button', {
+      name: 'Cancel',
+      exact: true,
+    });
+    this.manualSubmitButton = this.manualDialog.getByRole('button', {
+      name: 'Add transcript',
+      exact: true,
+    });
+    this.uploadDialog = page.getByRole('dialog').filter({
+      has: page.getByRole('heading', {
+        name: 'Upload audio recording',
+        exact: true,
+      }),
+    });
+    this.uploadTitleInput = this.uploadDialog.getByRole('textbox', {
+      name: 'e.g. Sprint Planning - Week 28',
+      exact: true,
+    });
+    this.uploadDateTimeInput = this.uploadDialog.locator(
+      'input[type="datetime-local"]',
+    );
+    this.uploadFileInput = this.uploadDialog.locator(
+      'input[type="file"][accept="audio/*"]',
+    );
+    this.uploadCancelButton = this.uploadDialog.getByRole('button', {
+      name: 'Cancel',
+      exact: true,
+    });
+    this.uploadSubmitButton = this.uploadDialog.getByRole('button', {
+      name: 'Upload and process',
+      exact: true,
+    });
+    this.uploadValidationFeedback = this.uploadDialog.locator(
+      '[role="alert"], [aria-live="assertive"], [aria-live="polite"]',
+    ).filter({ hasText: /\S/u });
+    this.startInstantMeetingButton = page.getByRole('menuitem', {
+      name: 'Start instant meeting',
+      exact: true,
+    });
+    this.scheduleWithNotetakerButton = page.getByRole('menuitem', {
+      name: 'Schedule with Notetaker',
+      exact: true,
+    });
+    this.disconnectedDialog = page.getByRole('dialog').filter({
+      has: page.getByRole('heading', {
+        name: 'Connect Google Calendar and Meet',
+        exact: true,
+      }),
+    });
+    this.disconnectedNotNowButton = this.disconnectedDialog.getByRole(
+      'button',
+      { name: 'Not now', exact: true },
+    );
+    this.disconnectedConnectButton = this.disconnectedDialog.getByRole(
+      'button',
+      { name: 'Connect Google Calendar', exact: true },
+    );
+    this.scheduleDialog = page.getByRole('dialog').filter({
+      has: page.getByRole('heading', {
+        name: 'Create Google Meet with Notetaker',
+        exact: true,
+      }),
+    });
+    this.scheduleTitleInput = this.scheduleDialog.getByRole('textbox', {
+      name: 'Title',
+      exact: true,
+    });
+    this.scheduleDateTimeInput = this.scheduleDialog.getByRole('textbox', {
+      name: 'Date & time',
+      exact: true,
+    });
+    this.scheduleMinutesInput = this.scheduleDialog.getByRole('spinbutton', {
+      name: 'Minutes',
+      exact: true,
+    });
+    this.scheduleCancelButton = this.scheduleDialog.getByRole('button', {
+      name: 'Cancel',
+      exact: true,
+    });
+    this.scheduleSubmitButton = this.scheduleDialog.getByRole('button', {
+      name: 'Create Meet & Notetaker',
+      exact: true,
+    });
+    this.transcriptDrawerHeading = page.getByRole('heading', {
+      name: 'Transcript',
+      exact: true,
+    });
+  }
+
+  private absolute(path: string) {
+    return new URL(path, this.page.url()).href;
+  }
+
+  mutationGuardPatterns() {
+    return Object.freeze(['**/*']);
+  }
+
+  async gotoHome() {
+    await this.page.goto(MEETING_PATHS.home, {
+      waitUntil: 'domcontentloaded',
+    });
+    await this.addTranscriptButton.waitFor({ state: 'visible' });
+  }
+
+  async openManualTranscript() {
+    await this.addTranscriptButton.click();
+    await this.manualDialog.waitFor({ state: 'visible' });
+  }
+
+  async fillManualTranscript({
+    title,
+    transcriptText,
+  }: {
+    title: string;
+    transcriptText: string;
+  }) {
+    assertOwnedTitle(title);
+    await this.manualTitleInput.fill(title);
+    await this.manualTranscriptInput.fill(transcriptText);
+  }
+
+  async cancelManualTranscript() {
+    await this.manualCancelButton.click();
+    await this.manualDialog.waitFor({ state: 'hidden' });
+  }
+
+  async openUploadAudio() {
+    await this.uploadAudioButton.click();
+    await this.uploadDialog.waitFor({ state: 'visible' });
+  }
+
+  async cancelUploadAudio() {
+    await this.uploadCancelButton.click();
+    await this.uploadDialog.waitFor({ state: 'hidden' });
+  }
+
+  async openCreateMeetMenu() {
+    await this.createMeetButton.click();
+  }
+
+  meetingLink(title: string) {
+    assertOwnedTitle(title);
+    return this.page.getByRole('link').filter({
+      has: this.page.getByText(title, { exact: true }),
+    });
+  }
+
+  transcriptTitle(title: string) {
+    assertOwnedTitle(title);
+    return this.page.getByRole('heading', { name: title, exact: true });
+  }
+
+  async openTranscript(title: string) {
+    await this.meetingLink(title).click();
+    await this.transcriptDrawerHeading.waitFor({ state: 'visible' });
+  }
+
+  async createOwnedManualTranscript({
+    title,
+    transcriptText,
+    register,
+  }: {
+    title: string;
+    transcriptText: string;
+    register: (entity: OwnedMeetingEntity) => unknown | Promise<unknown>;
+  }) {
+    await this.assertSandbox();
+    await this.openManualTranscript();
+    await this.fillManualTranscript({ title, transcriptText });
+    await this.assertSandbox();
+    const contract = createManualMeetingCreateContract({
+      endpoint: this.absolute(MEETING_PATHS.collectionApi),
+      requestedTitle: title,
+      transcriptText,
+      workspaceId: MEETING_SANDBOX_WORKSPACE_ID,
+      workspaceSlug: SANDBOX.workspaceSlug,
+    });
+    const capture = await captureMeetingMutationTransaction({
+      page: this.page,
+      guardPatterns: this.mutationGuardPatterns(),
+      contracts: [contract],
+      action: () => this.manualSubmitButton.click(),
+      register,
+    });
+    await reconcileMeetingCaptureRecovery({
+      capture,
+      contract,
+      requestedTitle: title,
+      transcriptText,
+      workspaceId: MEETING_SANDBOX_WORKSPACE_ID,
+      workspaceSlug: SANDBOX.workspaceSlug,
+      inspect: async ({ id }) => {
+        const response = await this.request.get(
+          MEETING_PATHS.detailApi(id),
+        );
+        return {
+          status: response.status(),
+          ...(response.status() === 200
+            ? { body: await response.json().catch(() => undefined) }
+            : {}),
+        };
+      },
+      register,
+      cleanup: (entities) => this.cleanupOwnedEntities(entities),
+    });
+    return capture;
+  }
+
+  private async inspectMeeting(
+    entity: OwnedMeetingEntity,
+  ): Promise<MeetingCleanupInspection> {
+    if (entity.kind !== 'meeting') return { status: 409 };
+    const response = await this.request.get(
+      MEETING_PATHS.detailApi(entity.id),
+    );
+    if (response.status() !== 200) return { status: response.status() };
+    const body: unknown = await response.json().catch(() => undefined);
+    return parseMeetingCleanupInspection(body, entity);
+  }
+
+  private async exactCollectionAbsence(entity: OwnedMeetingEntity) {
+    const response = await this.request.get(
+      MEETING_PATHS.collectionApi,
+    );
+    if (response.status() !== 200) return false;
+    const body: unknown = await response.json().catch(() => undefined);
+    return Array.isArray(body) && !body.some(
+      (candidate) => isRecord(candidate) && candidate.id === entity.id,
+    );
+  }
+
+  async cleanupOwnedEntities(entities: readonly OwnedMeetingEntity[]) {
+    await cleanupOwnedMeetingEntities({
+      entities,
+      assertSandbox: this.assertSandbox,
+      inspect: (entity) => this.inspectMeeting(entity),
+      remove: async (entity) => {
+        if (entity.kind !== 'meeting') return { status: 409 };
+        const response = await this.request.delete(
+          MEETING_PATHS.detailApi(entity.id),
+        );
+        return { status: response.status() };
+      },
+      verifyExactAbsence: async (entity) => {
+        const detail = await this.request.get(
+          MEETING_PATHS.detailApi(entity.id),
+        );
+        const collectionAbsent = await this.exactCollectionAbsence(entity);
+        await this.gotoHome();
+        const uiAbsent = await this.meetingLink(entity.title).count() === 0;
+        return {
+          detailAbsent: detail.status() === 404,
+          collectionAbsent,
+          uiIdAbsent: uiAbsent,
+        };
+      },
+      verifyTitleAbsence: async (title) => {
+        const response = await this.request.get(
+          MEETING_PATHS.collectionApi,
+        );
+        const body: unknown = response.status() === 200
+          ? await response.json().catch(() => undefined)
+          : undefined;
+        const collectionAbsent = Array.isArray(body) && !body.some(
+          (candidate) => isRecord(candidate) && candidate.title === title,
+        );
+        await this.gotoHome();
+        return collectionAbsent &&
+          await this.meetingLink(title).count() === 0;
+      },
+    });
+  }
+}

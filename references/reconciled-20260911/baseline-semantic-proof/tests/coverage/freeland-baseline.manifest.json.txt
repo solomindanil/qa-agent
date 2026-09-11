@@ -1,0 +1,1697 @@
+{
+  "schemaVersion": 1,
+  "sourceSnapshot": {
+    "algorithm": "sha256",
+    "sha256": "010f05b755f70e17562a89daaa30f179cad15fab8242b5e279402a54fe3b57a0"
+  },
+  "sourceIdentity": {
+    "algorithm": "sha256",
+    "files": {
+      "access-control.spec.ts": "9a6067b3a162d9a8dce93657dbdcc40be731eccab4c4004fabe6079bfa6a1018",
+      "api.spec.ts": "f890975598e6053d94207aab6c569648d17293b5c995f74a45bb09a273efeaea",
+      "app.spec.ts": "02fa15818070f06435d0daed1d96a5a4a38dc111624ab0470ac78cb257b708f3",
+      "auth-flows.spec.ts": "341f9e773da24e8ace4951bfe81a77b7e820b9c5b7df34b347f873b9f064025b",
+      "auth.setup.ts": "760e59650704242b9bb87d12e2b63249bd4b86c1dafe433d67ac99e5a4191fe6",
+      "auth.spec.ts": "535d55632895a1ac4fc838259da9397843241500136a1e2dd93aa478813c38de",
+      "fixtures.ts": "833437cf26a37d85e7fd002e0383a6c8336b2f81d42a93b91520200900d8e6cd",
+      "freeman.spec.ts": "ec6b857d981126ea3a3c3917efe6af727918fbff44d613985a4952ca9cce21a5",
+      "helpers.ts": "46f654b33bb558b01db68c17e0586a651c645dc4682f7f920384479fbc754515",
+      "i18n.spec.ts": "e06184f6fbc6c8edb74140b0ab9f57d94f9670d12105d643bc9c8963cd36e7b6",
+      "landing.spec.ts": "a771e0a298aa9b27d652b0d6b607db9fbe0abca923142ca29a864c7905d13e6a",
+      "mail.spec.ts": "1b5521350628fad0a4349b980d198e34925e43920d70d3b03eeff3d44d07c920",
+      "marketing.spec.ts": "c508aafbf05567f42f6fca3ff548312eac06e88a103795ebe539b9097fe8c5e2",
+      "pages/checkout.page.ts": "e0ade43f39a960c354c4a3c05c9f69bac649c6d0e56ada1c6b1d2e93c135afa3",
+      "pages/store.page.ts": "2080185912fddb5cb15a015f84fd7a7c8855020255cc74ffe9bb6555ef818810",
+      "pages/wallet.page.ts": "84605a8116f2a064575652c0af99fbe4a204ff6537977806294277af77899981",
+      "payments.spec.ts": "21fd1e7693d005b51ad0c90006f51671452eda5215a8f28ec548595175ec174c",
+      "products.spec.ts": "57dcd046476d9298c4ef895f1b5971087eaa384d397d7aaa956e604cb386efce",
+      "purchase.spec.ts": "30f00ff132ccb41de0fbb4cb76568bbaf236419a00d795cd89014eb88d68c6ff",
+      "pwa.spec.ts": "841e33496a104d73ea21eb97dabcf7d645d86538f2ad4b583851d5dff382156c",
+      "referrals.spec.ts": "906deaec27d4f2d0dc71425a1be93917d68ee51bd0d78efdf81c219021ca5098",
+      "responsive.spec.ts": "b4d3d8facc5c6fafbc4229d69035649cf3de36cf31e720e48825be72fbe40c79",
+      "sections.spec.ts": "bae401349f16feb4d4e00736ce074dacbabbc7efa30dac4635db2a05b91a1d94",
+      "seo.spec.ts": "4e572a67e9c99a1986578430a0117e0fb3c10e928c4b3d7cff4474841167e08f",
+      "settings-deep.spec.ts": "0503a26e33f89c9adde8016729c8f9724e39cc3a51ac1a529f640ccb58204c7d",
+      "smoke.spec.ts": "a3cf1233c118c266b3bcce94b57625c730dd85a1420900b5caf5f9eb418c27e1",
+      "support.spec.ts": "9b4500a741968a33b45d3410a1cdfcba9d76f9ea584fe3fe17f0c4fb855872d2",
+      "telegram.spec.ts": "f7ca0b2aea3eed21871826fbdd8689a6c4baf7fdea008a7ae7c1a017c9c0e858",
+      "tma.spec.ts": "ee2a5026a3f6af4b11fdb9acddb6401bad33fc2fdd81f74e706f35f835950dde"
+    }
+  },
+  "target": {
+    "algorithm": "sha256",
+    "files": {
+      "access-control.spec.ts": "d52d1b762000f0ab4c6fe6dc1db4b4ba2f9d5ba1a5ee0a800f77e14d84b28071",
+      "api.spec.ts": "7cb64b007f265f2347f5e820abef08a85e889084269e93ffa829a5c616e89f49",
+      "app.spec.ts": "f9b7fdc07ce4b698c6f28e262e54e144dd319b0784cc17ace452cd0d0455918e",
+      "auth-flows.spec.ts": "a24369a9e71e8773db3b79723d709a582d614ac7115f6203ddca0daf4a20eda8",
+      "auth.setup.ts": "fac3497871f3a23e14480ef1d9bbb1b89d7654269dd7b478d8e0dcaf4414d296",
+      "auth.spec.ts": "f18ac4b8b4b29e0ef17df2d0775cb8ae26b24d81fa6d6dd7d654b96d07fa2edb",
+      "fixtures.ts": "19811b4f796cd531cf6d688a60db4d928bce6359a3a0d95bde54a60356b89e4e",
+      "freeman.spec.ts": "9f6816a5450d71a8d3422a1c586e1886ee900b91c5e6aab2eb5be770939525d4",
+      "helpers.ts": "3f390f67a75d9910a3f6a7fdec183f082f30c09c4ead6414b3634cd8b0bb6009",
+      "i18n.spec.ts": "c57965d3a04991f50cfa1c40b4193805dcbfc12945e4ac3f1c2a6a65276d559f",
+      "landing.spec.ts": "44061fc49515b479eb88fe522a2d79cfbbcfd5eff82c0f8f687ec384640b8fed",
+      "mail.spec.ts": "a54366cd5a5390474e882e81ce4d274efc22b1f2981eabe3a63902a85d6e1c7c",
+      "marketing.spec.ts": "ead110784477459166bf03df7b5aaca38c899c225c3529746cd076bac03d1af2",
+      "pages/checkout.page.ts": "e0ade43f39a960c354c4a3c05c9f69bac649c6d0e56ada1c6b1d2e93c135afa3",
+      "pages/store.page.ts": "2080185912fddb5cb15a015f84fd7a7c8855020255cc74ffe9bb6555ef818810",
+      "pages/wallet.page.ts": "84605a8116f2a064575652c0af99fbe4a204ff6537977806294277af77899981",
+      "payments.spec.ts": "2abb5ccab7e858af38c0cf663be36372f8273dc7275b91b8ac0f24a6b653bb33",
+      "products.spec.ts": "9626c03e9fd836bd6b607ffcc500f20ee381ca04237745ed323515f078620253",
+      "purchase.spec.ts": "2331650ed511a39777209757906a4ee6682fa7a585aafd9ab22be0f2c76f63cb",
+      "pwa.spec.ts": "778f317e907523c459cf146178b110c3971aed998b2420611af07289a2964dd5",
+      "referrals.spec.ts": "4725d930252f743c3290cac825706eb6c7509198eac8bc4f512d32bd8451e0ed",
+      "responsive.spec.ts": "03a54c2280c1f18c3447ebec69073745e2cb5dff51fc51ca47ac48d8bd75cf04",
+      "sections.spec.ts": "a88a988d0788a8e370f541e0e148e96f9f1594ed1584004a48a6350af8c3a45b",
+      "seo.spec.ts": "92706709536c302acb501a63156af4f59aec569a0ba8e1e71f81cefe9b5c0017",
+      "settings-deep.spec.ts": "d710baebb3f71217c368c813bca9396f8da28261842ec36ffc723f2c503e9110",
+      "smoke.spec.ts": "ccdbc3448282fbc9193447c1f0cee687a22c11a0c8dd6f964ab500c03cfa6945",
+      "support.spec.ts": "fae4a7c62f9371d6c63d7700899ae76cb958bb49830d31dd1001ceccbf292711",
+      "telegram.spec.ts": "f9c2453fa08e914d3cb8d189b6b2d2bb96efb9e6a8049c4601198bff3ab896a5",
+      "tma.spec.ts": "a10bbc532f9a47c84422c1d97e9df86252b7038d96cd2db818a105512e48d607"
+    }
+  },
+  "discovery": {
+    "files": {
+      "access-control.spec.ts": 14,
+      "api.spec.ts": 6,
+      "app.spec.ts": 10,
+      "auth-flows.spec.ts": 22,
+      "auth.spec.ts": 9,
+      "auth.setup.ts": 1,
+      "freeman.spec.ts": 1,
+      "i18n.spec.ts": 13,
+      "landing.spec.ts": 10,
+      "mail.spec.ts": 2,
+      "marketing.spec.ts": 11,
+      "payments.spec.ts": 3,
+      "products.spec.ts": 10,
+      "purchase.spec.ts": 3,
+      "pwa.spec.ts": 3,
+      "referrals.spec.ts": 3,
+      "responsive.spec.ts": 11,
+      "sections.spec.ts": 6,
+      "seo.spec.ts": 6,
+      "settings-deep.spec.ts": 4,
+      "smoke.spec.ts": 1,
+      "support.spec.ts": 3,
+      "telegram.spec.ts": 3,
+      "tma.spec.ts": 9
+    },
+    "total": 164,
+    "fileCount": 24
+  },
+  "transformations": {
+    "removedSuiteBaseUrlSkips": 28,
+    "removedLocalStorageStateUses": 16,
+    "removedAuthFileIdentifiers": 37,
+    "addedLocalJsImports": 27,
+    "addedProjectAuthFileCalls": 1,
+    "removedProductionCredentialGates": 4,
+    "removedLivePurchaseExports": 4
+  },
+  "proofInventory": {
+    "total": 119,
+    "categories": {
+      "insert-project-auth-file-declaration": 1,
+      "insert-project-auth-file-import": 1,
+      "insert-project-credential-import": 2,
+      "insert-project-test-info-parameter": 1,
+      "local-import-module-specifier": 27,
+      "remove-auth-credential-declaration": 1,
+      "remove-auth-credential-skip": 1,
+      "remove-auth-file-import-specifier": 15,
+      "remove-auth-file-only-import": 2,
+      "remove-auth-file-reexport": 1,
+      "remove-global-auth-storage-state": 16,
+      "remove-helper-credential-import-specifier": 2,
+      "remove-non-null-credential-assertion": 2,
+      "remove-production-credential-declaration": 4,
+      "remove-production-credential-skip": 4,
+      "remove-retired-export": 6,
+      "remove-staging-connectivity-preflight": 1,
+      "remove-staging-credential-skip": 1,
+      "remove-staging-helper-import-specifier": 1,
+      "remove-staging-preflight-documentation": 1,
+      "remove-suite-base-url-skip": 24,
+      "replace-resolve-creds-argument": 2,
+      "rewrite-helper-credential-documentation": 1,
+      "rewrite-local-import-documentation": 1,
+      "rewrite-storage-state-auth-path": 1
+    },
+    "files": {
+      "access-control.spec.ts": 5,
+      "api.spec.ts": 5,
+      "app.spec.ts": 7,
+      "auth-flows.spec.ts": 9,
+      "auth.setup.ts": 13,
+      "auth.spec.ts": 1,
+      "fixtures.ts": 4,
+      "freeman.spec.ts": 3,
+      "helpers.ts": 11,
+      "i18n.spec.ts": 4,
+      "landing.spec.ts": 2,
+      "mail.spec.ts": 5,
+      "marketing.spec.ts": 2,
+      "pages/checkout.page.ts": 0,
+      "pages/store.page.ts": 0,
+      "pages/wallet.page.ts": 0,
+      "payments.spec.ts": 5,
+      "products.spec.ts": 4,
+      "purchase.spec.ts": 4,
+      "pwa.spec.ts": 2,
+      "referrals.spec.ts": 5,
+      "responsive.spec.ts": 6,
+      "sections.spec.ts": 5,
+      "seo.spec.ts": 2,
+      "settings-deep.spec.ts": 4,
+      "smoke.spec.ts": 1,
+      "support.spec.ts": 5,
+      "telegram.spec.ts": 1,
+      "tma.spec.ts": 4
+    }
+  },
+  "targetAst": {
+    "baseUrlSkipCalls": 0,
+    "localStorageStateUses": 0,
+    "authFileIdentifiers": 0,
+    "paymentDryRunGateExports": 1,
+    "requireProjectAuthFileCalls": 1,
+    "localJsImports": 27,
+    "testFailCalls": 10
+  },
+  "transformationProof": {
+    "files": {
+      "access-control.spec.ts": {
+        "file": "access-control.spec.ts",
+        "sourceSha256": "9a6067b3a162d9a8dce93657dbdcc40be731eccab4c4004fabe6079bfa6a1018",
+        "targetSha256": "d52d1b762000f0ab4c6fe6dc1db4b4ba2f9d5ba1a5ee0a800f77e14d84b28071",
+        "edits": [
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 58,
+            "sourceByteEnd": 78,
+            "sourceLine": 2,
+            "sourceColumn": 10,
+            "sourceSliceSha256": "1ff7f0ab93a3efc7d5456f71d79488294fa5aa4d167d52de49a95046da108e12",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 99,
+            "sourceByteEnd": 110,
+            "sourceLine": 2,
+            "sourceColumn": 51,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 549,
+            "sourceByteEnd": 626,
+            "sourceLine": 11,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 626,
+            "sourceByteEnd": 676,
+            "sourceLine": 12,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 2635,
+            "sourceByteEnd": 2712,
+            "sourceLine": 61,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "api.spec.ts": {
+        "file": "api.spec.ts",
+        "sourceSha256": "f890975598e6053d94207aab6c569648d17293b5c995f74a45bb09a273efeaea",
+        "targetSha256": "7cb64b007f265f2347f5e820abef08a85e889084269e93ffa829a5c616e89f49",
+        "edits": [
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 71,
+            "sourceByteEnd": 93,
+            "sourceLine": 3,
+            "sourceColumn": 3,
+            "sourceSliceSha256": "f65d243fd8702cdf971c786dd6a7d6a8d71957b7a2cc11868a6477d1a039e809",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 151,
+            "sourceByteEnd": 162,
+            "sourceLine": 7,
+            "sourceColumn": 8,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 1503,
+            "sourceByteEnd": 1580,
+            "sourceLine": 42,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 3894,
+            "sourceByteEnd": 3971,
+            "sourceLine": 98,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 3971,
+            "sourceByteEnd": 4021,
+            "sourceLine": 99,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "app.spec.ts": {
+        "file": "app.spec.ts",
+        "sourceSha256": "02fa15818070f06435d0daed1d96a5a4a38dc111624ab0470ac78cb257b708f3",
+        "targetSha256": "f9b7fdc07ce4b698c6f28e262e54e144dd319b0784cc17ace452cd0d0455918e",
+        "edits": [
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 161,
+            "sourceByteEnd": 181,
+            "sourceLine": 4,
+            "sourceColumn": 10,
+            "sourceSliceSha256": "1ff7f0ab93a3efc7d5456f71d79488294fa5aa4d167d52de49a95046da108e12",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 210,
+            "sourceByteEnd": 221,
+            "sourceLine": 4,
+            "sourceColumn": 59,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-production-credential-declaration",
+            "sourceByteStart": 224,
+            "sourceByteEnd": 276,
+            "sourceLine": 6,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "6d019dffeefd14870f43b923ffc18bf1396507708bf8882510a8c23095a9c223",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "FirstStatement"
+          },
+          {
+            "category": "remove-production-credential-declaration",
+            "sourceByteStart": 276,
+            "sourceByteEnd": 335,
+            "sourceLine": 7,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "c22a70154c5c8fffa31b079a547ca791e8c738e7ebfd5190ab5bacb9fcd3084c",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "FirstStatement"
+          },
+          {
+            "category": "remove-production-credential-skip",
+            "sourceByteStart": 610,
+            "sourceByteEnd": 781,
+            "sourceLine": 13,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "95f0ddf009acc6483e56d900fd9f41a5670a593dcd72177306bcb308abdb7337",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 781,
+            "sourceByteEnd": 831,
+            "sourceLine": 17,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-production-credential-skip",
+            "sourceByteStart": 9230,
+            "sourceByteEnd": 9401,
+            "sourceLine": 194,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "95f0ddf009acc6483e56d900fd9f41a5670a593dcd72177306bcb308abdb7337",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "auth-flows.spec.ts": {
+        "file": "auth-flows.spec.ts",
+        "sourceSha256": "341f9e773da24e8ace4951bfe81a77b7e820b9c5b7df34b347f873b9f064025b",
+        "targetSha256": "a24369a9e71e8773db3b79723d709a582d614ac7115f6203ddca0daf4a20eda8",
+        "edits": [
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 60,
+            "sourceByteEnd": 82,
+            "sourceLine": 3,
+            "sourceColumn": 3,
+            "sourceSliceSha256": "f65d243fd8702cdf971c786dd6a7d6a8d71957b7a2cc11868a6477d1a039e809",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "remove-helper-credential-import-specifier",
+            "sourceByteStart": 117,
+            "sourceByteEnd": 133,
+            "sourceLine": 6,
+            "sourceColumn": 3,
+            "sourceSliceSha256": "4872e03d1ade1f3f2bc1973137d8a7236b02c70edd7e92f2f706c7a13a1d9a80",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 153,
+            "sourceByteEnd": 164,
+            "sourceLine": 8,
+            "sourceColumn": 8,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "insert-project-credential-import",
+            "sourceByteStart": 166,
+            "sourceByteEnd": 166,
+            "sourceLine": 9,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "replacement": "import { resolveCreds } from '../../../packages/playwright-support/src/environment.js';\n",
+            "replacementSha256": "b3685b63cb222c1643795127cc2dedb1acd1cf2509dd29f5915a25bfd85945dd",
+            "expectedNodeKind": "Trivia"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 337,
+            "sourceByteEnd": 414,
+            "sourceLine": 13,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "replace-resolve-creds-argument",
+            "sourceByteStart": 2904,
+            "sourceByteEnd": 2911,
+            "sourceLine": 85,
+            "sourceColumn": 46,
+            "sourceSliceSha256": "e384a2f308b1e12cbc926dc6da275eee064bb56514338f10c1d17f42462f6b52",
+            "replacement": "process.env",
+            "replacementSha256": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457",
+            "expectedNodeKind": "Identifier"
+          },
+          {
+            "category": "remove-staging-credential-skip",
+            "sourceByteStart": 2914,
+            "sourceByteEnd": 2990,
+            "sourceLine": 86,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "8960a94f8f424594aff970c7f93964e62961cd04a570df03a4b21975de3f56a1",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 4828,
+            "sourceByteEnd": 4905,
+            "sourceLine": 139,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 4905,
+            "sourceByteEnd": 4955,
+            "sourceLine": 140,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "auth.setup.ts": {
+        "file": "auth.setup.ts",
+        "sourceSha256": "760e59650704242b9bb87d12e2b63249bd4b86c1dafe433d67ac99e5a4191fe6",
+        "targetSha256": "fac3497871f3a23e14480ef1d9bbb1b89d7654269dd7b478d8e0dcaf4414d296",
+        "edits": [
+          {
+            "category": "insert-project-auth-file-import",
+            "sourceByteStart": 58,
+            "sourceByteEnd": 58,
+            "sourceLine": 2,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "replacement": "import { requireProjectAuthFile } from '../../../packages/playwright-support/src/environment.js';\n",
+            "replacementSha256": "12bde4e12afc52306e4a48e44b9fb28aaacf2e1f07d5ec8b90ed82dbad2d47e3",
+            "expectedNodeKind": "Trivia"
+          },
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 69,
+            "sourceByteEnd": 91,
+            "sourceLine": 3,
+            "sourceColumn": 3,
+            "sourceSliceSha256": "f65d243fd8702cdf971c786dd6a7d6a8d71957b7a2cc11868a6477d1a039e809",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "remove-staging-helper-import-specifier",
+            "sourceByteStart": 91,
+            "sourceByteEnd": 104,
+            "sourceLine": 4,
+            "sourceColumn": 3,
+            "sourceSliceSha256": "e1ee7cde3d77201f0730a3cbe227599578f41abbe63e7d1f4343bf52c6beee38",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "remove-helper-credential-import-specifier",
+            "sourceByteStart": 114,
+            "sourceByteEnd": 130,
+            "sourceLine": 5,
+            "sourceColumn": 13,
+            "sourceSliceSha256": "e5289ea2458990426fc5dfd390eecb755d3996aecbaec457b69b7990b71bbcae",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 139,
+            "sourceByteEnd": 150,
+            "sourceLine": 7,
+            "sourceColumn": 8,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-auth-file-reexport",
+            "sourceByteStart": 153,
+            "sourceByteEnd": 183,
+            "sourceLine": 9,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "538c56acb5a9f7ee2d0f608ecf7d63a224ece6d13aadd32b23df3afbab7a4a2f",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExportDeclaration"
+          },
+          {
+            "category": "insert-project-test-info-parameter",
+            "sourceByteStart": 464,
+            "sourceByteEnd": 464,
+            "sourceLine": 14,
+            "sourceColumn": 47,
+            "sourceSliceSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "replacement": ", testInfo",
+            "replacementSha256": "c2e9b612638fac07a28f782da8030b49cd481e7f83e661e8fbb72dac46839718",
+            "expectedNodeKind": "Trivia"
+          },
+          {
+            "category": "remove-auth-credential-declaration",
+            "sourceByteStart": 471,
+            "sourceByteEnd": 524,
+            "sourceLine": 15,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "4e4d9f04d9807eef4a58ce825d6c3af38c648c4de4e3859ae9183590cb46959d",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "FirstStatement"
+          },
+          {
+            "category": "remove-auth-credential-skip",
+            "sourceByteStart": 524,
+            "sourceByteEnd": 608,
+            "sourceLine": 16,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "13e16bc2e4c508b1f69fa96006e941e397eb7c247aa2ef40f3cd4e9b994a6d0d",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-staging-preflight-documentation",
+            "sourceByteStart": 608,
+            "sourceByteEnd": 758,
+            "sourceLine": 18,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "4b9b97418ac055ec290cbd859deac3a2ef984e2edfdb969025bd1d68675ca4ea",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "IfStatement"
+          },
+          {
+            "category": "remove-staging-connectivity-preflight",
+            "sourceByteStart": 758,
+            "sourceByteEnd": 1374,
+            "sourceLine": 20,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "687cc2a15a3d7a808eee039310f1649b6e181db866bae1ff62155ccab1ee0b52",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "IfStatement"
+          },
+          {
+            "category": "insert-project-auth-file-declaration",
+            "sourceByteStart": 1374,
+            "sourceByteEnd": 1374,
+            "sourceLine": 34,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "replacement": "  const authFile = requireProjectAuthFile(\n    testInfo.project.metadata,\n    testInfo.project.name,\n  );\n",
+            "replacementSha256": "4ac13a18cbee5c4a4ba4c47b0f493fd088c20bc094426f603b2e89b2f242700c",
+            "expectedNodeKind": "Trivia"
+          },
+          {
+            "category": "rewrite-storage-state-auth-path",
+            "sourceByteStart": 1777,
+            "sourceByteEnd": 1795,
+            "sourceLine": 42,
+            "sourceColumn": 45,
+            "sourceSliceSha256": "de06989b05a82c779fe8da8f5c967dd8b05367e7a553f292c7a48774a4102b01",
+            "replacement": "authFile",
+            "replacementSha256": "39a8f16ec1dbe5dd22dbccfa9691fe3b9d2f1a31fea9416aaf3b09da9a3f7394",
+            "expectedNodeKind": "Identifier"
+          }
+        ]
+      },
+      "auth.spec.ts": {
+        "file": "auth.spec.ts",
+        "sourceSha256": "535d55632895a1ac4fc838259da9397843241500136a1e2dd93aa478813c38de",
+        "targetSha256": "f18ac4b8b4b29e0ef17df2d0775cb8ae26b24d81fa6d6dd7d654b96d07fa2edb",
+        "edits": [
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 289,
+            "sourceByteEnd": 366,
+            "sourceLine": 7,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "fixtures.ts": {
+        "file": "fixtures.ts",
+        "sourceSha256": "833437cf26a37d85e7fd002e0383a6c8336b2f81d42a93b91520200900d8e6cd",
+        "targetSha256": "19811b4f796cd531cf6d688a60db4d928bce6359a3a0d95bde54a60356b89e4e",
+        "edits": [
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 75,
+            "sourceByteEnd": 95,
+            "sourceLine": 2,
+            "sourceColumn": 27,
+            "sourceSliceSha256": "caed379adc15a5083bb297b6ecd1cac79b57beceb8409d991d9afc15676f055e",
+            "replacement": "'./pages/store.page.js'",
+            "replacementSha256": "b00512615dcffdb9e3d479ecbeb77a29d65dda91eec3c216ce5e6bd7dffe5de2",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 124,
+            "sourceByteEnd": 145,
+            "sourceLine": 3,
+            "sourceColumn": 28,
+            "sourceSliceSha256": "d3242ce09121d8b49f184f6b9318eedc82d2b919dec7606e5a180ddb5c4afe74",
+            "replacement": "'./pages/wallet.page.js'",
+            "replacementSha256": "13d492a8fd9a70ba9e23bf324a41ab81705f9e012d4e85ee517f69e34f4c75b6",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 176,
+            "sourceByteEnd": 199,
+            "sourceLine": 4,
+            "sourceColumn": 30,
+            "sourceSliceSha256": "129dc58c4bacc0e9c01bd598d502cc9629582e9706e6cae02df1589f15811634",
+            "replacement": "'./pages/checkout.page.js'",
+            "replacementSha256": "c083eb9807a60e47144875ca8f946bbed862d53e2f788b12bef3f8734b45dc69",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "rewrite-local-import-documentation",
+            "sourceByteStart": 279,
+            "sourceByteEnd": 331,
+            "sourceLine": 7,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "813cde9007acd81a15c53b2679df0b562efd2d66af72918324b70da2a087c7a7",
+            "replacement": "// Usage: import { expect, test } from './fixtures.js';",
+            "replacementSha256": "a99cfc682bcd9fd6a33814ba37e91fbc5e83da6a694130a31bcac15cb7c526f3",
+            "expectedNodeKind": "ExportKeyword"
+          }
+        ]
+      },
+      "freeman.spec.ts": {
+        "file": "freeman.spec.ts",
+        "sourceSha256": "ec6b857d981126ea3a3c3917efe6af727918fbff44d613985a4952ca9cce21a5",
+        "targetSha256": "9f6816a5450d71a8d3422a1c586e1886ee900b91c5e6aab2eb5be770939525d4",
+        "edits": [
+          {
+            "category": "remove-auth-file-only-import",
+            "sourceByteStart": 141,
+            "sourceByteEnd": 189,
+            "sourceLine": 4,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "63dd2242b4e176f1929b5d5900f3aedf2d6a9c198b308a6f38c2c56b8725d435",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportDeclaration"
+          },
+          {
+            "category": "remove-production-credential-skip",
+            "sourceByteStart": 397,
+            "sourceByteEnd": 610,
+            "sourceLine": 9,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "35c2efb0f9153ff4915a60047ced8cc658efda11dc55251244560e66ff6f6346",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 610,
+            "sourceByteEnd": 660,
+            "sourceLine": 13,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "helpers.ts": {
+        "file": "helpers.ts",
+        "sourceSha256": "46f654b33bb558b01db68c17e0586a651c645dc4682f7f920384479fbc754515",
+        "targetSha256": "3f390f67a75d9910a3f6a7fdec183f082f30c09c4ead6414b3634cd8b0bb6009",
+        "edits": [
+          {
+            "category": "insert-project-credential-import",
+            "sourceByteStart": 69,
+            "sourceByteEnd": 69,
+            "sourceLine": 2,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "replacement": "import { resolveCreds } from '../../../packages/playwright-support/src/environment.js';\n",
+            "replacementSha256": "b3685b63cb222c1643795127cc2dedb1acd1cf2509dd29f5915a25bfd85945dd",
+            "expectedNodeKind": "Trivia"
+          },
+          {
+            "category": "rewrite-helper-credential-documentation",
+            "sourceByteStart": 138,
+            "sourceByteEnd": 279,
+            "sourceLine": 4,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "d6cfc8d199ea0aaa48d61b19108fde47394373ce4ea1c0c6bbc18bb5edd34124",
+            "replacement": "// Single source of truth for hydration waits, console-error collection, and\n// staging/payment gates.\n",
+            "replacementSha256": "07f44a8a758ab57c2bad5a42bb13b953ea87eb69b06044de1fa74390ee322a86",
+            "expectedNodeKind": "ExportKeyword"
+          },
+          {
+            "category": "remove-retired-export",
+            "sourceByteStart": 554,
+            "sourceByteEnd": 799,
+            "sourceLine": 11,
+            "sourceColumn": 67,
+            "sourceSliceSha256": "2c51bb88beb1d6133a020d5ae7ed0496d88c239f63a56ab34fb874a523e0c30a",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "FirstStatement"
+          },
+          {
+            "category": "remove-retired-export",
+            "sourceByteStart": 799,
+            "sourceByteEnd": 1468,
+            "sourceLine": 18,
+            "sourceColumn": 70,
+            "sourceSliceSha256": "f272b6a7e8229ce7895efdab74a2a65aad7ec238b6274f1f74291aa9c211787a",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "FirstStatement"
+          },
+          {
+            "category": "remove-retired-export",
+            "sourceByteStart": 7725,
+            "sourceByteEnd": 8574,
+            "sourceLine": 204,
+            "sourceColumn": 3,
+            "sourceSliceSha256": "f73155fd6d43dafa218a2cef7567113234598d4c2f2a0beea8a7105ff82a6028",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "FirstStatement"
+          },
+          {
+            "category": "remove-retired-export",
+            "sourceByteStart": 8574,
+            "sourceByteEnd": 8753,
+            "sourceLine": 224,
+            "sourceColumn": 12,
+            "sourceSliceSha256": "78c72768655a016c8c46d065ea8fc212ded93f1c7a5188e5afc5c6d9512df746",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "FirstStatement"
+          },
+          {
+            "category": "remove-retired-export",
+            "sourceByteStart": 8753,
+            "sourceByteEnd": 8825,
+            "sourceLine": 233,
+            "sourceColumn": 12,
+            "sourceSliceSha256": "5f7f881be88057b38ac5fe6b23bcabf82e3bbfada4ca3d59e16f0f67196dc4c9",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "TypeAliasDeclaration"
+          },
+          {
+            "category": "remove-retired-export",
+            "sourceByteStart": 8825,
+            "sourceByteEnd": 10128,
+            "sourceLine": 234,
+            "sourceColumn": 72,
+            "sourceSliceSha256": "ab43aff43fbbd536c90848ef0fb7af2afcd00ec3cdaa6a1fb69c138fce880d2d",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "FirstStatement"
+          },
+          {
+            "category": "replace-resolve-creds-argument",
+            "sourceByteStart": 10664,
+            "sourceByteEnd": 10671,
+            "sourceLine": 281,
+            "sourceColumn": 44,
+            "sourceSliceSha256": "e384a2f308b1e12cbc926dc6da275eee064bb56514338f10c1d17f42462f6b52",
+            "replacement": "process.env",
+            "replacementSha256": "a97d7492edeb30eaf7b260e2b02ffe125474c2adcf5764051a055aeb22e51457",
+            "expectedNodeKind": "Identifier"
+          },
+          {
+            "category": "remove-non-null-credential-assertion",
+            "sourceByteStart": 10853,
+            "sourceByteEnd": 10854,
+            "sourceLine": 285,
+            "sourceColumn": 55,
+            "sourceSliceSha256": "bb7208bc9b5d7c04f1236a82a0093a5e33f40423d5ba8d4266f7092c3ba43b62",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "NonNullExpression"
+          },
+          {
+            "category": "remove-non-null-credential-assertion",
+            "sourceByteStart": 10917,
+            "sourceByteEnd": 10918,
+            "sourceLine": 286,
+            "sourceColumn": 61,
+            "sourceSliceSha256": "bb7208bc9b5d7c04f1236a82a0093a5e33f40423d5ba8d4266f7092c3ba43b62",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "NonNullExpression"
+          }
+        ]
+      },
+      "i18n.spec.ts": {
+        "file": "i18n.spec.ts",
+        "sourceSha256": "e06184f6fbc6c8edb74140b0ab9f57d94f9670d12105d643bc9c8963cd36e7b6",
+        "targetSha256": "c57965d3a04991f50cfa1c40b4193805dcbfc12945e4ac3f1c2a6a65276d559f",
+        "edits": [
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 60,
+            "sourceByteEnd": 82,
+            "sourceLine": 3,
+            "sourceColumn": 3,
+            "sourceSliceSha256": "f65d243fd8702cdf971c786dd6a7d6a8d71957b7a2cc11868a6477d1a039e809",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 141,
+            "sourceByteEnd": 152,
+            "sourceLine": 7,
+            "sourceColumn": 8,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 2099,
+            "sourceByteEnd": 2176,
+            "sourceLine": 59,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 2176,
+            "sourceByteEnd": 2226,
+            "sourceLine": 60,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "landing.spec.ts": {
+        "file": "landing.spec.ts",
+        "sourceSha256": "a771e0a298aa9b27d652b0d6b607db9fbe0abca923142ca29a864c7905d13e6a",
+        "targetSha256": "44061fc49515b479eb88fe522a2d79cfbbcfd5eff82c0f8f687ec384640b8fed",
+        "edits": [
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 82,
+            "sourceByteEnd": 93,
+            "sourceLine": 2,
+            "sourceColumn": 34,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 239,
+            "sourceByteEnd": 316,
+            "sourceLine": 7,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "mail.spec.ts": {
+        "file": "mail.spec.ts",
+        "sourceSha256": "1b5521350628fad0a4349b980d198e34925e43920d70d3b03eeff3d44d07c920",
+        "targetSha256": "a54366cd5a5390474e882e81ce4d274efc22b1f2981eabe3a63902a85d6e1c7c",
+        "edits": [
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 29,
+            "sourceByteEnd": 41,
+            "sourceLine": 1,
+            "sourceColumn": 30,
+            "sourceSliceSha256": "6cb4b86bf1476dc92360ef43e0ca250a98393fc0186678025be850405a6a1def",
+            "replacement": "'./fixtures.js'",
+            "replacementSha256": "cd3308272a0aca773f6f85f808bb23228ade36ed3b8d62954d3bd621445b2943",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 52,
+            "sourceByteEnd": 72,
+            "sourceLine": 2,
+            "sourceColumn": 10,
+            "sourceSliceSha256": "1ff7f0ab93a3efc7d5456f71d79488294fa5aa4d167d52de49a95046da108e12",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 105,
+            "sourceByteEnd": 116,
+            "sourceLine": 2,
+            "sourceColumn": 63,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 291,
+            "sourceByteEnd": 368,
+            "sourceLine": 7,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 368,
+            "sourceByteEnd": 418,
+            "sourceLine": 8,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "marketing.spec.ts": {
+        "file": "marketing.spec.ts",
+        "sourceSha256": "c508aafbf05567f42f6fca3ff548312eac06e88a103795ebe539b9097fe8c5e2",
+        "targetSha256": "ead110784477459166bf03df7b5aaca38c899c225c3529746cd076bac03d1af2",
+        "edits": [
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 131,
+            "sourceByteEnd": 142,
+            "sourceLine": 6,
+            "sourceColumn": 8,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 498,
+            "sourceByteEnd": 575,
+            "sourceLine": 14,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "pages/checkout.page.ts": {
+        "file": "pages/checkout.page.ts",
+        "sourceSha256": "e0ade43f39a960c354c4a3c05c9f69bac649c6d0e56ada1c6b1d2e93c135afa3",
+        "targetSha256": "e0ade43f39a960c354c4a3c05c9f69bac649c6d0e56ada1c6b1d2e93c135afa3",
+        "edits": []
+      },
+      "pages/store.page.ts": {
+        "file": "pages/store.page.ts",
+        "sourceSha256": "2080185912fddb5cb15a015f84fd7a7c8855020255cc74ffe9bb6555ef818810",
+        "targetSha256": "2080185912fddb5cb15a015f84fd7a7c8855020255cc74ffe9bb6555ef818810",
+        "edits": []
+      },
+      "pages/wallet.page.ts": {
+        "file": "pages/wallet.page.ts",
+        "sourceSha256": "84605a8116f2a064575652c0af99fbe4a204ff6537977806294277af77899981",
+        "targetSha256": "84605a8116f2a064575652c0af99fbe4a204ff6537977806294277af77899981",
+        "edits": []
+      },
+      "payments.spec.ts": {
+        "file": "payments.spec.ts",
+        "sourceSha256": "21fd1e7693d005b51ad0c90006f51671452eda5215a8f28ec548595175ec174c",
+        "targetSha256": "2abb5ccab7e858af38c0cf663be36372f8273dc7275b91b8ac0f24a6b653bb33",
+        "edits": [
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 29,
+            "sourceByteEnd": 41,
+            "sourceLine": 1,
+            "sourceColumn": 30,
+            "sourceSliceSha256": "6cb4b86bf1476dc92360ef43e0ca250a98393fc0186678025be850405a6a1def",
+            "replacement": "'./fixtures.js'",
+            "replacementSha256": "cd3308272a0aca773f6f85f808bb23228ade36ed3b8d62954d3bd621445b2943",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 52,
+            "sourceByteEnd": 72,
+            "sourceLine": 2,
+            "sourceColumn": 10,
+            "sourceSliceSha256": "1ff7f0ab93a3efc7d5456f71d79488294fa5aa4d167d52de49a95046da108e12",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 94,
+            "sourceByteEnd": 105,
+            "sourceLine": 2,
+            "sourceColumn": 52,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 301,
+            "sourceByteEnd": 378,
+            "sourceLine": 7,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 378,
+            "sourceByteEnd": 428,
+            "sourceLine": 8,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "products.spec.ts": {
+        "file": "products.spec.ts",
+        "sourceSha256": "57dcd046476d9298c4ef895f1b5971087eaa384d397d7aaa956e604cb386efce",
+        "targetSha256": "9626c03e9fd836bd6b607ffcc500f20ee381ca04237745ed323515f078620253",
+        "edits": [
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 58,
+            "sourceByteEnd": 78,
+            "sourceLine": 2,
+            "sourceColumn": 10,
+            "sourceSliceSha256": "1ff7f0ab93a3efc7d5456f71d79488294fa5aa4d167d52de49a95046da108e12",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 115,
+            "sourceByteEnd": 126,
+            "sourceLine": 2,
+            "sourceColumn": 67,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 949,
+            "sourceByteEnd": 1026,
+            "sourceLine": 19,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 1026,
+            "sourceByteEnd": 1076,
+            "sourceLine": 20,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "purchase.spec.ts": {
+        "file": "purchase.spec.ts",
+        "sourceSha256": "30f00ff132ccb41de0fbb4cb76568bbaf236419a00d795cd89014eb88d68c6ff",
+        "targetSha256": "2331650ed511a39777209757906a4ee6682fa7a585aafd9ab22be0f2c76f63cb",
+        "edits": [
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 60,
+            "sourceByteEnd": 82,
+            "sourceLine": 3,
+            "sourceColumn": 3,
+            "sourceSliceSha256": "f65d243fd8702cdf971c786dd6a7d6a8d71957b7a2cc11868a6477d1a039e809",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 143,
+            "sourceByteEnd": 154,
+            "sourceLine": 7,
+            "sourceColumn": 8,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 640,
+            "sourceByteEnd": 717,
+            "sourceLine": 17,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 717,
+            "sourceByteEnd": 767,
+            "sourceLine": 18,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "pwa.spec.ts": {
+        "file": "pwa.spec.ts",
+        "sourceSha256": "841e33496a104d73ea21eb97dabcf7d645d86538f2ad4b583851d5dff382156c",
+        "targetSha256": "778f317e907523c459cf146178b110c3971aed998b2420611af07289a2964dd5",
+        "edits": [
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 121,
+            "sourceByteEnd": 132,
+            "sourceLine": 2,
+            "sourceColumn": 62,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 733,
+            "sourceByteEnd": 810,
+            "sourceLine": 21,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "referrals.spec.ts": {
+        "file": "referrals.spec.ts",
+        "sourceSha256": "906deaec27d4f2d0dc71425a1be93917d68ee51bd0d78efdf81c219021ca5098",
+        "targetSha256": "4725d930252f743c3290cac825706eb6c7509198eac8bc4f512d32bd8451e0ed",
+        "edits": [
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 29,
+            "sourceByteEnd": 41,
+            "sourceLine": 1,
+            "sourceColumn": 30,
+            "sourceSliceSha256": "6cb4b86bf1476dc92360ef43e0ca250a98393fc0186678025be850405a6a1def",
+            "replacement": "'./fixtures.js'",
+            "replacementSha256": "cd3308272a0aca773f6f85f808bb23228ade36ed3b8d62954d3bd621445b2943",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 52,
+            "sourceByteEnd": 72,
+            "sourceLine": 2,
+            "sourceColumn": 10,
+            "sourceSliceSha256": "1ff7f0ab93a3efc7d5456f71d79488294fa5aa4d167d52de49a95046da108e12",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 94,
+            "sourceByteEnd": 105,
+            "sourceLine": 2,
+            "sourceColumn": 52,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 267,
+            "sourceByteEnd": 344,
+            "sourceLine": 7,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 344,
+            "sourceByteEnd": 394,
+            "sourceLine": 8,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "responsive.spec.ts": {
+        "file": "responsive.spec.ts",
+        "sourceSha256": "b4d3d8facc5c6fafbc4229d69035649cf3de36cf31e720e48825be72fbe40c79",
+        "targetSha256": "03a54c2280c1f18c3447ebec69073745e2cb5dff51fc51ca47ac48d8bd75cf04",
+        "edits": [
+          {
+            "category": "remove-auth-file-only-import",
+            "sourceByteStart": 152,
+            "sourceByteEnd": 200,
+            "sourceLine": 4,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "63dd2242b4e176f1929b5d5900f3aedf2d6a9c198b308a6f38c2c56b8725d435",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportDeclaration"
+          },
+          {
+            "category": "remove-production-credential-declaration",
+            "sourceByteStart": 201,
+            "sourceByteEnd": 253,
+            "sourceLine": 6,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "6d019dffeefd14870f43b923ffc18bf1396507708bf8882510a8c23095a9c223",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "FirstStatement"
+          },
+          {
+            "category": "remove-production-credential-declaration",
+            "sourceByteStart": 253,
+            "sourceByteEnd": 312,
+            "sourceLine": 7,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "c22a70154c5c8fffa31b079a547ca791e8c738e7ebfd5190ab5bacb9fcd3084c",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "FirstStatement"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 1076,
+            "sourceByteEnd": 1153,
+            "sourceLine": 30,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-production-credential-skip",
+            "sourceByteStart": 2422,
+            "sourceByteEnd": 2593,
+            "sourceLine": 63,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "95f0ddf009acc6483e56d900fd9f41a5670a593dcd72177306bcb308abdb7337",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 2655,
+            "sourceByteEnd": 2705,
+            "sourceLine": 68,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "sections.spec.ts": {
+        "file": "sections.spec.ts",
+        "sourceSha256": "bae401349f16feb4d4e00736ce074dacbabbc7efa30dac4635db2a05b91a1d94",
+        "targetSha256": "a88a988d0788a8e370f541e0e148e96f9f1594ed1584004a48a6350af8c3a45b",
+        "edits": [
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 29,
+            "sourceByteEnd": 41,
+            "sourceLine": 1,
+            "sourceColumn": 30,
+            "sourceSliceSha256": "6cb4b86bf1476dc92360ef43e0ca250a98393fc0186678025be850405a6a1def",
+            "replacement": "'./fixtures.js'",
+            "replacementSha256": "cd3308272a0aca773f6f85f808bb23228ade36ed3b8d62954d3bd621445b2943",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 54,
+            "sourceByteEnd": 76,
+            "sourceLine": 3,
+            "sourceColumn": 3,
+            "sourceSliceSha256": "f65d243fd8702cdf971c786dd6a7d6a8d71957b7a2cc11868a6477d1a039e809",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 148,
+            "sourceByteEnd": 159,
+            "sourceLine": 7,
+            "sourceColumn": 8,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 429,
+            "sourceByteEnd": 506,
+            "sourceLine": 13,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 506,
+            "sourceByteEnd": 556,
+            "sourceLine": 14,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "seo.spec.ts": {
+        "file": "seo.spec.ts",
+        "sourceSha256": "4e572a67e9c99a1986578430a0117e0fb3c10e928c4b3d7cff4474841167e08f",
+        "targetSha256": "92706709536c302acb501a63156af4f59aec569a0ba8e1e71f81cefe9b5c0017",
+        "edits": [
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 103,
+            "sourceByteEnd": 114,
+            "sourceLine": 2,
+            "sourceColumn": 44,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 1439,
+            "sourceByteEnd": 1516,
+            "sourceLine": 37,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "settings-deep.spec.ts": {
+        "file": "settings-deep.spec.ts",
+        "sourceSha256": "0503a26e33f89c9adde8016729c8f9724e39cc3a51ac1a529f640ccb58204c7d",
+        "targetSha256": "d710baebb3f71217c368c813bca9396f8da28261842ec36ffc723f2c503e9110",
+        "edits": [
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 58,
+            "sourceByteEnd": 78,
+            "sourceLine": 2,
+            "sourceColumn": 10,
+            "sourceSliceSha256": "1ff7f0ab93a3efc7d5456f71d79488294fa5aa4d167d52de49a95046da108e12",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 115,
+            "sourceByteEnd": 126,
+            "sourceLine": 2,
+            "sourceColumn": 67,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 574,
+            "sourceByteEnd": 651,
+            "sourceLine": 12,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 651,
+            "sourceByteEnd": 701,
+            "sourceLine": 13,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "smoke.spec.ts": {
+        "file": "smoke.spec.ts",
+        "sourceSha256": "a3cf1233c118c266b3bcce94b57625c730dd85a1420900b5caf5f9eb418c27e1",
+        "targetSha256": "ccdbc3448282fbc9193447c1f0cee687a22c11a0c8dd6f964ab500c03cfa6945",
+        "edits": [
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 177,
+            "sourceByteEnd": 254,
+            "sourceLine": 5,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "support.spec.ts": {
+        "file": "support.spec.ts",
+        "sourceSha256": "9b4500a741968a33b45d3410a1cdfcba9d76f9ea584fe3fe17f0c4fb855872d2",
+        "targetSha256": "fae4a7c62f9371d6c63d7700899ae76cb958bb49830d31dd1001ceccbf292711",
+        "edits": [
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 29,
+            "sourceByteEnd": 41,
+            "sourceLine": 1,
+            "sourceColumn": 30,
+            "sourceSliceSha256": "6cb4b86bf1476dc92360ef43e0ca250a98393fc0186678025be850405a6a1def",
+            "replacement": "'./fixtures.js'",
+            "replacementSha256": "cd3308272a0aca773f6f85f808bb23228ade36ed3b8d62954d3bd621445b2943",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 52,
+            "sourceByteEnd": 72,
+            "sourceLine": 2,
+            "sourceColumn": 10,
+            "sourceSliceSha256": "1ff7f0ab93a3efc7d5456f71d79488294fa5aa4d167d52de49a95046da108e12",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 94,
+            "sourceByteEnd": 105,
+            "sourceLine": 2,
+            "sourceColumn": 52,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 294,
+            "sourceByteEnd": 371,
+            "sourceLine": 7,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 371,
+            "sourceByteEnd": 421,
+            "sourceLine": 8,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "telegram.spec.ts": {
+        "file": "telegram.spec.ts",
+        "sourceSha256": "f7ca0b2aea3eed21871826fbdd8689a6c4baf7fdea008a7ae7c1a017c9c0e858",
+        "targetSha256": "f9c2453fa08e914d3cb8d189b6b2d2bb96efb9e6a8049c4601198bff3ab896a5",
+        "edits": [
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 247,
+            "sourceByteEnd": 324,
+            "sourceLine": 6,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      },
+      "tma.spec.ts": {
+        "file": "tma.spec.ts",
+        "sourceSha256": "ee2a5026a3f6af4b11fdb9acddb6401bad33fc2fdd81f74e706f35f835950dde",
+        "targetSha256": "a10bbc532f9a47c84422c1d97e9df86252b7038d96cd2db818a105512e48d607",
+        "edits": [
+          {
+            "category": "remove-auth-file-import-specifier",
+            "sourceByteStart": 90,
+            "sourceByteEnd": 110,
+            "sourceLine": 2,
+            "sourceColumn": 31,
+            "sourceSliceSha256": "60d75987aabbe500f3e0084e2c5b85c293c4afe1c5d634ddfbdb5adf6d895081",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ImportClause"
+          },
+          {
+            "category": "local-import-module-specifier",
+            "sourceByteStart": 118,
+            "sourceByteEnd": 129,
+            "sourceLine": 2,
+            "sourceColumn": 59,
+            "sourceSliceSha256": "78693197e557292328730ae2bc7fdb755d44a40bf6e4ae930de677f125c50a5d",
+            "replacement": "'./helpers.js'",
+            "replacementSha256": "c72ba8bd054e8baa724aae6f7d034569970f0fa9543f63d4b9bcb5627bdb7efa",
+            "expectedNodeKind": "StringLiteral"
+          },
+          {
+            "category": "remove-suite-base-url-skip",
+            "sourceByteStart": 3965,
+            "sourceByteEnd": 4042,
+            "sourceLine": 87,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "1b33490dcc8abe7e4607ba24a5c9b77365a2ec2f8187218c591fff0c46f3dbca",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          },
+          {
+            "category": "remove-global-auth-storage-state",
+            "sourceByteStart": 4042,
+            "sourceByteEnd": 4092,
+            "sourceLine": 88,
+            "sourceColumn": 1,
+            "sourceSliceSha256": "e717daa13ce22cd83451f7f3b0b159e43d50a59f7e92f1b82274605c0802d398",
+            "replacement": "",
+            "replacementSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "expectedNodeKind": "ExpressionStatement"
+          }
+        ]
+      }
+    }
+  }
+}

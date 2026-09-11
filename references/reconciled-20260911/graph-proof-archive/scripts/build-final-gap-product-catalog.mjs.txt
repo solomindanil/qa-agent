@@ -1,0 +1,182 @@
+import { readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+
+import { buildProductTestCatalog } from "../src/model.mjs";
+
+const sourceSha = argument("--source-sha");
+const legacyPath = argument("--legacy-catalog");
+const outputPath = argument("--output");
+if (!/^[0-9a-f]{40}$/.test(sourceSha ?? "") || !legacyPath || !outputPath) {
+  throw new TypeError("--source-sha, --legacy-catalog and --output are required");
+}
+
+const legacy = JSON.parse(await readFile(resolve(legacyPath), "utf8"));
+const tests = new Map();
+for (const row of legacy.tests ?? []) {
+  const renamed = legacySelectorRename(`${row.file}\u0000${row.selector}`);
+  add(row.file, renamed ?? row.selector, row.bindings);
+}
+
+for (const [file, selectors, nodeIds] of finalGapBindings()) {
+  for (const selector of selectors) {
+    add(file, selector, nodeIds.map(nodeId => ({ nodeId, coverage: "full" })));
+  }
+}
+
+const catalog = buildProductTestCatalog({
+  sourceSha,
+  tests: [...tests.values()].map(({ file, selector, bindings }) => ({
+    file,
+    selector,
+    bindings: [...bindings.values()],
+  })),
+});
+const target = resolve(outputPath);
+const temporary = resolve(dirname(target), `.${target.split("/").at(-1)}.tmp`);
+await writeFile(temporary, `${JSON.stringify(catalog, null, 2)}\n`, { mode: 0o600 });
+await rename(temporary, target);
+process.stdout.write(`${JSON.stringify({ tests: catalog.tests.length, digest: catalog.catalogDigest })}\n`);
+
+function add(file, selector, bindings) {
+  const id = `${file}\u0000${selector}`;
+  const row = tests.get(id) ?? { file, selector, bindings: new Map() };
+  for (const binding of bindings) {
+    const previous = row.bindings.get(binding.nodeId);
+    const rank = { detection: 1, partial: 2, full: 3 };
+    if (!previous || rank[binding.coverage] > rank[previous.coverage]) {
+      row.bindings.set(binding.nodeId, binding);
+    }
+  }
+  tests.set(id, row);
+}
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}
+
+function legacySelectorRename(key) {
+  return new Map([
+    [[
+      "apps/api/tests/payment-checkout-create-conflicts.test.ts",
+      "req:B2 replays identical target checkouts, rejects parameter drift, and serializes concurrent provider creation",
+    ].join("\u0000"),
+    "invariant:payment-creation-idempotency replays the active production creator, rejects amount/product/method/identity drift, and serializes concurrent provider creation"],
+  ]).get(key);
+}
+
+function finalGapBindings() {
+  return [
+  ["apps/api/tests/payment-checkout-b14.test.ts", [
+    "req:B14 gives one of two distinct concurrent webhook events the 300-second checkout claim and one effect chain",
+    "req:B14 lets only the claim-token owner mutate before the exact 300-second boundary",
+    "req:B14 blocks %s before every product or money effect",
+    "req:B14 makes the real product adapter idempotent per checkout without collapsing distinct checkouts",
+    "req:B14 discovers a deterministic card fee with no ownership or candidate link and fails closed",
+    "req:B14 fails a mismatched existing %s with CONTRACT_MISMATCH and zero new effects",
+  ], ["req:B14"]],
+  ["apps/api/tests/payment-checkout-provisioning-ownership-migration.test.ts", [
+    "keeps the %s owner fence exclusive at the lease boundary",
+    "keeps the canonical claim and mutation leases at exactly 300 seconds by default",
+  ], ["req:B14"]],
+  ["apps/api/tests/crypto-invoice-settlement-migration-contract.test.ts", [
+    "req:D17 freezes callback and payout identities before ledger settlement",
+    "req:D17 compares provider precision before canonical integer fee rounding",
+    "req:D17 uses leases and preserves provider payout identity for reconciliation",
+    "req:D17 exposes a versioned fingerprint verifier for release preflight",
+    "req:D17 real PostgreSQL bootstrap fingerprints the exact production dependency bodies",
+  ], ["req:D17"]],
+  ["apps/api/tests/crypto-invoice-settlement-d17.routes.test.ts", [
+    "req:D17 keeps a one-cent underpayment pending and creates no wallet credit or fee",
+    "req:D17 settles the exact nominal to net minor units with a separate half-up acquiring fee operation",
+    "req:D17 replays a failed atomic settlement to exactly one credit and one fee operation",
+    "req:D17 compares provider precision before cent rounding",
+    "req:D17 rejects provider precision above six decimals before any database or payout mutation",
+    "req:D17 canonicalizes lowercase rail inputs and replays them without a second payout PUT",
+    "req:D17 rejects invoice rail mismatch %s/%s before payout",
+    "req:D17 rejects a payment first observed after invoice expiry",
+    "req:D17 never accepts changed amount or hash for the same failed event",
+    "req:D17 rejects a different event after a failed paid settlement",
+    "req:D17 routes an invoice snapshot change after payout to review before any ledger operation",
+    "req:D17 routes a mismatched provider payout identity to review without credit",
+    "req:D17 retries an async payout ledger failure without a second provider PUT",
+    "req:D17 retries payout-success persistence through provider GET without a second PUT",
+  ], ["req:D17"]],
+  ["apps/api/tests/crypto-invoice-settlement-preflight.test.ts", [
+    "fails closed when the versioned database verifier is absent",
+    "fails closed when the database body fingerprint differs at the same version",
+    "accepts only the exact version, fingerprint, and migration inventory",
+  ], ["req:D17"]],
+  ["scripts/prod/tests/deploy-release-readiness.test.mjs", [
+    "req:G16 full production release contract",
+  ], ["req:D17"]],
+  ["apps/api/tests/sensitive-write-registry-routes.test.ts", [
+    "req:G7 binds the audit matrix to every registered sensitive write",
+    "req:G7 rejects missing keys for machine-auth and admin actors before every sensitive handler",
+  ], ["req:G7"]],
+  ["apps/api/tests/mutation-route-manifest-routes.test.ts", [
+    "classifies every POST/PUT/PATCH/DELETE as sensitive, sensitive read, or explicit evidenced exemption",
+    "expands Fastify method arrays so a newly combined mutation route cannot evade classification",
+    "pins every known semantic GET while globally disabling implicit mutating HEAD aliases",
+  ], ["req:G7"]],
+  ["apps/api/tests/g7-read-route-purity.test.ts", [
+    "serves virtual-number detail from the owned local projection only",
+    "serves eSIM list and detail from local projections without provider repair",
+    "restores eSIM and virtual-number freshness only through durable keyed commands",
+    "never performs a Valut BIN read or snapshot write from card quote GET",
+    "does not enqueue or version-bump card projection work from balance and transaction GETs",
+  ], ["req:G7"]],
+  ["apps/api/tests/g7-mutating-get-exemptions-routes.test.ts", [
+    "binds stale expiry CAS to payment evidence, operation identity, and the observed deadline",
+  ], ["req:G7"]],
+  ["apps/api/tests/unsafe-read-command-routes.test.ts", [
+    "keeps attributed Telegram GET write-free and executes token creation only through a keyed POST",
+    "uses pure passport GET and a keyed sync command for provider preparation",
+    "keeps virtual-number message GET local and moves provider sync to a keyed command",
+    "keeps checkout GET local and moves provider refresh to a keyed command",
+    "keeps VPN GET routes local and moves provider reconciliation/access/device refresh to keyed commands",
+    "keeps benefits-admin VPN device GET local and moves provider refresh to a keyed command",
+  ], ["req:G7"]],
+  ["apps/api/tests/crm-click-redirect-routes.test.ts", [
+    "req:G7 deduplicates redirect retries with the same token-derived CRM event key",
+  ], ["req:G7"]],
+  ["apps/api/tests/purchase-intents-service.test.ts", [
+    "req:G7 marks covered wallet-funding intents ready through an owner/status/id/expiry CAS only",
+  ], ["req:G7"]],
+  ["apps/api/tests/lava-wallet-topups.test.ts", [
+    "req:G7 expires a direct-checkout status read with one owner/status CAS and no provider or money effects",
+  ], ["req:G7"]],
+  ["apps/web/tests/g7-command-client-contract.test.mjs", [
+    "first-party user queries keep pure GET projections separate from keyed sync commands",
+    "Benefits Admin reads a projection and refreshes provider telemetry only by explicit keyed command",
+    "runtime and agent docs name all pure-read and keyed-command pairs",
+  ], ["req:G7"]],
+  ["apps/web/tests/api-client.behavior.test.tsx", [
+    "prepares provider freshness through keyed commands before reading eSIM and virtual-number projections",
+    "keeps projection polling on GET and uses keyed POST only for explicit provider commands",
+    "keeps every newly-sensitive user client family compatible with required keys",
+    "adds a browser idempotency key to an otherwise unkeyed sensitive admin write",
+  ], ["req:G7"]],
+  ["apps/api/tests/external-payment-creation-registry.test.ts", [
+    "invariant:payment-creation-idempotency inventories every route that can invoke an external payment creator",
+    "classifies all live PayAssist, Qwik and Telegram families and only fail-closes legacy Lava",
+    "pins nine incoming provider-create callsites and separately inventories both outgoing payout creators",
+    "discovers provider primitives across all source files instead of trusting creator names",
+    "detects a provider creator introduced under a new file and alias",
+  ], ["invariant:payment-creation-idempotency"]],
+  ["apps/api/tests/external-creation-idempotency.test.ts", [
+    "pins the production schema uniqueness and service-role-only boundary",
+    "performs one provider mutation and returns an exact concurrent replay",
+    "rejects same-key %s drift before provider effects",
+    "fails closed after provider success when completion persistence is lost",
+    "fails closed when the provider transport outcome is unknown",
+  ], ["invariant:payment-creation-idempotency"]],
+  ["apps/api/tests/payment-checkout-create-conflicts.test.ts", [
+    "invariant:payment-creation-idempotency replays the active production creator, rejects amount/product/method/identity drift, and serializes concurrent provider creation",
+  ], ["invariant:payment-creation-idempotency"]],
+  ["apps/web/tests/api-client.behavior.test.tsx", [
+    "does not refresh or replay a Stars top-up rejected for expired Mini App initData",
+    "adds a browser idempotency key to an otherwise unkeyed sensitive user write",
+  ], ["invariant:payment-creation-idempotency"]],
+  ];
+}

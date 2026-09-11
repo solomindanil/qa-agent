@@ -1,0 +1,433 @@
+# Task 3 V3 — frozen source review package
+
+Local source only, no main application/install/commit/live actions. Seven paths; compare against preserved originals, not HEAD (untracked source included).
+
+## skills/qa-bugfix/SKILL.md
+
+Before: 93fc375fdadcb5939f109bf8afc6b07fb5fcc83fc7dfa7f166bbdf0c8ae76d3c
+After: 8b18f439bb1db9bf3c85952abe95b76169f4deb3d6ba3bd1604b80ba7764aa7f
+
+```diff
+--- a/skills/qa-bugfix/SKILL.md
++++ b/skills/qa-bugfix/SKILL.md
+@@ -1,50 +1,51 @@
+ ---
+ name: qa-bugfix
+-description: Bugfix mode — pull open bugs from Linear via MCP, cluster them by root cause, and generate a self-contained fix prompt per cluster that the user pastes into their product's coding agent. Use when the user asks to fix bugs, prepare fix prompts, or process the bug backlog.
++description: Use when the user asks to prepare fix prompts, cluster confirmed bugs, or process a product's bug backlog.
+ ---
+ 
+ # QA Bugfix Mode
+ 
+-Goal: turn the Linear bug backlog into ready-to-execute fix prompts. You do NOT fix the product code yourself (it lives in another repo) — you produce prompts so effective that any competent coding agent implements the fix on the first pass.
++Turn confirmed bugs into self-contained fix prompts for the product's coding agent. This QA task does not edit product code. A generated prompt is a work artifact, not evidence of a fix or permission to execute it.
+ 
+-## Workflow
++## Resolve scope
+ 
+-Use the available Linear integration for the current harness. In Claude Code this is usually the `linear-server` MCP from `.mcp.json`; in Codex it may be a local Linear connector or MCP server configured outside the repo.
++Read the selected product's registration/pack and owner checkpoint before choosing a checkout, environment, tracker or workflow. The current directory alone is not the product. Reuse an existing workspace; do not require Linear or create another registration.
+ 
+-### 1. Fetch the backlog
++- Use the pack's tracker and current supported connector. For Nuanu Flow use its official plugin and work-items instructions; Linear remains valid when selected. If the connector is unavailable, use sufficient supplied issue snapshots for prompt preparation and identify any missing evidence.
++- A prepare-only request writes no tracker states, comments or product files. Available tools are capabilities, not write authorization.
++- If the request is actually deployed-fix verification, hand off to the current product QA specialist (Freeland: `freeland-release-qa`; registered Starter: `qa-product-v0`; otherwise `qa-check`). That evidence/workflow contract governs; do not continue an old global Done/Todo recipe.
+ 
+-- `list_issues` with label `Bug`, states `Backlog`/`Todo` (triage states), for the chosen product's Linear project. Confirm scope with the user if multiple products exist.
+-- For each issue: `get_issue` for the full description, attachments (screenshot URLs), and comments (may contain triage notes).
++## 1. Read the selected bugs
+ 
+-### 2. Cluster
++Use the pack's actual project, bug classification, states and pagination. Read issue descriptions, evidence and comments, or use the supplied snapshots. Confirm scope only when it remains ambiguous. Do not invent missing identifiers, credentials, reproduction steps or a confirmed status for an unverified report.
+ 
+-Group bugs that should be fixed together; keep the rest separate.
+-- **Merge** when bugs share a root cause or subsystem: same screen, same i18n dictionary, same formatter, same route handler. One prompt = one coherent PR a reviewer can approve.
+-- **Split** when fixes touch unrelated code, need different owners, or differ wildly in risk (a copy fix must not ride along with a payment-logic change).
+-- State your clustering rationale in the output so the user can override it.
++## 2. Cluster with a reason
+ 
+-### 3. Generate a fix prompt per cluster
++One prompt should describe a coherent, reviewable change. Group a demonstrated shared cause; a common screen or subsystem is only a clue, not proof. Keep unrelated owners and materially different risks separate. Use available product-map dependencies to identify adjacent behavior that must remain correct, not to guess a root cause. Label hypotheses and unresolved business expectations.
+ 
+-Fill `templates/fix-prompt.md`. Quality bar for each prompt:
+-- **Self-contained**: the executing agent has ZERO context about our QA session. Everything needed — repro steps, expected vs actual, evidence links, environment — must be inside the prompt. Never reference "the ticket above" without inlining its content.
+-- **Evidence-first**: include exact strings ("Invalid login credentials"), endpoints, screenshot URLs from Linear attachments, curl outputs. This lets the agent locate the code by grepping for literals.
+-- **Acceptance criteria as a checklist**: observable behaviors, not implementation prescriptions. Include: "the QA repo's `test.fail()` regression test for TICKET-ID must now fail as 'expected to fail, but passed' — i.e. the bug is gone" when such a test exists.
+-- **Capability-adaptive recommendations** (the user's agent may have subagents/tools — include this block verbatim, adjusted per cluster):
+-  - If you have subagents: use an explore/search agent to locate the code paths from the literals above before editing; after implementing, run an independent code-review subagent on the diff.
+-  - If you have browser tools: reproduce the bug first, and re-verify visually after the fix.
+-  - If you have a Linear MCP connection: move the ticket(s) to "In Progress" when starting; when finished, add a comment summarizing the change. Do NOT mark the ticket Done — QA verifies the fix on the live product and closes it.
+-  - Always: plan first, keep the diff minimal, run the project's typecheck/lint/tests, don't refactor unrelated code.
+-- **Commit convention**: `fix: <symptom> (<TICKET-IDs>)`.
++## 3. Produce the fix prompt
+ 
+-### 4. Deliver
++Fill `templates/fix-prompt.md`, starting with its **Resolved target** fields and including **Implementation handoff / QA acceptance**. Copy product, tracker/project, exact issue IDs and literal state names with their roles from the original pack/snapshot. Product and tracker are separate fields; each independent case gets its own target block.
+ 
+-- Output every prompt in full, each in its own fenced block, ordered by severity (Urgent first).
+-- Offer to also attach each prompt as a comment on its Linear issue(s) (`save_comment`) so it survives the session — do it if the user agrees.
+-- Summarize: N bugs → M prompts, clustering rationale, anything blocked (e.g. bug needs product-owner input) — flagged separately.
++For product identity, include the exact source clause/reference that establishes the product, then derive the product name from it. Resolve the checkout separately from a supplied registration locator. When no locator is supplied, mark checkout unresolved and give checkout-neutral implementation instructions pending that resolution; a tracker name or heading is not a checkout locator. Prompt preparation can still continue.
+ 
+-### 5. Verification & closure (Done is set only by QA)
++- Inline original preconditions, actions, expected/actual behavior, evidence references and observed environment/candidate. Separate the observed buggy candidate from the future fixed/deployed candidate.
++- Define acceptance as observable original-scenario outcomes plus relevant adjacent regressions. Inspect existing fixture/assertions before using a regression as evidence.
++- An unexpected `test.fail()` PASS is an investigation signal, not proof of a fix. Never make that signal the sole acceptance criterion or weaken assertions to obtain green.
++- Preserve the distinction between developer completion and QA acceptance. The coding agent returns implementation evidence and unresolved checks; it does not promote a ticket into a QA-qualified state just because code/tests are ready.
++- Name an implementation handoff state only if the pack defines its role and the executor has authority. If only a QA-qualified state such as `Ready for prod` is known, leave the implementation state unspecified and return evidence to QA.
++- Recommendations use tools actually available to the executor: source inspection, focused tests, browser reproduction and independent review when supported. No mandatory tool or approval is invented.
+ 
+-When the user says fixes are deployed:
+-- Re-run the product suite. A regression test flipping to "Expected to fail, but passed" proves the bug is gone: flip it to a normal test, then `save_issue` state=**Done** with a comment "QA verified: <what was re-tested and how>".
+-- If the regression still behaves as expected-fail (bug persists): comment the evidence on the ticket and move it back to **Todo** — never close an unverified fix.
+-- Partially fixed bugs: comment what is fixed vs remaining, narrow the ticket scope, keep it open.
++## 4. Deliver
++
++Before delivery, compare every target ID, product, environment and state name used in the prompt against the original pack/snapshot, not just against your generated header. Keep literal state names rather than substituting synonyms. Correct mismatches; if the source cannot resolve a target, deliver a clearly unresolved draft without a transition instruction for it.
++
++Return the prompts, ordered by the product's risk/severity contract, with clustering rationale and missing information. A blocked issue does not prevent preparation for independent well-understood issues.
++
++Only if requested and authorized, attach a prompt to the exact issue using the selected connector; read back the saved content. On an unknown write outcome reconcile before retrying. A prepare-only artifact does not grant its future executor additional tracker or financial authority.
++
++## 5. Deployed fix verification
++
++Use the selected QA workflow to check the actual original scenario on the current candidate. Inspect assertions, fixture, environment and fresh evidence; a green smoke or unexpected PASS alone cannot qualify the fix.
++
++Only accepted deployed evidence and the pack's transition authority justify a QA state change. Read back persisted state. Still-broken, partial or unassessed cases remain explicit; do not silently narrow the original requirement, close the issue, or rewrite evidence to make it pass.
+```
+
+## .claude/skills/qa-bugfix/SKILL.md
+
+Before: 93fc375fdadcb5939f109bf8afc6b07fb5fcc83fc7dfa7f166bbdf0c8ae76d3c
+After: 8b18f439bb1db9bf3c85952abe95b76169f4deb3d6ba3bd1604b80ba7764aa7f
+
+```diff
+--- a/.claude/skills/qa-bugfix/SKILL.md
++++ b/.claude/skills/qa-bugfix/SKILL.md
+@@ -1,50 +1,51 @@
+ ---
+ name: qa-bugfix
+-description: Bugfix mode — pull open bugs from Linear via MCP, cluster them by root cause, and generate a self-contained fix prompt per cluster that the user pastes into their product's coding agent. Use when the user asks to fix bugs, prepare fix prompts, or process the bug backlog.
++description: Use when the user asks to prepare fix prompts, cluster confirmed bugs, or process a product's bug backlog.
+ ---
+ 
+ # QA Bugfix Mode
+ 
+-Goal: turn the Linear bug backlog into ready-to-execute fix prompts. You do NOT fix the product code yourself (it lives in another repo) — you produce prompts so effective that any competent coding agent implements the fix on the first pass.
++Turn confirmed bugs into self-contained fix prompts for the product's coding agent. This QA task does not edit product code. A generated prompt is a work artifact, not evidence of a fix or permission to execute it.
+ 
+-## Workflow
++## Resolve scope
+ 
+-Use the available Linear integration for the current harness. In Claude Code this is usually the `linear-server` MCP from `.mcp.json`; in Codex it may be a local Linear connector or MCP server configured outside the repo.
++Read the selected product's registration/pack and owner checkpoint before choosing a checkout, environment, tracker or workflow. The current directory alone is not the product. Reuse an existing workspace; do not require Linear or create another registration.
+ 
+-### 1. Fetch the backlog
++- Use the pack's tracker and current supported connector. For Nuanu Flow use its official plugin and work-items instructions; Linear remains valid when selected. If the connector is unavailable, use sufficient supplied issue snapshots for prompt preparation and identify any missing evidence.
++- A prepare-only request writes no tracker states, comments or product files. Available tools are capabilities, not write authorization.
++- If the request is actually deployed-fix verification, hand off to the current product QA specialist (Freeland: `freeland-release-qa`; registered Starter: `qa-product-v0`; otherwise `qa-check`). That evidence/workflow contract governs; do not continue an old global Done/Todo recipe.
+ 
+-- `list_issues` with label `Bug`, states `Backlog`/`Todo` (triage states), for the chosen product's Linear project. Confirm scope with the user if multiple products exist.
+-- For each issue: `get_issue` for the full description, attachments (screenshot URLs), and comments (may contain triage notes).
++## 1. Read the selected bugs
+ 
+-### 2. Cluster
++Use the pack's actual project, bug classification, states and pagination. Read issue descriptions, evidence and comments, or use the supplied snapshots. Confirm scope only when it remains ambiguous. Do not invent missing identifiers, credentials, reproduction steps or a confirmed status for an unverified report.
+ 
+-Group bugs that should be fixed together; keep the rest separate.
+-- **Merge** when bugs share a root cause or subsystem: same screen, same i18n dictionary, same formatter, same route handler. One prompt = one coherent PR a reviewer can approve.
+-- **Split** when fixes touch unrelated code, need different owners, or differ wildly in risk (a copy fix must not ride along with a payment-logic change).
+-- State your clustering rationale in the output so the user can override it.
++## 2. Cluster with a reason
+ 
+-### 3. Generate a fix prompt per cluster
++One prompt should describe a coherent, reviewable change. Group a demonstrated shared cause; a common screen or subsystem is only a clue, not proof. Keep unrelated owners and materially different risks separate. Use available product-map dependencies to identify adjacent behavior that must remain correct, not to guess a root cause. Label hypotheses and unresolved business expectations.
+ 
+-Fill `templates/fix-prompt.md`. Quality bar for each prompt:
+-- **Self-contained**: the executing agent has ZERO context about our QA session. Everything needed — repro steps, expected vs actual, evidence links, environment — must be inside the prompt. Never reference "the ticket above" without inlining its content.
+-- **Evidence-first**: include exact strings ("Invalid login credentials"), endpoints, screenshot URLs from Linear attachments, curl outputs. This lets the agent locate the code by grepping for literals.
+-- **Acceptance criteria as a checklist**: observable behaviors, not implementation prescriptions. Include: "the QA repo's `test.fail()` regression test for TICKET-ID must now fail as 'expected to fail, but passed' — i.e. the bug is gone" when such a test exists.
+-- **Capability-adaptive recommendations** (the user's agent may have subagents/tools — include this block verbatim, adjusted per cluster):
+-  - If you have subagents: use an explore/search agent to locate the code paths from the literals above before editing; after implementing, run an independent code-review subagent on the diff.
+-  - If you have browser tools: reproduce the bug first, and re-verify visually after the fix.
+-  - If you have a Linear MCP connection: move the ticket(s) to "In Progress" when starting; when finished, add a comment summarizing the change. Do NOT mark the ticket Done — QA verifies the fix on the live product and closes it.
+-  - Always: plan first, keep the diff minimal, run the project's typecheck/lint/tests, don't refactor unrelated code.
+-- **Commit convention**: `fix: <symptom> (<TICKET-IDs>)`.
++## 3. Produce the fix prompt
+ 
+-### 4. Deliver
++Fill `templates/fix-prompt.md`, starting with its **Resolved target** fields and including **Implementation handoff / QA acceptance**. Copy product, tracker/project, exact issue IDs and literal state names with their roles from the original pack/snapshot. Product and tracker are separate fields; each independent case gets its own target block.
+ 
+-- Output every prompt in full, each in its own fenced block, ordered by severity (Urgent first).
+-- Offer to also attach each prompt as a comment on its Linear issue(s) (`save_comment`) so it survives the session — do it if the user agrees.
+-- Summarize: N bugs → M prompts, clustering rationale, anything blocked (e.g. bug needs product-owner input) — flagged separately.
++For product identity, include the exact source clause/reference that establishes the product, then derive the product name from it. Resolve the checkout separately from a supplied registration locator. When no locator is supplied, mark checkout unresolved and give checkout-neutral implementation instructions pending that resolution; a tracker name or heading is not a checkout locator. Prompt preparation can still continue.
+ 
+-### 5. Verification & closure (Done is set only by QA)
++- Inline original preconditions, actions, expected/actual behavior, evidence references and observed environment/candidate. Separate the observed buggy candidate from the future fixed/deployed candidate.
++- Define acceptance as observable original-scenario outcomes plus relevant adjacent regressions. Inspect existing fixture/assertions before using a regression as evidence.
++- An unexpected `test.fail()` PASS is an investigation signal, not proof of a fix. Never make that signal the sole acceptance criterion or weaken assertions to obtain green.
++- Preserve the distinction between developer completion and QA acceptance. The coding agent returns implementation evidence and unresolved checks; it does not promote a ticket into a QA-qualified state just because code/tests are ready.
++- Name an implementation handoff state only if the pack defines its role and the executor has authority. If only a QA-qualified state such as `Ready for prod` is known, leave the implementation state unspecified and return evidence to QA.
++- Recommendations use tools actually available to the executor: source inspection, focused tests, browser reproduction and independent review when supported. No mandatory tool or approval is invented.
+ 
+-When the user says fixes are deployed:
+-- Re-run the product suite. A regression test flipping to "Expected to fail, but passed" proves the bug is gone: flip it to a normal test, then `save_issue` state=**Done** with a comment "QA verified: <what was re-tested and how>".
+-- If the regression still behaves as expected-fail (bug persists): comment the evidence on the ticket and move it back to **Todo** — never close an unverified fix.
+-- Partially fixed bugs: comment what is fixed vs remaining, narrow the ticket scope, keep it open.
++## 4. Deliver
++
++Before delivery, compare every target ID, product, environment and state name used in the prompt against the original pack/snapshot, not just against your generated header. Keep literal state names rather than substituting synonyms. Correct mismatches; if the source cannot resolve a target, deliver a clearly unresolved draft without a transition instruction for it.
++
++Return the prompts, ordered by the product's risk/severity contract, with clustering rationale and missing information. A blocked issue does not prevent preparation for independent well-understood issues.
++
++Only if requested and authorized, attach a prompt to the exact issue using the selected connector; read back the saved content. On an unknown write outcome reconcile before retrying. A prepare-only artifact does not grant its future executor additional tracker or financial authority.
++
++## 5. Deployed fix verification
++
++Use the selected QA workflow to check the actual original scenario on the current candidate. Inspect assertions, fixture, environment and fresh evidence; a green smoke or unexpected PASS alone cannot qualify the fix.
++
++Only accepted deployed evidence and the pack's transition authority justify a QA state change. Read back persisted state. Still-broken, partial or unassessed cases remain explicit; do not silently narrow the original requirement, close the issue, or rewrite evidence to make it pass.
+```
+
+## skills/qa-bugfix/agents/openai.yaml
+
+Before: fb566a89731ae2bf54ce4a1e3847acbd5630b8f8d38ef054fed03c4f06fb9069
+After: d02584dfa872d5b8a0a654d6151212477e2c9dc03a03f9b5afb032bf96773bfb
+
+```diff
+--- a/skills/qa-bugfix/agents/openai.yaml
++++ b/skills/qa-bugfix/agents/openai.yaml
+@@ -1,13 +1,4 @@
+ interface:
+   display_name: "QA Bugfix"
+-  short_description: "Prepare Linear-backed fix prompts"
+-  default_prompt: "Use $qa-bugfix to process the bug backlog and generate self-contained fix prompts."
+-
+-dependencies:
+-  tools:
+-    - type: "mcp"
+-      value: "linear-server"
+-      description: "Linear MCP server for reading bug tickets, comments, and attachments."
+-      transport: "streamable_http"
+-      url: "https://mcp.linear.app/mcp"
+-
++  short_description: "Prepare product-aware fix prompts"
++  default_prompt: "Use $qa-bugfix to resolve the product pack and prepare evidence-based fix prompts; keep developer handoff separate from QA acceptance and respect report-only scope."
+```
+
+## templates/fix-prompt.md
+
+Before: 90c21f6d176374ca33ec00c9b0ce7c2dde73aad7caa650b5caef3961e763de24
+After: ffeec727eca48f4050a841afff316fa411195cea60a53bd9340d4e54abedf780
+
+```diff
+--- a/templates/fix-prompt.md
++++ b/templates/fix-prompt.md
+@@ -1,48 +1,72 @@
+ # Fix prompt template
+ 
+-Generated by `qa-bugfix` — one prompt per bug cluster. The prompt must be fully
+-self-contained: the executing agent knows nothing about the QA session.
++Generated by `qa-bugfix` — one prompt per evidenced bug cluster. Fill from the
++selected product pack and issue evidence; do not invent omitted facts or authority.
+ 
+ ```markdown
+-You are fixing <N> confirmed, QA-verified bug(s) in <product> (<stack, if known>).
+-Tickets: <TICKET-ID(s) with Linear URLs>. Scope: exactly these bugs — no unrelated
+-refactoring, minimal diff.
++## Resolved target — copy from the original pack/issue snapshot
+ 
+-## Bug 1: <symptom> (<TICKET-ID>, severity: <level>)
++Product identity source: <exact clause or source reference establishing the product>.
++Product: <name established by that source, or unresolved>.
++Registered checkout: <exact supplied registration locator; otherwise unresolved,
++resolve before edits and keep the workflow checkout-neutral>.
++Tracker: <provider, workspace/project>.
++Tickets: <exact issue IDs and supplied links; no invented links>.
++Observed buggy environment/candidate: <identity from the evidence>.
++State contract: <literal state names mapped to implementation/QA roles, or unknown>.
++Current allowed actions: <from the scoped request; preparation is not execution>.
+ 
+-**Reproduce:**
+-1. <exact steps, URLs, inputs>
++You are fixing <N> confirmed bug(s) for this product (<stack, if known>).
++Scope: exactly these bugs; minimal diff, no unrelated refactoring.
++Apply this work only in the intended product checkout under its current
++instructions and task authority. This artifact grants no additional permissions.
+ 
+-**Expected:** <correct behavior>
+-**Actual:** <wrong behavior — exact UI strings in quotes, status codes, endpoints>
+-**Evidence:** <screenshot URLs from the ticket, curl output, console text>
+-**Likely area:** <grep hints: exact literals, endpoint paths, component names — NOT prescriptive>
++## Bug 1: <symptom> (<TICKET-ID>, product severity: <level>)
+ 
+-<!-- Repeat per bug in the cluster. Explain why they are one cluster (shared root cause). -->
++**Original preconditions:** <role, account state, locale and relevant test data;
++no credentials>
++**Reproduce:**
++1. <exact actions and safe inputs>
++**Expected:** <observable contract and its source>
++**Actual:** <observed behavior, exact strings/status where available>
++**Evidence:** <supplied issue attachments, trace/API references, candidate>
++**Likely area:** <evidence-backed search hints; distinguish hypothesis from fact>
+ 
++<!-- Repeat per bug; explain the shared cause or keep independent risks separate. -->
++
+ ## Acceptance criteria
+ 
+-- [ ] <observable behavior 1 — phrased as verifiable outcome>
+-- [ ] <observable behavior 2>
+-- [ ] No regressions in <adjacent behavior that must keep working>
+-- [ ] Project's typecheck / lint / tests pass
+-<!-- If the QA repo has a regression test: -->
+-- [ ] The QA suite's `test.fail()` regression for <TICKET-ID> now reports
+-      "expected to fail, but passed" — i.e. the bug is gone
++- [ ] <original scenario succeeds under the original preconditions>
++- [ ] <the incorrect effect is absent; specify what is actually observed>
++- [ ] <related behavior from the product map/contract remains correct>
++- [ ] Relevant project checks pass; list what was run and what was not
++- [ ] Existing regression fixtures/assertions are checked against the original
++      scenario. Unexpected expected-failure PASS is a signal for investigation,
++      not sufficient fix evidence. Do not weaken assertions to get green.
+ 
+-## Recommended workflow (adapt to your capabilities)
++## Implementation handoff / QA acceptance
+ 
+-- **If you have subagents:** first use a search/explore agent to locate the code
+-  from the literals above; after implementing, run an independent code-review
+-  subagent on the diff before finishing.
+-- **If you have browser tools:** reproduce the bug before changing code; re-verify
+-  visually after the fix.
+-- **If you have a Linear MCP connection:** move <TICKET-ID(s)> to "In Progress" when
+-  you start; when finished, add a comment summarizing the change. Do NOT mark the
+-  ticket Done — QA re-tests the live product and closes it after verification.
+-- **Always:** plan before editing; keep the diff minimal; run typecheck/lint/tests;
+-  if a fix requires a product decision (copy, pricing, design), stop and ask instead
+-  of guessing.
++- **Developer completion:** return changed scope, exact implementation candidate,
++  tests/results and unresolved checks. Use <pack-defined implementation handoff
++  state, only if known and authorized>; otherwise return evidence without a
++  tracker transition.
++- **QA acceptance:** <pack-defined QA-qualified state, if known> requires fresh
++  deployed original-scenario evidence and authorized QA transition/readback.
++  Do not use this state as the developer-completion shortcut. Local tests and
++  implementation completion are not deployed QA acceptance.
++- **Tracker authority:** <selected project/tracker and current allowed writes,
++  or prepare-only/no writes>. Connector availability alone grants no writes.
+ 
+-Commit as: `fix: <symptom> (<TICKET-IDs>)`
++## Recommended workflow
++
++- Inspect relevant source and reproduce with authorized test data before editing.
++- Keep the fix focused; run applicable typecheck/lint/tests and adjacent checks.
++- Use browser tools or an independent reviewer when available and useful.
++- If a necessary product decision or capability is missing, report that specific
++  gap and continue independent safe work; do not invent the contract or access.
++- Return implementation evidence to QA; do not assert deployed verification
++  unless that separate authorized verification actually occurred.
++- Before delivering, reconcile all product/issue/state/environment references
++  with the original pack/snapshot. Keep exact names, not synonyms or values from
++  another case. An unresolved target remains a draft, not a transition request.
+ ```
+```
+
+## AGENTS.md
+
+Before: 8689d7c7d2d1ffc0b22197ba338fbf165d723c96cbd4fba8c14dd2b302643fa6
+After: c4f8cad0a7bde866decde82a5510e1176359a5fd010fb368a256b74c17ff6b98
+
+```diff
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -6,7 +6,7 @@
+ 
+ - Use the current `$freeland-release-qa` for explicit Freeland work. Resolve its accepted Freeland checkout plus the active owner, environment, and checkpoint before commands; do not run the historical NuanuFlowQA Freeland package automatically. A manual or У0/У1/У2 label alone is not a reason to delegate: use supported agent evidence where the current pack accepts it, ask a human only for a concrete capability/authority gap, and keep unsupported acceptance evidence pending.
+ - Use `$qa-check` for product QA routing and generic fallback. It resolves the registered product/workspace, owner checkpoint, environment, specialist, and product-selected tracker before execution. Existing QA Starter work routes to `$qa-product-v0`; use `$qa-init` only when setup or registration is actually missing. Once selected, the specialist's current pack governs and the generic checklist stops.
+-- Use `$qa-bugfix` for backlog processing: fetch open Linear bugs, cluster by root cause, and generate self-contained fix prompts.
++- Use `$qa-bugfix` for backlog processing in the selected product pack/tracker: cluster evidenced causes and prepare self-contained fix prompts. Developer handoff is not deployed QA acceptance; prepare-only work does not change product or tracker state.
+ - If ECC skills are installed locally, compose them with this project:
+   - `$e2e-testing` for Playwright suite structure, POM, flake handling, and CI patterns.
+   - `$browser-qa` for visual/browser interaction verification.
+@@ -68,4 +68,4 @@
+ - Payment flows may be checked only up to the external/irreversible step unless the owner explicitly authorizes a real-money verification.
+ - A failing test is not automatically a product bug. First rule out locale assumptions, SPA hydration timing, strict selector collisions, bot protection, and rollout skew.
+ - Report-only QA creates no tracker side effects. Authorized issue writes use the product-selected tracker, dedupe first, follow its actual template/state/severity contract, and read back persisted state; `templates/bug-report.md` and `test.fail()` remain the Linear/Playwright legacy path when selected.
+-- An unexpected regression PASS triggers assertion, fixture, reproduction, candidate, and environment checks; it is not sufficient FIXED evidence. Apply ticket transitions only after the selected product's required deployed-fix evidence.
++- An unexpected regression PASS triggers assertion, fixture, reproduction, candidate, and environment checks; it is not sufficient FIXED evidence. QA-qualified transitions require the selected product's deployed-fix evidence. A separately authorized, pack-defined developer handoff may precede QA acceptance; retain the actual state role and read back writes.
+```
+
+## CLAUDE.md
+
+Before: 14953ae3f636293330910651bfcd3022e64af535c2f46064ecf26591d4280195
+After: d8ef22568ae27003dd8d3977e123fb5cd532b28ce6ae9f7edb088db59ffa9a64
+
+```diff
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -8,9 +8,9 @@
+ 
+ - **`/freeland-release-qa`** — agent-first Freeland QA: release, product area, all QA tickets or a selected sprint/ticket. Read `.claude/skills/freeland-release-qa/SKILL.md` and resolve the current FreelandQAmain checkout before commands; NuanuFlowQA is historical context, not the automatic runner. The shared skill defines orchestration; the selected product pack supplies facts and safety constraints. Ask a human only for an actual capability/authority gap after bounded attempts, and continue independent authorized checks. Do not interpret old human-labelled cases as mandatory delegation.
+ - **`/qa-check`** — route product QA: resolve registration/workspace, environment, active owner checkpoint, current specialist and product-selected tracker before commands. Existing Starter work uses `/qa-product-v0`; use `/qa-init` only for genuinely missing setup/registration. Once selected, the specialist pack governs; otherwise use the skill's safe generic fallback. See `.claude/skills/qa-check/SKILL.md`.
+-- **`/qa-bugfix`** — fetch open bugs from Linear, cluster them by root cause, and generate a self-contained fix prompt per cluster (`templates/fix-prompt.md`) that the product's own coding agent can execute. See `.claude/skills/qa-bugfix/SKILL.md`.
++- **`/qa-bugfix`** — resolve the product pack/tracker, cluster evidenced bugs, and prepare self-contained fix prompts (`templates/fix-prompt.md`). Preparation is not execution authority; developer completion remains separate from deployed QA acceptance. See `.claude/skills/qa-bugfix/SKILL.md`.
+ 
+-`/qa-bugfix` retains its **Linear MCP server** prerequisite: `claude mcp add --transport http linear-server https://mcp.linear.app/mcp`. `/qa-check` resolves the tracker from the selected product pack; report-only QA has no tracker prerequisite. `/freeland-release-qa` uses the tracker and evidence contract from its current accepted pack.
++`/qa-check` and `/qa-bugfix` resolve the tracker from the selected product pack; report-only QA and preparation from sufficient supplied snapshots need no tracker connection. For explicitly Linear-backed work, one setup option is `claude mcp add --transport http linear-server https://mcp.linear.app/mcp`. `/freeland-release-qa` uses its current accepted pack's tracker and evidence contract.
+ 
+ ## Agent
+ 
+@@ -47,4 +47,4 @@
+ - For a selected Linear/Playwright product, bug tickets follow `templates/bug-report.md` and confirmed bugs get `test.fail()` regressions when the writable harness is in scope. Other products follow their own pack and tracker contract.
+ - A failing test is not automatically a bug: first rule out locale assumptions, SPA hydration timing, and strict-mode selector collisions.
+ - Update the product's TEST-CASES.md whenever product functionality changes.
+-- An unexpected regression PASS starts fix verification; it does not prove FIXED alone. Apply ticket states only after the selected product's required deployed-fix evidence and according to its tracker contract.
++- An unexpected regression PASS starts fix verification; it does not prove FIXED alone. QA-qualified states require the product's deployed-fix evidence. A separately authorized, pack-defined developer handoff may precede that acceptance; use the actual state role and read back writes.
+```
+
+## README.md
+
+Before: 69dbbda1ed8e3713d387857fa94182a4149bfde3a24f3ef72a1183b59e04cf9b
+After: 1a5c2b360a06c0f1461e9ec806d07440a1baca088f48cfeb3cc92798973fe357
+
+```diff
+--- a/README.md
++++ b/README.md
+@@ -7,7 +7,7 @@
+ | Mode | Skill | What it does |
+ |------|-------|--------------|
+ | **Check** | `/qa-check` / `$qa-check` | Resolve registration/workspace, environment, active owner checkpoint and current specialist first; hand off to its pack, or use safe generic browser/API/Playwright QA and report verified, failed, blocked and unassessed scope |
+-| **Bugfix** | `/qa-bugfix` / `$qa-bugfix` | Pulls open bugs from Linear, clusters them by root cause (merge where one PR fixes several, split where risk differs), and generates a self-contained fix prompt per cluster — paste it into your product's coding agent |
++| **Bugfix** | `/qa-bugfix` / `$qa-bugfix` | Resolves the product pack/tracker, clusters evidenced bugs and prepares self-contained fix prompts; keeps developer completion separate from deployed QA acceptance |
+ 
+ ## Quickstart
+ 
+@@ -20,7 +20,7 @@
+ 
+ MCP servers ship preconfigured in `.mcp.json` for Claude Code — when you first open the repo in Claude Code it will offer to enable them:
+ 
+-- **linear-server** (for `/qa-bugfix` and explicitly Linear-backed products) — authorize once via OAuth when prompted (or run `/mcp`)
++- **linear-server** (for explicitly Linear-backed products) — authorize once via OAuth when prompted (or run `/mcp`)
+ - **chrome-devtools** (browser for recon and bug screenshots) — requires Chrome installed; runs via `npx chrome-devtools-mcp@latest`
+ 
+ (Manual alternative: `claude mcp add --transport http linear-server https://mcp.linear.app/mcp`.)
+@@ -34,7 +34,7 @@
+ 3. Copy `docs/templates/TEST-CASES.md` → `docs/local/<product>/TEST-CASES.md`.
+ 4. Create a Linear project for the product; add a `Bug` label + product-area labels to the team.
+ 
+-Then open Claude Code or Codex in this repo and run `/qa-check`/`$qa-check`. The skill first resolves any existing QA Starter workspace or specialist pack; it uses this legacy setup only for an unclaimed generic product. When a Linear backlog has bugs, run `/qa-bugfix`/`$qa-bugfix`.
++Then open Claude Code or Codex in this repo and run `/qa-check`/`$qa-check`. The skill first resolves any existing QA Starter workspace or specialist pack; it uses this legacy setup only for an unclaimed generic product. To prepare work from the selected product's bug backlog, run `/qa-bugfix`/`$qa-bugfix`.
+ 
+ ```bash
+ npm test                                  # all configured products
+@@ -47,7 +47,7 @@
+ 
+ ## How fix prompts work
+ 
+-`templates/fix-prompt.md` produces prompts that are self-contained (zero context assumed), evidence-first (exact strings and endpoints so the agent can grep its way to the code), with acceptance criteria as a checklist and capability-adaptive recommendations (subagents, browser tools, Linear MCP — used if the executing agent has them).
++`templates/fix-prompt.md` produces self-contained, evidence-first prompts with observable acceptance criteria. Recommendations use available tools and the selected tracker under the task's authority. The prompt separates developer handoff from deployed QA acceptance and retains exact product/issue/state identities from the source pack.
+ 
+ ## Layout
+ 
+```
+

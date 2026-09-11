@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nuanu QA release decision v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_key", "commit", "profile_digest", "decision", "branch_results"],
+  "properties": {
+    "schema_version": { "const": "nuanu.qa-release-decision.v1" },
+    "project_key": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "profile_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "decision": { "enum": ["APPROVE", "BLOCK", "INCONCLUSIVE"] },
+    "branch_results": { "type": "array", "minItems": 1, "items": { "$ref": "branch-result.schema.json" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "decision": { "const": "APPROVE" } }, "required": ["decision"] },
+      "then": {
+        "properties": {
+          "branch_results": {
+            "not": {
+              "contains": {
+                "properties": {
+                  "applicability": { "const": "REQUIRED" },
+                  "product_result": { "not": { "const": "PASS" } }
+                },
+                "required": ["applicability", "product_result"]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

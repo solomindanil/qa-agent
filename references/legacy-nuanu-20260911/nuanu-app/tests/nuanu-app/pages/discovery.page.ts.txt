@@ -1,0 +1,47 @@
+import type { Locator, Page, Response } from '@playwright/test';
+import type {
+  ReviewedRuntimeContract,
+  RuntimeCaseGateReason,
+  RuntimeSelectorKey,
+} from '../fixtures/runtime';
+import { assertMutationGuardInstalled } from '../fixtures/safety';
+
+export type RuntimeLocatorGate =
+  | Readonly<{ status: 'READY'; locator: Locator }>
+  | Readonly<{
+      status: 'UNVERIFIED';
+      reason: Extract<
+        RuntimeCaseGateReason,
+        'RUNTIME_SELECTOR_MISSING' | 'RUNTIME_SELECTOR_UNAVAILABLE' | 'RUNTIME_SELECTOR_DUPLICATE'
+      >;
+    }>;
+
+export class DiscoveryPage {
+  readonly #page: Page;
+  readonly #contract: ReviewedRuntimeContract;
+
+  constructor(page: Page, contract: ReviewedRuntimeContract) {
+    this.#page = page;
+    this.#contract = contract;
+  }
+
+  async goto(): Promise<Response | null> {
+    assertMutationGuardInstalled(this.#page);
+    return this.#page.goto('/', { waitUntil: 'domcontentloaded' });
+  }
+
+  async unique(key: RuntimeSelectorKey): Promise<RuntimeLocatorGate> {
+    const selector = this.#contract.selectors[key];
+    if (!selector || selector.status === 'UNVERIFIED') {
+      return { status: 'UNVERIFIED', reason: 'RUNTIME_SELECTOR_UNAVAILABLE' };
+    }
+    const locator = this.#page.getByRole(selector.role, {
+      name: selector.name,
+      exact: true,
+    });
+    const count = await locator.count();
+    if (count === 0) return { status: 'UNVERIFIED', reason: 'RUNTIME_SELECTOR_MISSING' };
+    if (count !== 1) return { status: 'UNVERIFIED', reason: 'RUNTIME_SELECTOR_DUPLICATE' };
+    return { status: 'READY', locator };
+  }
+}

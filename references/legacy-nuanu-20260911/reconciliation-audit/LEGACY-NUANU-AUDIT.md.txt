@@ -1,0 +1,124 @@
+# Legacy Nuanu source reconciliation — Lead AQA audit
+
+Date: 2026-09-11. Scope: read-only source/history and preservation review of four previously omitted NuanuFlowQA branches. This is **not functional qualification**, a product campaign, installation approval, or a complete line-by-line correctness review. No product, browser, test suite, credentials, tracker, worker, process, deployment, or source mutation was used. The only reviewer-written file is this report.
+
+## Decision
+
+Preserve the selected source as private, inert, attributed historical material, with committed snapshots, dirty overlays and deletion records kept distinct. Do not activate any branch as the current universal runner. There is useful unique work here; treating all four branches as already represented by Starter/Freeland would be incorrect. Conversely, their presence does not justify a second runtime owner, proof gate, MCP transport or tracker outbox in the current assembly.
+
+Before shipping the archive, preserve the applicable donor license notices and explicitly label historical operational metadata. The original proposed `no ... private captures` wording is too broad: source fixtures and plans contain historical real platform identifiers. No credential payload was identified in the scoped inspection; this is not proof of public-release sanitization.
+
+## Exact history denominator and disposition
+
+Repository: `/Users/danilsolomin/projectsnew/NuanuFlowQA`. Comparison base: `6274b6d51ebabde6092e8123fbf130c1779e651e`. Worktrees: `.worktrees/<name>` in that repository. Counts below were independently obtained from Git, not inferred from timestamps.
+
+| Worktree / exact HEAD | Commits outside base | Original allowlist committed files | Working state at review | Disposition |
+| --- | ---: | ---: | --- | --- |
+| `universal-qah` / `58a8182ad6a5a9a90891dc50fe4386e5f999242f` | 86 | 108 | Clean | Preserve independent QAH/PayDemo engine, contracts and native-worker canaries as inactive reference |
+| `nuanu-app-qa-v1` / `7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2` | 57 | 62 | 10 modified + 1 untracked | Preserve standalone Nuanu App foundation; retain unqualified journal/settle overlay separately |
+| `nuanu-flow-e2e` / `2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5` | 39 | 56 | 7 modified + 3 deleted | Preserve product E2E source and seven overlay files; retain the three deletions as tombstones |
+| `qa-auto-program` / `35b33028fbb029e1775f0d285564ebb37061ed2e` | 6 | 5 | 7 untracked plan files | Preserve historical boundary rationale and drafts, not a current authority implementation |
+
+The union is **188 unique commits**, verified with `git rev-list --count <four tips> --not <base>`. These four ranges do not overlap one another. This count must not be added to other reconciliation inventories without deduplicating shared history.
+
+Within QAH's 86 commits, seven are the earlier Freeland source-access bootstrap chain ending `0e7fc47`, already preserved separately; six are the PayDemo chain ending `5548611`; the remaining 73 are QAH-related history. `paydemo` at `554861145fd0584ce68722f80ef075d481e2d4ae` is an ancestor of the selected QAH tip, not a fifth independent capability range. Nuanu App's 57, Flow E2E's 39 and acceptance-boundary's six are each assigned the corresponding disposition above, including their documentation-only commits. No unclassified commit remainder was found within these exact four ranges.
+
+The initial script describes **231 committed file snapshots + 25 dirty/untracked file snapshots = 256**, plus three deletion records. This report freezes that original denominator; later license/entrypoint additions must receive new counts in the final manifest. A commit hash/parent/subject ledger is an inventory, **not a full Git bundle or preservation of every historical blob**.
+
+One selected-path historical deletion exists before HEAD: `scripts/qah/nuanu-install-adapter.mjs`, added in `9b404d6`, removed in `5d6ffcc` when direct install preflight replaced it. Keep its retirement explicit; do not restore it as current code merely to increase completeness. The original Git history remains the source of its superseded bytes.
+
+The presentation-only `voice-deck` is outside this four-branch scope, as identified by the coordinator; this audit does not newly qualify that exclusion or unknown reflog/deleted objects. Remote-tip verification belongs to the coordinator's separate read-only census, not this review.
+
+## Capabilities, overlap and unique value
+
+### Universal QAH and PayDemo
+
+Critical inspected paths: `scripts/qah/contracts.mjs`, `graph-plan.mjs`, `environment.mjs`, `release-policy.mjs`, `worker-contract.mjs`, `install-preflight.mjs`, `onyx-browser-probe.mjs`; package scripts; process graph and live-column-start fixture; proof-gate operations runbook and canary design.
+
+- A distinct closed four-branch engine (`code/api/ui/domain`) separates applicability, product result, environment status, evidence status and declared outcome codes. PASS requires verified evidence; release classification distinguishes product failure from neutral hold.
+- Graph-plan receipts bind ticket/candidate/environment, graph/knowledge digests, freshness, required checks and criticality. This is not the current Kernel campaign/receipt schema and has no demonstrated adapter into it.
+- Environment ownership uses run/attempt/environment fencing and scoped managed-command lifecycles. PayDemo provides controlled broken/fixed variants and deterministic execution/broker/provenance examples. It is a QA fixture product, not real-payment acceptance.
+- Native integration includes immutable ArtifactVersion readback, same-task three-phase materialization, server-owned verified-commit publication and stock `qa_result_v1` routing. Historical multi-task artifact custody failed and the runbook replaces it with a single-task design. These are valuable platform compatibility lessons, not current live success claims.
+- Worker adapter validation is hard-pinned to version `0.3.14` and SHA-256 `9105a1b134fdd74b7aa5454aa4f622522939d683c413e83925ddbe3cadab4a41`. Install preflight hard-pins the NuanuFlowQA repository origin, policy digest and requested decision model. The Onyx probe additionally pins a specific public origin and uses a persistent CDP context. These dependencies prevent blind portable activation.
+
+Current Kernel/Console already own registration, knowledge/graph revision, approved plans, bound receipts, reconciliation, fixtures, interruption handling and attributed reviews. QAH therefore overlaps in concepts, **not interchangeable implementation or evidence**. Its distinctive future-reference value is the native Flow proof-gate/worker boundary plus controlled PayDemo/environment custody. Reuse requires a bounded adapter/contract decision and tests; do not copy its release decisions into current accepted receipts or create another process controller.
+
+### Nuanu App foundation
+
+Critical inspected paths: `tools/nuanu-app-graph/{model,source,cli,runtime,runtime-contract,posthog-query-builders,posthog-read,telemetry-policy,flow-outbox}.mjs`, browser evidence/safety fixtures, synthetic PostHog fixture and product README. Its fixed product namespace is `nuanu-app`, runtime origin `https://app.nuanu.com`, and CLI source origin/root `https://github.com/nuanu-ai/nuanu-web.git` / `apps/nuanu-web`.
+
+- Source-aware and runtime-only graph planning remain distinct; source lock does not attest deployed SHA. Private graph writes use attestation/commit-marker custody and explicit refresh semantics.
+- The documented nine-case foundation is narrow read-only web/PWA coverage, not authenticated, native-app or physical-device acceptance. Browser guard and bounded sanitized observation patterns are useful, but a per-test fixture is not a universal network policy.
+- Aggregate-only PostHog query construction, least-privilege access lock, exact query/window/schema identities, cohort/sample constraints and telemetry-to-graph signals are substantial unique source. The inspected access-lock fixture is explicitly synthetic (`posthog.synthetic.invalid`), not a real credential/access grant. No current generic analytics adapter or compatibility with current managed graph contracts was demonstrated.
+- Committed Flow outbox code validates confirmed findings and closed delivery actions. The working overlay replaces lock-centric authority with an append/replay journal, fences/leases, durability handling and snapshots. This is a major state-machine change, not a small doc update.
+
+Tracked overlay: **5,617 insertions / 646 deletions across 10 files**. In addition, the untracked `tests/nuanu-app-graph/semantic-settle.test.mjs` has **2,434 lines**. Runtime changes add `STABLE_NONEMPTY`, `STABLE_EMPTY`, `LATE_HYDRATION`, `NEVER_SETTLES`, bounded samples and snapshot digest binding; CLI attestation passes `settle` through. No result from HEAD can be reattributed to these working bytes. Preserve the complete overlay together with its base SHA, but do not cherry-pick isolated contract or outbox files: their interfaces and tests move together.
+
+Highest-value future extraction candidates: aggregate analytics privacy contracts; semantic-settle classification; unknown-outcome/durable publication negative controls. Each must be reviewed against the existing owner, not adopted as an extra universal outbox/graph system.
+
+### Nuanu Flow product E2E
+
+Critical inspected paths: authenticated fixture, sandbox-data/cleanup ledger, committed MCP client header/contract, working deletion/diff, performance diff, package/config, routes and suite inventory. Source covers public auth/routes/legal/responsiveness, authenticated workspace/work-item/project/cycle/module/knowledge/process/meeting/artifact/decision/integration areas, plus accessibility and observational performance. It is materially broader than the current Console `docs/qa-packs/nuanu-readonly` pack, which explicitly covers bounded issue-filter/reference checks and separates controlled proof from live authenticated execution.
+
+Authenticated test mutation is fenced to `NF QA Sandbox`/`nf-qa-sandbox` and exact project identity, with response-owned IDs, per-run names, cleanup ledger and residual reporting. Those are reusable test-design examples but **historical identifiers are not permission to execute CRUD or cleanup today**. Accessibility and performance source do not establish current product coverage or an SLA.
+
+Overlay: **702 insertions / 4,991 deletions**. It adds meeting/view/wiki and cleanup/performance changes while deleting:
+
+- `tests/nuanuflow/authenticated/mcp-parity.spec.ts` (57 lines);
+- `tests/nuanuflow/fixtures/mcp-client.ts` (1,717 lines);
+- `tests/nuanuflow/mcp-client-safety.spec.ts` (3,087 lines).
+
+The changed plan explicitly retires the repository-local MCP transport in favor of the official host plugin. Preserve deleted HEAD bytes only as historical data plus explicit deletion records. Do not accidentally resurrect the client or its personal-token transport by unpacking the committed snapshot over the dirty donor. The three deletion lengths are evidence of scope, not an assessment that every deleted guard is redundant.
+
+### Acceptance-boundary experiment
+
+Inspected `src/program/boundary.ts`, its ADR and native Assist plan. It permits exactly three dependency labels and checks five fields (`baseUrl`, `environmentId`, `gitSha`, `buildId`, `capabilitiesDigest`) for nonempty strings/extraneous own keys. **It does not validate URL origin, SHA/digest syntax, deployment binding or secret-free values.** Therefore it is not a substitute for current identity/receipt contracts. No execution was needed to establish the absence of those checks in this small source.
+
+Retain its useful separation between product-owned pre-merge testing and deployed acceptance. Do not promote its absolute prohibition on source inspection as current universal policy: current reviewed workflows allow read-only source analysis without confusing it with deployment evidence. Seven untracked Freeland automation/payment/Telegram/control-plane plans remain historical unapproved drafts, not authority or completed capabilities.
+
+## Preservation allowlist, privacy and dependency boundaries
+
+Reviewed one-off script: `../preserve-legacy-nuanu.mjs` relative to the integration directory's parent. It selects exact committed blobs plus separately named working overlays, hashes/readbacks copied bytes, refuses existing destination overwrite, rejects dirty symlink/non-file entries and records deletions. `.txt` suffixes avoid ordinary automatic JS/test/package/skill discovery; they do not make embedded instructions authoritative or guarantee no user could execute them manually.
+
+The original positive allowlist excludes `.env`, storage state, private `docs/local`, credentials, generated test evidence, binaries, node_modules and external/TECT trees. It does **not** prove an executable dependency closure: common root config/helpers may remain outside the selection, and pinned external worker package bytes are not included. Preserve package/lock files as inert dependency provenance, not permission for `npm install` or an assurance that dependencies are safe/current.
+
+Original touched-path exclusions are fully accounted for:
+
+- QAH: root `README.md`; Freeland source-access plan and six implementation/test paths already in the separate bootstrap audit.
+- Nuanu App: `.env.example`.
+- Flow E2E: `.env.example`, root `README.md`, `CLAUDE.md`, `.claude/skills/qa-check/SKILL.md`, `.github/workflows/e2e.yml`.
+- Acceptance boundary: root `README.md`, `playwright.config.ts` (the latter adds the always-enabled `program` test project).
+
+Root READMEs, Flow E2E workflow/entrypoint history and acceptance test configuration can be preserved as inert attributed source to improve future comprehension; otherwise these omissions must stay explicit. Never install the historical skill or activate the scheduled workflow. The workflow contains variable/secret references, not inspected secret values; it remains an old mixed-product CI design.
+
+Privacy review combined all selected committed source with path/line-only scans for personal paths, UUIDs, email addresses, literal-secret-like assignments, embedded images and third-party notices; critical flagged material was inspected. Most test identifiers/secret-like strings inspected are synthetic negative controls. Important real historical metadata remains:
+
+- `tests/qah/fixtures/live-column-start.json` contains actual historical generated graph/binding/project/state identifiers.
+- `docs/operations/universal-qa-proof-gate-runbook.md` and the stock single-task design reference a real failed run and its failure history.
+- `docs/superpowers/plans/2026-08-10-paydemo-native-assist-boundary.md` contains historical project/binding/template/agent/run identities and mutation instructions.
+- Nuanu Flow sandbox source and plans contain exact historical workspace/project IDs; the QAH adaptation plan includes machine-local paths.
+
+These are private operational metadata, even without authentication secrets. Preserve only in the authorized private archive with explicit historical/inactive labels. Public redistribution would require a separate content/privacy review. Do not claim that a limited regex scan proves absence of all secrets, personal data, private URLs or licensing obligations. No binary captures, raw analytics provider data, audio, sessions or external product source were selected in the reviewed allowlist. Dirty content is recorded as captured working bytes, not an atomic consistent runtime snapshot.
+
+## License attribution follow-up
+
+All four selected NuanuFlowQA tips have root MIT `LICENSE` with `Copyright (c) 2026 Danil Solomin`. The initial allowlist omitted it. Preserve the full notice per donor group, or an explicit equivalent attributed notice; do not rely on package metadata or the recipient root's potentially different copyright line.
+
+Additional earlier-archive source checks requested by the coordinator:
+
+| Earlier donor | Tracked LICENSE/COPYING/NOTICE at inspected revision | Disposition |
+| --- | --- | --- |
+| Source-access bootstrap `0e7fc478aadc92eacee878291b1d9dae89c266b8` | MIT `LICENSE`, Danil Solomin 2026 | Preserve full notice with that group |
+| QA MCP prototype `45c4a7858e2e17978e2d066b8497919c6de1efa1` | None found | Private source preservation only; do not invent an MIT grant |
+| `freeland_graph` `86e8330cba47c99ea50b52ec1af43f8d258609e1` | None found | No inferred redistribution license |
+| `freelandqa-task2` HEAD `27e1a392a9c173a8f841137807d5acfbf08824e9` | None found | No inferred redistribution license; working source remains separately attributed |
+
+These are repository-tree notice checks, not legal advice or a third-party provenance audit. No third-party TECT vendoring is authorized by this report.
+
+## Qualification limits and next bounded action
+
+The source census and targeted contract review support selective preservation and the capability distinctions above. They do not establish all-file correctness, installability, current plugin compatibility, cold restore, test pass counts, product acceptance, deployed identity, or resolved live authority. No suite was run and no history was rewritten. All donor changes remain owned by their original worktrees.
+
+The coordinator should finalize license/private-metadata wording and any small entrypoint additions, then independently verify archive manifest hashes, exact file/deletion counts and final donor state before reporting preservation complete. Any later activation starts a new scoped review with current product ownership, a contract/dependency mapping and fresh harness qualification; live execution additionally requires current environment/account authority.
+
+Verification-before-completion skill used for this report's final identity/count/readback checks; no product-QA skill was activated because the delegated task is source/history review only.

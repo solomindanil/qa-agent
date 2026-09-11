@@ -1,0 +1,147 @@
+import { useCallback, useEffect, useState } from "react";
+import { Rail, type Screen } from "./components/rail/Rail";
+import { Overview } from "./components/overview/Overview";
+import { GraphView } from "./components/graph/GraphView";
+import { Runs } from "./components/runs/Runs";
+import { Coverage } from "./components/coverage/Coverage";
+import { DraftPlanView } from "./components/plan/DraftPlanView";
+import { Verdict } from "./components/verdict/Verdict";
+import { IntakeScreen } from "./components/intake/IntakeScreen";
+import { loadWorkspace, type WorkspaceSource } from "./lib/workspace";
+import { fetchWorkspacesList, type WorkspaceListEntry } from "./lib/live";
+import { Files } from "./components/files/Files";
+import { Findings } from "./components/findings/Findings";
+import type { Workspace } from "./lib/types";
+
+type LoadState =
+  | { status: "loading" }
+  | { status: "ready"; workspace: Workspace }
+  | { status: "error"; message: string };
+
+export function App() {
+  const [screen, setScreen] = useState<Screen>("overview");
+  const [graphFocusId, setGraphFocusId] = useState<string | null>(null);
+  const [source, setSource] = useState<WorkspaceSource>("live");
+  const [liveDir, setLiveDir] = useState<string | null>(null);
+  const [workspaces, setWorkspaces] = useState<WorkspaceListEntry[]>([]);
+  const [externalGraphLabel, setExternalGraphLabel] = useState<string | null>(null);
+  // Loading is derived: a result for a different source means the current one
+  // is still in flight — no synchronous setState inside the effect.
+  const [result, setResult] = useState<{ source: WorkspaceSource; state: LoadState } | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchWorkspacesList()
+      .then((list) => {
+        if (!cancelled) {
+          setWorkspaces(list.workspaces);
+          setExternalGraphLabel(list.externalGraph);
+        }
+      })
+      .catch(() => {
+        /* workspace discovery is best-effort; the picker just stays hidden */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadWorkspace(source, liveDir)
+      .then((workspace) => {
+        if (!cancelled) setResult({ source, state: { status: "ready", workspace } });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setResult({ source, state: { status: "error", message: error instanceof Error ? error.message : String(error) } });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [source, liveDir, reloadKey]);
+
+  const load: LoadState = result && result.source === source ? result.state : { status: "loading" };
+  const selectWorkspace = useCallback((dir: string) => {
+    setLiveDir(dir);
+    setSource("live");
+  }, []);
+
+  // Registration hands back a workspace directory; opening it is a console
+  // navigation — point live mode at that path and show it, nothing more.
+  const openCreatedWorkspace = useCallback((dir: string) => {
+    selectWorkspace(dir);
+    setScreen("overview");
+    setReloadKey((k) => k + 1);
+  }, [selectWorkspace]);
+
+  const toggleEmptyVariant = useCallback(() => {
+    setSource((current) => (current === "sample" ? "sample-empty" : "sample"));
+  }, []);
+
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  const openGraphNode = useCallback((nodeId: string) => {
+    setGraphFocusId(nodeId);
+    setScreen("graph");
+  }, []);
+
+  // Live mode follows the workspace on disk: a quiet poll picks up drift,
+  // adoptions, and receipts from outside the console (agents, CLI runs).
+  useEffect(() => {
+    if (source !== "live") return;
+    const timer = setInterval(() => {
+      if (!document.hidden) setReloadKey((k) => k + 1);
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [source]);
+
+  return (
+    <div className="shell">
+      <Rail
+        screen={screen}
+        onNavigate={setScreen}
+        source={source}
+        onSelectSource={setSource}
+        workspaceName={load.status === "ready" ? load.workspace.workspaceName : "…"}
+        generatorVersion={load.status === "ready" ? load.workspace.generatorVersion : ""}
+        workspaces={workspaces}
+        liveDir={liveDir ?? (load.status === "ready" && load.workspace.source === "live" ? load.workspace.workspaceDir : null)}
+        onSelectWorkspace={selectWorkspace}
+      />
+      <main className="shell-main">
+        {/* The intake form needs no loaded workspace — render it in every load state. */}
+        {screen === "intake" ? (
+          <IntakeScreen onOpenWorkspace={openCreatedWorkspace} />
+        ) : (
+          <>
+            {load.status === "loading" && (
+              <div className="load-note mono">loading workspace…</div>
+            )}
+            {load.status === "error" && (
+              <div className="load-note" role="alert">
+                <span className="mono" style={{ color: "var(--accent)" }}>✗ workspace load failed</span>
+                <span className="mono" style={{ fontSize: 12, color: "var(--ink-50)" }}>{load.message}</span>
+                <button className="pill-button" type="button" onClick={() => setSource("sample")}>Back to sample data</button>
+              </div>
+            )}
+            {load.status === "ready" && (
+              <>
+                {screen === "overview" && <Overview workspace={load.workspace} onReload={reload} onNavigate={setScreen} />}
+                {screen === "graph" && (
+                  <GraphView workspace={load.workspace} onToggleVariant={toggleEmptyVariant} externalGraphLabel={externalGraphLabel} focusNodeId={graphFocusId} />
+                )}
+                {screen === "coverage" && <Coverage workspace={load.workspace} externalGraphLabel={externalGraphLabel} />}
+                {screen === "plan" && <DraftPlanView workspace={load.workspace} />}
+                {screen === "runs" && <Runs workspace={load.workspace} onNavigate={setScreen} />}
+                {screen === "verdict" && <Verdict workspace={load.workspace} />}
+                {screen === "files" && <Files workspace={load.workspace} onReload={reload} onNavigate={setScreen} />}
+                {screen === "findings" && <Findings workspace={load.workspace} onReload={reload} onOpenGraphNode={openGraphNode} />}
+              </>
+            )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}

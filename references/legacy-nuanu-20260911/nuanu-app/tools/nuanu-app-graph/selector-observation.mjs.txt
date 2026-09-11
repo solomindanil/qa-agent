@@ -1,0 +1,407 @@
+import {
+  RUNTIME_ROLES,
+  assertCapturePlan,
+  assertRuntimeCatalog,
+  assertSelectorObservation,
+  buildReviewedRuntimeContract,
+  canonicalDigest,
+  isSafeEvidenceMethod,
+  sanitizeEvidenceMethod,
+  sanitizeEvidenceUrl,
+} from "./runtime-contract.mjs";
+
+const RUNTIME_ORIGIN = "https://app.nuanu.com";
+const RUNTIME_ROOT = `${RUNTIME_ORIGIN}/`;
+const ROLE_SET = new Set(RUNTIME_ROLES);
+const SECRET_LIKE = /credential|token|cookie|authorization|password|secret|api[\s_-]?key|callback|session|bearer|[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/i;
+const CONTROL_CHARACTER = /[\u0000-\u001f\u007f]/;
+const MAX_LEDGER_RECORDS = 25;
+const MAX_ACCESSIBLE_RECORDS = 64;
+
+function observationError(code) {
+  const error = new Error(code);
+  error.code = code;
+  return error;
+}
+
+function compare(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function safeName(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (!normalized || normalized.length > 200 || CONTROL_CHARACTER.test(normalized) || SECRET_LIKE.test(normalized)) return null;
+  return normalized;
+}
+
+function evidenceId(state, role, name, matchCount) {
+  return canonicalDigest({ state, role, name, matchCount });
+}
+
+function limitationIdentity(entry) {
+  return [entry.state, entry.reason, entry.evidenceId ?? "", entry.matchCount ?? ""].join("\u0000");
+}
+
+function sortObservation(observation) {
+  observation.states.sort((left, right) => compare(left.state, right.state));
+  for (const state of observation.states) {
+    state.records.sort((left, right) => compare(
+      [left.state, left.role, left.name, left.matchCount, left.evidenceId].join("\u0000"),
+      [right.state, right.role, right.name, right.matchCount, right.evidenceId].join("\u0000"),
+    ));
+  }
+  observation.ambiguities.sort((left, right) => compare(
+    [left.attemptedState, left.role, left.name, left.matchCount, left.evidenceId].join("\u0000"),
+    [right.attemptedState, right.role, right.name, right.matchCount, right.evidenceId].join("\u0000"),
+  ));
+  observation.limitations.sort((left, right) => compare(limitationIdentity(left), limitationIdentity(right)));
+}
+
+function aggregateRecords(state, records) {
+  if (!Array.isArray(records)) throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+  const counts = new Map();
+  for (const raw of records) {
+    const role = typeof raw?.role === "string" ? raw.role.toLowerCase() : "";
+    const name = safeName(raw?.name);
+    if (!ROLE_SET.has(role) || !name) continue;
+    const matchCount = raw?.matchCount ?? 1;
+    if (!Number.isSafeInteger(matchCount) || matchCount < 1 || matchCount > 65535) {
+      throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+    }
+    const key = `${role}\u0000${name}`;
+    counts.set(key, (counts.get(key) ?? 0) + matchCount);
+    if (counts.get(key) > 65535) throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+  }
+  return [...counts].map(([key, matchCount]) => {
+    const [role, name] = key.split("\u0000");
+    return {
+      evidenceId: evidenceId(state, role, name, matchCount),
+      state,
+      role,
+      name,
+      matchCount,
+    };
+  });
+}
+
+export async function collectEligibleAccessibleRecords(page) {
+  const rawCandidates = await page.locator("html").evaluate((root) => {
+    const allowedRoles = new Set([
+      "application", "article", "banner", "button", "checkbox", "combobox",
+      "dialog", "group", "img", "link", "list", "listitem", "main",
+      "navigation", "option", "region", "search", "searchbox", "switch",
+      "tab", "tabpanel", "textbox",
+    ]);
+    const nativeRole = (element) => {
+      const tag = element.tagName.toLowerCase();
+      if (tag === "a" && element.hasAttribute("href")) return "link";
+      if (tag === "button") return "button";
+      if (tag === "article") return "article";
+      if (tag === "header") return "banner";
+      if (tag === "main") return "main";
+      if (tag === "nav") return "navigation";
+      if (tag === "img") return "img";
+      if (tag === "ul" || tag === "ol") return "list";
+      if (tag === "li") return "listitem";
+      if (tag === "select") return "combobox";
+      if (tag === "textarea") return "textbox";
+      if (tag === "input") {
+        const type = (element.getAttribute("type") || "text").toLowerCase();
+        if (type === "search") return "searchbox";
+        if (type === "checkbox") return "checkbox";
+        if (["text", "email", "password"].includes(type)) return "textbox";
+      }
+      return "";
+    };
+    const roleOf = (element) => {
+      const explicit = (element.getAttribute("role") || "").trim().toLowerCase();
+      const role = explicit || nativeRole(element);
+      return allowedRoles.has(role) ? role : "";
+    };
+    const labelName = (element) => {
+      const labelled = element.labels?.[0]?.textContent;
+      if (labelled) return labelled;
+      const id = element.getAttribute("id");
+      if (!id) return "";
+      return [...root.querySelectorAll("label")]
+        .find((candidate) => candidate.htmlFor === id)?.textContent || "";
+    };
+    const nameOf = (element, role) => {
+      const ariaLabel = element.getAttribute("aria-label");
+      if (ariaLabel) return ariaLabel;
+      const labelledBy = (element.getAttribute("aria-labelledby") || "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((id) => root.ownerDocument.getElementById(id)?.textContent || "")
+        .filter(Boolean)
+        .join(" ");
+      if (labelledBy) return labelledBy;
+      const label = labelName(element);
+      if (label) return label;
+      if (role === "img") {
+        const alt = element.getAttribute("alt");
+        if (alt) return alt;
+      }
+      const title = element.getAttribute("title");
+      if (title) return title;
+      if (role === "button" || role === "link") return element.textContent || "";
+      return "";
+    };
+    return [...root.querySelectorAll("[role],a[href],button,input,select,textarea,article,header,main,nav,img,ul,ol,li")]
+      .map((element) => {
+        const role = roleOf(element);
+        return { role, name: nameOf(element, role) };
+      })
+      .filter((candidate) => candidate.role && candidate.name);
+  });
+
+  const candidates = new Map();
+  for (const raw of rawCandidates) {
+    const role = typeof raw?.role === "string" ? raw.role.toLowerCase() : "";
+    const name = safeName(raw?.name);
+    if (!ROLE_SET.has(role) || !name) continue;
+    candidates.set(`${role}\u0000${name}`, { role, name });
+  }
+
+  const records = [];
+  for (const { role, name } of [...candidates.values()].sort((left, right) =>
+    compare(`${left.role}\u0000${left.name}`, `${right.role}\u0000${right.name}`))) {
+    const matchCount = await page.getByRole(role, { name, exact: true }).count();
+    if (!Number.isSafeInteger(matchCount) || matchCount < 0 || matchCount > 65535) {
+      throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+    }
+    if (matchCount > 0) records.push({ role, name, matchCount });
+  }
+  return records;
+}
+
+export async function produceSelectorObservation({
+  chromium,
+  catalog,
+  capturePlan,
+  now = () => new Date(),
+  readAccessibleRecords = collectEligibleAccessibleRecords,
+} = {}) {
+  assertCapturePlan(capturePlan);
+  assertRuntimeCatalog(catalog);
+  if (!chromium || typeof chromium.launch !== "function" || typeof readAccessibleRecords !== "function") {
+    throw observationError("RUNTIME_CONTRACT_SCHEMA_MISMATCH");
+  }
+  const observedAtValue = now();
+  if (!(observedAtValue instanceof Date) || Number.isNaN(observedAtValue.valueOf())) {
+    throw observationError("RUNTIME_CONTRACT_SCHEMA_MISMATCH");
+  }
+
+  let browser;
+  let context;
+  let page;
+  let originEscapeDetected = false;
+  let unexpectedPageDetected = false;
+  const unexpectedPages = new WeakSet();
+  const unexpectedPageClosures = [];
+  const mutationLedger = { records: [], overflowed: false };
+  try {
+    browser = await chromium.launch();
+    context = await browser.newContext({ serviceWorkers: "block" });
+    await context.route("**/*", async (route) => {
+      const request = route.request();
+      const method = sanitizeEvidenceMethod(request.method());
+      if (method !== null && isSafeEvidenceMethod(method)) {
+        const isMainFrameNavigation = Boolean(
+          page &&
+          typeof request.isNavigationRequest === "function" &&
+          request.isNavigationRequest() &&
+          typeof request.frame === "function" &&
+          typeof page.mainFrame === "function" &&
+          request.frame() === page.mainFrame(),
+        );
+        if (isMainFrameNavigation) {
+          let approved = false;
+          try {
+            const destination = new URL(request.url());
+            approved = destination.origin === RUNTIME_ORIGIN &&
+              destination.username === "" && destination.password === "";
+          } catch {
+            approved = false;
+          }
+          if (!approved) {
+            originEscapeDetected = true;
+            return route.abort("blockedbyclient");
+          }
+        }
+        return route.continue();
+      }
+      const originAndPath = sanitizeEvidenceUrl(request.url());
+      if (originAndPath && method !== null) {
+        if (mutationLedger.records.length < MAX_LEDGER_RECORDS) {
+          mutationLedger.records.push({ method, originAndPath });
+        } else {
+          mutationLedger.overflowed = true;
+        }
+      }
+      return route.abort("blockedbyclient");
+    });
+    page = await context.newPage();
+
+    const closeUnexpectedPage = (candidate) => {
+      if (candidate === page || unexpectedPages.has(candidate)) return;
+      unexpectedPageDetected = true;
+      unexpectedPages.add(candidate);
+      unexpectedPageClosures.push(Promise.resolve(candidate.close()).catch(() => {}));
+    };
+    context.on("page", closeUnexpectedPage);
+    const assertPageBoundary = async () => {
+      for (const candidate of context.pages()) closeUnexpectedPage(candidate);
+      await Promise.all(unexpectedPageClosures);
+      if (unexpectedPageDetected || originEscapeDetected) {
+        throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+      }
+    };
+
+    try {
+      await page.goto(RUNTIME_ROOT, { waitUntil: "domcontentloaded" });
+    } catch (error) {
+      if (originEscapeDetected || unexpectedPageDetected) {
+        throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+      }
+      throw error;
+    }
+    await assertPageBoundary();
+    if (new URL(page.url()).origin !== RUNTIME_ORIGIN) {
+      throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+    }
+
+    const states = [];
+    const ambiguities = [];
+    const limitations = [];
+    let currentState = null;
+
+    const recordAmbiguity = (state, role, name, matchCount) => {
+      const id = evidenceId(state, role, name, matchCount);
+      ambiguities.push({ evidenceId: id, attemptedState: state, role, name, matchCount });
+      limitations.push({ state, reason: "AMBIGUOUS_ROLE_NAME", evidenceId: id, matchCount });
+    };
+
+    const observeState = async (state, postcondition) => {
+      await assertPageBoundary();
+      const locator = page.getByRole(postcondition.role, { name: postcondition.name, exact: true });
+      const count = await locator.count();
+      if (!Number.isSafeInteger(count) || count < 0 || count > 65535) {
+        throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+      }
+      if (count === 0) {
+        limitations.push({ state, reason: "STATE_NOT_OBSERVED" });
+        return false;
+      }
+      if (count > 1) {
+        recordAmbiguity(state, postcondition.role, postcondition.name, count);
+        return false;
+      }
+
+      const records = aggregateRecords(state, await readAccessibleRecords(page, state));
+      if (states.reduce((total, item) => total + item.records.length, 0) + records.length + ambiguities.length > MAX_ACCESSIBLE_RECORDS) {
+        throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+      }
+      const postconditionRecord = records.find((record) =>
+        record.role === postcondition.role && record.name === postcondition.name && record.matchCount === 1);
+      if (!postconditionRecord) {
+        limitations.push({ state, reason: "ACCESSIBLE_ROLE_NAME_UNAVAILABLE" });
+        return false;
+      }
+      for (const record of records) {
+        if (record.matchCount > 1) recordAmbiguity(state, record.role, record.name, record.matchCount);
+      }
+      states.push({
+        state,
+        postcondition: {
+          role: postcondition.role,
+          name: postcondition.name,
+          evidenceId: postconditionRecord.evidenceId,
+          matchCount: 1,
+        },
+        records,
+      });
+      await assertPageBoundary();
+      return true;
+    };
+
+    for (const step of capturePlan.steps) {
+      if (step.kind === "observe") {
+        if (currentState !== null || step.state !== "root") {
+          throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+        }
+        if (!await observeState(step.state, step.postcondition)) break;
+        currentState = step.state;
+        continue;
+      }
+      if (currentState !== step.fromState) {
+        throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+      }
+      const target = page.getByRole(step.target.role, { name: step.target.name, exact: true });
+      const targetCount = await target.count();
+      if (!Number.isSafeInteger(targetCount) || targetCount < 0 || targetCount > 65535) {
+        throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+      }
+      if (targetCount !== 1) {
+        if (targetCount > 1) {
+          recordAmbiguity(step.fromState, step.target.role, step.target.name, targetCount);
+        }
+        limitations.push({ state: step.toState, reason: "STATE_NOT_OBSERVED" });
+        break;
+      }
+      try {
+        await target.click();
+      } catch (error) {
+        if (originEscapeDetected || unexpectedPageDetected) {
+          throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+        }
+        throw error;
+      }
+      await assertPageBoundary();
+      if (new URL(page.url()).origin !== RUNTIME_ORIGIN) {
+        throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+      }
+      if (!await observeState(step.toState, step.postcondition)) break;
+      currentState = step.toState;
+    }
+
+    await assertPageBoundary();
+
+    const observation = {
+      schemaVersion: 1,
+      productId: "nuanu-app",
+      baseUrl: RUNTIME_ORIGIN,
+      observedAt: observedAtValue.toISOString(),
+      runtimeDigest: catalog?.runtimeDigest,
+      capturePlanDigest: capturePlan.capturePlanDigest,
+      states,
+      ambiguities,
+      mutationLedger,
+      limitations: [...new Map(limitations.map((entry) => [limitationIdentity(entry), entry])).values()],
+    };
+    sortObservation(observation);
+    observation.observationDigest = canonicalDigest(observation);
+    assertSelectorObservation(observation, {
+      catalog,
+      capturePlan,
+      now: observedAtValue,
+    });
+    return observation;
+  } finally {
+    try {
+      await Promise.allSettled(unexpectedPageClosures);
+      if (browser) await browser.close();
+    } finally {
+      await Promise.resolve();
+      await Promise.allSettled(unexpectedPageClosures);
+      if (unexpectedPageDetected || originEscapeDetected) {
+        throw observationError("RUNTIME_SELECTOR_OBSERVATION_MISMATCH");
+      }
+    }
+  }
+}
+
+export function createContractCandidate({ catalog, capturePlan, observation, bindings }) {
+  return buildReviewedRuntimeContract({ catalog, capturePlan, observation, bindings });
+}

@@ -1,0 +1,142 @@
+import { defineConfig, devices, type Project } from '@playwright/test';
+import 'dotenv/config';
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+const NUANU_APP_RUNTIME_USE = {
+  trace: 'off',
+  screenshot: 'off',
+  video: 'off',
+  serviceWorkers: 'block',
+} as const;
+
+// One Playwright project per product under test. A project is registered only
+// when its <PRODUCT>_BASE_URL env var is set, so cloning the repo without any
+// configured product still yields a valid (empty) test run.
+// Run a single product with: npx playwright test --project=<name>
+//
+// Options:
+//   authSetup: adds "<name>-setup" (tests/<name>/auth.setup.ts) that logs in once
+//              and saves storageState for authenticated specs to reuse.
+//   browsers:  device list for a cross-browser matrix, e.g.
+//              ['Desktop Chrome', 'Desktop Firefox', 'Desktop Safari', 'Pixel 5'].
+//              Defaults to Desktop Chrome only. With several browsers, projects
+//              are named "<name>-desktop-chrome", "<name>-desktop-firefox", …
+//              (install engines first: npx playwright install firefox webkit).
+const product = (
+  name: string,
+  baseURL: string | undefined,
+  options: {
+    authSetup?: boolean;
+    browsers?: string[];
+    use?: NonNullable<Project['use']>;
+  } = {},
+): Project[] => {
+  if (!baseURL) return [];
+  const browsers = options.browsers ?? ['Desktop Chrome'];
+  const projects: Project[] = [];
+  if (options.authSetup) {
+    projects.push({
+      name: `${name}-setup`,
+      testDir: `./tests/${name}`,
+      testMatch: /auth\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'], baseURL, ...options.use },
+    });
+  }
+  for (const browser of browsers) {
+    const suffix =
+      browsers.length > 1 ? `-${browser.toLowerCase().replace(/\s+/g, '-')}` : '';
+    projects.push({
+      name: `${name}${suffix}`,
+      testDir: `./tests/${name}`,
+      testIgnore: /auth\.setup\.ts/,
+      ...(options.authSetup ? { dependencies: [`${name}-setup`] } : {}),
+      use: { ...devices[browser], baseURL, ...options.use },
+    });
+  }
+  return projects;
+};
+
+export default defineConfig({
+  testDir: './tests',
+  timeout: DEFAULT_TIMEOUT_MS,
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  reporter: process.env.CI
+    ? [
+        ['html', { open: 'never' }],
+        ['junit', { outputFile: 'playwright-results.xml' }],
+        ['list'],
+      ]
+    : [['html', { open: 'never' }], ['list']],
+  use: {
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    actionTimeout: 10_000,
+    navigationTimeout: 30_000,
+  },
+  // Testing a locally built product instead of a deployed URL? Start it here:
+  // webServer: {
+  //   command: 'npm run dev',
+  //   url: 'http://localhost:3000',
+  //   reuseExistingServer: !process.env.CI,
+  //   timeout: 120_000,
+  // },
+  projects: [
+    ...product('freeland', process.env.FREELAND_BASE_URL, { authSetup: true }),
+    ...product('magicpay', process.env.MAGICPAY_BASE_URL),
+    ...product('nuanu-app', process.env.NUANU_APP_BASE_URL, {
+      use: NUANU_APP_RUNTIME_USE,
+    }),
+    ...(process.env.NUANU_APP_BASE_URL && process.env.NUANU_APP_FIREFOX
+      ? [{
+          name: 'nuanu-app-firefox',
+          testDir: './tests/nuanu-app',
+          use: {
+            ...devices['Desktop Firefox'],
+            baseURL: process.env.NUANU_APP_BASE_URL,
+            ...NUANU_APP_RUNTIME_USE,
+          },
+        }]
+      : []),
+    ...(process.env.NUANU_APP_BASE_URL && process.env.NUANU_APP_WEBKIT
+      ? [{
+          name: 'nuanu-app-webkit',
+          testDir: './tests/nuanu-app',
+          use: {
+            ...devices['Desktop Safari'],
+            baseURL: process.env.NUANU_APP_BASE_URL,
+            ...NUANU_APP_RUNTIME_USE,
+          },
+        }]
+      : []),
+    ...(process.env.NUANU_APP_BASE_URL && process.env.NUANU_APP_MOBILE
+      ? [
+          {
+            name: 'nuanu-app-android-chrome',
+            testDir: './tests/nuanu-app',
+            use: {
+              ...devices['Pixel 5'],
+              baseURL: process.env.NUANU_APP_BASE_URL,
+              ...NUANU_APP_RUNTIME_USE,
+            },
+          },
+          {
+            name: 'nuanu-app-ios-webkit',
+            testDir: './tests/nuanu-app',
+            use: {
+              ...devices['iPhone 13'],
+              baseURL: process.env.NUANU_APP_BASE_URL,
+              ...NUANU_APP_RUNTIME_USE,
+            },
+          },
+        ]
+      : []),
+    // Add your product here:
+    // ...product('myproduct', process.env.MYPRODUCT_BASE_URL, {
+    //   authSetup: true,
+    //   browsers: ['Desktop Chrome', 'Desktop Firefox', 'Desktop Safari'],
+    // }),
+  ],
+});

@@ -1,0 +1,2168 @@
+# Freeland Auto Routing and Continuous Coverage Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Promote only individually proven Freeland capabilities from Assist to safe automatic routing, with exact freshness guards and one-action rollback, then keep the complete requirement inventory current through scheduled drift analysis and controlled process experiments.
+
+**Architecture:** FreelandQA deterministically derives capability eligibility and a content-addressed route intent from reviewed shadow evidence. A narrow Nuanu adapter applies that intent only when an atomic server-side revision/state/candidate guard succeeds and returns an exact transition receipt. A durable kill-switch state machine first disables new Ends, then reconciles in-flight journeys and touched items before leaving the capability in Assist. The same typed inventory feeds a scheduled Nuanu General Process for coverage drift; Nuanu Process Experiments compare orchestration variants while the deterministic oracle and frozen corpus remain unchanged.
+
+**Tech Stack:** Node.js 20.20.x, TypeScript 6, Node test runner, JSON Schema/Ajv, SHA-256 canonical JSON, Nuanu Flow Column and General Processes, Nuanu Decisions/Artifacts/Process Experiments, existing FreelandQA coverage and release contracts.
+
+## Global Constraints
+
+1. Product code and product policy live in `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local` from `codex/freeland-agent-first-cdp-i1-local@72378f3` or its reviewed descendant.
+2. Product-neutral Nuanu adapter/probe code lives in `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program` from `codex/qa-auto-program@affd6e1` or its reviewed descendant.
+3. Never enable Auto project-wide. Every promotion names exact capability IDs and eligible verdict classes.
+4. Minimum promotion evidence is 30 conclusive capability-specific shadow journeys over at least seven consecutive days, zero false green, zero false route, 100% reviewed precision for automatic `PRODUCT_FAIL`, zero duplicate/missing authoritative journeys, and no unresolved security finding.
+5. Aggregate 98% Assist agreement cannot override a single capability-specific miss.
+6. Ambiguous, stale, conflicting-lane, infrastructure, provider, flaky, incomplete-evidence, payment-unknown, and human-required results remain in Assist.
+7. Payment execution authority and payment-related routing authority are separate promotions. Neither implies the other.
+8. A local read-check-write is not a transition guard. Without a demonstrated atomic Nuanu revision/state/candidate guard, the adapter returns `ASSIST_REQUIRED` and performs no mutation.
+9. Every mutation requires exact graph/policy/capability digests, precondition read, server receipt, read-back, audit record, idempotency key, and kill-switch generation.
+10. Kill-switch activation precedes cancellation/takeover. Late completions from an older generation are rejected as stale.
+11. `stop_flow_item_process` and `take_over_flow_item_process` execute only inside the declared rollback command and are recorded individually; they are not generic retry behavior.
+12. Nuanu owns journeys, task leases, Decisions, states, and Process Experiments. Do not build a second scheduler, queue, journey engine, or experiment platform.
+13. An inventory exception is typed, owned, expiring, and evidenced. `MISSING` can never silently count as covered.
+14. PostgreSQL stores only capability mode/generation and append-only safety
+    receipts; it is not a task queue, journey store, scheduler, or replacement
+    for Nuanu.
+15. Every code task follows RED → minimal GREEN → focused regression → aggregate verification → exact-scope commit.
+
+## Target File Structure
+
+```text
+# FreelandQA-I1
+packages/contracts/src/auto.ts
+packages/contracts/schemas/auto-promotion.v1.schema.json
+packages/contracts/schemas/route-intent.v1.schema.json
+packages/contracts/schemas/route-receipt.v1.schema.json
+packages/contracts/schemas/kill-switch-record.v1.schema.json
+packages/contracts/schemas/coverage-exception.v1.schema.json
+packages/contracts/schemas/coverage-drift.v1.schema.json
+packages/contracts/schemas/continuous-coverage-envelope.v1.schema.json
+packages/auto-routing/src/
+  shadow-eligibility.ts
+  route-intent.ts
+  transition-guard.ts
+  receipt-audit.ts
+  control-store.ts
+  kill-switch.ts
+  commands.ts
+db/migrations/
+  0030_auto_capability_controls.sql
+packages/continuous-coverage/src/
+  inventory-closure.ts
+  drift-detector.ts
+  escaped-defect.ts
+  commands.ts
+tools/auto-routing/
+  promote.ts
+  route.ts
+  rollback.ts
+tools/continuous-coverage/
+  audit.ts
+config/auto-routing/
+  freeland-capabilities.v1.yaml
+tests/auto-routing/
+  contracts.test.ts
+  shadow-eligibility.test.ts
+  route-intent.test.ts
+  transition-guard.test.ts
+  receipt-audit.test.ts
+  control-store.test.ts
+  kill-switch.test.ts
+  commands.test.ts
+tests/continuous-coverage/
+  inventory-closure.test.ts
+  drift-detector.test.ts
+  escaped-defect.test.ts
+  commands.test.ts
+docs/runbooks/
+  limited-auto-promotion.md
+  auto-kill-switch.md
+  continuous-coverage.md
+
+# NuanuFlowQA
+src/nuanu/
+  auto-routing-adapter.ts
+  continuous-coverage-graph.ts
+tests/program/nuanu/
+  auto-routing-adapter.spec.ts
+  continuous-coverage-graph.spec.ts
+docs/runbooks/
+  nuanu-auto-transition-probe.md
+  nuanu-continuous-coverage.md
+```
+
+The repositories communicate through schema-validated JSON and exact digests.
+The sole code exception is N1's compiled, vendored
+`@nuanu/freeland-worker-adapter` tarball, whose N0 source commit, package bytes,
+and entry digest are independently pinned; neither repository imports
+TypeScript source from the other.
+
+## Execution Preflight
+
+Before Task 1, verify both exact repositories and the inherited database suites:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git status --short
+/opt/homebrew/opt/node@20/bin/node --version
+docker compose -f config/postgres/payment-test.compose.yaml up -d --wait
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+```
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+git status --short
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program
+```
+
+Expected: both checkouts clean, Node `v20.20.2`, the loopback fixture healthy
+and fully migrated, and every command exits `0`.
+
+---
+
+### Task 1: Add Closed Auto-Promotion, Routing, and Coverage Contracts
+
+**Repository:** `FreelandQA-I1`
+
+**Files:**
+
+- Create: `packages/contracts/src/auto.ts`
+- Create: `packages/contracts/schemas/auto-promotion.v1.schema.json`
+- Create: `packages/contracts/schemas/route-intent.v1.schema.json`
+- Create: `packages/contracts/schemas/route-receipt.v1.schema.json`
+- Create: `packages/contracts/schemas/frozen-flow-item-identity.v1.schema.json`
+- Create: `packages/contracts/schemas/auto-control-request.v1.schema.json`
+- Create: `packages/contracts/schemas/auto-control-result.v1.schema.json`
+- Create: `packages/contracts/schemas/auto-control-envelope.v1.schema.json`
+- Create: `packages/contracts/schemas/auto-control-response.v1.schema.json`
+- Create: `packages/contracts/schemas/auto-rollback-command.v1.schema.json`
+- Create: `packages/contracts/schemas/kill-switch-record.v1.schema.json`
+- Create: `packages/contracts/schemas/coverage-exception.v1.schema.json`
+- Create: `packages/contracts/schemas/coverage-drift.v1.schema.json`
+- Modify: `packages/contracts/src/index.ts`
+- Create: `tests/auto-routing/contracts.test.ts`
+
+**Interfaces:**
+
+```ts
+import type { QaRunEvidence, QaRunKey } from './qa-run.js';
+
+export type AutoVerdictClass = 'PASS' | 'PRODUCT_FAIL';
+export type CapabilityMode = 'ASSIST' | 'AUTO';
+
+export interface AutoCapabilityControl {
+  capabilityId: string;
+  mode: CapabilityMode;
+  generation: number;
+  promotionId: string | null;
+  updatedAt: string;
+}
+
+export interface CapabilityPolicy {
+  schemaVersion: 1;
+  capabilityId: string;
+  defaultMode: 'ASSIST';
+  eligibleVerdicts: AutoVerdictClass[];
+  paymentRelated: boolean;
+  minimumConclusiveJourneys: 30;
+  minimumObservationDays: 7;
+}
+
+export interface ReviewedShadowJourney {
+  journeyId: string;
+  capabilityId: string;
+  graphVersionId: string;
+  graphDigest: string;
+  policyDigest: string;
+  classifierDigest: string;
+  corpusDigest: string;
+  evidence: QaRunEvidence;
+  authoritativeRunCount: number;
+  humanReview: {
+    reviewedVerdict: string;
+    falseGreen: boolean;
+    falseRoute: boolean;
+    securityFindingCount: number;
+    reviewedByMemberId: string;
+    reviewedAt: string;
+  };
+}
+
+export interface AutoPromotionRecord {
+  schemaVersion: 1;
+  promotionId: string;
+  capabilityId: string;
+  eligibleVerdicts: AutoVerdictClass[];
+  graphVersionId: string;
+  graphDigest: string;
+  policyDigest: string;
+  classifierDigest: string;
+  corpusDigest: string;
+  evidenceDigest: string;
+  observationStartedAt: string;
+  observationEndedAt: string;
+  conclusiveJourneys: number;
+  reviewedProductFailures: number;
+  falseGreens: 0;
+  falseRoutes: 0;
+  reviewedProductFailPrecision: 1;
+  approvedByMemberId: string;
+  approvedAt: string;
+}
+
+export type AutoPromotionDraft = Omit<
+  AutoPromotionRecord,
+  'promotionId' | 'approvedByMemberId' | 'approvedAt'
+>;
+
+export interface FrozenFlowItemIdentity {
+  flowItemId: string;
+  journeyId: string;
+  processRunId: string;
+  automaticTransitionCount: number;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateDigest: string;
+  currentStateId: string;
+}
+
+export interface JourneyRef {
+  journeyId: string;
+  processRunId: string;
+  flowItemId: string;
+  generation: number;
+}
+
+export interface ControlReceipt {
+  receiptId: string;
+  capabilityId: string;
+  generation: number;
+  action: string;
+  observedMode: 'ASSIST' | 'AUTO';
+  readBackDigest: string;
+}
+
+export interface TouchedItemAudit {
+  capabilityId: string;
+  generation: number;
+  complete: boolean;
+  itemIds: string[];
+  auditDigest: string;
+}
+
+export type AutoControlCommandId =
+  | 'freeland-auto-route-v1'
+  | 'freeland-auto-rollback-v1';
+
+export type AutoControlRequestV1 =
+  | { schemaVersion: 1; operation: 'apply-route'; intent: RouteIntent }
+  | { schemaVersion: 1; operation: 'disable-automatic-ends'; capabilityId: string; nextGeneration: number }
+  | { schemaVersion: 1; operation: 'stop-new-journeys'; capabilityId: string }
+  | { schemaVersion: 1; operation: 'list-in-flight'; capabilityId: string; generation: number }
+  | { schemaVersion: 1; operation: 'cancel-or-take-over'; journey: JourneyRef }
+  | { schemaVersion: 1; operation: 'audit-touched-items'; capabilityId: string; since: string }
+  | { schemaVersion: 1; operation: 'lock-assist'; capabilityId: string; generation: number };
+
+export type AutoControlResultV1 =
+  | { schemaVersion: 1; operation: 'apply-route'; receipt: RouteReceipt }
+  | { schemaVersion: 1; operation: 'control-receipt'; receipt: ControlReceipt }
+  | { schemaVersion: 1; operation: 'in-flight'; journeys: JourneyRef[] }
+  | { schemaVersion: 1; operation: 'touched-item-audit'; audit: TouchedItemAudit };
+
+export interface AutoControlEnvelopeV1 {
+  schemaVersion: 1;
+  requestId: string;
+  sessionId: string;
+  commandId: AutoControlCommandId;
+  deploymentPinDigest: string;
+  handlerSpecDigest: string;
+  issuedAt: string;
+  expiresAt: string;
+  nonce: string;
+  payloadDigest: string;
+  payload: AutoControlRequestV1;
+  mac: string;
+}
+
+export interface AutoControlResponseEnvelopeV1 {
+  schemaVersion: 1;
+  requestId: string;
+  sessionId: string;
+  operation: AutoControlResultV1['operation'];
+  resultDigest: string;
+  result: AutoControlResultV1;
+  mac: string;
+}
+
+export interface AutoRollbackCommandV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-auto-rollback-v1';
+  capabilityId: string;
+  reasonCode: string;
+  deadline: string;
+}
+
+export interface RouteIntent {
+  schemaVersion: 1;
+  routeIntentId: string;
+  qaRunKey: QaRunKey;
+  flowItemId: string;
+  journeyId: string;
+  processRunId: string;
+  automaticTransitionCount: number;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateDigest: string;
+  currentStateId: string;
+  targetStateId: string;
+  capabilityId: string;
+  issueVerdict: AutoVerdictClass;
+  promotionId: string;
+  promotionEvidenceDigest: string;
+  graphVersionId: string;
+  policyDigest: string;
+  killSwitchGeneration: number;
+}
+
+export interface RouteReceipt {
+  schemaVersion: 1;
+  routeIntentId: string;
+  outcome: 'APPLIED' | 'ALREADY_APPLIED' | 'ASSIST_REQUIRED' | 'STALE_REJECTED';
+  transitionReceiptId: string | null;
+  observedIssueRevision: string;
+  observedStateId: string;
+  observedCandidateDigest: string;
+  observedGraphVersionId: string;
+  observedKillSwitchGeneration: number;
+  readBackDigest: string;
+  appliedAt: string | null;
+}
+
+export interface KillSwitchRecord {
+  schemaVersion: 1;
+  recordId: string;
+  capabilityId: string;
+  generation: number;
+  phase:
+    | 'AUTO_ENABLED'
+    | 'ENDS_DISABLED'
+    | 'NEW_JOURNEYS_STOPPED'
+    | 'IN_FLIGHT_RECONCILING'
+    | 'TOUCHED_ITEMS_AUDITED'
+    | 'ASSIST_LOCKED';
+  reasonCode: string;
+  activatedAt: string;
+  phaseReceiptDigests: string[];
+  inFlightJourneyIds: string[];
+  touchedItemsAuditDigest: string | null;
+  updatedAt: string;
+}
+
+export interface CoverageException {
+  requirementId: string;
+  disposition: 'BLOCKED' | 'INAPPLICABLE';
+  ownerMemberId: string;
+  reasonCode: string;
+  evidence: { artifactId: string; versionId: string; sha256: string };
+  reviewedAt: string;
+  expiresAt: string;
+}
+```
+
+- [ ] **Step 1: Write failing schema round-trip and rejection tests**
+
+Reject unknown verdicts, fewer than 30 journeys, under-seven-day windows,
+non-zero false counters, precision below one, missing human approval, empty
+capability, payment capability without separate policy flag, negative kill
+generation, mutable receipt facts, unowned/expired exceptions, and additional
+properties. Reject a malformed `QaRunEvidence`, zero/multiple/mismatched
+Artifact references, result/bundle/projection key drift, a projection that does
+not bind the promoted capability/check/lane closure, duplicate `qaRunKey` or
+journey ID, and any approved record/route whose canonical evidence digest
+differs.
+For Auto control, mutate every command/operation/envelope field and require
+exact command-operation compatibility: route accepts only `apply-route`, while
+rollback rejects it and accepts only the six rollback operations. Reject expiry
+over 30 seconds, wrong session/pins/digest/MAC, nonce replay, oversized payload,
+and every unknown nested key.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/*.test.ts
+```
+
+Expected: FAIL because schemas/exports/scripts do not exist.
+
+- [ ] **Step 2: Implement strict types and schemas**
+
+Use discriminated enums, UUID/identifier constraints already used by contracts,
+unique non-empty arrays, RFC 3339 timestamps, and exact SHA-256 patterns. Export
+through the contracts index. Later tasks add scripts only when their complete
+file sets exist.
+
+- [ ] **Step 3: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add packages/contracts/src/auto.ts packages/contracts/src/index.ts packages/contracts/schemas/auto-promotion.v1.schema.json packages/contracts/schemas/route-intent.v1.schema.json packages/contracts/schemas/route-receipt.v1.schema.json packages/contracts/schemas/frozen-flow-item-identity.v1.schema.json packages/contracts/schemas/auto-control-request.v1.schema.json packages/contracts/schemas/auto-control-result.v1.schema.json packages/contracts/schemas/auto-control-envelope.v1.schema.json packages/contracts/schemas/auto-control-response.v1.schema.json packages/contracts/schemas/auto-rollback-command.v1.schema.json packages/contracts/schemas/kill-switch-record.v1.schema.json packages/contracts/schemas/coverage-exception.v1.schema.json packages/contracts/schemas/coverage-drift.v1.schema.json tests/auto-routing/contracts.test.ts
+git commit -m "feat: add limited auto routing contracts"
+```
+
+---
+
+### Task 2: Derive Capability Eligibility from Reviewed Shadow Journeys
+
+**Repository:** `FreelandQA-I1`
+
+**Files:**
+
+- Create: `packages/auto-routing/src/shadow-eligibility.ts`
+- Create: `config/auto-routing/freeland-capabilities.v1.yaml`
+- Create: `tests/auto-routing/shadow-eligibility.test.ts`
+- Create: `tools/auto-routing/promote.ts`
+- Create: `docs/runbooks/limited-auto-promotion.md`
+
+**Interfaces:**
+
+```ts
+export function evaluateAutoEligibility(input: {
+  capabilityPolicy: CapabilityPolicy;
+  reviewedJourneys: ReviewedShadowJourney[];
+  graphVersionId: string;
+  graphDigest: string;
+  policyDigest: string;
+  classifierDigest: string;
+  corpusDigest: string;
+}): { eligible: false; reasonCodes: string[] } | { eligible: true; draft: AutoPromotionDraft };
+
+export function approveAutoPromotion(
+  draft: AutoPromotionDraft,
+  approval: { memberId: string; approvedAt: string },
+): AutoPromotionRecord;
+```
+
+- [ ] **Step 1: Write a failing boundary matrix**
+
+Test 29/30 journeys, 6d23h/7d windows, one false green, one false route,
+99%-reviewed PRODUCT_FAIL precision, aggregate cross-capability evidence,
+duplicate journey IDs, unresolved security findings, missing/duplicate worker
+runs, mixed graph/policy/corpus versions, payment-routing policy, and exact
+passing boundaries. Approval is a separate pure function and cannot be inferred
+from metric success.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/*.test.ts
+```
+
+Expected: FAIL because the eligibility evaluator is absent.
+
+- [ ] **Step 2: Implement deterministic capability-local evaluation**
+
+Call `validateQaRunEvidence` for every journey before reading its result, then
+require the sole Artifact reference, bundle digest, and coverage projection to
+bind that exact capability and its reviewed requirement/check/lane closure.
+Canonicalize unique `(journeyId, qaRunKey)` pairs, reject any ambiguity, and
+derive `evidenceDigest` from the frozen canonical evidence-plus-human-review
+set. `approveAutoPromotion` copies that digest into the immutable record and
+derives `promotionId` from the capability/policy/evidence/approval facts; it
+cannot drop or replace the digest. Populate the capability config only
+with actual Freeland capability IDs found in the coverage registry; default all
+capabilities to `ASSIST` and all payment routing to disabled.
+
+- [ ] **Step 3: Implement the offline promotion command**
+
+The command reads sanitized exact-version shadow records and a separate human
+approval record, prints the full eligibility report in dry-run, and emits a
+schema-valid promotion file only when both pass. It does not activate Nuanu.
+
+- [ ] **Step 4: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:validate
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan
+git add packages/auto-routing/src/shadow-eligibility.ts config/auto-routing/freeland-capabilities.v1.yaml tests/auto-routing/shadow-eligibility.test.ts tools/auto-routing/promote.ts docs/runbooks/limited-auto-promotion.md
+git commit -m "feat: derive capability scoped auto eligibility"
+```
+
+---
+
+### Task 3: Create Content-Addressed Route Intents
+
+**Repository:** `FreelandQA-I1`
+
+**Files:**
+
+- Create: `packages/auto-routing/src/route-intent.ts`
+- Create: `tests/auto-routing/route-intent.test.ts`
+
+**Interfaces:**
+
+```ts
+export function deriveRouteIntent(input: {
+  evidence: QaRunEvidence;
+  promotion: AutoPromotionRecord;
+  flowItem: FrozenFlowItemIdentity;
+  stateTargets: { qaStateId: string; readyForProdStateId: string; inProgressStateId: string };
+  control: AutoCapabilityControl;
+}): RouteIntent | { assistReason: string };
+```
+
+- [ ] **Step 1: Write failing intent tests**
+
+Cover eligible PASS and PRODUCT_FAIL routes, non-eligible verdict, stale issue,
+candidate mismatch, graph/policy mismatch, capability mismatch, current state
+not QA, payment result without payment-routing promotion, unknown payment,
+incomplete evidence, control mode `ASSIST`, promotion/control mismatch,
+automatic-transition count 12 or greater, and stable ID under repeated
+construction.
+Mutate the bundle SHA-256, Flow-item binding, requirement/check/capability
+projection, lane binding, result/bundle evaluation, and sole artifact reference
+independently; every mismatch must return Assist before an intent exists.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/*.test.ts
+```
+
+Expected: FAIL because the builder is absent.
+
+- [ ] **Step 2: Implement a pure closed builder**
+
+Map PASS to the exact pinned `Ready for prod` UUID and PRODUCT_FAIL to exact
+`In Progress`; all other paths return Assist. Require the approved record's
+canonical `evidenceDigest`, copy it as `promotionEvidenceDigest`, and hash that
+value with all preconditions and target facts into `routeIntentId`. Copy
+`killSwitchGeneration` only from the exact
+PostgreSQL control row; callers cannot supply a generation independently.
+
+Call `validateQaRunEvidence` first. Use `evidence.result` for the deterministic
+verdict and use only `evidence.bundle.coverageProjection` to prove the exact
+Flow item and promoted capability are in the reviewed requirement/check/lane
+closure. Resolve the immutable `AutoPromotionRecord`, require its
+`evidenceDigest === intent.promotionEvidenceDigest`, and rederive both
+`promotionId` and `routeIntentId`; result counts or lane digests alone cannot
+authorize a route.
+
+- [ ] **Step 3: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add packages/auto-routing/src/route-intent.ts tests/auto-routing/route-intent.test.ts
+git commit -m "feat: derive immutable route intents"
+```
+
+---
+
+### Task 4: Prove the Nuanu Atomic Transition Boundary
+
+**Repository:** `NuanuFlowQA`
+
+**Files:**
+
+- Create: `src/nuanu/auto-routing-adapter.ts`
+- Create: `src/nuanu/auto-control-wire.ts`
+- Create: `src/nuanu/auto-control-server.ts`
+- Create: `src/nuanu/auto-control-launcher.ts`
+- Create: `tools/nuanu/run-freeland-auto-route.ts`
+- Create: `tools/nuanu/run-freeland-auto-rollback.ts`
+- Create: `src/nuanu/schemas/route-intent.v1.schema.json`
+- Create: `src/nuanu/schemas/route-receipt.v1.schema.json`
+- Create: `src/nuanu/schemas/frozen-flow-item-identity.v1.schema.json`
+- Create: `src/nuanu/schemas/auto-control-request.v1.schema.json`
+- Create: `src/nuanu/schemas/auto-control-result.v1.schema.json`
+- Create: `src/nuanu/schemas/auto-control-envelope.v1.schema.json`
+- Create: `src/nuanu/schemas/auto-control-response.v1.schema.json`
+- Create: `src/nuanu/schemas/auto-rollback-command.v1.schema.json`
+- Create: `tests/program/nuanu/auto-routing-adapter.spec.ts`
+- Create: `tests/program/nuanu/auto-control-server.spec.ts`
+- Create: `tests/program/nuanu/auto-control-launcher.spec.ts`
+- Create: `docs/runbooks/nuanu-auto-transition-probe.md`
+
+**Interfaces:**
+
+```ts
+export interface RouteIntentWire {
+  schemaVersion: 1;
+  routeIntentId: string;
+  qaRunKey: string;
+  flowItemId: string;
+  journeyId: string;
+  processRunId: string;
+  automaticTransitionCount: number;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateDigest: string;
+  currentStateId: string;
+  targetStateId: string;
+  capabilityId: string;
+  issueVerdict: 'PASS' | 'PRODUCT_FAIL';
+  promotionId: string;
+  promotionEvidenceDigest: string;
+  graphVersionId: string;
+  policyDigest: string;
+  killSwitchGeneration: number;
+}
+
+export interface RouteReceiptWire {
+  schemaVersion: 1;
+  routeIntentId: string;
+  outcome: 'APPLIED' | 'ALREADY_APPLIED' | 'ASSIST_REQUIRED' | 'STALE_REJECTED';
+  transitionReceiptId: string | null;
+  observedIssueRevision: string;
+  observedStateId: string;
+  observedCandidateDigest: string;
+  observedGraphVersionId: string;
+  observedKillSwitchGeneration: number;
+  readBackDigest: string;
+  appliedAt: string | null;
+}
+
+export interface FrozenFlowItemIdentityWire {
+  flowItemId: string;
+  journeyId: string;
+  processRunId: string;
+  automaticTransitionCount: number;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateDigest: string;
+  currentStateId: string;
+}
+
+export interface JourneyRefWire {
+  journeyId: string;
+  processRunId: string;
+  flowItemId: string;
+  generation: number;
+}
+
+export interface ControlReceiptWire {
+  receiptId: string;
+  capabilityId: string;
+  generation: number;
+  action: string;
+  observedMode: 'ASSIST' | 'AUTO';
+  readBackDigest: string;
+}
+
+export interface TouchedItemAuditWire {
+  capabilityId: string;
+  generation: number;
+  complete: boolean;
+  itemIds: string[];
+  auditDigest: string;
+}
+
+export type NuanuAutoControlRequestV1 =
+  | { schemaVersion: 1; operation: 'apply-route'; intent: RouteIntentWire }
+  | { schemaVersion: 1; operation: 'disable-automatic-ends'; capabilityId: string; nextGeneration: number }
+  | { schemaVersion: 1; operation: 'stop-new-journeys'; capabilityId: string }
+  | { schemaVersion: 1; operation: 'list-in-flight'; capabilityId: string; generation: number }
+  | { schemaVersion: 1; operation: 'cancel-or-take-over'; journey: JourneyRefWire }
+  | { schemaVersion: 1; operation: 'audit-touched-items'; capabilityId: string; since: string }
+  | { schemaVersion: 1; operation: 'lock-assist'; capabilityId: string; generation: number };
+
+export type NuanuAutoControlResultV1 =
+  | { schemaVersion: 1; operation: 'apply-route'; receipt: RouteReceiptWire }
+  | { schemaVersion: 1; operation: 'control-receipt'; receipt: ControlReceiptWire }
+  | { schemaVersion: 1; operation: 'in-flight'; journeys: JourneyRefWire[] }
+  | { schemaVersion: 1; operation: 'touched-item-audit'; audit: TouchedItemAuditWire };
+
+export interface NuanuAutoControlEnvelopeV1 {
+  schemaVersion: 1;
+  requestId: string;
+  sessionId: string;
+  commandId: 'freeland-auto-route-v1' | 'freeland-auto-rollback-v1';
+  deploymentPinDigest: string;
+  handlerSpecDigest: string;
+  issuedAt: string;
+  expiresAt: string;
+  nonce: string;
+  payloadDigest: string;
+  payload: NuanuAutoControlRequestV1;
+  mac: string;
+}
+
+export interface NuanuAutoControlResponseEnvelopeV1 {
+  schemaVersion: 1;
+  requestId: string;
+  sessionId: string;
+  operation: NuanuAutoControlResultV1['operation'];
+  resultDigest: string;
+  result: NuanuAutoControlResultV1;
+  mac: string;
+}
+
+export interface AutoRollbackCommandWireV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-auto-rollback-v1';
+  capabilityId: string;
+  reasonCode: string;
+  deadline: string;
+}
+
+export function assertRouteIntentWire(value: unknown): RouteIntentWire;
+export function assertRouteReceiptWire(value: unknown): RouteReceiptWire;
+export function assertFrozenFlowItemIdentityWire(value: unknown): FrozenFlowItemIdentityWire;
+export function assertNuanuAutoControlRequest(value: unknown): NuanuAutoControlRequestV1;
+export function assertNuanuAutoControlResult(value: unknown): NuanuAutoControlResultV1;
+export function assertNuanuAutoControlEnvelope(value: unknown): NuanuAutoControlEnvelopeV1;
+export function assertNuanuAutoControlResponse(value: unknown): NuanuAutoControlResponseEnvelopeV1;
+export function assertAutoRollbackCommandWire(value: unknown): AutoRollbackCommandWireV1;
+
+export interface NuanuAtomicTransitionPort {
+  probeCapabilities(): Promise<{
+    guardsIssueRevision: boolean;
+    guardsState: boolean;
+    guardsCandidateDigest: boolean;
+    returnsTransitionReceipt: boolean;
+    supportsIdempotencyKey: boolean;
+  }>;
+  applyGuardedRoute(intent: RouteIntentWire): Promise<RouteReceiptWire>;
+  readBackFlowItem(flowItemId: string): Promise<FrozenFlowItemIdentityWire>;
+}
+
+export function applyAutoRoute(
+  intent: RouteIntentWire,
+  port: NuanuAtomicTransitionPort,
+): Promise<RouteReceiptWire>;
+
+export function createOfficialNuanuAutoControlServer(input: {
+  controlFd: 3;
+  deploymentPinDigest: string;
+  handlerSpecDigest: string;
+  expectedPeerUid: number;
+  expectedPeerPid: number;
+}): Promise<{ close(): Promise<void> }>;
+
+export interface AutoControlHandlerManifestWireV1 {
+  schemaVersion: 1;
+  route: {
+    commandId: 'freeland-auto-route-v1';
+    executable: '/opt/homebrew/opt/node@20/bin/node';
+    argv: readonly ['--import', 'tsx', 'tools/auto-routing/route.ts'];
+  };
+  rollback: {
+    commandId: 'freeland-auto-rollback-v1';
+    executable: '/opt/homebrew/opt/node@20/bin/node';
+    argv: readonly ['--import', 'tsx', 'tools/auto-routing/rollback.ts'];
+  };
+  cwdPolicy: 'PINNED_PRODUCT_ROOT';
+  shell: false;
+  detached: false;
+  stdio: readonly ['request-stdin', 'result-stdout', 'reason-stderr', 'auto-control-socket'];
+  stdoutMaxBytes: 65536;
+  stderrMaxBytes: 65536;
+  schemaDigestSet: string;
+}
+
+export interface NuanuAutoControlSpawnSpec {
+  file: '/opt/homebrew/opt/node@20/bin/node';
+  args: readonly [
+    '--import',
+    'tsx',
+    'tools/auto-routing/route.ts' | 'tools/auto-routing/rollback.ts',
+  ];
+  options: {
+    cwd: string;
+    shell: false;
+    detached: false;
+    stdio: readonly ['pipe', 'pipe', 'pipe', number];
+    env: Readonly<Record<string, string>>;
+  };
+}
+
+export function buildNuanuAutoControlSpawnSpec(input: {
+  commandId: 'freeland-auto-route-v1' | 'freeland-auto-rollback-v1';
+  pinnedProductRoot: string;
+  expectedProductCommit: string;
+  childControlFd: number;
+  manifestInput: unknown;
+  expectedManifestDigest: string;
+  env: Readonly<Record<string, string | undefined>>;
+}): Readonly<NuanuAutoControlSpawnSpec>;
+```
+
+- [ ] **Step 1: Write failing adapter contract tests**
+
+Use a fake port to prove that any missing guard/receipt/idempotency capability
+returns `ASSIST_REQUIRED` before mutation. Race issue edit, state move, candidate
+change, cancellation, graph version change, duplicate delivery, and kill-switch
+generation. Require post-apply read-back equality. Add mutation tests for every
+wire root/nested field, independent Nuanu/Freeland schema SHA parity, wrong
+peer/pin/MAC/replay/operation, oversized frames, route idempotency, and every
+ordered rollback operation. Prove the production server exposes exactly the
+seven discriminated operations above and no generic Nuanu/MCP method.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/auto-routing-adapter.spec.ts tests/program/nuanu/auto-control-server.spec.ts tests/program/nuanu/auto-control-launcher.spec.ts
+```
+
+Expected: FAIL because the adapter is absent.
+
+- [ ] **Step 2: Implement the fail-closed adapter**
+
+Validate the wire schema, probe once per pinned Nuanu deployment digest, invoke
+only the guarded transition operation, verify the returned receipt and exact
+read-back, and map every unsupported or mismatched condition to Assist. Do not
+implement a read-check-write fallback.
+
+Implement every local `*Wire` type and validator from the independent closed
+schemas; accept `unknown` at socket and native-operation boundaries. Pin their
+SHA-256 values to the matching Freeland route/control schemas in the deployment
+record and reject drift before bind. `createOfficialNuanuAutoControlServer` is
+the sole production composition root for one handler session. The official
+transport creates a fresh authenticated socketpair for a statically selected
+`freeland-auto-route-v1` or `freeland-auto-rollback-v1` handler, maps only the
+child endpoint to FD `3`, and retains all Nuanu credentials in the parent. The
+static launcher generates a fresh UUID session and 32-byte key, delivers both
+only in the one-shot peer-validated FD `3` bootstrap, then zeroes the bootstrap
+buffer; neither value enters argv, environment, stdin payload, disk, logs, or
+Artifacts. The child must finish the keyed challenge before its first request.
+The session validates uid **and** pid, deployment/handler pins, command ID,
+capability/generation, canonical payload digest, issued/expiry timestamps,
+single-use nonce, and a constant-time HMAC before dispatch; frames are at most
+32 KiB with fixed connect/read/deadline limits. It uses static handlers backed by the exact
+official guarded transition/End-control/journey/audit operations. The Nuanu
+token remains only in this server process. It atomically claims operation
+idempotency, reads back every receipt, and has no URL, method name, tool name,
+state UUID, or generic mutation supplied by the client. Close, MAC failure,
+replay, peer change, cross-command operation, or handler/payload mismatch emits
+no mutation. The ticket worker FD `3` and Auto session are separate capabilities
+and can never be reused or aliased.
+
+`auto-control-launcher.ts` validates the exact handler manifest and its digest,
+requires the pinned clean product commit/root, selects one of the two literal
+Node 20 argv tuples, and makes one direct `shell:false`, `detached:false` spawn.
+It maps request stdin, result-only stdout, coarse stderr, and the fresh child
+socket to FD `3`; it never invokes npm, a shell, PATH lookup, model prompt, or
+caller path. It builds env from nothing. Route receives only fixed locale/temp,
+deployment/handler pins, and the read-only Auto runtime DSN; rollback receives
+the distinct Auto control DSN instead. Owner/migration/test/payment/Nuanu/
+browser credentials, Node/DYLD/npm/proxy injection, and task env are forbidden.
+At this phase the launcher integration test uses two immutable fixture child
+executables with the final stdin/stdout/FD `3` protocol and proves both command
+selections with no launcher stdout contamination. The real Freeland
+`route.ts`/`rollback.ts` cross-repository integration is deliberately owned by
+Task 6, after those children and their inherited client exist.
+
+Require the exact `tsx@4.22.4` NuanuFlowQA package/lock pin already committed by
+N5; if it is absent or different, stop rather than installing in this task. The
+two Nuanu tools are fixed parent entrypoints: each accepts one
+bounded closed stdin document, selects one literal command, loads only the
+server-owned deployment pin record, and calls the launcher. They accept no
+executable, cwd, child argv, FD, environment-key, Nuanu method, or schema path
+from the operator or task. This is the only supported live invocation; package
+scripts and direct product-child invocation remain test/developer aliases.
+
+- [ ] **Step 3: Verify focused GREEN before live state**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/auto-routing-adapter.spec.ts tests/program/nuanu/auto-control-server.spec.ts tests/program/nuanu/auto-control-launcher.spec.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: both commands exit `0` with no skipped/TODO test. Do not start the
+sandbox server or mutate a sandbox item until this gate is green.
+
+- [ ] **Step 4: Commit and pin the focused-GREEN adapter before live use**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/auto-routing-adapter.spec.ts tests/program/nuanu/auto-control-server.spec.ts tests/program/nuanu/auto-control-launcher.spec.ts
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add src/nuanu/auto-routing-adapter.ts src/nuanu/auto-control-wire.ts src/nuanu/auto-control-server.ts src/nuanu/auto-control-launcher.ts tools/nuanu/run-freeland-auto-route.ts tools/nuanu/run-freeland-auto-rollback.ts src/nuanu/schemas/route-intent.v1.schema.json src/nuanu/schemas/route-receipt.v1.schema.json src/nuanu/schemas/frozen-flow-item-identity.v1.schema.json src/nuanu/schemas/auto-control-request.v1.schema.json src/nuanu/schemas/auto-control-result.v1.schema.json src/nuanu/schemas/auto-control-envelope.v1.schema.json src/nuanu/schemas/auto-control-response.v1.schema.json src/nuanu/schemas/auto-rollback-command.v1.schema.json tests/program/nuanu/auto-routing-adapter.spec.ts tests/program/nuanu/auto-control-server.spec.ts tests/program/nuanu/auto-control-launcher.spec.ts
+git commit -m "feat: add fail closed Nuanu auto route adapter"
+git status --short
+```
+
+Expected: empty status. Record the commit/handler/schema digests in the
+server-owned sandbox deployment pin before any mutation.
+
+- [ ] **Step 5: Run the Nuanu-native adversarial sandbox capability probe**
+
+Against isolated items, call the committed Nuanu-native adapter fixture,
+deterministically pause immediately before its guarded mutation, and race each
+edit/move/cancel/version/candidate mutation. Repeat the same route intent and
+verify one authoritative receipt. This phase does not invoke either future
+Freeland product child. Record actual Nuanu tool/schema/build digests and
+sanitized receipt IDs in the runbook; the end-to-end wrapper probe remains Task
+6/7.
+
+If any atomic property is absent, record `NATIVE_GUARD_UNAVAILABLE`, leave all
+capabilities in Assist, and stop N8 activation. A compare-and-set fallback then
+requires its own approved design; this plan does not silently add one.
+
+- [ ] **Step 6: Commit only sanitized probe evidence**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+git add docs/runbooks/nuanu-auto-transition-probe.md
+git diff --cached --check
+git commit -m "test: record Nuanu auto transition probe"
+git status --short
+```
+
+---
+
+### Task 5: Audit Transition Receipts and Reject Late Completion
+
+**Repository:** `FreelandQA-I1`
+
+**Files:**
+
+- Create: `packages/auto-routing/src/transition-guard.ts`
+- Create: `packages/auto-routing/src/receipt-audit.ts`
+- Create: `packages/auto-routing/src/nuanu-control-client.ts`
+- Create: `tests/auto-routing/transition-guard.test.ts`
+- Create: `tests/auto-routing/receipt-audit.test.ts`
+- Create: `tests/auto-routing/nuanu-control-client.test.ts`
+
+**Interfaces:**
+
+```ts
+export interface AutoRoutePort {
+  apply(intent: RouteIntent): Promise<RouteReceipt>;
+}
+
+export interface NuanuAutoControlClient extends AutoRoutePort {
+  disableAutomaticEnds(capabilityId: string, nextGeneration: number): Promise<ControlReceipt>;
+  stopNewJourneys(capabilityId: string): Promise<ControlReceipt>;
+  listInFlight(capabilityId: string, generation: number): Promise<JourneyRef[]>;
+  cancelOrTakeOver(journey: JourneyRef): Promise<ControlReceipt>;
+  auditTouchedItems(capabilityId: string, since: string): Promise<TouchedItemAudit>;
+  lockAssist(capabilityId: string, generation: number): Promise<ControlReceipt>;
+  close(): Promise<void>;
+}
+
+export interface RouteAudit {
+  routeIntentId: string;
+  outcome: RouteReceipt['outcome'];
+  verified: boolean;
+  reasonCodes: string[];
+  receiptDigest: string;
+}
+
+export function createInheritedNuanuAutoControlClient(input: {
+  fd: 3;
+  commandId: 'freeland-auto-route-v1' | 'freeland-auto-rollback-v1';
+  deploymentPinDigest: string;
+  handlerSpecDigest: string;
+}): Promise<NuanuAutoControlClient>;
+
+export function executeAutoRoute(intent: RouteIntent, port: AutoRoutePort): Promise<RouteReceipt>;
+export function auditRouteReceipt(intent: RouteIntent, receipt: RouteReceipt): RouteAudit;
+```
+
+- [ ] **Step 1: Write failing receipt truth-table tests**
+
+Cover applied, idempotent replay, stale rejection, Assist, missing receipt,
+wrong intent ID, wrong issue/state/candidate/graph/generation read-back, two
+different receipts for one intent, receipt for another item, and late
+completion after kill generation increments.
+For the real client, test the one-shot FD `3` bootstrap, exact independent
+schema-digest parity, command/operation separation, session/key zeroization,
+wrong peer/pid/session/pin/expiry/digest/MAC/result, nonce replay, frame bounds,
+abort/close, and the full route plus six-phase rollback transcript against the
+Nuanu fixture server.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/*.test.ts
+```
+
+Expected: FAIL because the execution/audit functions are absent.
+
+- [ ] **Step 2: Implement exact receipt validation**
+
+Return success only for `APPLIED`/`ALREADY_APPLIED` with a matching immutable
+receipt and read-back. Persist only sanitized receipt projections; on any
+disagreement pause that capability and return Assist.
+
+Implement `createInheritedNuanuAutoControlClient` as the sole concrete
+`AutoRoutePort`/`AutoControlPort` bridge. It takes exclusive ownership of FD
+`3`, completes the parent-generated session/key challenge, validates every
+closed response, binds each request to the fixed handler command, and exposes
+no generic send/method/URL/token API. Route command sessions reject every
+rollback operation; rollback sessions reject `apply-route`. The client builds
+canonical authenticated envelopes internally, consumes each nonce exactly once,
+zeroes key/frame buffers, and closes on ambiguity. It never accepts the control
+FD, pins, command, or operation from route/rollback stdin.
+
+- [ ] **Step 3: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add packages/auto-routing/src/transition-guard.ts packages/auto-routing/src/receipt-audit.ts packages/auto-routing/src/nuanu-control-client.ts tests/auto-routing/transition-guard.test.ts tests/auto-routing/receipt-audit.test.ts tests/auto-routing/nuanu-control-client.test.ts
+git commit -m "feat: verify automatic route receipts"
+```
+
+---
+
+### Task 6: Implement the One-Action Kill-Switch State Machine
+
+**Repository:** `FreelandQA-I1`
+
+**Files:**
+
+- Create: `db/migrations/0030_auto_capability_controls.sql`
+- Create: `packages/auto-routing/src/control-store.ts`
+- Create: `packages/auto-routing/src/kill-switch.ts`
+- Create: `packages/auto-routing/src/commands.ts`
+- Create: `packages/auto-routing/src/handler-spec.ts`
+- Create: `config/nuanu/auto-control-handlers.v1.json`
+- Create: `tools/auto-routing/rollback.ts`
+- Create: `tools/auto-routing/route.ts`
+- Create: `tests/auto-routing/kill-switch.test.ts`
+- Create: `tests/auto-routing/control-store.test.ts`
+- Create: `tests/auto-routing/commands.test.ts`
+- Create: `tests/auto-routing/handler-spec.test.ts`
+- Create: `docs/runbooks/auto-kill-switch.md`
+- Modify: `package.json`
+
+**Interfaces:**
+
+```ts
+export type KillSwitchPhase =
+  | 'AUTO_ENABLED'
+  | 'ENDS_DISABLED'
+  | 'NEW_JOURNEYS_STOPPED'
+  | 'IN_FLIGHT_RECONCILING'
+  | 'TOUCHED_ITEMS_AUDITED'
+  | 'ASSIST_LOCKED';
+
+export interface ControlReceipt {
+  receiptId: string;
+  capabilityId: string;
+  generation: number;
+  action: string;
+  observedMode: 'ASSIST' | 'AUTO';
+  readBackDigest: string;
+}
+
+export interface JourneyRef {
+  journeyId: string;
+  processRunId: string;
+  flowItemId: string;
+  generation: number;
+}
+
+export interface TouchedItemAudit {
+  capabilityId: string;
+  generation: number;
+  complete: boolean;
+  itemIds: string[];
+  auditDigest: string;
+}
+
+export interface AutoControlStore {
+  read(capabilityId: string): Promise<AutoCapabilityControl>;
+  activate(promotion: AutoPromotionRecord): Promise<AutoCapabilityControl>;
+  beginRollback(capabilityId: string, reasonCode: string): Promise<KillSwitchRecord>;
+  appendVerifiedPhase(
+    record: KillSwitchRecord,
+    receipt: ControlReceipt,
+    nextPhase: KillSwitchPhase,
+  ): Promise<KillSwitchRecord>;
+}
+
+export interface AutoControlPort {
+  disableAutomaticEnds(capabilityId: string, nextGeneration: number): Promise<ControlReceipt>;
+  stopNewJourneys(capabilityId: string): Promise<ControlReceipt>;
+  listInFlight(capabilityId: string, generation: number): Promise<JourneyRef[]>;
+  cancelOrTakeOver(journey: JourneyRef): Promise<ControlReceipt>;
+  auditTouchedItems(capabilityId: string, since: string): Promise<TouchedItemAudit>;
+  lockAssist(capabilityId: string, generation: number): Promise<ControlReceipt>;
+}
+
+export interface AutoControlHandlerManifestV1 {
+  schemaVersion: 1;
+  route: {
+    commandId: 'freeland-auto-route-v1';
+    executable: '/opt/homebrew/opt/node@20/bin/node';
+    argv: readonly ['--import', 'tsx', 'tools/auto-routing/route.ts'];
+  };
+  rollback: {
+    commandId: 'freeland-auto-rollback-v1';
+    executable: '/opt/homebrew/opt/node@20/bin/node';
+    argv: readonly ['--import', 'tsx', 'tools/auto-routing/rollback.ts'];
+  };
+  cwdPolicy: 'PINNED_PRODUCT_ROOT';
+  shell: false;
+  detached: false;
+  stdio: readonly ['request-stdin', 'result-stdout', 'reason-stderr', 'auto-control-socket'];
+  stdoutMaxBytes: 65536;
+  stderrMaxBytes: 65536;
+  schemaDigestSet: string;
+}
+
+export function validateAutoControlHandlerManifest(
+  value: unknown,
+): AutoControlHandlerManifestV1;
+
+export function advanceKillSwitch(
+  record: KillSwitchRecord,
+  port: AutoControlPort,
+): Promise<KillSwitchRecord>;
+```
+
+- [ ] **Step 1: Write failing phase and crash-recovery tests**
+
+Prove strict phase order, monotonic generation, idempotent replay at every
+phase, crash/restart after each receipt, duplicate rollback commands, late
+worker completion, one failed takeover, incomplete touched-item audit, and a
+payment `UNKNOWN_HELD` journey. The final phase is unreachable until every
+receipt/audit reconciles. Against PostgreSQL, race 32 rollback processes and
+prove exactly one generation increment and one `ENDS_DISABLED` authority row.
+Prove both direct CLIs accept no argv, validate one bounded stdin value, obtain
+pins only from the launcher's exact env, take exclusive FD `3` ownership,
+instantiate `createInheritedNuanuAutoControlClient` with the matching command,
+and emit only the closed receipt/kill-switch result. Run the real Nuanu launcher
+fixture for both commands; direct npm invocation without authenticated FD `3`
+must fail before DB or mutation use.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+docker compose -f config/postgres/payment-test.compose.yaml up -d --wait
+FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/auto-routing/control-store.test.ts tests/auto-routing/kill-switch.test.ts tests/auto-routing/commands.test.ts tests/auto-routing/handler-spec.test.ts
+```
+
+Expected: FAIL because the migration, control store, and state machine are
+absent.
+
+- [ ] **Step 2: Implement one-step-at-a-time durable progression**
+
+Migration `0030` creates `auto_capability_controls` keyed by capability ID and
+append-only `auto_control_events` keyed by `(capability_id,generation,phase)`.
+Mode is `ASSIST|AUTO`, generation is monotonic, and `AUTO` requires an exact
+promotion ID. PostgreSQL `SERIALIZABLE` transactions and `SELECT ... FOR
+UPDATE` are the only control-state authority; a file or Nuanu Artifact is not a
+lock. Runner access is read-only; only the rollback/promote control role may
+invoke the reviewed transition functions.
+
+The migration also creates dedicated NOLOGIN group roles
+`freeland_auto_owner`, `freeland_auto_reader`, and
+`freeland_auto_controller`. All objects live in owner-owned schema
+`freeland_auto`; `PUBLIC`, reader, and controller have no `CREATE`, ownership,
+or direct table/sequence DML. Every granted state-changing routine is
+owner-owned `SECURITY DEFINER` with fixed
+`search_path = pg_catalog, freeland_auto, pg_temp`, `pg_temp` last, and
+schema-qualified tables, functions, sequences, operator-sensitive expressions,
+and extension helpers; dynamic SQL is forbidden. Revoke default/table/
+sequence/function privileges and `PUBLIC EXECUTE`, then grant only exact
+routine signatures: reader gets immutable generation/mode reads, controller
+gets activation/rollback transitions. Runtime uses only
+`FREELAND_AUTO_RUNTIME_DATABASE_URL`; route/rollback control uses the distinct
+`FREELAND_AUTO_CONTROL_DATABASE_URL`; owner/migration authority is absent from
+ticket and Auto handler envs.
+
+The integration suite enumerates `pg_proc`/owners/config/ACLs and attacks every
+granted routine with hostile `search_path`, same-named temp/schema tables,
+functions, operators, domains, and overloads. It proves only owner objects
+change, `PUBLIC` and reader cannot mutate or execute controller routines,
+controller cannot direct-DML/reassign ownership/create objects, and no attacker
+object runs. It also rejects role-membership escalation and missing qualified
+references before any Limited Auto activation.
+
+The command obtains the current exact record, executes at most the next safe
+phase, verifies/read-backs its receipt, persists a new immutable record, and
+loops until `ASSIST_LOCKED` or a typed hold. It never marks rollback complete
+from an exception path.
+
+`config/nuanu/auto-control-handlers.v1.json` is the sole two-handler manifest
+and must match the Nuanu launcher's independent wire type/digest. `route.ts`
+reads one exact `RouteIntent` from bounded stdin, opens a route-command client,
+calls `executeAutoRoute`, validates the receipt, and writes one JSON line.
+`rollback.ts` reads one exact `AutoRollbackCommandV1`, opens a rollback-command
+client, constructs the durable control store from the distinct
+`FREELAND_AUTO_CONTROL_DATABASE_URL`, advances one safe phase at a time, and
+writes one final record. Neither main accepts an injected port, argv path,
+socket, method, task env, or Nuanu token. The package scripts are developer
+aliases only; live route/rollback always use the digest-pinned Nuanu direct
+launcher so FD `3`, pins, cwd, and final-child stdout are authoritative.
+
+- [ ] **Step 3: Add scripts and runbook**
+
+Add these exact scripts:
+
+```json
+{
+  "test:auto:unit": "/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/contracts.test.ts tests/auto-routing/shadow-eligibility.test.ts tests/auto-routing/route-intent.test.ts tests/auto-routing/transition-guard.test.ts tests/auto-routing/receipt-audit.test.ts tests/auto-routing/nuanu-control-client.test.ts tests/auto-routing/kill-switch.test.ts tests/auto-routing/commands.test.ts tests/auto-routing/handler-spec.test.ts",
+  "test:auto:integration": "FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/auto-routing/control-store.test.ts",
+  "test:auto": "/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:auto:unit",
+  "auto:promote": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/auto-routing/promote.ts",
+  "auto:route": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/auto-routing/route.ts",
+  "auto:rollback": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/auto-routing/rollback.ts"
+}
+```
+
+The rollback
+command takes exact capability and reason inputs, prints the touched-item audit,
+and requires no code edit. The runbook covers global and per-capability use,
+Nuanu stop/takeover semantics, payment reconciliation, and reviewed recovery.
+
+- [ ] **Step 4: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+docker compose -f config/postgres/payment-test.compose.yaml up -d --wait
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test
+FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/control-store.test.ts tests/auto-routing/kill-switch.test.ts tests/auto-routing/commands.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:auto
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan
+git add db/migrations/0030_auto_capability_controls.sql packages/auto-routing/src/control-store.ts packages/auto-routing/src/kill-switch.ts packages/auto-routing/src/commands.ts packages/auto-routing/src/handler-spec.ts config/nuanu/auto-control-handlers.v1.json tools/auto-routing/rollback.ts tools/auto-routing/route.ts tests/auto-routing/control-store.test.ts tests/auto-routing/kill-switch.test.ts tests/auto-routing/commands.test.ts tests/auto-routing/handler-spec.test.ts docs/runbooks/auto-kill-switch.md package.json
+git commit -m "feat: add tested limited auto kill switch"
+```
+
+---
+
+### Task 7: Drill and Activate the First Limited-Auto Capability
+
+**Repositories:** `FreelandQA-I1` and `NuanuFlowQA`
+
+**Files:**
+
+- Create: `packages/contracts/schemas/auto-route-decision-envelope.v1.schema.json` in FreelandQA-I1
+- Modify: `packages/contracts/src/auto.ts` in FreelandQA-I1
+- Modify: `packages/contracts/src/index.ts` in FreelandQA-I1
+- Create: `packages/auto-routing/src/post-run-route-authority.ts` in FreelandQA-I1
+- Create: `tests/auto-routing/post-run-route-authority.test.ts` in FreelandQA-I1
+- Modify: `tools/auto-routing/route.ts` in FreelandQA-I1
+- Modify: `package.json` in FreelandQA-I1
+- Modify: `docs/runbooks/limited-auto-promotion.md` in FreelandQA-I1
+- Modify: `docs/runbooks/auto-kill-switch.md` in FreelandQA-I1
+- Modify: `src/nuanu/qa-column-graph.ts` in NuanuFlowQA
+- Modify: `tests/program/nuanu/qa-column-graph.spec.ts` in NuanuFlowQA
+- Create: `src/nuanu/auto-route-binding.ts` in NuanuFlowQA
+- Create: `src/nuanu/schemas/auto-route-decision-envelope.v1.schema.json` in NuanuFlowQA
+- Create: `tests/program/nuanu/auto-route-binding.spec.ts` in NuanuFlowQA
+- Create: `tools/nuanu/pin-freeland-auto-control-deployment.ts` in NuanuFlowQA
+- Create: `config/nuanu/freeland-auto-control.deployment.v1.json` in NuanuFlowQA
+- Modify: `docs/runbooks/nuanu-auto-transition-probe.md` in NuanuFlowQA
+
+**Interfaces:**
+
+```ts
+export interface AutoRouteDecisionEnvelopeV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-auto-route-v1';
+  executionMode: 'manual' | 'assist' | 'auto';
+  evidence: QaRunEvidence;
+  promotion: AutoPromotionRecord | null;
+  flowItem: FrozenFlowItemIdentity;
+  stateTargets: {
+    qaStateId: string;
+    readyForProdStateId: string;
+    inProgressStateId: string;
+  };
+  deadline: string;
+}
+
+export type PostRunAutoRouteResult =
+  | { outcome: 'APPLIED' | 'ALREADY_APPLIED'; receipt: RouteReceipt }
+  | { outcome: 'ASSIST_REQUIRED' | 'STALE_REJECTED'; reasonCodes: string[] };
+
+export function executePostRunAutoRoute(
+  envelope: AutoRouteDecisionEnvelopeV1,
+  dependencies: {
+    loadControl(capabilityId: string): Promise<AutoCapabilityControl>;
+    routePort: AutoRoutePort;
+  },
+): Promise<PostRunAutoRouteResult>;
+
+export interface NuanuPostRunRouteBindingPort {
+  readExactQaEvidence(input: {
+    artifactId: string;
+    versionId: string;
+    sha256: string;
+  }): Promise<unknown>;
+  readApprovedPromotion(capabilityId: string): Promise<unknown | null>;
+  freezeCurrentFlowItem(flowItemId: string): Promise<unknown>;
+  readAuthoritativeExecutionMode(flowItemId: string): Promise<'manual' | 'assist' | 'auto'>;
+}
+
+export type NuanuAutoRouteBindingResultV1 =
+  | { schemaVersion: 1; outcome: 'APPLIED' | 'ALREADY_APPLIED'; receiptId: string; readBackDigest: string }
+  | { schemaVersion: 1; outcome: 'ASSIST_REQUIRED' | 'STALE_REJECTED'; reasonCodes: string[] };
+
+export function runPostQaAutoRouteBinding(input: {
+  workerResult: QaWorkerOutputV1;
+  flowItemId: string;
+  deploymentPinDigest: string;
+}, port: NuanuPostRunRouteBindingPort): Promise<NuanuAutoRouteBindingResultV1>;
+```
+
+- [ ] **Step 1: Write the post-run authority and graph RED tests**
+
+In Freeland, require the sole exact `QaRunEvidence` Artifact pair, its bundle and
+coverage projection, one approved promotion with the same canonical evidence
+digest, the frozen Flow-item identity, an authoritative `auto` execution mode,
+and the current PostgreSQL control generation before a `RouteIntent` can exist.
+Manual/Assist, missing promotion, drift, stale evidence, mismatched capability,
+more than eleven automatic transitions, or any non-conclusive verdict returns
+`ASSIST_REQUIRED` without calling the route port. Race the control row and Flow
+item immediately before apply and require the native guarded operation to win
+or return stale, never a read-check-write fallback.
+
+In Nuanu, assert that the graph no longer contains a PASS or PRODUCT_FAIL
+status-changing Column End. Its deterministic spine is `run_qa` →
+`post_run_route_authority`; an applied native route reaches a no-target terminal,
+while every Assist/stale/inconclusive result reaches the existing human
+Decision. The binding must reconstruct and validate the evidence from the sole
+nine-field Artifact reference, load the exact approved promotion and a fresh
+Flow-item snapshot, and obtain execution mode from the server-owned binding/item
+record. Counts, verdict strings, task JSON, or a model cannot build route stdin.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/post-run-route-authority.test.ts
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/qa-column-graph.spec.ts tests/program/nuanu/auto-route-binding.spec.ts
+```
+
+Expected: RED because the authority, binding, and guarded graph interposition do
+not exist. No sandbox route is attempted.
+
+- [ ] **Step 2: Implement one closed post-run route path**
+
+`route.ts` now accepts only `AutoRouteDecisionEnvelopeV1` on bounded stdin from
+the official Nuanu route launcher. It validates the full evidence pair, reads
+the capability control through the read-only Auto runtime DSN, calls
+`deriveRouteIntent`, then uses the inherited authenticated FD `3` route client.
+It cannot accept a prebuilt intent, mode, promotion ID, control generation,
+state UUID, artifact path, or connection setting from argv/environment/task
+content. It emits one closed `PostRunAutoRouteResult` JSON line.
+
+`auto-route-binding.ts` is the sole producer of that stdin. It consumes the
+validated nine-field worker output, resolves the exact Artifact version and
+approved promotion, freezes the current item, reads the authoritative execution
+mode, validates independent schema parity, and calls the Task 4 direct launcher.
+The updated graph interposes this binding for every verdict. The old automatic
+Column Ends are removed, so the only status mutation in Auto is the guarded
+native transition inside `applyAutoRoute`; Manual/Assist remain human-controlled.
+
+The deployment record pins the clean Freeland commit, exact product root,
+handler-manifest digest, schema-digest set, graph version, authoritative mode,
+and Nuanu deployment digest. The parent selects those values, maps FD `3`, and
+retains Nuanu credentials. Re-registration/read-back is mandatory whenever the
+product commit, graph, schema, handler manifest, or mode changes.
+Append `tests/auto-routing/post-run-route-authority.test.ts` to the exact
+`test:auto:unit` script so the aggregate cannot omit this authority boundary.
+
+- [ ] **Step 3: Prove focused GREEN before any live activation**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/auto-routing/post-run-route-authority.test.ts tests/auto-routing/commands.test.ts tests/auto-routing/nuanu-control-client.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/qa-column-graph.spec.ts tests/program/nuanu/auto-route-binding.spec.ts tests/program/nuanu/auto-control-launcher.spec.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all focused tests pass with non-zero executed assertions and no
+skip/TODO. A failure routes back to the owning implementation step.
+
+- [ ] **Step 4: Commit the verified code and create immutable deployment pins**
+
+Commit only the verified source/contracts/tests first. The Freeland commit is
+created before the Nuanu deployment record so that record can contain its exact
+SHA. Then write the Nuanu deployment record, commit the graph/binding changes,
+require both worktrees clean, register the two handler specs against those
+immutable commits, and read back every digest. Do not activate Auto in this
+step.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/contracts/schemas/auto-route-decision-envelope.v1.schema.json packages/contracts/src/auto.ts packages/contracts/src/index.ts packages/auto-routing/src/post-run-route-authority.ts tests/auto-routing/post-run-route-authority.test.ts tools/auto-routing/route.ts package.json
+git commit -m "feat: bind guarded post run auto routes"
+git status --short
+git rev-parse HEAD
+```
+
+The reviewed pin tool resolves that exact OID from the fixed Freeland root; it
+accepts no caller-supplied commit, root, manifest path, schema path, graph
+version, or mode. It independently requires the Freeland checkout clean,
+verifies the commit, handler manifest, schema set, and graph/mode inputs, then
+atomically writes the one Nuanu config file. A second `--verify` invocation is
+read-only and must reproduce the same bytes. Rerun focused parent tests against
+the newly materialized record before committing it:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-auto-control-deployment.ts --phase=task7
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-auto-control-deployment.ts --phase=task7 --verify
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/qa-column-graph.spec.ts tests/program/nuanu/auto-route-binding.spec.ts tests/program/nuanu/auto-control-launcher.spec.ts
+git add src/nuanu/qa-column-graph.ts src/nuanu/auto-route-binding.ts src/nuanu/schemas/auto-route-decision-envelope.v1.schema.json tests/program/nuanu/qa-column-graph.spec.ts tests/program/nuanu/auto-route-binding.spec.ts tools/nuanu/pin-freeland-auto-control-deployment.ts config/nuanu/freeland-auto-control.deployment.v1.json
+git commit -m "feat: interpose guarded Nuanu auto routing"
+git status --short
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-auto-control-deployment.ts --phase=task7 --register
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-auto-control-deployment.ts --phase=task7 --verify-registered
+git status --short
+```
+
+The `--register` mode is the sole mutation mode: it resolves the now-committed
+Nuanu HEAD, registers the two fixed handler specs against the already pinned
+Freeland HEAD, and accepts no caller-selected executable, root, digest, mode,
+or state target. `--verify-registered` is read-only. Expected: every status
+command is empty and the registered Nuanu read-back equals both committed SHAs
+plus the graph/handler/schema/mode pins.
+
+- [ ] **Step 5: Select, drill, and activate one capability through the real graph**
+
+Choose only a reversible, non-payment capability whose exact reviewed shadow
+set passes Task 2. Generate and independently approve its promotion record; do
+not preselect it in documentation. Recheck the immutable Task 4 handler and
+updated graph read-backs from Step 4 before enabling `auto` mode.
+
+Exercise PASS and PRODUCT_FAIL through isolated QA-column items so the real
+post-run binding creates route stdin. Race edit, move, candidate change,
+cancellation, graph update, duplicate completion, and worker lease expiry.
+During an in-flight journey invoke only the fixed Nuanu parent tool
+`tools/nuanu/run-freeland-auto-rollback.ts` through pinned Node 20; write the
+selected literal capability UUID and reviewed reason into one bounded JSON
+stdin document generated by the runbook. Never invoke the product `auto:route`
+or `auto:rollback` npm aliases directly. Verify Ends-disabled-first ordering,
+stale late-result rejection, complete touched-item audit, and Assist lock.
+
+Read back active graph version and policy digest, apply the approved capability
+set, run one non-critical real item, audit the transition receipt/read-back,
+then repeat rollback and Assist recovery. Payment capabilities remain disabled.
+
+- [ ] **Step 6: Commit sanitized acceptance records separately**
+
+```bash
+# FreelandQA-I1
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:auto
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+git add docs/runbooks/limited-auto-promotion.md docs/runbooks/auto-kill-switch.md
+git commit -m "test: record limited auto acceptance"
+
+# NuanuFlowQA
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add docs/runbooks/nuanu-auto-transition-probe.md
+git commit -m "test: record Nuanu auto transition proof"
+```
+
+---
+
+### Task 8: Close the Requirement Inventory with Typed Exceptions
+
+**Repository:** `FreelandQA-I1`
+
+**Files:**
+
+- Create: `packages/continuous-coverage/src/inventory-closure.ts`
+- Create: `tests/continuous-coverage/inventory-closure.test.ts`
+- Create: `docs/runbooks/continuous-coverage.md`
+
+**Interfaces:**
+
+```ts
+export interface InventoryClosureLeaf {
+  requirementId: string;
+  disposition: 'EXECUTABLE' | 'BLOCKED' | 'INAPPLICABLE' | 'MISSING';
+  checkIds: string[];
+  exceptionDigest: string | null;
+}
+
+export interface InventoryClosureReport {
+  schemaVersion: 1;
+  registryDigest: string;
+  inventoryDigest: string;
+  leaves: InventoryClosureLeaf[];
+  complete: boolean;
+  reportDigest: string;
+}
+
+export function closeCoverageInventory(input: {
+  registry: CoverageRegistry;
+  executableInventory: TestInventory;
+  exceptions: CoverageException[];
+  now: string;
+}): InventoryClosureReport;
+```
+
+- [ ] **Step 1: Write failing leaf-closure tests**
+
+Cover executable check, valid blocked exception, valid inapplicable exception,
+`MISSING`, expired exception, missing owner/evidence, retired requirement,
+orphan test, duplicate exception, and capability/route without a requirement.
+Every active leaf must end in exactly one disposition.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/continuous-coverage/*.test.ts
+```
+
+Expected: FAIL because the closure evaluator is absent.
+
+- [ ] **Step 2: Implement deterministic closure and report digest**
+
+Reuse the existing coverage registry/inventory validators. A reviewed exception
+does not increment automated coverage and expires closed. Update the runbook
+with the exact owner/review/evidence renewal procedure.
+
+- [ ] **Step 3: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/continuous-coverage/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:reconcile
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:validate
+git add packages/continuous-coverage/src/inventory-closure.ts tests/continuous-coverage/inventory-closure.test.ts docs/runbooks/continuous-coverage.md
+git commit -m "feat: enforce complete coverage inventory"
+```
+
+---
+
+### Task 9: Detect Route, Catalog, Capability, and Oracle Drift
+
+**Repository:** `FreelandQA-I1`
+
+**Files:**
+
+- Create: `packages/continuous-coverage/src/drift-detector.ts`
+- Create: `tests/continuous-coverage/drift-detector.test.ts`
+- Create: `tests/continuous-coverage/commands.test.ts`
+- Create: `packages/continuous-coverage/src/commands.ts`
+- Create: `packages/contracts/schemas/continuous-coverage-envelope.v1.schema.json`
+- Create: `packages/contracts/schemas/continuous-coverage-result.v1.schema.json`
+- Create: `packages/contracts/schemas/coverage-maintenance-request.v1.schema.json`
+- Create: `packages/contracts/schemas/coverage-maintenance-result.v1.schema.json`
+- Create: `packages/contracts/schemas/coverage-maintenance-envelope.v1.schema.json`
+- Create: `packages/contracts/schemas/coverage-maintenance-response.v1.schema.json`
+- Create: `packages/contracts/schemas/continuous-coverage-handler.v1.schema.json`
+- Modify: `packages/contracts/src/auto.ts`
+- Modify: `packages/contracts/src/index.ts`
+- Create: `packages/continuous-coverage/src/nuanu-maintenance-client.ts`
+- Create: `packages/continuous-coverage/src/handler-spec.ts`
+- Create: `config/nuanu/continuous-coverage-handler.v1.json`
+- Create: `tools/continuous-coverage/audit.ts`
+- Create: `tests/continuous-coverage/nuanu-maintenance-client.test.ts`
+- Create: `tests/continuous-coverage/handler-spec.test.ts`
+- Modify: `package.json`
+
+**Interfaces:**
+
+```ts
+export interface CoverageInventorySnapshot {
+  schemaVersion: 1;
+  capturedAt: string;
+  routesDigest: string;
+  catalogDigest: string;
+  telegramEntrypointsDigest: string;
+  capabilitiesDigest: string;
+  requirementsDigest: string;
+  lanePolicyDigest: string;
+  selectorsDigest: string;
+  oracleDigest: string;
+  classifierDigest: string;
+  environmentDigest: string;
+  snapshotDigest: string;
+}
+
+export interface CoverageDriftFinding {
+  surface: keyof Omit<CoverageInventorySnapshot, 'schemaVersion' | 'capturedAt' | 'snapshotDigest'>;
+  beforeDigest: string;
+  afterDigest: string;
+  affectedCapabilityIds: string[];
+  requiredAction: 'CREATE_GAP' | 'REVIEW_EXCEPTION' | 'RECALIBRATE_ASSIST' | 'PAUSE_AUTO';
+}
+
+export interface CoverageDriftReport {
+  schemaVersion: 1;
+  previousSnapshotDigest: string;
+  currentSnapshotDigest: string;
+  findings: CoverageDriftFinding[];
+  reportDigest: string;
+}
+
+export interface ContinuousCoverageEnvelope {
+  schemaVersion: 1;
+  commandId: 'freeland-coverage-audit-v1';
+  workspaceId: string;
+  projectId: string;
+  stateIds: readonly [string, string, string, string, string];
+  previousSnapshotArtifactVersionId: string;
+  deadline: string;
+}
+
+export type SanitizedJsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | SanitizedJsonValue[]
+  | { [key: string]: SanitizedJsonValue };
+
+export interface CoverageWorkItemSnapshotV1 {
+  flowItemId: string;
+  revision: string;
+  stateId: string;
+  contentDigest: string;
+  candidateDigest: string | null;
+  capabilityIds: string[];
+  updatedAt: string;
+}
+
+export interface CoverageArtifactVersionV1 {
+  artifactId: string;
+  versionId: string;
+  sha256: string;
+  sanitizedJson: SanitizedJsonValue;
+}
+
+export interface ContinuousCoverageResultV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-coverage-audit-v1';
+  runId: string;
+  inputSnapshotDigest: string;
+  reportDigest: string;
+  artifact: { artifactId: string; versionId: string; sha256: string };
+  findingCount: number;
+  pausedCapabilityIds: string[];
+  outcome: 'UNCHANGED' | 'DRIFT_REVIEW_REQUIRED' | 'AUTO_PAUSED' | 'INCONCLUSIVE';
+}
+
+export type CoverageMaintenanceRequestV1 =
+  | { schemaVersion: 1; operation: 'read-work-item-page'; stateIds: string[]; watermark: string; cursor: string | null }
+  | { schemaVersion: 1; operation: 'read-artifact-version'; artifactVersionId: string }
+  | { schemaVersion: 1; operation: 'publish-report'; reportDigest: string; bundleDigest: string }
+  | { schemaVersion: 1; operation: 'pause-auto-capability'; capabilityId: string; promotionId: string; reportDigest: string };
+
+export type CoverageMaintenanceResultV1 =
+  | { schemaVersion: 1; operation: 'work-item-page'; items: CoverageWorkItemSnapshotV1[]; watermark: string; nextCursor: string | null; pageDigest: string }
+  | { schemaVersion: 1; operation: 'artifact-version'; value: CoverageArtifactVersionV1 }
+  | { schemaVersion: 1; operation: 'published-report'; artifactId: string; versionId: string; sha256: string }
+  | { schemaVersion: 1; operation: 'auto-pause-receipt'; capabilityId: string; receiptId: string; observedMode: 'ASSIST'; readBackDigest: string };
+
+export interface CoverageMaintenanceEnvelopeV1 {
+  schemaVersion: 1;
+  requestId: string;
+  sessionId: string;
+  commandId: 'freeland-coverage-audit-v1';
+  deploymentPinDigest: string;
+  handlerSpecDigest: string;
+  issuedAt: string;
+  expiresAt: string;
+  nonce: string;
+  payloadDigest: string;
+  payload: CoverageMaintenanceRequestV1;
+  mac: string;
+}
+
+export interface CoverageMaintenanceResponseV1 {
+  schemaVersion: 1;
+  requestId: string;
+  sessionId: string;
+  resultDigest: string;
+  result: CoverageMaintenanceResultV1;
+  mac: string;
+}
+
+export interface CoverageMaintenanceClient {
+  readWorkItemPage(input: Extract<CoverageMaintenanceRequestV1, { operation: 'read-work-item-page' }>): Promise<Extract<CoverageMaintenanceResultV1, { operation: 'work-item-page' }>>;
+  readArtifactVersion(versionId: string): Promise<Extract<CoverageMaintenanceResultV1, { operation: 'artifact-version' }>>;
+  publishReport(reportDigest: string, bundleDigest: string): Promise<Extract<CoverageMaintenanceResultV1, { operation: 'published-report' }>>;
+  pauseAutoCapability(capabilityId: string, promotionId: string, reportDigest: string): Promise<Extract<CoverageMaintenanceResultV1, { operation: 'auto-pause-receipt' }>>;
+  close(): Promise<void>;
+}
+
+export interface ContinuousCoverageHandlerManifestV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-coverage-audit-v1';
+  executable: '/opt/homebrew/opt/node@20/bin/node';
+  argv: readonly ['--import', 'tsx', 'tools/continuous-coverage/audit.ts'];
+  cwdPolicy: 'PINNED_PRODUCT_ROOT';
+  shell: false;
+  detached: false;
+  controlFd: 3;
+  stdinMaxBytes: 32768;
+  stdoutMaxBytes: 65536;
+  schemaDigestSet: string;
+}
+
+export function createInheritedCoverageMaintenanceClient(input: {
+  fd: 3;
+  deploymentPinDigest: string;
+  handlerSpecDigest: string;
+}): Promise<CoverageMaintenanceClient>;
+
+export function validateContinuousCoverageEnvelope(
+  value: unknown,
+): ContinuousCoverageEnvelope;
+
+export function detectCoverageDrift(input: {
+  previous: CoverageInventorySnapshot;
+  current: CoverageInventorySnapshot;
+  activePromotions: AutoPromotionRecord[];
+}): CoverageDriftReport;
+```
+
+- [ ] **Step 1: Write failing drift classification tests**
+
+Classify new/removed route, catalog SKU, Telegram entry point, capability,
+requirement, lane policy, selector, oracle, classifier, environment, and active
+Auto policy changes. Any drift touching an active promotion must pause that
+capability; benign evidence timestamp change must not. The closed command tests
+accept only `freeland-coverage-audit-v1`, reject `freeland-qa-run-v1`, ticket
+content, URLs, paths, shell/selector fields, arbitrary states, duplicate state
+IDs, and a mutable previous Artifact reference. The maintenance-client tests
+also reject wrong peer/session, command, pin, request/result digest, MAC,
+expiry, nonce replay, oversized frames, page-watermark change, cursor replay,
+report SHA mismatch, pause without a matching active promotion, and every
+generic Nuanu/MCP operation. Prove the ticket-worker FD cannot authenticate and
+the maintenance child cannot accept `freeland-qa-run-v1`.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/continuous-coverage/*.test.ts
+```
+
+Expected: FAIL because the detector/command are absent.
+
+- [ ] **Step 2: Implement canonical comparison and the closed maintenance child**
+
+Emit added/removed/changed leaves with exact before/after digests and required
+action `CREATE_GAP`, `REVIEW_EXCEPTION`, `RECALIBRATE_ASSIST`, or
+`PAUSE_AUTO`. Never silently rewrite the previous snapshot.
+
+`audit.ts` accepts one bounded `ContinuousCoverageEnvelope` on stdin and takes
+exclusive ownership of inherited FD `3`; it accepts no argv. Through the exact
+maintenance client it captures revision-pinned pages over only the five pinned
+states, reads the previous immutable Artifact version, publishes one sanitized
+report, and immediately pauses only an active promotion touched by drift. It
+validates every page/result/read-back and emits one closed
+`ContinuousCoverageResultV1` JSON line. The child never receives a Nuanu token,
+URL, generic method, owner/control database credential, product secret, or task
+environment. The client performs a peer-authenticated one-shot session/key
+bootstrap, canonical HMAC envelopes, atomic nonce/idempotency claims, bounded
+frames/deadlines, key zeroization, and fail-closed cleanup.
+
+The handler manifest is exact and independently schema/digest pinned. Direct
+npm execution without authenticated FD `3` fails before discovery, Artifact
+access, Auto pause, or publication. This maintenance-only command is not added
+to `qa:nuanu-worker`.
+
+- [ ] **Step 3: Add the scheduled-audit CLI**
+
+Add `coverage:audit:continuous`. It builds the current snapshot using existing
+discovery tools, compares the last exact Artifact version, writes a sanitized
+bundle, and exits non-zero on unowned gaps or active-Auto drift.
+The script is a local test alias only; the scheduled live path is Task 10's
+pinned Nuanu direct launcher.
+
+Add these exact package scripts:
+
+```json
+{
+  "test:continuous-coverage": "/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/continuous-coverage/*.test.ts",
+  "coverage:audit:continuous": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/continuous-coverage/audit.ts"
+}
+```
+
+- [ ] **Step 4: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/continuous-coverage/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:validate
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan
+git add packages/contracts/schemas/continuous-coverage-envelope.v1.schema.json packages/contracts/schemas/continuous-coverage-result.v1.schema.json packages/contracts/schemas/coverage-maintenance-request.v1.schema.json packages/contracts/schemas/coverage-maintenance-result.v1.schema.json packages/contracts/schemas/coverage-maintenance-envelope.v1.schema.json packages/contracts/schemas/coverage-maintenance-response.v1.schema.json packages/contracts/schemas/continuous-coverage-handler.v1.schema.json packages/contracts/src/auto.ts packages/contracts/src/index.ts packages/continuous-coverage/src/drift-detector.ts packages/continuous-coverage/src/commands.ts packages/continuous-coverage/src/nuanu-maintenance-client.ts packages/continuous-coverage/src/handler-spec.ts config/nuanu/continuous-coverage-handler.v1.json tools/continuous-coverage/audit.ts tests/continuous-coverage/drift-detector.test.ts tests/continuous-coverage/commands.test.ts tests/continuous-coverage/nuanu-maintenance-client.test.ts tests/continuous-coverage/handler-spec.test.ts package.json
+git commit -m "feat: detect Freeland coverage drift"
+```
+
+---
+
+### Task 10: Bind the Audit to a Nuanu Scheduled General Process
+
+**Repository:** `NuanuFlowQA`
+
+**Files:**
+
+- Create: `src/nuanu/continuous-coverage-graph.ts`
+- Create: `src/nuanu/continuous-coverage-wire.ts`
+- Create: `src/nuanu/continuous-coverage-server.ts`
+- Create: `src/nuanu/continuous-coverage-launcher.ts`
+- Create: `src/nuanu/schemas/continuous-coverage-envelope.v1.schema.json`
+- Create: `src/nuanu/schemas/continuous-coverage-result.v1.schema.json`
+- Create: `src/nuanu/schemas/coverage-maintenance-request.v1.schema.json`
+- Create: `src/nuanu/schemas/coverage-maintenance-result.v1.schema.json`
+- Create: `src/nuanu/schemas/coverage-maintenance-envelope.v1.schema.json`
+- Create: `src/nuanu/schemas/coverage-maintenance-response.v1.schema.json`
+- Create: `src/nuanu/schemas/continuous-coverage-handler.v1.schema.json`
+- Create: `tools/nuanu/run-freeland-continuous-coverage.ts`
+- Create: `tools/nuanu/pin-freeland-continuous-coverage-deployment.ts`
+- Create: `config/nuanu/freeland-continuous-coverage.deployment.v1.json`
+- Create: `tests/program/nuanu/continuous-coverage-graph.spec.ts`
+- Create: `tests/program/nuanu/continuous-coverage-server.spec.ts`
+- Create: `tests/program/nuanu/continuous-coverage-launcher.spec.ts`
+- Create: `docs/runbooks/nuanu-continuous-coverage.md`
+
+**Interfaces:**
+
+```ts
+export function buildContinuousCoverageGraph(input: {
+  agentId: string;
+  reviewerMemberId: string;
+  artifactScopeId: string;
+  handlerDeploymentPinDigest: string;
+}): ProcessGraph;
+
+export interface ContinuousCoverageEnvelopeWireV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-coverage-audit-v1';
+  workspaceId: string;
+  projectId: string;
+  stateIds: readonly [string, string, string, string, string];
+  previousSnapshotArtifactVersionId: string;
+  deadline: string;
+}
+
+export interface ContinuousCoverageResultWireV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-coverage-audit-v1';
+  runId: string;
+  inputSnapshotDigest: string;
+  reportDigest: string;
+  artifact: { artifactId: string; versionId: string; sha256: string };
+  findingCount: number;
+  pausedCapabilityIds: string[];
+  outcome: 'UNCHANGED' | 'DRIFT_REVIEW_REQUIRED' | 'AUTO_PAUSED' | 'INCONCLUSIVE';
+}
+
+export interface ContinuousCoverageHandlerSpecWireV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-coverage-audit-v1';
+  executable: '/opt/homebrew/opt/node@20/bin/node';
+  argv: readonly ['--import', 'tsx', 'tools/continuous-coverage/audit.ts'];
+  productRoot: string;
+  productCommit: string;
+  handlerSpecDigest: string;
+  schemaDigestSet: string;
+  shell: false;
+  detached: false;
+  controlFd: 3;
+}
+
+export function createOfficialCoverageMaintenanceServer(input: {
+  controlFd: 3;
+  deploymentPinDigest: string;
+  handlerSpecDigest: string;
+  expectedPeerUid: number;
+  expectedPeerPid: number;
+}): Promise<{ close(): Promise<void> }>;
+
+export function buildContinuousCoverageSpawnSpec(input: {
+  manifest: unknown;
+  deployment: unknown;
+  childControlFd: number;
+}): {
+  file: '/opt/homebrew/opt/node@20/bin/node';
+  args: readonly ['--import', 'tsx', 'tools/continuous-coverage/audit.ts'];
+  options: {
+    cwd: string;
+    shell: false;
+    detached: false;
+    stdio: readonly ['pipe', 'pipe', 'pipe', number];
+    env: Readonly<Record<string, string>>;
+  };
+};
+
+export function executeScheduledCoverageTask(
+  input: unknown,
+): Promise<ContinuousCoverageResultWireV1>;
+```
+
+- [ ] **Step 1: Write failing graph, transport, and final-child tests**
+
+Require schedule Start → closed remote-agent audit task → decision on typed
+gaps/drift → publish exact Artifact version → End. Require explicit reviewer,
+approve/deny/refine edges, refine back to audit, no status-changing Column End,
+and no ticket creation when the report is unchanged. The test fixture contains
+items from the exact Freeland `Triage`, `Backlog`, `Todo`, `In Progress`, and
+`QA` state UUIDs plus an item revised during pagination; assert stable
+watermarking, one mapping per exact revision, and a next-run carryover for the
+concurrent revision. Independently validate every Task 9 wire root and nested
+field and require exact schema SHA parity. Test wrong peer/pid/session/key,
+command, product/deployment/handler pin, expiry, digest, MAC, replay, frame and
+timeout; pagination watermark/cursor races; publication read-back mismatch;
+duplicate pause; crash/restart idempotency; hostile parent environment; and
+ticket/maintenance command cross-rejection. The launcher test must directly
+spawn the final Task 9 child from the clean pinned Freeland commit and observe
+one exact result line with no npm/shell/stdout contamination.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/continuous-coverage-graph.spec.ts tests/program/nuanu/continuous-coverage-server.spec.ts tests/program/nuanu/continuous-coverage-launcher.spec.ts
+```
+
+Expected: FAIL because the graph builder is absent.
+
+- [ ] **Step 2: Implement the isolated maintenance handler and structured graph**
+
+Use the platform's General Process primitives and remote worker envelope. The
+agent runs only the separately closed maintenance command
+`freeland-coverage-audit-v1`; it reads a revision-pinned,
+paginated Nuanu work-item snapshot from the five reviewed states, maps every
+item to active requirement IDs or a typed owned gap, compares product
+route/catalog/capability inventory, and emits one sanitized report digest.
+Nuanu owns scheduling, journey, Decision, Artifact linkage, and retries. The
+process never changes an item's state and never treats an older ticket revision
+as current evidence. This command is accepted only by the scheduled maintenance
+worker; the ticket runner rejects it, and the maintenance worker rejects
+`freeland-qa-run-v1`.
+
+The maintenance handler is a separate static direct-spawn composition, not an
+extension of the ticket worker. Its deployment file pins the clean Task 9
+Freeland commit/root, exact handler and schema digests, Node 20 argv, graph
+version, workspace/project/state UUID set, and Artifact scope. A fresh
+socketpair maps only the child endpoint to FD `3`; the Nuanu parent retains all
+tokens and generates a fresh session plus 32-byte key. The peer-authenticated
+one-shot bootstrap and every request bind command, uid/pid, deployment/handler
+pins, operation, canonical payload, nonce, and <=30 second expiry under
+constant-time HMAC. Nonces/idempotency are claimed atomically; frames are at
+most 32 KiB and buffers are zeroed/closed on every path.
+
+The server exposes only revision-pinned pagination over the five exact states,
+read of one immutable prior Artifact version, publication/read-back of one
+sanitized report, and Assist-pause of an exact active promotion. It has no
+generic issue, Artifact, MCP, graph, state, or Auto mutation method. The child
+environment is built from nothing and contains only locale/temp and the two
+non-secret pin digests. Nuanu credentials, ticket-worker FD, owner/control DB
+credentials, browser/payment secrets, NODE_OPTIONS/DYLD/npm/proxy variables,
+and ambient task values never enter the child.
+
+`run-freeland-continuous-coverage.ts` accepts one bounded server-built envelope
+on stdin, selects the sole manifest entry, and invokes the fixed launcher. The
+General Process remote-agent node is bound to this exact entrypoint and closed
+result schema; it cannot select a command or executable from graph/task data.
+
+`pin-freeland-continuous-coverage-deployment.ts` accepts only literal
+`--phase=task10`. It resolves the fixed clean Task 9 product root/HEAD and
+reviewed handler/schema bytes itself, materializes only the one deployment
+config, and reproduces it byte-for-byte under `--verify`. After the Nuanu code
+commit, its sole mutation mode `--register` binds that committed parent HEAD to
+the already pinned child; `--verify-registered` is read-only. No mode accepts a
+caller-selected root, commit, command, state UUID, executable, or digest.
+
+- [ ] **Step 3: Require focused GREEN before save or activation**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/continuous-coverage-graph.spec.ts tests/program/nuanu/continuous-coverage-server.spec.ts tests/program/nuanu/continuous-coverage-launcher.spec.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all focused tests execute and pass with no skip/TODO. Do not save,
+register, activate, or trigger the schedule before this gate.
+
+- [ ] **Step 4: Commit the handler/graph and pin its immutable deployment**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-continuous-coverage-deployment.ts --phase=task10
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-continuous-coverage-deployment.ts --phase=task10 --verify
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/continuous-coverage-graph.spec.ts tests/program/nuanu/continuous-coverage-server.spec.ts tests/program/nuanu/continuous-coverage-launcher.spec.ts
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add src/nuanu/continuous-coverage-graph.ts src/nuanu/continuous-coverage-wire.ts src/nuanu/continuous-coverage-server.ts src/nuanu/continuous-coverage-launcher.ts src/nuanu/schemas/continuous-coverage-envelope.v1.schema.json src/nuanu/schemas/continuous-coverage-result.v1.schema.json src/nuanu/schemas/coverage-maintenance-request.v1.schema.json src/nuanu/schemas/coverage-maintenance-result.v1.schema.json src/nuanu/schemas/coverage-maintenance-envelope.v1.schema.json src/nuanu/schemas/coverage-maintenance-response.v1.schema.json src/nuanu/schemas/continuous-coverage-handler.v1.schema.json tools/nuanu/run-freeland-continuous-coverage.ts tools/nuanu/pin-freeland-continuous-coverage-deployment.ts config/nuanu/freeland-continuous-coverage.deployment.v1.json tests/program/nuanu/continuous-coverage-graph.spec.ts tests/program/nuanu/continuous-coverage-server.spec.ts tests/program/nuanu/continuous-coverage-launcher.spec.ts
+git commit -m "feat: add Nuanu continuous coverage process"
+git status --short
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-continuous-coverage-deployment.ts --phase=task10 --register
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-continuous-coverage-deployment.ts --phase=task10 --verify-registered
+git status --short
+```
+
+Require the Task 9 product worktree clean and its handler manifest digest equal
+the committed Nuanu copy. Register/read back this clean commit and its direct
+handler/deployment pin. Expected: empty status and exact digest equality.
+
+- [ ] **Step 5: Save/read-back and activate the committed sandbox schedule**
+
+Validate until zero errors/warnings, save, read back exact nodes/edges/config,
+activate a daily sandbox schedule, trigger once manually, prove unchanged and
+drift fixtures, verify missed scheduled execution recovery, and prove that a
+new or revised pre-QA ticket creates exactly one reviewed gap while an unchanged
+snapshot creates none.
+
+- [ ] **Step 6: Commit only sanitized schedule evidence**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+git add docs/runbooks/nuanu-continuous-coverage.md
+git diff --cached --check
+git commit -m "test: record continuous coverage schedule proof"
+git status --short
+```
+
+---
+
+### Task 11: Feed Escaped Defects into the Mandatory Baseline
+
+**Repository:** `FreelandQA-I1`
+
+**Files:**
+
+- Create: `packages/continuous-coverage/src/escaped-defect.ts`
+- Create: `tests/continuous-coverage/escaped-defect.test.ts`
+
+**Interfaces:**
+
+```ts
+export interface SanitizedEscapedDefect {
+  incidentId: string;
+  incidentDigest: string;
+  candidateDigest: string;
+  capabilityId: string;
+  violatedBehavior: string;
+  failingRegressionArtifact: { artifactId: string; versionId: string; sha256: string };
+  ownerMemberId: string;
+  reviewBy: string;
+}
+
+export interface EscapedDefectGap {
+  gapId: string;
+  incidentDigest: string;
+  capabilityId: string;
+  proposedRequirementId: string;
+  proposedAssertion: string;
+  mandatoryBaselineImpact: true;
+  ownerMemberId: string;
+  reviewBy: string;
+}
+
+export function deriveEscapedDefectGap(input: {
+  incident: SanitizedEscapedDefect;
+  registry: CoverageRegistry;
+  baseline: ReleaseBaseline;
+}): EscapedDefectGap;
+```
+
+- [ ] **Step 1: Write failing escaped-defect tests**
+
+Require exact incident/candidate/capability identity, a new or strengthened
+requirement, failing regression evidence before any fix, mandatory-baseline
+impact, owner, and review deadline. Reject duplicates, vague prose-only reports,
+secret-bearing evidence, and marking the gap covered before an executable check
+passes.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/continuous-coverage/*.test.ts
+```
+
+Expected: FAIL because the derivation is absent.
+
+- [ ] **Step 2: Implement the typed feedback record**
+
+Generate a deterministic gap ID and registry patch proposal, never edit the
+registry automatically. The existing QA review/patchset workflow must approve
+the new requirement and regression before baseline closure returns green.
+
+- [ ] **Step 3: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/continuous-coverage/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:validate
+git add packages/continuous-coverage/src/escaped-defect.ts tests/continuous-coverage/escaped-defect.test.ts
+git commit -m "feat: feed escaped defects into coverage gaps"
+```
+
+---
+
+### Task 12: Calibrate Process Variants and Complete N9 Acceptance
+
+**Repositories:** `NuanuFlowQA`, `FreelandQA-I1`, and Nuanu sandbox
+
+**Files:**
+
+- Modify: `docs/runbooks/nuanu-continuous-coverage.md` in NuanuFlowQA
+- Modify: `docs/runbooks/continuous-coverage.md` in FreelandQA-I1
+
+- [ ] **Step 1: Freeze the evaluation corpus and deterministic oracle**
+
+Select two to five graph/prompt variants, the same exact coverage snapshots,
+scripted reviewer decisions, concurrency, model, tools, and spend. Include
+unchanged, new route, removed SKU, Telegram drift, active-Auto drift, expired
+exception, and escaped-defect cases.
+
+- [ ] **Step 2: Run bounded Nuanu Process Experiments**
+
+Create draft variants, validate all, run the frozen corpus with sanitized
+Artifacts, compare agreement/latency/cost and false-negative/false-route counts,
+and require a human promotion decision. Variant prompts may explain findings
+but cannot change the deterministic drift/closure output.
+
+- [ ] **Step 3: Activate the reviewed winner only for future runs**
+
+Read back the active template/version, verify historical runs retain their
+original version, trigger the scheduled process twice, and prove no duplicate
+gap tickets/Artifacts for the same snapshot digest.
+
+- [ ] **Step 4: Prove complete inventory and Auto drift response**
+
+Run the full live inventory. Every active requirement must be executable or
+carry a current reviewed typed exception. Introduce isolated catalog drift that
+touches the enabled Auto capability; verify the scheduled process pauses it and
+locks Assist via the tested kill switch.
+
+- [ ] **Step 5: Verify and commit sanitized acceptance records**
+
+```bash
+# FreelandQA-I1
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:continuous-coverage
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:auto
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+git add docs/runbooks/continuous-coverage.md
+git commit -m "test: record continuous coverage acceptance"
+
+# NuanuFlowQA
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add docs/runbooks/nuanu-continuous-coverage.md
+git commit -m "test: record Nuanu coverage process acceptance"
+```
+
+## Plan Acceptance
+
+- Every task-scoped commit named above is present in its repository and both
+  worktrees are clean.
+- Limited Auto is enabled for no capability unless its own seven-day/30-case
+  reviewed corpus and human promotion record pass every strict metric.
+- Atomic native transition protection, receipt/read-back, idempotency, long
+  worker lease, race, cancellation, and stale-late-completion probes pass; if
+  native protection is unavailable, every capability remains in Assist.
+- One-action rollback disables Ends first, reconciles every in-flight journey
+  and touched item, rejects late completion, and leaves the capability in Assist.
+- Payment routing remains separately disabled until its own promotion record.
+- Every active inventory leaf has an executable check or current reviewed typed
+  exception, and every relevant drift or escaped defect creates a visible gap.
+- Scheduled Nuanu analysis and Process Experiments reuse platform primitives;
+  no custom scheduler, queue, Decision store, or experiment engine exists.

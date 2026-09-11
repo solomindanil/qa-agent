@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "productId": "nuanu-app",
+  "baseUrl": "https://app.nuanu.com",
+  "observedAt": "2026-08-26T00:10:00.000Z",
+  "runtimeDigest": "e2724fcd3981036337a18010f54d0188fab4b5d4075cec0817f4ff0be291d632",
+  "capturePlanDigest": "99817a5258bfca16e874932e774034a51a891e3d8d4462bbc6c447653a88aa13",
+  "states": [
+    {
+      "state": "map",
+      "postcondition": { "role": "region", "name": "Synthetic map surface", "evidenceId": "6d1c2d7e035b458be75bf5395de1f09ca69f2d898c1b19ffdb2176a9ff882b3b", "matchCount": 1 },
+      "records": [
+        { "evidenceId": "8754fba46248a7ed98300ed25f8bfd51e040a6ce133ed49fd70a58983a38bf96", "state": "map", "role": "button", "name": "Synthetic map marker", "matchCount": 1 },
+        { "evidenceId": "6d1c2d7e035b458be75bf5395de1f09ca69f2d898c1b19ffdb2176a9ff882b3b", "state": "map", "role": "region", "name": "Synthetic map surface", "matchCount": 1 }
+      ]
+    },
+    {
+      "state": "places",
+      "postcondition": { "role": "region", "name": "Synthetic places surface", "evidenceId": "c96b476ed56d9a6ab9b43c20dded3762172159bc791aca24d53b1be1cf270271", "matchCount": 1 },
+      "records": [
+        { "evidenceId": "d32fb32d232e2240c768e8da7b37bba5526e651db089bdc0e19f8ac97ea4887d", "state": "places", "role": "article", "name": "Synthetic place card", "matchCount": 1 },
+        { "evidenceId": "4a4bf579611a875e9812af7b9998620918b0c831699dada8c8d4ce8911742dbc", "state": "places", "role": "link", "name": "Synthetic map entry", "matchCount": 1 },
+        { "evidenceId": "c96b476ed56d9a6ab9b43c20dded3762172159bc791aca24d53b1be1cf270271", "state": "places", "role": "region", "name": "Synthetic places surface", "matchCount": 1 }
+      ]
+    },
+    {
+      "state": "root",
+      "postcondition": { "role": "application", "name": "Synthetic shell", "evidenceId": "30262c89dc6d35f6784b40ff39ae9edbfe82d989733021f492686feccbf1e62b", "matchCount": 1 },
+      "records": [
+        { "evidenceId": "30262c89dc6d35f6784b40ff39ae9edbfe82d989733021f492686feccbf1e62b", "state": "root", "role": "application", "name": "Synthetic shell", "matchCount": 1 },
+        { "evidenceId": "93d2141e079ce98141c3aabbca4d2f535c79149a061879c9ca62a8bbb5b70479", "state": "root", "role": "checkbox", "name": "Synthetic open control", "matchCount": 1 },
+        { "evidenceId": "4c5c06f3405f2e377cea77970820cc72ab6afc46a3f3b0b3b628d219807d0cd8", "state": "root", "role": "link", "name": "Synthetic places entry", "matchCount": 1 },
+        { "evidenceId": "595b609286aaab793c9e25e60277e1c6fbd9567a8837226b0351e6702c73e758", "state": "root", "role": "link", "name": "Synthetic profile entry", "matchCount": 1 },
+        { "evidenceId": "5dd104d3b395be0901e6400ccb6bf0a42c2d8ebe7d73f4e7d3654fc7abfbffc0", "state": "root", "role": "option", "name": "Synthetic category", "matchCount": 1 },
+        { "evidenceId": "d314040593341464bf204870b4ac7f2fc3bea92e2ae262c59c15590fecedd824", "state": "root", "role": "option", "name": "Synthetic collection", "matchCount": 1 },
+        { "evidenceId": "04a172f5fc178c3a3cdd59c6b2f61ae6aae21b106b16a31bb9764023379caaf8", "state": "root", "role": "searchbox", "name": "Synthetic search", "matchCount": 1 }
+      ]
+    }
+  ],
+  "ambiguities": [],
+  "mutationLedger": { "records": [], "overflowed": false },
+  "limitations": [],
+  "observationDigest": "a13d438798dc67345ab93833e0d08be13a0cd520659f4237dc1838c91976471f"
+}

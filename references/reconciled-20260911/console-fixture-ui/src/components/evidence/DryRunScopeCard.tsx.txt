@@ -1,0 +1,107 @@
+import type { DiscoveryRunPlan, ExecutionApproval } from "../../lib/evidence-flow";
+import { FIXTURE_OUTCOMES, FIXTURE_OUTCOME_LABEL, type FixtureOutcome } from "../../lib/evidence-fixture";
+import { DigestValue, EvidenceCard, Field } from "./EvidenceFields";
+
+interface DryRunScopeCardProps {
+  plan: DiscoveryRunPlan;
+  /** Set once the run action has been confirmed — the scope becomes history. */
+  execution: ExecutionApproval | null;
+  canRun: boolean;
+  busy: boolean;
+  outcome: FixtureOutcome;
+  onSelectOutcome: (outcome: FixtureOutcome) => void;
+  onRun: () => void;
+}
+
+export function DryRunScopeCard({
+  plan,
+  execution,
+  canRun,
+  busy,
+  outcome,
+  onSelectOutcome,
+  onRun,
+}: DryRunScopeCardProps) {
+  return (
+    <EvidenceCard
+      title="Dry-run scope"
+      contract="discovery-run-plan.v1"
+      meta={<span className={`ev-tag mono${execution === null ? "" : " is-done"}`}>{plan.sideEffectClass}</span>}
+    >
+      <p className="ev-lede">
+        This is the entire request. One environment, one URL, one read-only method, bounded three ways. No
+        cookie, credential, authorization header or body is part of the plan.
+      </p>
+
+      <div className="ev-scope">
+        <div className="ev-scope-request">
+          <span className="ev-method mono">{plan.method}</span>
+          <span className="ev-url mono">{plan.normalizedUrl}</span>
+        </div>
+        <div className="ev-limits">
+          <span className="ev-limit mono"><b>≤ {plan.maxRedirects}</b> redirects</span>
+          <span className="ev-limit mono"><b>≤ {(plan.maxResponseBytes / 1024).toFixed(0)} KiB</b> response</span>
+          <span className="ev-limit mono"><b>≤ {plan.timeoutMs / 1000}s</b> timeout</span>
+        </div>
+      </div>
+
+      <div className="ev-split">
+        <Field label="environment">{plan.environment.name} · {plan.environment.kind}</Field>
+        <Field label="allowed origin">{plan.allowedOrigin}</Field>
+        <Field label="declared source">{plan.declaredSource}</Field>
+        <Field label="observation">{plan.expectedObservationKind}</Field>
+        <Field label="plan digest" wrap><DigestValue value={plan.planDigest} /></Field>
+        <Field label="bound approval" wrap><DigestValue value={plan.baselineApprovalDigest} /></Field>
+      </div>
+
+      <div className="ev-retained">
+        <span className="micro">Evidence retained</span>
+        <div className="ev-retained-list">
+          {plan.retainedEvidenceFields.map((field) => (
+            <span key={field} className="chip ev-retained-chip">{field}</span>
+          ))}
+        </div>
+        <p className="ev-caveat">The response body is never stored — only its byte count and digest.</p>
+      </div>
+
+      {execution === null ? (
+        <div className="ev-gate">
+          <div className="ev-gate-copy">
+            <span className="ev-gate-title">This action sends the request</span>
+            <span className="ev-gate-detail">
+              Running the probe is a second, action-time approval, bound to this plan digest and one
+              idempotency key. It cannot be replayed against another URL, method or run.
+            </span>
+          </div>
+          <fieldset className="ev-outcome" disabled={busy || !canRun}>
+            <legend className="micro">Fixture outcome</legend>
+            {FIXTURE_OUTCOMES.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={`source-chip${outcome === option ? " is-on" : ""}`}
+                aria-pressed={outcome === option}
+                onClick={() => onSelectOutcome(option)}
+              >
+                {FIXTURE_OUTCOME_LABEL[option]}
+              </button>
+            ))}
+          </fieldset>
+          <div className="ev-actions">
+            <button type="button" className="pill-button ev-primary" disabled={!canRun || busy} onClick={onRun}>
+              {busy ? "running probe…" : "Run read-only probe"}
+            </button>
+            <span className="ev-action-note">one bounded {plan.method} · nothing else runs</span>
+          </div>
+        </div>
+      ) : (
+        <div className="ev-split ev-receipt-strip">
+          <Field label="run id" wrap><DigestValue value={execution.runId} /></Field>
+          <Field label="approval digest" wrap><DigestValue value={execution.executionApprovalDigest} /></Field>
+          <Field label="idempotency key" wrap><DigestValue value={execution.idempotencyKeyDigest} /></Field>
+          <Field label="scope digest" wrap><DigestValue value={execution.scopeDigest} /></Field>
+        </div>
+      )}
+    </EvidenceCard>
+  );
+}

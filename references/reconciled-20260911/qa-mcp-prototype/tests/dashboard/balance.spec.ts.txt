@@ -1,0 +1,26 @@
+import { test, expect } from '@playwright/test';
+import { hasDashboardEnv } from '../fixtures/env';
+import { DashboardPage } from '../pages/dashboard.page';
+
+test.skip(!hasDashboardEnv, 'дашборд-env не настроен (.env)');
+
+test('баланс отображается и является неотрицательным числом @smoke', async ({ page }) => {
+  const dashboard = new DashboardPage(page);
+  await dashboard.goto();
+
+  await expect(dashboard.balance).toBeVisible();
+  const value = await dashboard.balanceValue();
+  expect(value).toBeGreaterThanOrEqual(0);
+});
+
+test('баланс не меняется при перезагрузке страницы', async ({ page }) => {
+  const dashboard = new DashboardPage(page);
+  await dashboard.goto();
+  const before = await dashboard.balanceValue();
+
+  await page.reload();
+
+  await expect(dashboard.balance).toBeVisible();
+  const after = await dashboard.balanceValue();
+  expect(after).toBe(before);
+});

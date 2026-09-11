@@ -1,0 +1,204 @@
+// View model for the registration build pipeline shown on the intake screen.
+//
+// Honesty rule: this module never infers a phase the console cannot evidence.
+// The current seam is one synchronous POST /api/cli/init that answers with a
+// final workspace lifecycle and no per-phase telemetry, so only QUEUED is
+// individually *reported*; every other row says what it is derived from. When
+// the asynchronous job API lands, `reported` is where its real phase events go.
+
+/** The accepted registration job phases, in kernel order (registration-job.v1). */
+export const REGISTRATION_BUILD_PHASES = [
+  "QUEUED",
+  "INITIALIZING",
+  "DISCOVERING",
+  "COMPILING",
+  "PUBLISHING",
+  "VALIDATING",
+] as const;
+export type RegistrationBuildPhase = (typeof REGISTRATION_BUILD_PHASES)[number];
+
+/** What the console believes about a phase — never more than it can evidence. */
+export type RegistrationPhaseStatus = "pending" | "running" | "complete" | "blocked";
+
+export interface RegistrationPhaseView {
+  readonly phase: RegistrationBuildPhase;
+  readonly status: RegistrationPhaseStatus;
+  /** True only when the seam reported this phase itself, not when it was derived. */
+  readonly reported: boolean;
+  /** What the phase does. */
+  readonly note: string;
+  /** Where the status came from — one short tag, never a claim of its own. */
+  readonly evidence: string;
+}
+
+export interface RegistrationOutcomeView {
+  readonly lifecycleState: string;
+  readonly nextAction: string;
+  readonly workspaceDigest: string;
+  readonly workspacePath: string;
+  /** Registration never executes a campaign — these are facts, not placeholders. */
+  readonly runs: "none";
+  readonly verdict: "NOT_EVALUATED";
+  readonly baselineApprovalRequired: boolean;
+  readonly canOpenWorkspace: boolean;
+}
+
+export type RegistrationBuildState =
+  | { readonly kind: "idle" }
+  | { readonly kind: "submitting" }
+  | { readonly kind: "failed"; readonly message: string }
+  | {
+      readonly kind: "settled";
+      readonly lifecycleState: string;
+      readonly nextAction: string;
+      readonly workspaceDigest: string;
+      readonly workspacePath: string;
+    };
+
+export interface RegistrationProgressView {
+  readonly headline: string;
+  readonly detail: string;
+  readonly phases: readonly RegistrationPhaseView[];
+  readonly completeCount: number;
+  /** How many phases the seam reported individually (the rest are derived). */
+  readonly reportedCount: number;
+  /** One line stating how much of this pipeline is observed rather than derived. */
+  readonly evidenceSummary: string;
+  readonly outcome: RegistrationOutcomeView | null;
+  readonly error: string | null;
+}
+
+// Workspace lifecycles reachable only through a successful VALIDATING read-back
+// (design §8), which therefore evidence the whole build. Listed explicitly
+// rather than by index: BLOCKED and INCOMPLETE also sort late.
+const LIFECYCLES_AT_OR_AFTER_BASELINE = new Set([
+  "BASELINE_APPROVAL_REQUIRED",
+  "BASELINED",
+  "VALIDATED",
+  "DRY_RUN_READY",
+  "EXECUTION_APPROVAL_REQUIRED",
+  "RUNNING",
+  "PROVISIONAL_RECEIPT_READY",
+  "MANUAL_EVIDENCE_REQUIRED",
+  "MANUAL_REVIEW_REQUIRED",
+  "FINAL_RECEIPT_READY",
+  "COMPLETE",
+]);
+
+const PHASES_AFTER_QUEUE = ["INITIALIZING", "DISCOVERING", "COMPILING", "PUBLISHING", "VALIDATING"] as const;
+const PHASES_AFTER_INITIALIZING = ["DISCOVERING", "COMPILING", "PUBLISHING", "VALIDATING"] as const;
+
+// What each phase does — stable copy, so a row never repeats the epistemics
+// that already live in its status and evidence tag.
+const PHASE_WORK: Record<RegistrationBuildPhase, string> = {
+  QUEUED: "the build request is accepted and durably queued",
+  INITIALIZING: "verify the recorded inputs and resolve the workspace target",
+  DISCOVERING: "read-only discovery across the declared sources",
+  COMPILING: "compile the draft graph, coverage and test catalog",
+  PUBLISHING: "publish the staged workspace",
+  VALIDATING: "read the workspace state back and validate it",
+};
+
+function row(
+  phase: RegistrationBuildPhase,
+  status: RegistrationPhaseStatus,
+  reported: boolean,
+  evidence: string,
+): RegistrationPhaseView {
+  return { phase, status, reported, note: PHASE_WORK[phase], evidence };
+}
+
+function settledPhases(lifecycleState: string): RegistrationPhaseView[] {
+  const reachedBaseline = LIFECYCLES_AT_OR_AFTER_BASELINE.has(lifecycleState);
+  const derived = `derived from ${lifecycleState}`;
+  return [
+    row("QUEUED", "complete", true, "reported"),
+    // A workspace digest and path came back, so the build resolved its target.
+    row("INITIALIZING", "complete", false, derived),
+    ...PHASES_AFTER_INITIALIZING.map((phase) =>
+      reachedBaseline ? row(phase, "complete", false, derived) : row(phase, "pending", false, "not evidenced")),
+  ];
+}
+
+function phasesFor(state: RegistrationBuildState): RegistrationPhaseView[] {
+  switch (state.kind) {
+    case "idle":
+      return REGISTRATION_BUILD_PHASES.map((phase) => row(phase, "pending", false, "not started"));
+    case "submitting":
+      return [
+        row("QUEUED", "complete", true, "reported"),
+        ...PHASES_AFTER_QUEUE.map((phase) => row(phase, "running", false, "not reported")),
+      ];
+    case "failed":
+      return [
+        row("QUEUED", "complete", true, "reported"),
+        ...PHASES_AFTER_QUEUE.map((phase) => row(phase, "blocked", false, "not run")),
+      ];
+    case "settled":
+      return settledPhases(state.lifecycleState);
+  }
+}
+
+function evidenceSummaryFor(state: RegistrationBuildState, reportedCount: number, total: number): string {
+  const observed = `${reportedCount} of ${total} phases reported by this seam`;
+  switch (state.kind) {
+    case "idle":
+      return "no build has run yet";
+    case "submitting":
+      return `${observed} · it answers once, at the end`;
+    case "failed":
+      return `${observed} · the build did not complete`;
+    case "settled":
+      return LIFECYCLES_AT_OR_AFTER_BASELINE.has(state.lifecycleState)
+        ? `${observed} · the rest are derived from the final lifecycle`
+        : `${observed} · the later phases are not evidenced by ${state.lifecycleState}`;
+  }
+}
+
+function headlineFor(state: RegistrationBuildState): { headline: string; detail: string } {
+  switch (state.kind) {
+    case "idle":
+      return { headline: "Build not started", detail: "the build runs once the intake below is submitted" };
+    case "submitting":
+      return {
+        headline: "Building workspace…",
+        detail: "this seam answers once, at the end — per-phase progress is not reported yet",
+      };
+    case "failed":
+      return { headline: "✗ build failed", detail: "no workspace was registered" };
+    case "settled":
+      return LIFECYCLES_AT_OR_AFTER_BASELINE.has(state.lifecycleState)
+        ? { headline: "✓ workspace created", detail: "baseline review required before anything runs" }
+        : {
+            headline: "✓ workspace created",
+            detail: `the build stopped at ${state.lifecycleState} — this is not a registered baseline`,
+          };
+  }
+}
+
+export function buildRegistrationProgress(state: RegistrationBuildState): RegistrationProgressView {
+  const phases = phasesFor(state);
+  const { headline, detail } = headlineFor(state);
+  const outcome: RegistrationOutcomeView | null = state.kind !== "settled" ? null : {
+    lifecycleState: state.lifecycleState,
+    nextAction: state.nextAction,
+    workspaceDigest: state.workspaceDigest,
+    workspacePath: state.workspacePath,
+    runs: "none",
+    verdict: "NOT_EVALUATED",
+    baselineApprovalRequired: state.lifecycleState === "BASELINE_APPROVAL_REQUIRED",
+    canOpenWorkspace: state.workspacePath.startsWith("/"),
+  };
+
+  const reportedCount = phases.filter((phase) => phase.reported).length;
+  return {
+    headline,
+    detail,
+    phases,
+    completeCount: phases.filter((phase) => phase.status === "complete").length,
+    reportedCount,
+    evidenceSummary: evidenceSummaryFor(state, reportedCount, phases.length),
+    outcome,
+    error: state.kind === "failed" ? state.message : null,
+  };
+}

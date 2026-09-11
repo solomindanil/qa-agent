@@ -1,0 +1,670 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  ALLOWED_AGGREGATIONS,
+  ALLOWED_PROPERTY_OPERATORS,
+  ALLOWED_ROOT_QUERY_KINDS,
+  ALLOWED_SERIES_KINDS,
+  POSTHOG_AUXILIARY_QUERY_BUILDERS,
+  POSTHOG_QUERY_BUILDERS,
+  POSTHOG_WINDOW_DURATION_HOURS,
+  POSTHOG_WINDOW_INTERVAL,
+  TARGET_APP_HOST,
+  buildP75PostHogQueryPair,
+  buildStructuredPostHogQuery,
+  digestStructuredPostHogQuery,
+  validateAndFreezePostHogWindow,
+  validateP75PostHogQueryPair,
+  validateStructuredPostHogQuery,
+} from "../../tools/nuanu-app-graph/posthog-query-builders.mjs";
+import {
+  createP75PairDigestInput,
+  digestP75Pair,
+} from "../../tools/nuanu-app-graph/telemetry-contract.mjs";
+
+const HASH_A = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const WINDOW = Object.freeze({
+  startAt: "2026-08-25T00:00:00.000Z",
+  endAt: "2026-08-26T00:00:00.000Z",
+  interval: "day",
+});
+const NEXT_WINDOW = Object.freeze({
+  startAt: "2026-08-26T00:00:00.000Z",
+  endAt: "2026-08-27T00:00:00.000Z",
+  interval: "day",
+});
+const EXPECTED_FRESHNESS_QUERY_HASH =
+  "ab9086eb0e2d75915d777afd317c1c11d8306d81485f58ac015c8dba6d74dd69";
+
+const DEFINITIONS = Object.freeze({
+  "telemetry-freshness": {
+    builderId: "trends-total-v1",
+    queryKind: "TrendsQuery",
+    roles: [["population_event", "total"]],
+    durableValue: "count",
+    sampleSizeOrigin: "sole_total",
+  },
+  "route-health": {
+    builderId: "trends-route-health-rate-v1",
+    queryKind: "TrendsQuery",
+    roles: [
+      ["route_attempt_population", "unique_session"],
+      ["route_success_population", "unique_session"],
+    ],
+    durableValue: "rate",
+    sampleSizeOrigin: "ordered_denominator",
+  },
+  "funnel-discovery": {
+    builderId: "funnels-discovery-v1",
+    queryKind: "FunnelsQuery",
+    roles: [
+      ["discovery_surface_view", "total"],
+      ["place_detail_view_from_discovery", "total"],
+    ],
+    durableValue: "rate",
+    sampleSizeOrigin: "funnel_first_step",
+  },
+  "funnel-search": {
+    builderId: "funnels-search-v1",
+    queryKind: "FunnelsQuery",
+    roles: [
+      ["search_submit", "total"],
+      ["search_results_view", "total"],
+      ["place_detail_view_from_search", "total"],
+    ],
+    durableValue: "rate",
+    sampleSizeOrigin: "funnel_first_step",
+  },
+  "funnel-place-detail": {
+    builderId: "funnels-place-detail-v1",
+    queryKind: "FunnelsQuery",
+    roles: [
+      ["place_detail_view", "total"],
+      ["place_detail_primary_action", "total"],
+    ],
+    durableValue: "rate",
+    sampleSizeOrigin: "funnel_first_step",
+  },
+  "js-exception-rate": {
+    builderId: "trends-exception-session-rate-v1",
+    queryKind: "TrendsQuery",
+    roles: [
+      ["eligible_session_population", "unique_session"],
+      ["exception_session_population", "unique_session"],
+    ],
+    durableValue: "rate",
+    sampleSizeOrigin: "ordered_denominator",
+  },
+  "web-vitals-lcp-p75": {
+    builderId: "trends-p75-v1",
+    queryKind: "TrendsQuery",
+    roles: [["vital_measurement", "p75"]],
+    durableValue: "p75",
+    sampleSizeOrigin: "independent_total_count",
+  },
+  "web-vitals-cls-p75": {
+    builderId: "trends-p75-v1",
+    queryKind: "TrendsQuery",
+    roles: [["vital_measurement", "p75"]],
+    durableValue: "p75",
+    sampleSizeOrigin: "independent_total_count",
+  },
+  "web-vitals-inp-p75": {
+    builderId: "trends-p75-v1",
+    queryKind: "TrendsQuery",
+    roles: [["vital_measurement", "p75"]],
+    durableValue: "p75",
+    sampleSizeOrigin: "independent_total_count",
+  },
+});
+
+function clone(value) {
+  return structuredClone(value);
+}
+
+function bindingFor(queryId, { breakdown = null } = {}) {
+  const definition = DEFINITIONS[queryId];
+  const isP75 = queryId.startsWith("web-vitals-");
+  const safeIdentifierForRole = (role) => ({
+    eligible_session_population: "napp_test_eligible_population",
+    exception_session_population: "napp_test_exception_population",
+  })[role] ?? `napp_test_${role}`;
+  return {
+    queryId,
+    builderId: definition.builderId,
+    eventIdentifiers: definition.roles.map(([role]) => safeIdentifierForRole(role)),
+    valuePropertyIdentifier: isP75 ? "napp_test_vital_value" : null,
+    hostPropertyIdentifier: "napp_test_host",
+    breakdown,
+    p75SampleCountCompanion: isP75
+      ? {
+          builderId: "trends-total-sample-size-v1",
+          exactPopulationSemanticsEvidenceDigest: HASH_A,
+        }
+      : null,
+  };
+}
+
+function expectedFreshnessQuery() {
+  return {
+    kind: "TrendsQuery",
+    series: [{
+      kind: "EventsNode",
+      event: "napp_test_population_event",
+      math: "total",
+    }],
+    dateRange: {
+      date_from: WINDOW.startAt,
+      date_to: WINDOW.endAt,
+    },
+    interval: "day",
+    properties: [{
+      type: "event",
+      key: "napp_test_host",
+      operator: "exact",
+      value: "app.nuanu.com",
+    }],
+    trendsFilter: { display: "ActionsLineGraph" },
+  };
+}
+
+function mutateQuery(queryId, mutation) {
+  const binding = bindingFor(queryId);
+  const query = clone(buildStructuredPostHogQuery({ queryId, binding, window: WINDOW }));
+  mutation(query);
+  return { query, binding };
+}
+
+test("builds only TrendsQuery FunnelsQuery and nested EventsNode", () => {
+  assert.deepEqual(ALLOWED_ROOT_QUERY_KINDS, ["TrendsQuery", "FunnelsQuery"]);
+  assert.deepEqual(ALLOWED_SERIES_KINDS, ["EventsNode"]);
+  assert.deepEqual(ALLOWED_AGGREGATIONS, ["total", "unique_session", "p75"]);
+  assert.deepEqual(ALLOWED_PROPERTY_OPERATORS, ["exact"]);
+  assert.equal(TARGET_APP_HOST, "app.nuanu.com");
+
+  for (const queryId of Object.keys(DEFINITIONS)) {
+    if (queryId.startsWith("web-vitals-")) continue;
+    const binding = bindingFor(queryId);
+    const query = buildStructuredPostHogQuery({ queryId, binding, window: WINDOW });
+    assert.equal(query.kind, DEFINITIONS[queryId].queryKind);
+    assert.ok(query.series.every((series) => series.kind === "EventsNode"));
+    assert.deepEqual(
+      validateStructuredPostHogQuery({ query, binding, window: WINDOW }),
+      { ok: true },
+    );
+  }
+});
+
+test("accepts only a canonical UTC-midnight exact 24-hour day window", () => {
+  assert.equal(POSTHOG_WINDOW_INTERVAL, "day");
+  assert.equal(POSTHOG_WINDOW_DURATION_HOURS, 24);
+  assert.deepEqual(validateAndFreezePostHogWindow(WINDOW), WINDOW);
+
+  for (const invalid of [
+    { ...WINDOW, extra: ".invalid" },
+    { ...WINDOW, startAt: "2026-08-25T00:00:00Z" },
+    { ...WINDOW, startAt: "2026-08-25T01:00:00.000Z" },
+    { ...WINDOW, startAt: "2026-02-30T00:00:00.000Z" },
+    { ...WINDOW, endAt: "2026-08-26T00:00:00.001Z" },
+    { ...WINDOW, endAt: WINDOW.startAt },
+    { ...WINDOW, interval: ".invalid" },
+  ]) {
+    assert.throws(() => validateAndFreezePostHogWindow(invalid), /window/i);
+  }
+});
+
+test("defensively freezes the window and never derives one from now", () => {
+  const mutable = { ...WINDOW };
+  const frozen = validateAndFreezePostHogWindow(mutable);
+  mutable.startAt = NEXT_WINDOW.startAt;
+  assert.equal(frozen.startAt, WINDOW.startAt);
+  assert.ok(Object.isFrozen(frozen));
+  assert.throws(
+    () => validateAndFreezePostHogWindow({ ...WINDOW, now: "2026-08-26T00:05:00.000Z" }),
+    /window/i,
+  );
+});
+
+test("query hashes change when the validated window changes", () => {
+  const binding = bindingFor("telemetry-freshness");
+  const first = buildStructuredPostHogQuery({
+    queryId: "telemetry-freshness",
+    binding,
+    window: WINDOW,
+  });
+  const second = buildStructuredPostHogQuery({
+    queryId: "telemetry-freshness",
+    binding,
+    window: NEXT_WINDOW,
+  });
+  assert.deepEqual(first, expectedFreshnessQuery());
+  assert.equal(digestStructuredPostHogQuery(first), EXPECTED_FRESHNESS_QUERY_HASH);
+  assert.notEqual(digestStructuredPostHogQuery(first), digestStructuredPostHogQuery(second));
+});
+
+test("maps all nine query IDs to exact builder IDs series arity order and sample origin", () => {
+  assert.deepEqual(Object.keys(POSTHOG_QUERY_BUILDERS), Object.keys(DEFINITIONS));
+  for (const [queryId, expected] of Object.entries(DEFINITIONS)) {
+    assert.deepEqual(POSTHOG_QUERY_BUILDERS[queryId], {
+      builderId: expected.builderId,
+      queryKind: expected.queryKind,
+      series: expected.roles.map(([role, aggregation]) => ({ role, aggregation })),
+      durableValue: expected.durableValue,
+      sampleSizeOrigin: expected.sampleSizeOrigin,
+    });
+  }
+  assert.deepEqual(POSTHOG_AUXILIARY_QUERY_BUILDERS, {
+    "js-exception-rate:fingerprint": {
+      builderId: "trends-exception-fingerprint-breakdown-v1",
+      queryKind: "TrendsQuery",
+      series: [{ role: "exception_session_population", aggregation: "unique_session" }],
+    },
+  });
+  assert.ok(Object.isFrozen(POSTHOG_QUERY_BUILDERS));
+  assert.ok(Object.values(POSTHOG_QUERY_BUILDERS).every(Object.isFrozen));
+});
+
+test("injects exact app.nuanu.com equality scope into every generated query", () => {
+  for (const queryId of Object.keys(DEFINITIONS)) {
+    const binding = bindingFor(queryId);
+    const queries = queryId.startsWith("web-vitals-")
+      ? [
+          buildP75PostHogQueryPair({ metricId: queryId, binding, window: WINDOW })
+            .pairBundle.percentileQuery,
+          buildP75PostHogQueryPair({ metricId: queryId, binding, window: WINDOW })
+            .pairBundle.sampleCountQuery,
+        ]
+      : [buildStructuredPostHogQuery({ queryId, binding, window: WINDOW })];
+    for (const query of queries) {
+      assert.deepEqual(query.properties, [{
+        type: "event",
+        key: "napp_test_host",
+        operator: "exact",
+        value: TARGET_APP_HOST,
+      }]);
+    }
+  }
+});
+
+test("rejects HogQLQuery before the injected client is called", () => {
+  const { query, binding } = mutateQuery("telemetry-freshness", (value) => {
+    value.kind = "HogQLQuery";
+  });
+  assert.throws(
+    () => validateStructuredPostHogQuery({ query, binding, window: WINDOW }),
+    /HogQLQuery|kind/i,
+  );
+});
+
+test("rejects SQL HogQL text and math hogql before the client is called", () => {
+  for (const mutation of [
+    (query) => { query.sql = "select .invalid"; },
+    (query) => { query.hogql = ".invalid"; },
+    (query) => { query.series[0].math = "hogql"; },
+  ]) {
+    const { query, binding } = mutateQuery("telemetry-freshness", mutation);
+    assert.throws(
+      () => validateStructuredPostHogQuery({ query, binding, window: WINDOW }),
+      /field|aggregation|math|query/i,
+    );
+  }
+});
+
+test("rejects raw event table columns select source and join fields", () => {
+  for (const field of ["table", "columns", "select", "source", "join"]) {
+    const { query, binding } = mutateQuery("telemetry-freshness", (value) => {
+      value[field] = ".invalid";
+    });
+    assert.throws(
+      () => validateStructuredPostHogQuery({ query, binding, window: WINDOW }),
+      /field|query/i,
+    );
+  }
+});
+
+test("rejects persons replay recordings warehouse and raw event query nodes", () => {
+  for (const kind of [
+    "PersonsNode",
+    "SessionRecordingQuery",
+    "ReplayQuery",
+    "DataWarehouseNode",
+    "EventsQuery",
+  ]) {
+    const { query, binding } = mutateQuery("telemetry-freshness", (value) => {
+      value.series[0].kind = kind;
+    });
+    assert.throws(
+      () => validateStructuredPostHogQuery({ query, binding, window: WINDOW }),
+      /kind|EventsNode/i,
+    );
+  }
+});
+
+test("rejects URL person and session properties in bindings and generated queries", () => {
+  for (const property of [
+    "exactUrl",
+    "$current_url",
+    "personId",
+    "person.id",
+    "sessionId",
+    "$session_id",
+    "deviceId",
+    "distinct_id",
+  ]) {
+    const binding = bindingFor("telemetry-freshness");
+    binding.hostPropertyIdentifier = property;
+    assert.throws(
+      () => buildStructuredPostHogQuery({ queryId: "telemetry-freshness", binding, window: WINDOW }),
+      /identifier|property/i,
+    );
+  }
+});
+
+test("rejects sensitive or opaque scalars as every provider identifier and public allowlist value", () => {
+  const unsafeScalars = [
+    "https://example.invalid/private?token=synthetic",
+    "/private/synthetic/path",
+    "synthetic?query=value",
+    "person@example.invalid",
+    "+1 (555) 123-4567",
+    "synthetic_contact_value",
+    "synthetic_api_token",
+    "synthetic_client_secret",
+    "synthetic_person_identifier",
+    "synthetic_session_identifier",
+    "synthetic_device_identifier",
+    "syntheticsessionvalue",
+    "syntheticdevicevalue",
+    "syntheticpersonvalue",
+    "syntheticcontactvalue",
+    "syntheticsecretvalue",
+    "synthetictokenvalue",
+    "synthetic\u202econtrol",
+    "synthetic\u061ccontrol",
+    "0123456789abcdef0123456789abcdef",
+    "01890f57-e7e8-7cc0-98d8-0123456789ab",
+    "gk9m2p4r6t8v1x3z5b7d9f2h4j6l8n0q",
+    "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzeW50aGV0aWMifQ.signature",
+    "5551234567x1",
+    "call 5551234567",
+    "whatsapp 5551234567",
+    "5551234567 extension 1",
+    "key&value",
+    "napp_search_term",
+    "napp_latitude_value",
+    "napp_longitude_value",
+    "abcdefghijklmnopqrstuvwxyzabcdef",
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEF",
+    "abcdefghijklmnop_qrstuvwxyzabcdef",
+    "sess\u0456onvalue",
+  ];
+
+  for (const scalar of unsafeScalars) {
+    const eventBinding = bindingFor("telemetry-freshness");
+    eventBinding.eventIdentifiers[0] = scalar;
+    assert.throws(
+      () => buildStructuredPostHogQuery({
+        queryId: "telemetry-freshness",
+        binding: eventBinding,
+        window: WINDOW,
+      }),
+      { code: "STRUCTURED_QUERY_BLOCKED" },
+    );
+
+    const allowlistBinding = bindingFor("web-vitals-lcp-p75", {
+      breakdown: {
+        dimension: "browser",
+        propertyIdentifier: "napp_test_browser",
+        publicValueAllowlist: [scalar],
+      },
+    });
+    assert.throws(
+      () => buildP75PostHogQueryPair({
+        metricId: "web-vitals-lcp-p75",
+        binding: allowlistBinding,
+        window: WINDOW,
+      }),
+      { code: "STRUCTURED_QUERY_BLOCKED" },
+    );
+  }
+});
+
+test("accepts bounded non-sensitive provider identifiers and reviewed public labels", () => {
+  const binding = bindingFor("web-vitals-lcp-p75", {
+    breakdown: {
+      dimension: "browser",
+      propertyIdentifier: "napp_test_hardware_class",
+      publicValueAllowlist: ["Synthetic Browser", "Synthetic Tablet"],
+    },
+  });
+  assert.equal(
+    buildP75PostHogQueryPair({
+      metricId: "web-vitals-lcp-p75",
+      binding,
+      window: WINDOW,
+    }).status,
+    "READY",
+  );
+});
+
+test("rejects every non-null funnel breakdown under locked V1", () => {
+  for (const queryId of ["funnel-discovery", "funnel-search", "funnel-place-detail"]) {
+    const binding = bindingFor(queryId, {
+      breakdown: {
+        dimension: "release",
+        propertyIdentifier: "napp_test_release",
+        publicValueAllowlist: ["synthetic-release"],
+      },
+    });
+    assert.throws(
+      () => buildStructuredPostHogQuery({ queryId, binding, window: WINDOW }),
+      { code: "STRUCTURED_QUERY_BLOCKED" },
+    );
+  }
+});
+
+test("rejects every unknown root or nested query field", () => {
+  for (const mutation of [
+    (query) => { query.unknown = ".invalid"; },
+    (query) => { query.series[0].unknown = ".invalid"; },
+    (query) => { query.dateRange.unknown = ".invalid"; },
+    (query) => { query.properties[0].unknown = ".invalid"; },
+    (query) => { query.trendsFilter.unknown = ".invalid"; },
+  ]) {
+    const { query, binding } = mutateQuery("telemetry-freshness", mutation);
+    assert.throws(
+      () => validateStructuredPostHogQuery({ query, binding, window: WINDOW }),
+      /field|keys/i,
+    );
+  }
+});
+
+test("rejects a missing duplicate or non-exact host predicate", () => {
+  const mutations = [
+    (query) => { query.properties = []; },
+    (query) => { query.properties.push(clone(query.properties[0])); },
+    (query) => { query.properties[0].operator = ".invalid"; },
+    (query) => { query.properties[0].value = "not-app.invalid"; },
+  ];
+  for (const mutation of mutations) {
+    const { query, binding } = mutateQuery("telemetry-freshness", mutation);
+    assert.throws(
+      () => validateStructuredPostHogQuery({ query, binding, window: WINDOW }),
+      /host|property|operator|array|length/i,
+    );
+  }
+});
+
+test("builds every p75 with an independent total-count companion", () => {
+  for (const metricId of [
+    "web-vitals-lcp-p75",
+    "web-vitals-cls-p75",
+    "web-vitals-inp-p75",
+  ]) {
+    const result = buildP75PostHogQueryPair({
+      metricId,
+      binding: bindingFor(metricId),
+      window: WINDOW,
+    });
+    assert.equal(result.status, "READY");
+    assert.equal(result.pairBundle.percentileQuery.series[0].math, "p75");
+    assert.equal(result.pairBundle.sampleCountQuery.series[0].math, "total");
+    assert.equal(result.pairBundle.sampleCountQuery.series[0].math_property, undefined);
+    assert.notEqual(
+      result.pairBundle.p75PairDigestInput.percentile.queryHash,
+      result.pairBundle.p75PairDigestInput.sampleCount.queryHash,
+    );
+  }
+});
+
+test("p75 pair has identical window host event filters and breakdown", () => {
+  const binding = bindingFor("web-vitals-lcp-p75", {
+    breakdown: {
+      dimension: "browser",
+      propertyIdentifier: "napp_test_browser",
+      publicValueAllowlist: ["Synthetic Browser"],
+    },
+  });
+  const result = buildP75PostHogQueryPair({
+    metricId: "web-vitals-lcp-p75",
+    binding,
+    window: WINDOW,
+  });
+  const { percentileQuery, sampleCountQuery } = result.pairBundle;
+  for (const field of ["dateRange", "interval", "properties", "breakdownFilter", "trendsFilter"]) {
+    assert.deepEqual(percentileQuery[field], sampleCountQuery[field]);
+  }
+  assert.equal(percentileQuery.series[0].event, sampleCountQuery.series[0].event);
+  assert.equal(percentileQuery.series[0].math_property, "napp_test_vital_value");
+});
+
+test("p75 pair uses the shared canonical digest input and helper", () => {
+  const binding = bindingFor("web-vitals-lcp-p75", {
+    breakdown: {
+      dimension: "browser",
+      propertyIdentifier: "napp_test_browser",
+      publicValueAllowlist: null,
+    },
+  });
+  const result = buildP75PostHogQueryPair({
+    metricId: "web-vitals-lcp-p75",
+    binding,
+    window: WINDOW,
+  });
+  const input = createP75PairDigestInput({
+    metricId: "web-vitals-lcp-p75",
+    dimensions: ["browser"],
+    percentileQueryHash: digestStructuredPostHogQuery(result.pairBundle.percentileQuery),
+    sampleCountQueryHash: digestStructuredPostHogQuery(result.pairBundle.sampleCountQuery),
+  });
+  assert.deepEqual(result.pairBundle.p75PairDigestInput, input);
+  assert.equal(result.pairBundle.pairDigest, digestP75Pair(input));
+});
+
+test("rejects missing extra reversed or mismatched p75 pair fields before client use", () => {
+  const binding = bindingFor("web-vitals-lcp-p75");
+  const ready = buildP75PostHogQueryPair({
+    metricId: "web-vitals-lcp-p75",
+    binding,
+    window: WINDOW,
+  });
+  const mutations = [
+    (pair) => { delete pair.pairDigest; },
+    (pair) => { pair.extra = ".invalid"; },
+    (pair) => {
+      const next = pair.p75PairDigestInput.percentile;
+      pair.p75PairDigestInput.percentile = pair.p75PairDigestInput.sampleCount;
+      pair.p75PairDigestInput.sampleCount = next;
+    },
+    (pair) => { pair.sampleCountQuery.dateRange.date_from = NEXT_WINDOW.startAt; },
+    (pair) => { pair.sampleCountQuery.series[0].event = "napp_test_other_event"; },
+  ];
+  for (const mutation of mutations) {
+    const pair = clone(ready.pairBundle);
+    mutation(pair);
+    assert.throws(
+      () => validateP75PostHogQueryPair({ pair, binding, window: WINDOW }),
+      /pair|query|hash|window|event|keys/i,
+    );
+  }
+});
+
+test("builder validators are structural and accept only binding query and window", () => {
+  const binding = bindingFor("telemetry-freshness");
+  const query = buildStructuredPostHogQuery({
+    queryId: "telemetry-freshness",
+    binding,
+    window: WINDOW,
+  });
+  assert.throws(
+    () => validateStructuredPostHogQuery({
+      query,
+      binding,
+      window: WINDOW,
+      schemaFacts: ".invalid",
+    }),
+    /keys|input/i,
+  );
+  assert.throws(
+    () => buildStructuredPostHogQuery({
+      queryId: "telemetry-freshness",
+      binding,
+      window: WINDOW,
+      now: () => ".invalid",
+    }),
+    /keys|input/i,
+  );
+});
+
+test("binding accessors are rejected before validator identifier reads", () => {
+  const original = bindingFor("telemetry-freshness");
+  const query = buildStructuredPostHogQuery({
+    queryId: "telemetry-freshness",
+    binding: original,
+    window: WINDOW,
+  });
+  const binding = clone(original);
+  let reads = 0;
+  Object.defineProperty(binding, "queryId", {
+    enumerable: true,
+    get() {
+      reads += 1;
+      return "telemetry-freshness";
+    },
+  });
+  assert.throws(
+    () => validateStructuredPostHogQuery({ query, binding, window: WINDOW }),
+    { code: "STRUCTURED_QUERY_BLOCKED" },
+  );
+  assert.equal(reads, 0);
+});
+
+test("p75 pair validation ignores harmless plain-object key insertion order", () => {
+  const binding = bindingFor("web-vitals-lcp-p75", {
+    breakdown: {
+      dimension: "browser",
+      propertyIdentifier: "napp_test_browser",
+      publicValueAllowlist: null,
+    },
+  });
+  const pair = clone(buildP75PostHogQueryPair({
+    metricId: "web-vitals-lcp-p75",
+    binding,
+    window: WINDOW,
+  }).pairBundle);
+  pair.p75PairDigestInput = {
+    sampleCount: pair.p75PairDigestInput.sampleCount,
+    percentile: pair.p75PairDigestInput.percentile,
+    dimensions: pair.p75PairDigestInput.dimensions,
+    metricId: pair.p75PairDigestInput.metricId,
+  };
+  pair.sampleCountQuery.dateRange = {
+    date_to: pair.sampleCountQuery.dateRange.date_to,
+    date_from: pair.sampleCountQuery.dateRange.date_from,
+  };
+  assert.deepEqual(
+    validateP75PostHogQueryPair({ pair, binding, window: WINDOW }),
+    { ok: true },
+  );
+});

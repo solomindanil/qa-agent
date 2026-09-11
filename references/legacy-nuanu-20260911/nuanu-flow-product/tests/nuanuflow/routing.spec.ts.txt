@@ -1,0 +1,24 @@
+import { expect, test } from '@playwright/test';
+
+test('unknown guest route resolves to sign in without losing the destination', async ({
+  page,
+}) => {
+  const destination = '/qa-unknown-route-019f9d72';
+  const response = await page.goto(destination, {
+    waitUntil: 'domcontentloaded',
+  });
+
+  expect(response).not.toBeNull();
+  expect(response!.status()).toBeLessThan(400);
+  await expect(page.getByRole('textbox', { name: 'Email' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page).toHaveTitle(/Sign in - Nuanu Flow/i);
+
+  const currentUrl = new URL(page.url());
+  const destinationIsRetained =
+    currentUrl.pathname === destination ||
+    (currentUrl.pathname === '/' &&
+      currentUrl.searchParams.get('next_path') === destination);
+  expect(destinationIsRetained).toBe(true);
+});

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nuanu QA test plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_key", "commit", "profile_digest", "branches"],
+  "properties": {
+    "schema_version": { "const": "nuanu.qa-test-plan.v1" },
+    "project_key": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "profile_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "branches": { "type": "array", "maxItems": 4, "uniqueItems": true, "items": { "enum": ["code", "api", "ui", "domain"] } }
+  }
+}

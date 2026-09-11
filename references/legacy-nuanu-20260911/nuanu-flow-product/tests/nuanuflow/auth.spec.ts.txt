@@ -1,0 +1,140 @@
+import { expect, test } from '@playwright/test';
+import { AuthPage } from './pages/auth.page';
+
+type SafeFocusProjection = {
+  tag: string | null;
+  type: string | null;
+  role: string | null;
+  pathname: string | null;
+};
+
+const safeActiveElement = (page: import('@playwright/test').Page) =>
+  page.evaluate<SafeFocusProjection>(() => {
+    const element = document.activeElement;
+    let pathname: string | null = null;
+    if (element instanceof HTMLAnchorElement) {
+      try {
+        pathname = new URL(element.href).pathname;
+      } catch {
+        pathname = '<invalid-url>';
+      }
+    }
+    return {
+      tag: element?.tagName ?? null,
+      type: element instanceof HTMLInputElement ? element.type : null,
+      role: element?.getAttribute('role') ?? null,
+      pathname,
+    };
+  });
+
+const pressAndExpectFocus = async (
+  page: import('@playwright/test').Page,
+  target: import('@playwright/test').Locator,
+  key: 'Tab' | 'Shift+Tab',
+) => {
+  await page.keyboard.press(key);
+  const activeElement = await safeActiveElement(page);
+  expect(
+    await target.evaluate((element) => element === document.activeElement),
+    `${key} did not reach the exact next control; safe activeElement=${JSON.stringify(activeElement)}`,
+  ).toBe(true);
+};
+
+const verifyWebKitLinkTabPolicy = async (
+  page: import('@playwright/test').Page,
+  browserName: string,
+  testInfo: import('@playwright/test').TestInfo,
+) => {
+  if (browserName !== 'webkit') return;
+  await page.setContent(`
+    <a href="/synthetic-link">Synthetic link</a>
+    <label>Synthetic email <input type="email" autofocus></label>
+  `);
+  const input = page.getByRole('textbox', { name: 'Synthetic email' });
+  const link = page.getByRole('link', { name: 'Synthetic link' });
+  await expect(input).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  const tabsToLinks = await link.evaluate(
+    (element) => element === document.activeElement,
+  );
+  testInfo.annotations.push({
+    type: 'WebKit native link Tab policy',
+    description: JSON.stringify({
+      tabsToLinks,
+      activeElement: await safeActiveElement(page),
+    }),
+  });
+  test.skip(
+    !tabsToLinks,
+    'WebKit on macOS does not expose links to plain Tab/Shift+Tab under the active native tab-to-links policy (WebKit bug 161394).',
+  );
+};
+
+test.describe('Nuanu Flow public auth', () => {
+  test('sign-in form exposes accessible controls and blocks malformed email', async ({
+    page,
+  }) => {
+    const auth = new AuthPage(page);
+    await auth.gotoSignIn();
+
+    await expect(auth.emailInput).toBeVisible();
+    await expect(auth.continueButton).toBeVisible();
+    await expect(auth.continueButton).toBeDisabled();
+
+    await auth.emailInput.fill('not-an-email');
+    expect(
+      await auth.emailInput.evaluate((node) =>
+        (node as HTMLInputElement).checkValidity(),
+      ),
+    ).toBe(false);
+    expect(
+      await auth.emailInput.evaluate(
+        (node) => (node as HTMLInputElement).validationMessage,
+      ),
+    ).not.toBe('');
+    await expect(auth.continueButton).toBeDisabled();
+  });
+
+  test('sign-in and sign-up links navigate without submitting data', async ({
+    page,
+  }) => {
+    const auth = new AuthPage(page);
+    await auth.gotoSignIn();
+    await auth.signUpLink.click();
+    await expect(page).toHaveURL(/\/sign-up\/$/);
+    await expect(auth.emailInput).toBeVisible();
+
+    await auth.signInLink.click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(auth.emailInput).toBeVisible();
+  });
+
+  test('sign-in and sign-up links follow the natural forward and reverse keyboard order', async ({
+    page,
+    browserName,
+  }, testInfo) => {
+    await verifyWebKitLinkTabPolicy(page, browserName, testInfo);
+    const auth = new AuthPage(page);
+    await auth.gotoSignIn();
+
+    await expect(auth.emailInput).toBeFocused();
+    await pressAndExpectFocus(page, auth.signUpLink, 'Shift+Tab');
+    await expect(auth.signUpLink).toBeFocused();
+    await pressAndExpectFocus(page, auth.emailInput, 'Tab');
+    await expect(auth.emailInput).toBeFocused();
+    await pressAndExpectFocus(page, auth.signUpLink, 'Shift+Tab');
+    await expect(auth.signUpLink).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/sign-up\/$/);
+
+    await expect(auth.emailInput).toBeFocused();
+    await pressAndExpectFocus(page, auth.signInLink, 'Shift+Tab');
+    await expect(auth.signInLink).toBeFocused();
+    await pressAndExpectFocus(page, auth.emailInput, 'Tab');
+    await expect(auth.emailInput).toBeFocused();
+    await pressAndExpectFocus(page, auth.signInLink, 'Shift+Tab');
+    await expect(auth.signInLink).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page).toHaveURL(/\/$/);
+  });
+});

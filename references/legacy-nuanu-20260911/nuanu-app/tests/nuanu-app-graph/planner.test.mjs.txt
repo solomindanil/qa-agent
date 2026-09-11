@@ -1,0 +1,1248 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import {
+  buildTestPlan,
+  parsePlaywrightList,
+  planImpact,
+} from "../../tools/nuanu-app-graph/planner.mjs";
+
+const FIXTURE_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
+const SMOKE_ID = "nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-001 homepage returns HTML and renders an application shell";
+const SAFETY_ID = "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-PUB-002 nested suite › blocks unsafe requests";
+const CONTRACT_ID = "nuanu-app:auto:tests/nuanu-app/offline/runtime-contract.spec.ts#NAPP-CONTRACT-001 synthetic runtime contract drives unique exact role-name discovery locators without network";
+const DISCOVERY_ID = "nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-002 reviewed discovery controls map marker and place card are reachable";
+
+function node(kind, suffix, overrides = {}) {
+  return {
+    id: `nuanu-app:${kind}:${suffix}`,
+    kind,
+    provenance: "runtime",
+    ...overrides,
+  };
+}
+
+function edge(source, kind, target) {
+  return { source, kind, target };
+}
+
+function graphFixture({ nodes = [], edges = [] } = {}) {
+  return {
+    productId: "nuanu-app",
+    schemaVersion: "1.0.0",
+    nodes,
+    edges,
+  };
+}
+
+function runtimeOnlyImpact() {
+  return {
+    mode: "runtime_only",
+    changedFiles: [],
+    affectedNodeIds: [],
+    unmappedFiles: [],
+    paths: [],
+    sourceImpact: "UNVERIFIED",
+  };
+}
+
+function automatedTest(id, suffix, overrides = {}) {
+  return node("automated_test", suffix, {
+    id,
+    execution: "automated",
+    safety: "read_only",
+    coverageDisposition: "AUTOMATED",
+    ...overrides,
+  });
+}
+
+function manualTest(suffix, overrides = {}) {
+  return node("manual_test", suffix, {
+    coverageDisposition: "MANUAL",
+    ...overrides,
+  });
+}
+
+test("parsePlaywrightList creates exact file-title test IDs", async () => {
+  const output = await readFile(join(FIXTURE_DIRECTORY, "playwright-list.txt"), "utf8");
+
+  assert.deepEqual(parsePlaywrightList(output), [
+    {
+      id: SMOKE_ID,
+      file: "tests/nuanu-app/public/smoke.spec.ts",
+      title: "NAPP-PUB-001 homepage returns HTML and renders an application shell",
+      execution: "automated",
+      safety: "read_only",
+    },
+    {
+      id: SAFETY_ID,
+      file: "tests/nuanu-app/public/safety-contract.spec.ts",
+      title: "NAPP-PUB-002 nested suite › blocks unsafe requests",
+      execution: "automated",
+      safety: "read_only",
+    },
+    {
+      id: CONTRACT_ID,
+      file: "tests/nuanu-app/offline/runtime-contract.spec.ts",
+      title: "NAPP-CONTRACT-001 synthetic runtime contract drives unique exact role-name discovery locators without network",
+      execution: "automated",
+      safety: "read_only",
+    },
+    {
+      id: DISCOVERY_ID,
+      file: "tests/nuanu-app/public/smoke.spec.ts",
+      title: "NAPP-PUB-002 reviewed discovery controls map marker and place card are reachable",
+      execution: "automated",
+      safety: "read_only",
+    },
+  ]);
+});
+
+test("planImpact records every changed-file to node to test path", () => {
+  const source = node("source_file", "home", {
+    path: "apps/nuanu-web/src/app/page.tsx",
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const route = node("route", "home", { provenance: "source_and_runtime" });
+  const surface = node("surface", "home");
+  const testNode = automatedTest(SMOKE_ID, "home-smoke");
+  const graph = graphFixture({
+    nodes: [source, route, surface, testNode],
+    edges: [
+      edge(source.id, "implements", route.id),
+      edge(route.id, "affects", surface.id),
+      edge(surface.id, "affects", route.id),
+      edge(testNode.id, "verifies", surface.id),
+    ],
+  });
+
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+
+  assert.deepEqual(impact.changedFiles, [source.path]);
+  assert.deepEqual(impact.unmappedFiles, []);
+  assert.deepEqual(impact.affectedNodeIds, [route.id, surface.id]);
+  assert.deepEqual(impact.paths, [{
+    changedFile: source.path,
+    nodeIds: [source.id, route.id, surface.id, testNode.id],
+    edges: [
+      edge(source.id, "implements", route.id),
+      edge(route.id, "affects", surface.id),
+      edge(testNode.id, "verifies", surface.id),
+    ],
+  }]);
+});
+
+test("unmapped file selects all runnable safe tests and mobile manual tier", () => {
+  const safeTest = automatedTest(SMOKE_ID, "safe");
+  const unavailableAuth = automatedTest(SAFETY_ID, "auth", { coverageDisposition: "BLOCKED" });
+  const mobileManual = manualTest("mobile", { manualTier: "mobile_safety" });
+  const liveTarget = node("route", "fallback-live", { provenance: "source_and_runtime" });
+  const graph = graphFixture({
+    nodes: [safeTest, unavailableAuth, mobileManual, liveTarget],
+    edges: [
+      edge(safeTest.id, "verifies", liveTarget.id),
+      edge(mobileManual.id, "verifies", liveTarget.id),
+    ],
+  });
+  const impact = planImpact({ graph, changedFiles: ["apps/nuanu-web/src/new-unmapped.ts"] });
+
+  const plan = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([SMOKE_ID, SAFETY_ID]),
+  });
+
+  assert.equal(plan.fallbackApplied, true);
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: SMOKE_ID,
+    reason: "full_fallback",
+    policy: "full_fallback",
+  }]);
+  assert.deepEqual(plan.manual, [{
+    id: mobileManual.id,
+    reason: "mobile_safety",
+    policy: "mobile_safety",
+  }]);
+  assert.deepEqual(plan.blocked, [{
+    id: SAFETY_ID,
+    disposition: "BLOCKED",
+  }]);
+});
+
+test("fallback keeps unavailable auth BLOCKED and provider handoffs manual", () => {
+  const source = node("source_file", "auth", {
+    path: "apps/nuanu-web/src/auth.ts",
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const auth = node("capability", "auth");
+  const provider = node("external_dependency", "provider");
+  const safeTest = automatedTest(SMOKE_ID, "safe");
+  const authTest = automatedTest(SAFETY_ID, "auth", { coverageDisposition: "BLOCKED" });
+  const providerManual = manualTest("provider");
+  const liveTarget = node("route", "fallback-live", { provenance: "source_and_runtime" });
+  const graph = graphFixture({
+    nodes: [source, auth, provider, safeTest, authTest, providerManual, liveTarget],
+    edges: [
+      edge(source.id, "implements", auth.id),
+      edge(auth.id, "affects", provider.id),
+      edge(safeTest.id, "verifies", liveTarget.id),
+      edge(authTest.id, "verifies", auth.id),
+      edge(providerManual.id, "verifies", provider.id),
+    ],
+  });
+  const impact = planImpact({
+    graph,
+    changedFiles: [source.path, "apps/nuanu-web/src/unmapped.ts"],
+  });
+
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set([SMOKE_ID, SAFETY_ID]) });
+
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: SMOKE_ID,
+    reason: "full_fallback",
+    policy: "full_fallback",
+  }]);
+  assert.deepEqual(plan.blocked, [{ id: SAFETY_ID, disposition: "BLOCKED" }]);
+  assert.deepEqual(plan.manual, [{
+    id: providerManual.id,
+    reason: "impact",
+    path: {
+      changedFile: source.path,
+      nodeIds: [source.id, auth.id, provider.id, providerManual.id],
+      edges: [
+        edge(source.id, "implements", auth.id),
+        edge(auth.id, "affects", provider.id),
+        edge(providerManual.id, "verifies", provider.id),
+      ],
+    },
+  }]);
+});
+
+test("source-only NOT_DEPLOYED nodes do not select live tests", () => {
+  const source = node("source_file", "unreleased", {
+    path: "apps/nuanu-web/src/unreleased.ts",
+    provenance: "source",
+    coverageDisposition: "NOT_DEPLOYED",
+  });
+  const capability = node("capability", "unreleased", {
+    provenance: "source",
+    coverageDisposition: "NOT_DEPLOYED",
+  });
+  const unavailableTest = automatedTest(SMOKE_ID, "unreleased", {
+    provenance: "source",
+    coverageDisposition: "NOT_DEPLOYED",
+  });
+  const graph = graphFixture({
+    nodes: [source, capability, unavailableTest],
+    edges: [
+      edge(source.id, "implements", capability.id),
+      edge(unavailableTest.id, "verifies", capability.id),
+    ],
+  });
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set([SMOKE_ID]) });
+
+  assert.deepEqual(plan.selectedAutomated, []);
+  assert.deepEqual(plan.notDeployed, [
+    { id: SMOKE_ID, disposition: "NOT_DEPLOYED" },
+    { id: capability.id, disposition: "NOT_DEPLOYED" },
+    { id: source.id, disposition: "NOT_DEPLOYED" },
+  ]);
+  assert.deepEqual(plan.unverified, []);
+});
+
+test("runtime-only nodes select runtime tests but keep source impact UNVERIFIED", () => {
+  const runtimeRoute = node("route", "observed", {
+    provenance: "runtime",
+    sourceImpact: "UNVERIFIED",
+  });
+  const runtimeTest = automatedTest(SMOKE_ID, "runtime", { provenance: "runtime" });
+  const graph = graphFixture({
+    nodes: [runtimeRoute, runtimeTest],
+    edges: [edge(runtimeTest.id, "verifies", runtimeRoute.id)],
+  });
+  const impact = planImpact({ graph, changedFiles: ["apps/nuanu-web/src/runtime-drift.ts"] });
+
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set([SMOKE_ID]) });
+
+  assert.equal(impact.sourceImpact, "UNVERIFIED");
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: SMOKE_ID,
+    reason: "runtime_drift",
+    policy: "runtime_drift",
+    reasons: [
+      { code: "full_fallback", policy: "full_fallback" },
+      { code: "runtime_drift", policy: "runtime_drift" },
+    ],
+  }]);
+});
+
+test("every selected test has a typed reason", () => {
+  const alwaysNode = node("invariant", "routing", { alwaysRun: true });
+  const alwaysTest = automatedTest(SAFETY_ID, "always");
+  const graph = graphFixture({
+    nodes: [alwaysNode, alwaysTest],
+    edges: [edge(alwaysTest.id, "verifies", alwaysNode.id)],
+  });
+  const impact = planImpact({ graph, changedFiles: ["apps/nuanu-web/src/invariant.ts"] });
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set([SAFETY_ID]) });
+
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: SAFETY_ID,
+    reason: "always_run",
+    policy: "always_run",
+    reasons: [
+      { code: "always_run", policy: "always_run" },
+      { code: "full_fallback", policy: "full_fallback" },
+      { code: "runtime_drift", policy: "runtime_drift" },
+    ],
+  }]);
+  assert.ok(
+    [...plan.selectedAutomated, ...plan.manual].every((entry) =>
+      ["impact", "always_run", "runtime_drift", "full_fallback", "mobile_safety"].includes(entry.reason),
+    ),
+  );
+});
+
+test("planImpact rejects non-canonical changed file paths", () => {
+  const graph = graphFixture();
+  for (const changedFiles of [
+    [],
+    ["/absolute.ts"],
+    ["../traversal.ts"],
+    ["apps\\nuanu-web\\path.ts"],
+    ["apps/nuanu-web/*.ts"],
+    ["apps/nuanu-web/!(README).ts"],
+    ["apps/nuanu-web/duplicate.ts", "apps/nuanu-web/duplicate.ts"],
+  ]) {
+    assert.throws(
+      () => planImpact({ graph, changedFiles }),
+      { code: "INVALID_CHANGED_FILES" },
+    );
+  }
+});
+
+test("planImpact preserves both simple diamond paths while terminating cycles", () => {
+  const source = node("source_file", "diamond", {
+    path: "apps/nuanu-web/src/diamond.ts",
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const a = node("capability", "a", { provenance: "source_and_runtime" });
+  const b = node("surface", "b");
+  const c = node("surface", "c");
+  const d = node("route", "d", { provenance: "source_and_runtime" });
+  const testNode = automatedTest(SMOKE_ID, "diamond");
+  const graph = graphFixture({
+    nodes: [source, a, b, c, d, testNode],
+    edges: [
+      edge(source.id, "implements", a.id),
+      edge(a.id, "affects", b.id),
+      edge(a.id, "affects", c.id),
+      edge(b.id, "affects", d.id),
+      edge(c.id, "affects", d.id),
+      edge(d.id, "affects", a.id),
+      edge(testNode.id, "verifies", d.id),
+    ],
+  });
+
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+
+  assert.deepEqual(impact.paths, [
+    {
+      changedFile: source.path,
+      nodeIds: [source.id, a.id, b.id, d.id, testNode.id],
+      edges: [
+        edge(source.id, "implements", a.id),
+        edge(a.id, "affects", b.id),
+        edge(b.id, "affects", d.id),
+        edge(testNode.id, "verifies", d.id),
+      ],
+    },
+    {
+      changedFile: source.path,
+      nodeIds: [source.id, a.id, c.id, d.id, testNode.id],
+      edges: [
+        edge(source.id, "implements", a.id),
+        edge(a.id, "affects", c.id),
+        edge(c.id, "affects", d.id),
+        edge(testNode.id, "verifies", d.id),
+      ],
+    },
+  ]);
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set([testNode.id]) });
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: testNode.id,
+    reason: "impact",
+    path: impact.paths[0],
+    reasons: [
+      { code: "impact", path: impact.paths[0] },
+      { code: "impact", path: impact.paths[1] },
+    ],
+  }]);
+});
+
+test("impact selects only its live paths when the same test also has an unverified path", () => {
+  const source = node("source_file", "mixed-unverified", {
+    path: "apps/nuanu-web/src/mixed-unverified.ts",
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const liveTarget = node("route", "mixed-live", { provenance: "source_and_runtime" });
+  const unverifiedTarget = node("capability", "mixed-unverified", {
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const testNode = automatedTest(SMOKE_ID, "mixed-unverified");
+  const graph = graphFixture({
+    nodes: [source, liveTarget, unverifiedTarget, testNode],
+    edges: [
+      edge(source.id, "implements", liveTarget.id),
+      edge(source.id, "implements", unverifiedTarget.id),
+      edge(testNode.id, "verifies", liveTarget.id),
+      edge(testNode.id, "verifies", unverifiedTarget.id),
+    ],
+  });
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+  const livePath = impact.paths.find((path) => path.nodeIds.includes(liveTarget.id));
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set([testNode.id]) });
+
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: testNode.id,
+    reason: "impact",
+    path: livePath,
+  }]);
+  assert.deepEqual(plan.unverified, [{ id: unverifiedTarget.id, disposition: "UNVERIFIED" }]);
+  assert.deepEqual(plan.blocked, []);
+  assert.deepEqual(plan.notDeployed, []);
+});
+
+test("impact selects only its live paths when the same test also has a not-deployed path", () => {
+  const source = node("source_file", "mixed-not-deployed", {
+    path: "apps/nuanu-web/src/mixed-not-deployed.ts",
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const liveTarget = node("route", "mixed-live", { provenance: "source_and_runtime" });
+  const notDeployedTarget = node("route", "mixed-not-deployed", {
+    provenance: "source_and_runtime",
+    coverageDisposition: "NOT_DEPLOYED",
+  });
+  const testNode = automatedTest(SMOKE_ID, "mixed-not-deployed");
+  const graph = graphFixture({
+    nodes: [source, liveTarget, notDeployedTarget, testNode],
+    edges: [
+      edge(source.id, "implements", liveTarget.id),
+      edge(source.id, "implements", notDeployedTarget.id),
+      edge(testNode.id, "verifies", liveTarget.id),
+      edge(testNode.id, "verifies", notDeployedTarget.id),
+    ],
+  });
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+  const livePath = impact.paths.find((path) => path.nodeIds.includes(liveTarget.id));
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set([testNode.id]) });
+
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: testNode.id,
+    reason: "impact",
+    path: livePath,
+  }]);
+  assert.deepEqual(plan.notDeployed, [{ id: notDeployedTarget.id, disposition: "NOT_DEPLOYED" }]);
+  assert.deepEqual(plan.blocked, []);
+  assert.deepEqual(plan.unverified, []);
+});
+
+test("all-unavailable impact paths use deterministic blocked-unverified-not-deployed precedence", () => {
+  const source = node("source_file", "all-unavailable", {
+    path: "apps/nuanu-web/src/all-unavailable.ts",
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const blockedTarget = node("route", "blocked", {
+    provenance: "runtime",
+    coverageDisposition: "BLOCKED",
+  });
+  const unverifiedTarget = node("capability", "unverified", {
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const notDeployedTarget = node("route", "not-deployed", {
+    provenance: "source_and_runtime",
+    coverageDisposition: "NOT_DEPLOYED",
+  });
+  const testNode = automatedTest(SMOKE_ID, "all-unavailable");
+  const graph = graphFixture({
+    nodes: [source, blockedTarget, unverifiedTarget, notDeployedTarget, testNode],
+    edges: [
+      edge(source.id, "implements", blockedTarget.id),
+      edge(source.id, "implements", unverifiedTarget.id),
+      edge(source.id, "implements", notDeployedTarget.id),
+      edge(testNode.id, "verifies", blockedTarget.id),
+      edge(testNode.id, "verifies", unverifiedTarget.id),
+      edge(testNode.id, "verifies", notDeployedTarget.id),
+    ],
+  });
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set([testNode.id]) });
+
+  assert.deepEqual(plan.selectedAutomated, []);
+  assert.deepEqual(plan.blocked, [
+    { id: testNode.id, disposition: "BLOCKED" },
+    { id: blockedTarget.id, disposition: "BLOCKED" },
+  ]);
+  assert.deepEqual(plan.unverified, [{ id: unverifiedTarget.id, disposition: "UNVERIFIED" }]);
+  assert.deepEqual(plan.notDeployed, [{ id: notDeployedTarget.id, disposition: "NOT_DEPLOYED" }]);
+  const outputIds = [
+    ...plan.selectedAutomated,
+    ...plan.manual,
+    ...plan.blocked,
+    ...plan.unverified,
+    ...plan.notDeployed,
+  ].map(({ id }) => id);
+  assert.equal(new Set(outputIds).size, outputIds.length);
+});
+
+test("source-only unverified impacted nodes are non-selected without suppressing a runtime-observed target", () => {
+  const source = node("source_file", "source", {
+    path: "apps/nuanu-web/src/source.ts",
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const runtimeObserved = node("route", "runtime-observed", { provenance: "source_and_runtime" });
+  const sourceOnly = node("capability", "source-only", {
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const observedTest = automatedTest(SMOKE_ID, "observed");
+  const sourceOnlyTest = automatedTest(SAFETY_ID, "source-only");
+  const graph = graphFixture({
+    nodes: [source, runtimeObserved, sourceOnly, observedTest, sourceOnlyTest],
+    edges: [
+      edge(source.id, "implements", runtimeObserved.id),
+      edge(source.id, "implements", sourceOnly.id),
+      edge(observedTest.id, "verifies", runtimeObserved.id),
+      edge(sourceOnlyTest.id, "verifies", sourceOnly.id),
+    ],
+  });
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+
+  const plan = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([observedTest.id, sourceOnlyTest.id]),
+  });
+
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: observedTest.id,
+    reason: "impact",
+    path: impact.paths.find((path) => path.nodeIds.at(-1) === observedTest.id),
+  }]);
+  assert.deepEqual(plan.blocked, []);
+  assert.deepEqual(plan.unverified, [
+    { id: sourceOnlyTest.id, disposition: "UNVERIFIED" },
+    { id: sourceOnly.id, disposition: "UNVERIFIED" },
+  ]);
+  assert.deepEqual(plan.notDeployed, []);
+});
+
+test("source-only automated tests cannot enter always runtime or fallback selection", () => {
+  const invariant = node("invariant", "source-only", { alwaysRun: true });
+  const sourceOnlyTest = automatedTest(SMOKE_ID, "source-only", {
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const graph = graphFixture({
+    nodes: [invariant, sourceOnlyTest],
+    edges: [edge(sourceOnlyTest.id, "verifies", invariant.id)],
+  });
+  const impact = planImpact({ graph, changedFiles: ["apps/nuanu-web/src/unmapped.ts"] });
+
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set([sourceOnlyTest.id]) });
+
+  assert.deepEqual(plan.selectedAutomated, []);
+  assert.deepEqual(plan.blocked, []);
+  assert.deepEqual(plan.unverified, [{ id: sourceOnlyTest.id, disposition: "UNVERIFIED" }]);
+});
+
+test("fallback keeps blocked and not-deployed mobile manual cases out of manual selection", () => {
+  const safeTest = automatedTest(SMOKE_ID, "safe");
+  const blockedMobile = manualTest("blocked-mobile", {
+    manualTier: "mobile_safety",
+    coverageDisposition: "BLOCKED",
+  });
+  const notDeployedMobile = manualTest("not-deployed-mobile", {
+    manualTier: "mobile_safety",
+    coverageDisposition: "NOT_DEPLOYED",
+  });
+  const graph = graphFixture({ nodes: [safeTest, blockedMobile, notDeployedMobile] });
+  const impact = planImpact({ graph, changedFiles: ["apps/nuanu-web/src/unmapped.ts"] });
+
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set([safeTest.id]) });
+
+  assert.deepEqual(plan.manual, []);
+  assert.deepEqual(plan.blocked, [{ id: blockedMobile.id, disposition: "BLOCKED" }]);
+  assert.deepEqual(plan.notDeployed, [{ id: notDeployedMobile.id, disposition: "NOT_DEPLOYED" }]);
+});
+
+test("parsePlaywrightList rejects noncanonical Nuanu App file locations", () => {
+  for (const location of [
+    "/tests/nuanu-app/public/smoke.spec.ts",
+    "tests\\nuanu-app\\public\\smoke.spec.ts",
+    "tests/nuanu-app/../foreign.spec.ts",
+    "tests/nuanu-app//public/smoke.spec.ts",
+    "tests/nuanu-app/public/*.spec.ts",
+    "tests/nuanu-app/public/!(smoke).spec.ts",
+  ]) {
+    assert.throws(
+      () => parsePlaywrightList(`[nuanu-app] › ${location}:3:1 › unsafe location`),
+      { code: "INVALID_PLAYWRIGHT_LIST" },
+    );
+  }
+});
+
+test("fallback policies require real verifies edges to live-selectable targets", () => {
+  const runtimeTarget = node("route", "runtime-target", { provenance: "source_and_runtime" });
+  const sourceOnlyTarget = node("capability", "source-only-target", {
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const liveTest = automatedTest(SMOKE_ID, "live", { id: "nuanu-app:auto:fallback-live" });
+  const unavailableTargetTest = automatedTest(SMOKE_ID, "unavailable", { id: "nuanu-app:auto:fallback-unavailable" });
+  const orphanTest = automatedTest(SMOKE_ID, "orphan", { id: "nuanu-app:auto:fallback-orphan" });
+  const graph = graphFixture({
+    nodes: [runtimeTarget, sourceOnlyTarget, liveTest, unavailableTargetTest, orphanTest],
+    edges: [
+      edge(liveTest.id, "verifies", runtimeTarget.id),
+      edge(unavailableTargetTest.id, "verifies", sourceOnlyTarget.id),
+    ],
+  });
+  const impact = planImpact({ graph, changedFiles: ["apps/nuanu-web/src/unmapped.ts"] });
+
+  const plan = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([liveTest.id, unavailableTargetTest.id, orphanTest.id]),
+  });
+
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: liveTest.id,
+    reason: "full_fallback",
+    policy: "full_fallback",
+  }]);
+  assert.deepEqual(plan.unverified, [
+    { id: sourceOnlyTarget.id, disposition: "UNVERIFIED" },
+  ]);
+});
+
+test("always-run and mobile fallback refuse source-only unavailable verifies targets", () => {
+  const unavailableInvariant = node("invariant", "unavailable", {
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+    alwaysRun: true,
+  });
+  const liveTarget = node("route", "live", { provenance: "runtime" });
+  const alwaysTest = automatedTest(SMOKE_ID, "always", { id: "nuanu-app:auto:always-unavailable" });
+  const unavailableMobile = manualTest("unavailable-mobile", {
+    manualTier: "mobile_safety",
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const graph = graphFixture({
+    nodes: [unavailableInvariant, liveTarget, alwaysTest, unavailableMobile],
+    edges: [
+      edge(alwaysTest.id, "verifies", unavailableInvariant.id),
+      edge(unavailableMobile.id, "verifies", liveTarget.id),
+    ],
+  });
+  const impact = planImpact({ graph, changedFiles: ["apps/nuanu-web/src/unmapped.ts"] });
+
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set([alwaysTest.id]) });
+
+  assert.deepEqual(plan.selectedAutomated, []);
+  assert.deepEqual(plan.manual, []);
+  assert.deepEqual(plan.unverified, [
+    { id: unavailableInvariant.id, disposition: "UNVERIFIED" },
+    { id: unavailableMobile.id, disposition: "UNVERIFIED" },
+  ]);
+});
+
+test("always-run and source fallback refuse source-and-runtime not-deployed targets", () => {
+  const unavailableInvariant = node("invariant", "not-deployed", {
+    provenance: "source_and_runtime",
+    coverageDisposition: "NOT_DEPLOYED",
+    alwaysRun: true,
+  });
+  const unavailableTarget = node("route", "not-deployed", {
+    provenance: "source_and_runtime",
+    coverageDisposition: "NOT_DEPLOYED",
+  });
+  const alwaysTest = automatedTest(SMOKE_ID, "always-not-deployed", { id: "nuanu-app:auto:always-not-deployed" });
+  const fallbackTest = automatedTest(SAFETY_ID, "fallback-not-deployed", { id: "nuanu-app:auto:fallback-not-deployed" });
+  const mobileManual = manualTest("mobile-not-deployed", { manualTier: "mobile_safety" });
+  const graph = graphFixture({
+    nodes: [unavailableInvariant, unavailableTarget, alwaysTest, fallbackTest, mobileManual],
+    edges: [
+      edge(alwaysTest.id, "verifies", unavailableInvariant.id),
+      edge(fallbackTest.id, "verifies", unavailableTarget.id),
+      edge(mobileManual.id, "verifies", unavailableTarget.id),
+    ],
+  });
+  const impact = planImpact({ graph, changedFiles: ["apps/nuanu-web/src/unmapped.ts"] });
+  const plan = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([alwaysTest.id, fallbackTest.id]),
+  });
+
+  assert.deepEqual(plan.selectedAutomated, []);
+  assert.deepEqual(plan.manual, []);
+  assert.deepEqual(plan.notDeployed, [
+    { id: unavailableInvariant.id, disposition: "NOT_DEPLOYED" },
+    { id: unavailableTarget.id, disposition: "NOT_DEPLOYED" },
+  ]);
+  assert.deepEqual(plan.unverified, []);
+});
+
+test("runtime drift refuses source-file and non-live runtime targets", () => {
+  const sourceFileTarget = node("source_file", "runtime-source-file", {
+    provenance: "runtime",
+    coverageDisposition: "AUTOMATED",
+  });
+  const notDeployedRuntimeTarget = node("route", "runtime-not-deployed", {
+    provenance: "runtime",
+    coverageDisposition: "NOT_DEPLOYED",
+  });
+  const sourceFileTest = automatedTest(SMOKE_ID, "runtime-source-file", { id: "nuanu-app:auto:runtime-source-file" });
+  const notDeployedTest = automatedTest(SAFETY_ID, "runtime-not-deployed", { id: "nuanu-app:auto:runtime-not-deployed" });
+  const graph = graphFixture({
+    nodes: [sourceFileTarget, notDeployedRuntimeTarget, sourceFileTest, notDeployedTest],
+    edges: [
+      edge(sourceFileTest.id, "verifies", sourceFileTarget.id),
+      edge(notDeployedTest.id, "verifies", notDeployedRuntimeTarget.id),
+    ],
+  });
+  const impact = { unmappedFiles: [], paths: [] };
+  const plan = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([sourceFileTest.id, notDeployedTest.id]),
+  });
+
+  assert.deepEqual(plan.selectedAutomated, []);
+  assert.deepEqual(plan.notDeployed, [{ id: notDeployedRuntimeTarget.id, disposition: "NOT_DEPLOYED" }]);
+  assert.deepEqual(plan.unverified, []);
+});
+
+test("planImpact fails closed when deterministic path work exceeds the V1 limit", () => {
+  const source = node("source_file", "limit", {
+    path: "apps/nuanu-web/src/limit.ts",
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const start = node("capability", "start", { provenance: "source_and_runtime" });
+  const nodes = [source, start];
+  const edges = [edge(source.id, "implements", start.id)];
+  let previous = [start];
+  for (let level = 0; level < 15; level += 1) {
+    const left = node("surface", `limit-${level}-left`);
+    const right = node("surface", `limit-${level}-right`);
+    nodes.push(left, right);
+    for (const parent of previous) {
+      edges.push(edge(parent.id, "affects", left.id), edge(parent.id, "affects", right.id));
+    }
+    previous = [left, right];
+  }
+  const graph = graphFixture({ nodes, edges });
+
+  assert.throws(
+    () => planImpact({ graph, changedFiles: [source.path] }),
+    { code: "IMPACT_PATH_LIMIT_EXCEEDED" },
+  );
+});
+
+let signalCounter = 0;
+
+function telemetrySignal(mappingSuffix, targetNodeIds, disposition = "select", overrides = {}) {
+  const id = `napp-telemetry-v1-${(signalCounter++).toString(16).padStart(64, "0")}`;
+  return {
+    id,
+    productId: "nuanu-app",
+    catalogDigest: "b".repeat(64),
+    mappingId: `napp-telemetry-map-v1:${mappingSuffix}`,
+    metricId: "napp-risk-score",
+    targetNodeIds,
+    disposition,
+    kind: "observed",
+    priority: "informational",
+    ...overrides,
+  };
+}
+
+function telemetryGraph() {
+  const source = node("source_file", "mapped", {
+    path: "apps/nuanu-web/src/mapped.ts",
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const mappedCapability = node("capability", "mapped", { provenance: "source_and_runtime" });
+  const observedRoute = node("route", "observed", { provenance: "source_and_runtime" });
+  const observedTest = automatedTest(SMOKE_ID, "observed");
+  return {
+    source,
+    mappedCapability,
+    observedRoute,
+    observedTest,
+    graph: graphFixture({
+      nodes: [source, mappedCapability, observedRoute, observedTest],
+      edges: [
+        edge(source.id, "implements", mappedCapability.id),
+        edge(observedTest.id, "verifies", observedRoute.id),
+      ],
+    }),
+  };
+}
+
+test("telemetry select adds only a runnable safe automated test with typed aggregate context", () => {
+  const { source, observedRoute, observedTest, graph } = telemetryGraph();
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+  const signal = telemetrySignal("napp-route-risk", [observedRoute.id]);
+
+  const plan = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([observedTest.id]),
+    telemetrySignals: [signal],
+  });
+
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: observedTest.id,
+    reason: "telemetry_signal",
+    reasons: [{
+      code: "telemetry_signal",
+      signalId: signal.id,
+      mappingId: signal.mappingId,
+      catalogDigest: signal.catalogDigest,
+      graphPath: [observedTest.id, observedRoute.id],
+    }],
+  }]);
+  assert.deepEqual(plan.telemetrySignals, [signal]);
+});
+
+test("telemetry non-selection dispositions are retained without selecting tests", () => {
+  const { source, observedRoute, observedTest, graph } = telemetryGraph();
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+  const signals = [
+    telemetrySignal("z-suppressed", [observedRoute.id], "suppressed", { id: `napp-telemetry-v1-${"3".repeat(64)}` }),
+    telemetrySignal("a-observe", [observedRoute.id], "observe_only", { id: `napp-telemetry-v1-${"1".repeat(64)}` }),
+    telemetrySignal("m-blocked", [observedRoute.id], "blocked", { id: `napp-telemetry-v1-${"2".repeat(64)}` }),
+  ];
+
+  const plan = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([observedTest.id]),
+    telemetrySignals: signals,
+  });
+
+  assert.deepEqual(plan.selectedAutomated, []);
+  assert.deepEqual(plan.telemetrySignals.map((signal) => signal.mappingId), [
+    "napp-telemetry-map-v1:a-observe",
+    "napp-telemetry-map-v1:m-blocked",
+    "napp-telemetry-map-v1:z-suppressed",
+  ]);
+});
+
+test("telemetry fallback and mapped selection refuse source-and-runtime not-deployed targets", () => {
+  const notDeployedTarget = node("route", "telemetry-not-deployed", {
+    provenance: "source_and_runtime",
+    coverageDisposition: "NOT_DEPLOYED",
+  });
+  const testNode = automatedTest(SMOKE_ID, "telemetry-not-deployed");
+  const graph = graphFixture({
+    nodes: [notDeployedTarget, testNode],
+    edges: [edge(testNode.id, "verifies", notDeployedTarget.id)],
+  });
+  const impact = { unmappedFiles: [], paths: [] };
+  const approvedFallback = telemetrySignal("unmapped-not-deployed", [], "select", {
+    mappingId: null,
+    kind: "regression",
+    priority: "elevated",
+  });
+
+  const plan = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([testNode.id]),
+    telemetrySignals: [approvedFallback],
+  });
+
+  assert.deepEqual(plan.selectedAutomated, []);
+  assert.deepEqual(plan.notDeployed, [{ id: notDeployedTarget.id, disposition: "NOT_DEPLOYED" }]);
+  assert.throws(
+    () => buildTestPlan({
+      graph,
+      impact,
+      runnableTestIds: new Set([testNode.id]),
+      telemetrySignals: [telemetrySignal("mapped-not-deployed", [notDeployedTarget.id])],
+    }),
+    { code: "INVALID_TELEMETRY_SIGNAL" },
+  );
+});
+
+test("telemetry selection excludes blocked manual and unsafe tests", () => {
+  const { source, observedRoute, graph } = telemetryGraph();
+  const blocked = automatedTest(SMOKE_ID, "blocked", { id: "nuanu-app:auto:blocked", coverageDisposition: "BLOCKED" });
+  const unsafe = automatedTest(SMOKE_ID, "unsafe", { id: "nuanu-app:auto:unsafe", safety: "mutating" });
+  const manual = manualTest("provider-handoff", { id: "nuanu-app:manual-test:provider-handoff" });
+  graph.nodes.push(blocked, unsafe, manual);
+  graph.edges.push(
+    edge(blocked.id, "verifies", observedRoute.id),
+    edge(unsafe.id, "verifies", observedRoute.id),
+    edge(manual.id, "verifies", observedRoute.id),
+  );
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+
+  const plan = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([blocked.id, unsafe.id]),
+    telemetrySignals: [telemetrySignal("napp-provider-guard", [observedRoute.id])],
+  });
+
+  assert.deepEqual(plan.selectedAutomated, []);
+  assert.deepEqual(plan.manual, []);
+  assert.deepEqual(plan.blocked, [{ id: blocked.id, disposition: "BLOCKED" }]);
+});
+
+test("telemetry preserves deterministic impact and telemetry reasons for an already selected test", () => {
+  const source = node("source_file", "route", {
+    path: "apps/nuanu-web/src/route.ts",
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const route = node("route", "route", { provenance: "source_and_runtime" });
+  const testNode = automatedTest(SMOKE_ID, "route");
+  const graph = graphFixture({
+    nodes: [source, route, testNode],
+    edges: [
+      edge(source.id, "implements", route.id),
+      edge(testNode.id, "verifies", route.id),
+    ],
+  });
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+  const signal = telemetrySignal("napp-route-risk", [route.id]);
+
+  const plan = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([testNode.id]),
+    telemetrySignals: [signal],
+  });
+
+  assert.equal(plan.selectedAutomated[0].reason, "impact");
+  assert.deepEqual(plan.selectedAutomated[0].reasons, [
+    {
+      code: "impact",
+      path: {
+        changedFile: source.path,
+        nodeIds: [source.id, route.id, testNode.id],
+        edges: [
+          edge(source.id, "implements", route.id),
+          edge(testNode.id, "verifies", route.id),
+        ],
+      },
+    },
+    {
+      code: "telemetry_signal",
+      signalId: signal.id,
+      mappingId: signal.mappingId,
+      catalogDigest: signal.catalogDigest,
+      graphPath: [testNode.id, route.id],
+    },
+  ]);
+});
+
+test("telemetry signals reject malformed selectors and never retain unknown payload fields", () => {
+  const { source, mappedCapability, observedRoute, graph } = telemetryGraph();
+  const sourceOnly = node("route", "source-only", {
+    provenance: "source",
+    coverageDisposition: "NOT_DEPLOYED",
+  });
+  graph.nodes.push(sourceOnly);
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+  const valid = telemetrySignal("napp-valid", [observedRoute.id]);
+  const invalidSignals = [
+    telemetrySignal("", [observedRoute.id]),
+    telemetrySignal("napp-upper-digest", [observedRoute.id], "select", { catalogDigest: "B".repeat(64) }),
+    telemetrySignal("napp-wrong-product", [observedRoute.id], "select", { productId: "other-product" }),
+    telemetrySignal("napp-wrong-id", [observedRoute.id], "select", { id: "napp-telemetry-v1-not-hex" }),
+    telemetrySignal("napp-unsorted", [observedRoute.id, mappedCapability.id]),
+    telemetrySignal("napp-duplicate-target", [observedRoute.id, observedRoute.id]),
+    telemetrySignal("napp-foreign-target", ["other-product:route:root"]),
+    telemetrySignal("napp-dangling", ["nuanu-app:route:missing"]),
+    telemetrySignal("napp-source-file", [source.id]),
+    telemetrySignal("napp-source-only", [sourceOnly.id]),
+    telemetrySignal("napp-raw-payload", [observedRoute.id], "select", { posthogPayload: { userId: "forbidden" } }),
+    valid,
+  ];
+
+  for (const telemetrySignals of invalidSignals.map((signal, index) =>
+    index === invalidSignals.length - 1 ? [valid, valid] : [signal],
+  )) {
+    assert.throws(
+      () => buildTestPlan({ graph, impact, runnableTestIds: new Set(), telemetrySignals }),
+      { code: "INVALID_TELEMETRY_SIGNAL" },
+    );
+  }
+});
+
+test("only an elevated unmapped regression selector expands the existing safe fallback", () => {
+  const { source, observedRoute, observedTest, graph } = telemetryGraph();
+  const mobileManual = manualTest("mobile", { manualTier: "mobile_safety" });
+  graph.nodes.push(mobileManual);
+  graph.edges.push(edge(mobileManual.id, "verifies", observedRoute.id));
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+  const approved = telemetrySignal("unmapped-regression", [], "select", {
+    mappingId: null,
+    kind: "regression",
+    priority: "elevated",
+  });
+  const observed = telemetrySignal("unmapped-observed", [], "observe_only", {
+    mappingId: null,
+  });
+
+  const plan = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([observedTest.id]),
+    telemetrySignals: [observed, approved],
+  });
+
+  assert.equal(plan.fallbackApplied, true);
+  assert.equal(plan.selectedAutomated[0].reason, "full_fallback");
+  assert.deepEqual(plan.selectedAutomated[0].reasons, [{
+    code: "full_fallback",
+    signalId: approved.id,
+    catalogDigest: approved.catalogDigest,
+  }]);
+  assert.deepEqual(plan.manual, [{
+    id: mobileManual.id,
+    reason: "mobile_safety",
+    policy: "mobile_safety",
+  }]);
+  assert.deepEqual(plan.telemetrySignals.find((signal) => signal.id === observed.id), {
+    ...observed,
+    sourceImpact: "UNVERIFIED",
+  });
+});
+
+test("telemetry rejects partial unmapped states and unapproved unmapped selection", () => {
+  const { source, observedRoute, graph } = telemetryGraph();
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+  const invalidSignals = [
+    telemetrySignal("partial-null-targets", [observedRoute.id], "select", { mappingId: null }),
+    telemetrySignal("partial-empty-targets", [], "select"),
+    telemetrySignal("unapproved-kind", [], "select", { mappingId: null, kind: "observed", priority: "elevated" }),
+    telemetrySignal("unapproved-priority", [], "select", { mappingId: null, kind: "regression", priority: "informational" }),
+  ];
+
+  for (const telemetrySignals of invalidSignals.map((signal) => [signal])) {
+    assert.throws(
+      () => buildTestPlan({ graph, impact, runnableTestIds: new Set(), telemetrySignals }),
+      { code: "INVALID_TELEMETRY_SIGNAL" },
+    );
+  }
+});
+
+test("runtime-only impact applies safe full fallback and an eligible mobile tier", () => {
+  const liveTarget = node("route", "runtime-only-live", { provenance: "source_and_runtime" });
+  const safeTest = automatedTest(SMOKE_ID, "runtime-only-safe");
+  const mobileManual = manualTest("runtime-only-mobile", { manualTier: "mobile_safety" });
+  const graph = graphFixture({
+    nodes: [liveTarget, safeTest, mobileManual],
+    edges: [
+      edge(safeTest.id, "verifies", liveTarget.id),
+      edge(mobileManual.id, "verifies", liveTarget.id),
+    ],
+  });
+
+  const plan = buildTestPlan({
+    graph,
+    impact: runtimeOnlyImpact(),
+    runnableTestIds: new Set([safeTest.id]),
+  });
+
+  assert.equal(plan.fallbackApplied, true);
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: safeTest.id,
+    reason: "full_fallback",
+    policy: "full_fallback",
+  }]);
+  assert.deepEqual(plan.manual, [{
+    id: mobileManual.id,
+    reason: "mobile_safety",
+    policy: "mobile_safety",
+  }]);
+  assert.equal("telemetrySignals" in plan, false);
+});
+
+test("runtime-only impact excludes orphan, source-only, and blocked coverage", () => {
+  const liveTarget = node("route", "runtime-only-live", { provenance: "source_and_runtime" });
+  const sourceOnlyTarget = node("capability", "runtime-only-source", {
+    provenance: "source",
+    coverageDisposition: "UNVERIFIED",
+  });
+  const blockedTarget = node("route", "runtime-only-blocked", {
+    provenance: "source_and_runtime",
+    coverageDisposition: "BLOCKED",
+  });
+  const safeTest = automatedTest(SMOKE_ID, "runtime-only-safe");
+  const sourceOnlyTest = automatedTest(SAFETY_ID, "runtime-only-source");
+  const blockedTargetTest = automatedTest("nuanu-app:auto:runtime-only-blocked", "runtime-only-blocked");
+  const blockedTest = automatedTest("nuanu-app:auto:runtime-only-blocked-test", "runtime-only-blocked-test", {
+    coverageDisposition: "BLOCKED",
+  });
+  const orphanTest = automatedTest("nuanu-app:auto:runtime-only-orphan", "runtime-only-orphan");
+  const graph = graphFixture({
+    nodes: [
+      liveTarget,
+      sourceOnlyTarget,
+      blockedTarget,
+      safeTest,
+      sourceOnlyTest,
+      blockedTargetTest,
+      blockedTest,
+      orphanTest,
+    ],
+    edges: [
+      edge(safeTest.id, "verifies", liveTarget.id),
+      edge(sourceOnlyTest.id, "verifies", sourceOnlyTarget.id),
+      edge(blockedTargetTest.id, "verifies", blockedTarget.id),
+      edge(blockedTest.id, "verifies", liveTarget.id),
+    ],
+  });
+
+  const plan = buildTestPlan({
+    graph,
+    impact: runtimeOnlyImpact(),
+    runnableTestIds: new Set([
+      safeTest.id,
+      sourceOnlyTest.id,
+      blockedTargetTest.id,
+      blockedTest.id,
+      orphanTest.id,
+    ]),
+  });
+
+  assert.deepEqual(plan.selectedAutomated, [{
+    id: safeTest.id,
+    reason: "full_fallback",
+    policy: "full_fallback",
+  }]);
+  assert.deepEqual(plan.blocked, [
+    { id: blockedTest.id, disposition: "BLOCKED" },
+    { id: blockedTarget.id, disposition: "BLOCKED" },
+  ]);
+  assert.deepEqual(plan.unverified, [{ id: sourceOnlyTarget.id, disposition: "UNVERIFIED" }]);
+});
+
+test("buildTestPlan rejects unknown impact modes", () => {
+  const graph = graphFixture();
+  assert.throws(
+    () => buildTestPlan({
+      graph,
+      impact: { ...runtimeOnlyImpact(), mode: "runtime-and-source" },
+      runnableTestIds: new Set(),
+    }),
+    { code: "INVALID_IMPACT_MODE" },
+  );
+});
+
+test("runtime-only impact requires an exact plain JSON shape before selection", () => {
+  const proofFields = {
+    changedPath: "apps/nuanu-web/src/app.ts",
+    commitSha: "a".repeat(40),
+    baseSha: "b".repeat(40),
+    headSha: "c".repeat(40),
+    gitDiff: "forbidden",
+    sourceLock: { digest: "forbidden" },
+  };
+  const missingRequiredFields = [
+    "changedFiles",
+    "affectedNodeIds",
+    "unmappedFiles",
+    "paths",
+    "sourceImpact",
+  ].map((field) => {
+    const impact = runtimeOnlyImpact();
+    delete impact[field];
+    return impact;
+  });
+  const customPrototype = Object.assign(Object.create({ inherited: true }), runtimeOnlyImpact());
+  const nullPrototype = Object.assign(Object.create(null), runtimeOnlyImpact());
+  const invalidImpacts = [
+    ...Object.entries(proofFields).map(([field, value]) => ({ ...runtimeOnlyImpact(), [field]: value })),
+    ...missingRequiredFields,
+    customPrototype,
+    nullPrototype,
+  ];
+
+  for (const impact of invalidImpacts) {
+    assert.throws(
+      () => buildTestPlan({ graph: null, impact, runnableTestIds: new Set() }),
+      { code: "INVALID_RUNTIME_ONLY_IMPACT" },
+    );
+  }
+});
+
+test("source-diff compatibility keeps empty source impacts non-fallback and telemetry-free", () => {
+  const liveTarget = node("route", "source-diff-live", { provenance: "source_and_runtime" });
+  const safeTest = automatedTest(SMOKE_ID, "source-diff-safe");
+  const graph = graphFixture({
+    nodes: [liveTarget, safeTest],
+    edges: [edge(safeTest.id, "verifies", liveTarget.id)],
+  });
+  const emptySourceDiff = {
+    mode: "source_diff",
+    changedFiles: [],
+    affectedNodeIds: [],
+    unmappedFiles: [],
+    paths: [],
+    sourceImpact: "UNVERIFIED",
+    noProductImpact: true,
+  };
+  const legacyImpact = { ...emptySourceDiff };
+  delete legacyImpact.mode;
+
+  const sourceDiffPlan = buildTestPlan({
+    graph,
+    impact: emptySourceDiff,
+    runnableTestIds: new Set([safeTest.id]),
+    telemetrySignals: [],
+  });
+  const legacyPlan = buildTestPlan({
+    graph,
+    impact: legacyImpact,
+    runnableTestIds: new Set([safeTest.id]),
+    telemetrySignals: [],
+  });
+
+  assert.deepEqual(sourceDiffPlan, legacyPlan);
+  assert.equal(sourceDiffPlan.fallbackApplied, false);
+  assert.deepEqual(sourceDiffPlan.selectedAutomated, []);
+  assert.equal("telemetrySignals" in sourceDiffPlan, false);
+});
+
+test("empty telemetry preserves the legacy test-plan shape", () => {
+  const { source, graph } = telemetryGraph();
+  const impact = planImpact({ graph, changedFiles: [source.path] });
+  const plan = buildTestPlan({ graph, impact, runnableTestIds: new Set(), telemetrySignals: [] });
+
+  assert.equal("telemetrySignals" in plan, false);
+});

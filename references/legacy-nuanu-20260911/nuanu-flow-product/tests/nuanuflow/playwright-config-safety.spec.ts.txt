@@ -1,0 +1,140 @@
+import { expect, test, type Project } from '@playwright/test';
+import { nuanuFlowProjects } from '../../playwright.config';
+
+const names = (projects: Project[]) => projects.map((project) => project.name);
+
+const projectMatches = (project: Project, relativePath: string): boolean => {
+  const patterns = Array.isArray(project.testMatch)
+    ? project.testMatch
+    : [project.testMatch];
+  return patterns.some((pattern) => {
+    if (pattern instanceof RegExp) return pattern.test(relativePath);
+    if (typeof pattern === 'string') return relativePath === pattern;
+    return false;
+  });
+};
+
+test.describe('Nuanu Flow Playwright project selection', () => {
+  test('keeps only the daily public project when the matrix flag is absent or zero', () => {
+    expect(names(nuanuFlowProjects('https://flow.nuanu.com', undefined, undefined))).toEqual([
+      'nuanuflow',
+    ]);
+    expect(names(nuanuFlowProjects('https://flow.nuanu.com', undefined, '0'))).toEqual([
+      'nuanuflow',
+    ]);
+  });
+
+  test('adds exact read-only public release projects only for flag one', () => {
+    const projects = nuanuFlowProjects(
+      'https://flow.nuanu.com',
+      undefined,
+      '1',
+    );
+
+    expect(names(projects)).toEqual([
+      'nuanuflow',
+      'nuanuflow-release-firefox',
+      'nuanuflow-release-webkit',
+      'nuanuflow-release-pixel-5',
+    ]);
+    for (const project of projects.filter((candidate) =>
+      candidate.name?.startsWith('nuanuflow-release-'),
+    )) {
+      expect(
+        projectMatches(
+          project,
+          '/repo/tests/nuanuflow/accessibility.spec.ts',
+        ),
+      ).toBe(true);
+      expect(
+        projectMatches(project, '/repo/tests/nuanuflow/responsive.spec.ts'),
+      ).toBe(true);
+      expect(
+        projectMatches(
+          project,
+          '/repo/tests/nuanuflow/mutating/smoke.spec.ts',
+        ),
+      ).toBe(false);
+      expect(
+        projectMatches(
+          project,
+          '/repo/tests/nuanuflow/authenticated/auth.spec.ts',
+        ),
+      ).toBe(false);
+      expect(projectMatches(project, '/repo/tests/nuanuflow/authenticated/work-items.spec.ts')).toBe(
+        false,
+      );
+      expect(
+        projectMatches(project, 'authenticated/processes.spec.ts'),
+      ).toBe(false);
+      expect(
+        projectMatches(project, 'authenticated/meetings-transcription.spec.ts'),
+      ).toBe(false);
+    }
+  });
+
+  test('uses the complete Pixel 5 descriptor for the mobile release project', () => {
+    const project = nuanuFlowProjects(
+      'https://flow.nuanu.com',
+      undefined,
+      '1',
+    ).find((candidate) => candidate.name === 'nuanuflow-release-pixel-5');
+
+    expect(project).toBeTruthy();
+    expect(project!.use).toMatchObject({
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 2.75,
+      viewport: { width: 393, height: 727 },
+    });
+    expect(String((project!.use as Record<string, unknown>).userAgent)).toContain(
+      'Mobile',
+    );
+  });
+
+  test('authenticated release projects can collect only the read-only responsive spec', () => {
+    const projects = nuanuFlowProjects(
+      'https://flow.nuanu.com',
+      'playwright/.auth/task10-list-only.json',
+      '1',
+    );
+    const authenticatedRelease = projects.filter((project) =>
+      project.name?.startsWith('nuanuflow-auth-release-'),
+    );
+
+    expect(authenticatedRelease.map((project) => project.name)).toEqual([
+      'nuanuflow-auth-release-firefox',
+      'nuanuflow-auth-release-webkit',
+      'nuanuflow-auth-release-pixel-5',
+    ]);
+    for (const project of authenticatedRelease) {
+      expect(
+        projectMatches(
+          project,
+          '/repo/tests/nuanuflow/authenticated/accessibility-responsive.spec.ts',
+        ),
+      ).toBe(true);
+      expect(
+        projectMatches(
+          project,
+          '/repo/tests/nuanuflow/archive/authenticated/accessibility-responsive.spec.ts',
+        ),
+      ).toBe(false);
+      expect(
+        projectMatches(
+          project,
+          '/repo/tests/nuanuflow/authenticated/api-contracts.spec.ts',
+        ),
+      ).toBe(false);
+      expect(
+        projectMatches(project, 'authenticated/work-items.spec.ts'),
+      ).toBe(false);
+      expect(
+        projectMatches(
+          project,
+          'authenticated/meetings-transcription.spec.ts',
+        ),
+      ).toBe(false);
+    }
+  });
+});

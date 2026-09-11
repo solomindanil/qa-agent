@@ -1,0 +1,26 @@
+{
+  "name": "qa",
+  "version": "1.0.0",
+  "description": "QA end-to-end test automation (Playwright)",
+  "scripts": {
+    "test": "playwright test",
+    "smoke": "playwright test --grep @smoke",
+    "typecheck": "tsc --noEmit",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.1.0",
+    "dotenv": "^17.4.2",
+    "tsx": "^4.23.0",
+    "typescript": "^6.0.3"
+  }
+}

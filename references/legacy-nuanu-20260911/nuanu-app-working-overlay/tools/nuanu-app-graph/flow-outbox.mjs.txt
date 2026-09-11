@@ -1,0 +1,3730 @@
+import { createHash, randomUUID as nodeRandomUUID } from "node:crypto";
+import {
+  constants as fsConstants,
+  link as fsLink,
+  lstat as fsLstat,
+  mkdir as fsMkdir,
+  open as fsOpen,
+  readdir as fsReaddir,
+  unlink as fsUnlink,
+} from "node:fs/promises";
+import { isIP } from "node:net";
+import { dirname, isAbsolute, resolve } from "node:path";
+import { domainToASCII } from "node:url";
+import { isDeepStrictEqual, types as utilTypes } from "node:util";
+
+import { createJsonIo, PRIVATE_ROOT } from "./io.mjs";
+import { digestJson } from "./model.mjs";
+
+export const OUTBOX_VERSION = 1;
+export const OUTBOX_RELATIVE_PATH = "flow-outbox.json";
+export const OUTBOX_LOCK_RELATIVE_PATH = "flow-outbox.lock";
+export const OUTBOX_JOURNAL_VERSION = 1;
+export const OUTBOX_JOURNAL_RELATIVE_PATH = "flow-outbox.journal.v1";
+export const OUTBOX_SNAPSHOT_RELATIVE_PATH = "flow-outbox.snapshot.v1.json";
+
+export const MAX_OUTBOX_BYTES = 4 * 1024 * 1024;
+export const MAX_JOURNAL_EVENTS = 100_000;
+export const MAX_JOURNAL_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;
+export const MAX_JOURNAL_EVENT_BYTES = MAX_OUTBOX_BYTES + 64 * 1024;
+export const MAX_OUTBOX_SNAPSHOT_BYTES = MAX_OUTBOX_BYTES + 64 * 1024;
+export const MAX_JOURNAL_CANDIDATES = 16;
+export const MAX_JOURNAL_CANDIDATE_TOTAL_BYTES =
+  MAX_JOURNAL_CANDIDATES * MAX_JOURNAL_EVENT_BYTES;
+export const JOURNAL_SEQUENCE_WIDTH = 20;
+export const MAX_ENTRIES = 500;
+export const MAX_TEXT_BYTES = 2_000;
+export const MAX_FINDING_VARIABLE_TEXT_BYTES = 7 * 1024;
+export const MAX_SYMPTOM_BYTES = 300;
+export const MAX_ROUTE_OR_OBJECT_BYTES = 300;
+export const MAX_LIST_ITEMS = 20;
+export const MAX_NODE_IDS = 64;
+export const MAX_ATTACHMENTS = 10;
+export const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
+export const MAX_TOTAL_ATTACHMENT_BYTES = 16 * 1024 * 1024;
+export const MAX_FILENAME_BYTES = 120;
+export const MAX_LEASE_MS = 5 * 60 * 1000;
+export const MAX_ACTION_AGE_MS = 10 * 60 * 1000;
+export const MAX_GENERATED_DESCRIPTION_HTML_BYTES = 48 * 1024;
+export const MAX_CREATE_ACTION_JSON_BYTES = 56 * 1024;
+export const MAX_DESCRIPTOR_STDIN_BYTES = 64 * 1024;
+export const MAX_OBSERVATION_STDIN_BYTES = 96 * 1024;
+
+const FLOW_ORIGIN = "https://flow.nuanu.com";
+const PRODUCT_ID = "nuanu-app";
+const ENVIRONMENT = "https://app.nuanu.com/";
+const MAX_SUCCESS_OBSERVATION_AGE_MS = 24 * 60 * 60 * 1000;
+const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
+const FINGERPRINT_PATTERN = /^napp-v1-[0-9a-f]{64}$/;
+const ACTION_ID_PATTERN = /^napp-flow-action-v1-[0-9a-f]{64}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const ISSUE_IDENTIFIER_PATTERN = /^NAPP-[1-9][0-9]{0,9}$/;
+const OWNER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const EVIDENCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/;
+const TEST_ID_PATTERN = /^NAPP-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
+const FILENAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
+const NON_URL_FILE_SUFFIXES = new Set([
+  "cjs", "css", "csv", "gif", "html", "jpeg", "jpg", "js", "json", "jsx",
+  "md", "mjs", "pdf", "png", "svg", "toml", "ts", "tsx", "txt", "webp",
+  "xml", "yaml", "yml",
+]);
+const PLATFORM_VALUES = new Set(["Desktop", "iOS Web", "Android Web"]);
+const PRIORITY_VALUES = new Set(["urgent", "high", "medium", "low"]);
+const STATE_VALUES = new Set(["pending_sync", "syncing", "failed"]);
+const FAILURE_CODES = new Set([
+  "FLOW_HOST_BLOCKED",
+  "FLOW_DESCRIPTOR_STALE",
+  "FLOW_READ_FAILED",
+  "FLOW_SEARCH_INCOMPLETE",
+  "FLOW_RECONCILIATION_REQUIRED",
+  "FLOW_FINGERPRINT_AMBIGUOUS",
+  "REMOTE_CREATE_AMBIGUOUS",
+  "FLOW_READBACK_MISMATCH",
+  "FLOW_EVIDENCE_UNSUPPORTED",
+  "FLOW_MUTATION_BLOCKED",
+  "FLOW_ACTION_STALE",
+]);
+const RETRY_SAFE_READ_CODES = new Set([
+  "FLOW_HOST_BLOCKED",
+  "FLOW_DESCRIPTOR_STALE",
+  "FLOW_READ_FAILED",
+  "FLOW_SEARCH_INCOMPLETE",
+  "FLOW_MUTATION_BLOCKED",
+  "FLOW_ACTION_STALE",
+]);
+const MANUAL_CODES = new Set([
+  "FLOW_RECONCILIATION_REQUIRED",
+  "FLOW_FINGERPRINT_AMBIGUOUS",
+]);
+const PROPOSED_FAILURE_CODES = new Set([
+  "FLOW_HOST_BLOCKED",
+  "FLOW_DESCRIPTOR_STALE",
+  "FLOW_MUTATION_BLOCKED",
+]);
+const DISPATCHED_FAILURE_CODES = Object.freeze({
+  search_issues: new Set([
+    "FLOW_READ_FAILED",
+    "FLOW_SEARCH_INCOMPLETE",
+    "FLOW_DESCRIPTOR_STALE",
+    "FLOW_RECONCILIATION_REQUIRED",
+    "FLOW_FINGERPRINT_AMBIGUOUS",
+  ]),
+  get_issue: new Set([
+    "FLOW_READ_FAILED",
+    "FLOW_READBACK_MISMATCH",
+    "FLOW_EVIDENCE_UNSUPPORTED",
+  ]),
+  create_issue: new Set([
+    "FLOW_DESCRIPTOR_STALE",
+    "REMOTE_CREATE_AMBIGUOUS",
+  ]),
+});
+const ALLOWED_EXTENSION_BY_MEDIA_TYPE = new Map([
+  ["image/png", new Set(["png"])],
+  ["image/jpeg", new Set(["jpg", "jpeg"])],
+  ["application/json", new Set(["json"])],
+  ["text/plain", new Set(["txt"])],
+]);
+const ALL_ATTACHMENT_EXTENSIONS = new Set(["png", "jpg", "jpeg", "json", "txt"]);
+const DESCRIPTOR_SCHEMA_KEYS = [
+  "search_issues",
+  "create_issue",
+  "get_issue",
+  "list_issue_attachments",
+  "upload_small_issue_attachment",
+  "update_issue",
+];
+
+const DEFAULT_LIMITS = Object.freeze({
+  MAX_OUTBOX_BYTES,
+  MAX_ENTRIES,
+  MAX_TEXT_BYTES,
+  MAX_FINDING_VARIABLE_TEXT_BYTES,
+  MAX_SYMPTOM_BYTES,
+  MAX_ROUTE_OR_OBJECT_BYTES,
+  MAX_LIST_ITEMS,
+  MAX_NODE_IDS,
+  MAX_ATTACHMENTS,
+  MAX_ATTACHMENT_BYTES,
+  MAX_TOTAL_ATTACHMENT_BYTES,
+  MAX_FILENAME_BYTES,
+  MAX_LEASE_MS,
+  MAX_ACTION_AGE_MS,
+  MAX_GENERATED_DESCRIPTION_HTML_BYTES,
+  MAX_CREATE_ACTION_JSON_BYTES,
+  MAX_DESCRIPTOR_STDIN_BYTES,
+  MAX_OBSERVATION_STDIN_BYTES,
+});
+
+const defaultLockFs = Object.freeze({
+  open: (...args) => fsOpen(...args),
+  lstat: (...args) => fsLstat(...args),
+  link: (...args) => fsLink(...args),
+  unlink: (...args) => fsUnlink(...args),
+});
+
+const defaultJournalFs = Object.freeze({
+  open: (...args) => fsOpen(...args),
+  lstat: (...args) => fsLstat(...args),
+  readdir: (...args) => fsReaddir(...args),
+  mkdir: (...args) => fsMkdir(...args),
+  link: (...args) => fsLink(...args),
+  unlink: (...args) => fsUnlink(...args),
+});
+const JOURNAL_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const NON_RETARGETABLE_TRANSACTION_ERROR_CODES = new Set([
+  "INVALID_OUTBOX_JOURNAL",
+  "INVALID_OUTBOX_JOURNAL_CANDIDATE",
+  "OUTBOX_JOURNAL_PUBLICATION_FAILED",
+  "OUTBOX_JOURNAL_PUBLICATION_UNSUPPORTED",
+  "OUTBOX_JOURNAL_PUBLICATION_INCONSISTENT",
+  "OUTBOX_JOURNAL_DURABILITY_UNKNOWN",
+  "OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED",
+  "OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN",
+  "OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN",
+  "OUTBOX_JOURNAL_CAS_LOST",
+  "OUTBOX_LEASE_FENCED",
+]);
+
+function flowError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function assertRecord(value, code, message) {
+  if (!isRecord(value)) throw flowError(code, message);
+}
+
+function sortedKeys(value) {
+  return Object.keys(value).sort();
+}
+
+function assertExactKeys(value, keys, code, message) {
+  assertRecord(value, code, message);
+  const actual = sortedKeys(value);
+  const expected = [...keys].sort();
+  if (
+    actual.length !== expected.length ||
+    actual.some((key, index) => key !== expected[index])
+  ) {
+    throw flowError(code, message);
+  }
+}
+
+function assertClosedJsonShape(value, code, message, active = new WeakSet()) {
+  const reject = () => {
+    throw flowError(code, message);
+  };
+  if (typeof value === "string") {
+    return;
+  }
+  if (
+    value === null ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value) && !Object.is(value, -0))
+  ) {
+    return;
+  }
+  if (typeof value !== "object") reject();
+  if (utilTypes.isProxy(value) || active.has(value)) reject();
+
+  let prototype;
+  let keys;
+  try {
+    prototype = Object.getPrototypeOf(value);
+    keys = Reflect.ownKeys(value);
+  } catch {
+    reject();
+  }
+  if (prototype !== (Array.isArray(value) ? Array.prototype : Object.prototype)) reject();
+  if (keys.some((key) => typeof key !== "string")) reject();
+
+  active.add(value);
+  try {
+    if (Array.isArray(value)) {
+      const lengthDescriptor = Object.getOwnPropertyDescriptor(value, "length");
+      const length = lengthDescriptor?.value;
+      if (
+        !lengthDescriptor ||
+        !("value" in lengthDescriptor) ||
+        lengthDescriptor.enumerable ||
+        !Number.isSafeInteger(length) ||
+        length < 0 ||
+        keys.length !== length + 1
+      ) {
+        reject();
+      }
+      const indexes = new Set();
+      for (const key of keys) {
+        if (key === "length") continue;
+        const index = Number(key);
+        if (
+          !Number.isSafeInteger(index) ||
+          index < 0 ||
+          index >= length ||
+          String(index) !== key ||
+          indexes.has(index)
+        ) {
+          reject();
+        }
+        const descriptor = Object.getOwnPropertyDescriptor(value, key);
+        if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) reject();
+        indexes.add(index);
+        assertClosedJsonShape(descriptor.value, code, message, active);
+      }
+      if (indexes.size !== length) reject();
+      return;
+    }
+
+    for (const key of keys) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) reject();
+      assertClosedJsonShape(descriptor.value, code, message, active);
+    }
+  } catch (error) {
+    if (error?.code === code) throw error;
+    reject();
+  } finally {
+    active.delete(value);
+  }
+}
+
+function normalizedKey(key) {
+  return key.normalize("NFKC").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isPrivacyUnsafeKey(key) {
+  const value = normalizedKey(key);
+  return [
+    "apikey",
+    "authorization",
+    "cookie",
+    "credential",
+    "exceptionmessage",
+    "exceptionstack",
+    "networkbody",
+    "otp",
+    "password",
+    "posthogrow",
+    "providerbody",
+    "rawbody",
+    "rawconsole",
+    "rawerror",
+    "rawnetwork",
+    "secret",
+    "stacktrace",
+    "token",
+  ].some((part) => value.includes(part));
+}
+
+function rejectPrivacyUnsafeKeys(value, code) {
+  if (Array.isArray(value)) {
+    for (const item of value) rejectPrivacyUnsafeKeys(item, code);
+    return;
+  }
+  if (!isRecord(value)) return;
+  for (const [key, nested] of Object.entries(value)) {
+    if (isPrivacyUnsafeKey(key)) {
+      throw flowError(code, "Privacy-unsafe field names are not allowed");
+    }
+    rejectPrivacyUnsafeKeys(nested, code);
+  }
+}
+
+function byteLength(value) {
+  return Buffer.byteLength(value, "utf8");
+}
+
+function hasUnpairedSurrogate(value) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+      index += 1;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function hasBareUrlLikeToken(value) {
+  for (const rawToken of value.split(/\s+/u)) {
+    let candidate = rawToken
+      .replace(/^[\[(<{"'`]+/u, "")
+      .replace(/[.,;!?)\]}>"'`。]+$/u, "");
+    if (candidate.length === 0) continue;
+    const protocolRelative = candidate.startsWith("//");
+    if (protocolRelative) candidate = candidate.slice(2);
+    const separatorIndex = candidate.search(/[/?#]/u);
+    const hostPort = separatorIndex < 0 ? candidate : candidate.slice(0, separatorIndex);
+    const hasPathOrSuffix = separatorIndex >= 0;
+    const portMatch = hostPort.match(/^(.*):([0-9]{1,5})$/u);
+    const host = portMatch ? portMatch[1] : hostPort;
+    if (host.toLowerCase() === "localhost") {
+      if (protocolRelative || hasPathOrSuffix || portMatch !== null) return true;
+      continue;
+    }
+    const hasDomainSeparator = /[.\u3002\uFF0E\uFF61]/u.test(host);
+    if (!hasDomainSeparator) {
+      if (protocolRelative) {
+        const asciiLabel = domainToASCII(host).toLowerCase();
+        if (/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u.test(asciiLabel)) return true;
+      }
+      continue;
+    }
+    if (/^[0-9.]+$/u.test(host)) {
+      if (protocolRelative || hasPathOrSuffix || portMatch !== null) return true;
+      continue;
+    }
+    let asciiHost;
+    try {
+      asciiHost = domainToASCII(host).toLowerCase();
+    } catch {
+      continue;
+    }
+    if (
+      asciiHost.length === 0 ||
+      /^[0-9.]+$/u.test(asciiHost) ||
+      !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/u
+        .test(asciiHost)
+    ) {
+      if (
+        protocolRelative &&
+        /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u.test(asciiHost)
+      ) return true;
+      continue;
+    }
+    const suffix = asciiHost.slice(asciiHost.lastIndexOf(".") + 1);
+    if (
+      protocolRelative ||
+      hasPathOrSuffix ||
+      portMatch !== null ||
+      asciiHost.startsWith("www.") ||
+      !NON_URL_FILE_SUFFIXES.has(suffix)
+    ) return true;
+  }
+  return false;
+}
+
+function hasEmailLikeToken(value) {
+  for (const rawToken of value.split(/\s+/u)) {
+    const candidate = rawToken
+      .replace(/^[\[(<{"'`]+/u, "")
+      .replace(/[.,;!?)\]}>"'`。]+$/u, "");
+    const atIndex = candidate.indexOf("@");
+    if (
+      atIndex <= 0 ||
+      atIndex !== candidate.lastIndexOf("@") ||
+      atIndex === candidate.length - 1
+    ) continue;
+    const local = candidate.slice(0, atIndex);
+    const domain = candidate.slice(atIndex + 1);
+    let asciiDomain;
+    try {
+      asciiDomain = domainToASCII(domain).toLowerCase();
+    } catch {
+      continue;
+    }
+    if (
+      local.length > 0 &&
+      /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/u
+        .test(asciiDomain)
+    ) return true;
+  }
+  return false;
+}
+
+function hasContextualPhoneNumber(value) {
+  const matches = value.matchAll(
+    /\b(?:call|phone|telephone|tel|mobile|contact|whatsapp)\b(?:\s+(?:me|us|number)){0,2}(?:\s+(?:at|is))?\s*[:=]?\s*([0-9][0-9 .()/-]{6,}[0-9])/giu,
+  );
+  for (const match of matches) {
+    const digitCount = (match[1].match(/[0-9]/gu) ?? []).length;
+    if (digitCount >= 8 && digitCount <= 15) return true;
+  }
+  return false;
+}
+
+function hasPrivacyUnsafeText(value, {
+  allowSymptomWhitespace = false,
+  allowRoute = false,
+  allowGraphNodeId = false,
+} = {}) {
+  if (hasUnpairedSurrogate(value) || /\p{Cf}/u.test(value)) return true;
+  value = value.normalize("NFKC");
+  try {
+    value = decodePercentToFixedPoint(value, {
+      allowLiteralPercent: true,
+      code: "PRIVACY_UNSAFE_TEXT",
+      message: "Text contains unsafe percent encoding",
+    }).normalize("NFKC");
+  } catch {
+    return true;
+  }
+  const controlPattern = allowSymptomWhitespace
+    ? /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u
+    : /[\u0000-\u001f\u007f-\u009f]/u;
+  if (controlPattern.test(value)) return true;
+  if (/\b(?:Bearer|Basic)\s+[A-Za-z0-9+/=_-]+/i.test(value)) return true;
+  if (/\b[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/.test(value)) return true;
+  if (/\b(?:phc_|ghp_|github_pat_|sk-|xox[baprs]-)[A-Za-z0-9_-]+/i.test(value)) return true;
+  if (/\b(?:password|passwd|secret|api[_ -]?key|authorization|cookie|otp|token)\s*[:=]/i.test(value)) return true;
+  if (/(?:^|[?&#;\s])[A-Za-z][A-Za-z0-9_-]{0,30}=[^\s&#;]+/u.test(value)) return true;
+  if (/(?:^|\s)#[A-Za-z0-9_-]{2,}(?:\s|$)/u.test(value)) return true;
+  if (/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i.test(value)) return true;
+  if (hasEmailLikeToken(value)) return true;
+  if (hasContextualPhoneNumber(value)) return true;
+  if (/(?:\+\d[\d .()/-]{6,}\d)|(?:\b\d{3}[- .]\d{3}[- .]\d{4}\b)/.test(value)) return true;
+  if (/\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/.test(value)) return true;
+  for (const candidate of value.match(/[0-9A-Fa-f:]*:[0-9A-Fa-f:]+/g) ?? []) {
+    if (isIP(candidate) === 6) return true;
+  }
+  if (/(?:^|\s)(?:lat(?:itude)?|lon(?:gitude)?|gps)\s*[:=]/i.test(value)) return true;
+  if (/(?:^|\s)-?\d{1,3}\.\d{4,}\s*,\s*-?\d{1,3}\.\d{4,}(?:\s|$)/.test(value)) return true;
+  if (/(?:^|[\s("'`])\/\/[A-Za-z0-9]/u.test(value)) return true;
+  if (hasBareUrlLikeToken(value)) return true;
+  if (/\b(?:(?:Aggregate|Eval|Range|Reference|Syntax|Type|URI)?Error|Exception)\s*:/iu.test(value)) return true;
+  const isProductGraphNodeId = allowGraphNodeId &&
+    value.startsWith(`${PRODUCT_ID}:`) &&
+    value.length > PRODUCT_ID.length + 1;
+  if (isProductGraphNodeId) {
+    if (
+      /\b[A-Za-z][A-Za-z0-9+.-]{1,31}:\/\//u.test(value) ||
+      /\b(?:urn|data|file|javascript|mailto|tel):[^\s]/iu.test(value)
+    ) return true;
+  } else if (/\b[A-Za-z][A-Za-z0-9+.-]{1,31}:(?:\/\/)?[^\s]/u.test(value)) {
+    return true;
+  }
+  if (
+    /<\/?[A-Za-z][^>]*>/u.test(value) ||
+    /<!--|-->|<!DOCTYPE\b|<\?|<%|<!\[CDATA\[|<![A-Z]/i.test(value) ||
+    /javascript\s*:/i.test(value)
+  ) return true;
+  if (/!?\[[^\]]+\]\([^)]+\)/m.test(value)) return true;
+  if (/^[ \t]{0,3}(?:`{3,}|~{3,})(?:[^\r\n]*)$/mu.test(value)) return true;
+  if (/^[ \t]{0,3}#{1,6}(?:[ \t]+|$)/mu.test(value)) return true;
+  if (/^[ \t]{0,3}>/mu.test(value)) return true;
+  if (/^(?: {4,}|\t+[ \t]*)\S/mu.test(value)) return true;
+  if (/!?\[[^\]\r\n]+\]\[[^\]\r\n]*\]/u.test(value)) return true;
+  if (/(?:\*\*|__)[^\r\n]+(?:\*\*|__)/u.test(value)) return true;
+  if (/(?:^|\s)\*[^*\r\n]+\*(?=$|\s|[.,!?])/u.test(value)) return true;
+  if (/(?:^|\s)_[^_\r\n]+_(?=$|\s|[.,!?])/u.test(value)) return true;
+  if (/~~[^~\r\n]+~~/u.test(value)) return true;
+  if (/`[^`\r\n]+`/u.test(value)) return true;
+  if (/^(?:[-+*]|\d+[.)])\s+/mu.test(value)) return true;
+  if (/^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/mu.test(value)) return true;
+  if (/^\s*\|(?:[^|\r\n]*\|){1,}\s*$/mu.test(value)) return true;
+  if (/^[^\r\n]*\|[^\r\n]*\r?\n\s*:?-{3,}:?(?:\s*\|\s*:?-{3,}:?)+\s*$/mu.test(value)) return true;
+  if (/^[^\r\n]+\r?\n\s*(?:={3,}|-{3,})\s*$/mu.test(value)) return true;
+  if (
+    /(?:^|[\s:("'`])(?:\/(?:Applications|Library|Users|Volumes|bin|dev|etc|home|lib|mnt|opt|private|proc|root|run|sbin|srv|sys|tmp|usr|var)(?:\/|$)|[A-Za-z]:[\\/])/iu
+      .test(value)
+  ) return true;
+  if (!allowRoute && /(?:^|[\s("'`])\/(?!\/)[^\s"'`<>]+/u.test(value)) return true;
+  if (/\b(?:request|response|network|console)\s+(?:body|payload)\s*[:=]/i.test(value)) return true;
+  if (/\b(?:posthog\s+row|distinct_id|person_id|\$session_id)\b/i.test(value)) return true;
+  if (/\b(?:raw\s+)?(?:error|exception)(?:\s+(?:message|stack))?\s*[:=]/i.test(value)) return true;
+  if (/\bat\s+[A-Za-z_$][\w$]*\s*\([^\n]+:\d+:\d+\)/.test(value)) return true;
+  const opaqueCandidates = isProductGraphNodeId
+    ? value.match(/[A-Za-z0-9_+=-]{32,}/g)
+    : value.match(/[A-Za-z0-9_+/=-]{32,}/g);
+  for (const candidate of opaqueCandidates ?? []) {
+    const normalizedOpaque = candidate.replace(/[_+/=-]/g, "");
+    const opaqueAlphabet = new Set(normalizedOpaque.toLowerCase());
+    if (
+      (/^[a-f0-9]{40,}$/i.test(candidate)) ||
+      (/[a-z]/.test(candidate) && /[A-Z]/.test(candidate) && /\d/.test(candidate)) ||
+      (
+        normalizedOpaque.length >= 32 &&
+        /^[a-z0-9]+$/i.test(normalizedOpaque) &&
+        opaqueAlphabet.size >= 10
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function decodePercentToFixedPoint(value, {
+  allowLiteralPercent,
+  code,
+  message,
+}) {
+  const reject = () => {
+    throw flowError(code, message);
+  };
+  const decodeLayer = (input) => {
+    let decoded = "";
+    let changed = false;
+    for (let index = 0; index < input.length;) {
+      if (input[index] !== "%") {
+        decoded += input[index];
+        index += 1;
+        continue;
+      }
+      const pair = input.slice(index + 1, index + 3);
+      if (/^[0-9A-Fa-f]{2}$/.test(pair)) {
+        let encodedRun = "";
+        while (input[index] === "%") {
+          const runPair = input.slice(index + 1, index + 3);
+          if (!/^[0-9A-Fa-f]{2}$/.test(runPair)) break;
+          if (runPair !== runPair.toUpperCase()) reject();
+          encodedRun += `%${runPair}`;
+          index += 3;
+        }
+        try {
+          decoded += decodeURIComponent(encodedRun);
+        } catch {
+          reject();
+        }
+        changed = true;
+        continue;
+      }
+      const nextCharacter = input[index + 1] ?? "";
+      if (!allowLiteralPercent || /[A-Za-z0-9]/u.test(nextCharacter)) reject();
+      decoded += "%";
+      index += 1;
+    }
+    return { decoded, changed };
+  };
+
+  let current = value;
+  for (let layer = 0; layer < 4; layer += 1) {
+    const result = decodeLayer(current);
+    if (!result.changed) return current;
+    current = result.decoded;
+  }
+  if (decodeLayer(current).changed) reject();
+  return current;
+}
+
+function validatePlainText(value, {
+  maxBytes,
+  empty = false,
+  privacyCode = "PRIVACY_UNSAFE_FINDING",
+  limitCode = "FLOW_FINDING_LIMIT_EXCEEDED",
+  invalidCode = "INVALID_FLOW_FINDING",
+  allowSymptomWhitespace = false,
+  allowGraphNodeId = false,
+} = {}) {
+  if (typeof value !== "string" || (!empty && value.trim().length === 0)) {
+    throw flowError(invalidCode, "Finding text must be a non-empty string");
+  }
+  if (byteLength(value) > maxBytes) {
+    throw flowError(limitCode, "Finding text exceeds its UTF-8 byte limit");
+  }
+  if (hasPrivacyUnsafeText(value, { allowSymptomWhitespace, allowGraphNodeId })) {
+    throw flowError(privacyCode, "Finding text is privacy-unsafe");
+  }
+  return value;
+}
+
+function normalizeSymptom(value, limits) {
+  validatePlainText(value, {
+    maxBytes: limits.MAX_SYMPTOM_BYTES,
+    allowSymptomWhitespace: true,
+  });
+  const normalized = value.normalize("NFC").trim().replace(/\s+/gu, " ").toLowerCase();
+  if (normalized.length === 0) {
+    throw flowError("INVALID_FLOW_FINDING", "Finding symptom must be non-empty");
+  }
+  if (byteLength(normalized) > limits.MAX_SYMPTOM_BYTES) {
+    throw flowError("FLOW_FINDING_LIMIT_EXCEEDED", "Finding symptom exceeds its UTF-8 byte limit");
+  }
+  if (hasPrivacyUnsafeText(normalized)) {
+    throw flowError("PRIVACY_UNSAFE_FINDING", "Finding symptom is privacy-unsafe");
+  }
+  return normalized;
+}
+
+function normalizeAffectedObjectOrRoute(value, limits) {
+  if (typeof value !== "string") {
+    throw flowError("INVALID_FLOW_FINDING", "Finding route or object must be a string");
+  }
+  if (byteLength(value) > limits.MAX_ROUTE_OR_OBJECT_BYTES) {
+    throw flowError("FLOW_FINDING_LIMIT_EXCEEDED", "Finding route or object exceeds its UTF-8 byte limit");
+  }
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    throw flowError("INVALID_FLOW_FINDING", "Finding route or object must be non-empty");
+  }
+  const decoded = decodePercentToFixedPoint(normalized, {
+    allowLiteralPercent: !normalized.startsWith("/"),
+    code: "PRIVACY_UNSAFE_FINDING",
+    message: "Finding route or object is privacy-unsafe",
+  });
+  const privacyDecoded = decoded.normalize("NFKC");
+  if (
+    privacyDecoded.startsWith("//") ||
+    privacyDecoded.includes("?") ||
+    privacyDecoded.includes("#") ||
+    privacyDecoded.includes("\\") ||
+    /(?:^|\/)\.{1,2}(?:\/|$)/u.test(privacyDecoded) ||
+    /^(?:https?:|file:)/i.test(privacyDecoded) ||
+    /^\/(?:Users|home|private|tmp|var)\//.test(privacyDecoded) ||
+    hasPrivacyUnsafeText(privacyDecoded, { allowRoute: true })
+  ) {
+    throw flowError("PRIVACY_UNSAFE_FINDING", "Finding route or object is privacy-unsafe");
+  }
+  return normalized;
+}
+
+function validateDigest(value, code = "INVALID_FLOW_FINDING") {
+  if (typeof value !== "string" || !SHA256_PATTERN.test(value)) {
+    throw flowError(code, "Digest must be a lowercase SHA-256 identity");
+  }
+  return value;
+}
+
+function canonicalUtcInstant(value, code = "INVALID_FLOW_OUTBOX") {
+  let date;
+  if (value instanceof Date) {
+    date = value;
+  } else if (typeof value === "string") {
+    date = new Date(value);
+  } else {
+    throw flowError(code, "Timestamp must be a canonical UTC instant");
+  }
+  if (!Number.isFinite(date.getTime())) {
+    throw flowError(code, "Timestamp must be a canonical UTC instant");
+  }
+  const canonical = date.toISOString();
+  if (typeof value === "string" && value !== canonical) {
+    throw flowError(code, "Timestamp must be a canonical UTC instant");
+  }
+  return canonical;
+}
+
+function validateLimits(overrides) {
+  if (overrides === undefined) return DEFAULT_LIMITS;
+  assertRecord(overrides, "INVALID_OUTBOX_LIMITS", "Outbox limits must be an object");
+  const keys = Object.keys(overrides);
+  if (keys.some((key) => !Object.hasOwn(DEFAULT_LIMITS, key))) {
+    throw flowError("INVALID_OUTBOX_LIMITS", "Outbox limits contain an unknown field");
+  }
+  const merged = { ...DEFAULT_LIMITS };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (!Number.isSafeInteger(value) || value < 1 || value > DEFAULT_LIMITS[key]) {
+      throw flowError("INVALID_OUTBOX_LIMITS", "Outbox limits must be positive code-bounded integers");
+    }
+    merged[key] = value;
+  }
+  return Object.freeze(merged);
+}
+
+function fingerprintFindingWithLimits(input, limits) {
+  assertClosedJsonShape(
+    input,
+    "INVALID_FLOW_FINDING",
+    "Fingerprint input must be recursively closed JSON",
+  );
+  assertRecord(input, "INVALID_FLOW_FINDING", "Fingerprint input must be an object");
+  rejectPrivacyUnsafeKeys(input, "PRIVACY_UNSAFE_FINDING");
+  const minimalKeys = [
+    "productId",
+    "symptom",
+    "affectedObjectOrRoute",
+    "platform",
+    "runtimeIdentity",
+    "evidenceSignature",
+  ];
+  const source = Object.hasOwn(input, "schemaVersion")
+    ? canonicalFinding(input, limits)
+    : (assertExactKeys(
+      input,
+      minimalKeys,
+      "INVALID_FLOW_FINDING",
+      "Fingerprint fields are invalid",
+    ), input);
+  if (source.productId !== PRODUCT_ID) {
+    throw flowError("INVALID_FLOW_FINDING", "Fingerprint product is invalid");
+  }
+  const normalizedSymptom = normalizeSymptom(source.symptom, limits);
+  const affectedObjectOrRoute = normalizeAffectedObjectOrRoute(
+    source.affectedObjectOrRoute,
+    limits,
+  );
+  if (!PLATFORM_VALUES.has(source.platform)) {
+    throw flowError("INVALID_FLOW_FINDING", "Fingerprint platform is invalid");
+  }
+  const runtimeIdentity = validateDigest(source.runtimeIdentity);
+  const evidenceSignature = validateDigest(source.evidenceSignature);
+  const canonicalInput = {
+    version: 1,
+    productId: PRODUCT_ID,
+    normalizedSymptom,
+    affectedObjectOrRoute,
+    platform: source.platform,
+    runtimeIdentity,
+    evidenceSignature,
+  };
+  const digest = createHash("sha256")
+    .update(JSON.stringify(canonicalInput), "utf8")
+    .digest("hex");
+  return `napp-v1-${digest}`;
+}
+
+export function fingerprintFinding(input) {
+  return fingerprintFindingWithLimits(input, DEFAULT_LIMITS);
+}
+
+function canonicalAttachment(value, limits) {
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_FINDING");
+  assertExactKeys(
+    value,
+    ["evidenceId", "fileName", "mediaType", "sizeBytes", "sha256"],
+    "INVALID_FLOW_FINDING",
+    "Attachment fields are invalid",
+  );
+  const evidenceId = validatePlainText(value.evidenceId, {
+    maxBytes: limits.MAX_FILENAME_BYTES,
+  });
+  if (!EVIDENCE_ID_PATTERN.test(evidenceId)) {
+    throw flowError("INVALID_FLOW_FINDING", "Attachment evidence ID is invalid");
+  }
+  if (typeof value.fileName !== "string") {
+    throw flowError("INVALID_FLOW_FINDING", "Attachment filename is invalid");
+  }
+  if (byteLength(value.fileName) > limits.MAX_FILENAME_BYTES) {
+    throw flowError("FLOW_FINDING_LIMIT_EXCEEDED", "Attachment filename exceeds its UTF-8 byte limit");
+  }
+  if (
+    !FILENAME_PATTERN.test(value.fileName) ||
+    value.fileName.startsWith(".") ||
+    value.fileName.endsWith(".") ||
+    value.fileName.includes("/") ||
+    value.fileName.includes("\\")
+  ) {
+    throw flowError("INVALID_FLOW_FINDING", "Attachment filename is invalid");
+  }
+  const parts = value.fileName.split(".");
+  if (parts.some((part) => part === "" || part === "." || part === "..")) {
+    throw flowError("INVALID_FLOW_FINDING", "Attachment filename is invalid");
+  }
+  const terminalExtension = parts.at(-1);
+  const extensionCount = parts.filter((part) => ALL_ATTACHMENT_EXTENSIONS.has(part)).length;
+  const allowedExtensions = ALLOWED_EXTENSION_BY_MEDIA_TYPE.get(value.mediaType);
+  if (!allowedExtensions || !allowedExtensions.has(terminalExtension) || extensionCount !== 1) {
+    throw flowError("INVALID_FLOW_FINDING", "Attachment media type and extension do not match");
+  }
+  if (
+    !Number.isSafeInteger(value.sizeBytes) ||
+    value.sizeBytes < 1
+  ) {
+    throw flowError("INVALID_FLOW_FINDING", "Attachment size is invalid");
+  }
+  if (value.sizeBytes > limits.MAX_ATTACHMENT_BYTES) {
+    throw flowError("FLOW_FINDING_LIMIT_EXCEEDED", "Attachment exceeds its byte limit");
+  }
+  return {
+    evidenceId,
+    fileName: value.fileName,
+    mediaType: value.mediaType,
+    sizeBytes: value.sizeBytes,
+    sha256: validateDigest(value.sha256),
+  };
+}
+
+function canonicalTextList(value, limits, name) {
+  if (!Array.isArray(value) || value.length < 1) {
+    throw flowError("INVALID_FLOW_FINDING", `${name} must be a non-empty list`);
+  }
+  if (value.length > limits.MAX_LIST_ITEMS) {
+    throw flowError("FLOW_FINDING_LIMIT_EXCEEDED", `${name} exceeds its item limit`);
+  }
+  return value.map((item) => validatePlainText(item, { maxBytes: limits.MAX_TEXT_BYTES }));
+}
+
+function canonicalRegression(value, limits) {
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_FINDING");
+  assertRecord(value, "INVALID_FLOW_FINDING", "Regression metadata is invalid");
+  if (value.status === "AUTOMATED") {
+    assertExactKeys(
+      value,
+      ["status", "testId", "design"],
+      "INVALID_FLOW_FINDING",
+      "Automated regression metadata is invalid",
+    );
+    if (typeof value.testId !== "string" || !TEST_ID_PATTERN.test(value.testId)) {
+      throw flowError("INVALID_FLOW_FINDING", "Automated regression test ID is invalid");
+    }
+    return {
+      status: "AUTOMATED",
+      testId: validatePlainText(value.testId, { maxBytes: limits.MAX_TEXT_BYTES }),
+      design: validatePlainText(value.design, { maxBytes: limits.MAX_TEXT_BYTES }),
+    };
+  }
+  if (value.status === "MANUAL") {
+    assertExactKeys(
+      value,
+      ["status", "testId", "reason", "design"],
+      "INVALID_FLOW_FINDING",
+      "Manual regression metadata is invalid",
+    );
+    if (
+      value.testId !== null ||
+      !new Set(["UNSAFE_TO_AUTOMATE", "NO_STABLE_ORACLE"]).has(value.reason)
+    ) {
+      throw flowError("INVALID_FLOW_FINDING", "Manual regression disposition is invalid");
+    }
+    return {
+      status: "MANUAL",
+      testId: null,
+      reason: value.reason,
+      design: validatePlainText(value.design, { maxBytes: limits.MAX_TEXT_BYTES }),
+    };
+  }
+  throw flowError("INVALID_FLOW_FINDING", "Regression status is invalid");
+}
+
+function canonicalFinding(value, limits) {
+  assertClosedJsonShape(
+    value,
+    "INVALID_FLOW_FINDING",
+    "Finding must be recursively closed JSON",
+  );
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_FINDING");
+  assertExactKeys(
+    value,
+    [
+      "schemaVersion",
+      "productId",
+      "classification",
+      "symptom",
+      "affectedObjectOrRoute",
+      "platform",
+      "runtimeIdentity",
+      "evidenceSignature",
+      "environment",
+      "priority",
+      "preconditions",
+      "steps",
+      "actual",
+      "expected",
+      "impact",
+      "evidenceSummary",
+      "attachments",
+      "graph",
+      "regression",
+      "deduplication",
+      "confirmation",
+    ],
+    "INVALID_FLOW_FINDING",
+    "Finding fields are invalid",
+  );
+  if (
+    value.schemaVersion !== 1 ||
+    value.productId !== PRODUCT_ID ||
+    value.classification !== "confirmed_product_defect" ||
+    !PLATFORM_VALUES.has(value.platform) ||
+    value.environment !== ENVIRONMENT ||
+    !PRIORITY_VALUES.has(value.priority)
+  ) {
+    throw flowError("INVALID_FLOW_FINDING", "Finding fixed fields are invalid");
+  }
+
+  const symptom = normalizeSymptom(value.symptom, limits);
+  const affectedObjectOrRoute = normalizeAffectedObjectOrRoute(
+    value.affectedObjectOrRoute,
+    limits,
+  );
+  const preconditions = canonicalTextList(value.preconditions, limits, "Preconditions");
+  const steps = canonicalTextList(value.steps, limits, "Steps");
+  const actual = validatePlainText(value.actual, { maxBytes: limits.MAX_TEXT_BYTES });
+  const expected = validatePlainText(value.expected, { maxBytes: limits.MAX_TEXT_BYTES });
+  const impact = validatePlainText(value.impact, { maxBytes: limits.MAX_TEXT_BYTES });
+  const evidenceSummary = validatePlainText(value.evidenceSummary, {
+    maxBytes: limits.MAX_TEXT_BYTES,
+  });
+
+  if (!Array.isArray(value.attachments)) {
+    throw flowError("INVALID_FLOW_FINDING", "Attachments must be a list");
+  }
+  if (value.attachments.length > limits.MAX_ATTACHMENTS) {
+    throw flowError("FLOW_FINDING_LIMIT_EXCEEDED", "Attachments exceed the item limit");
+  }
+  const attachments = value.attachments.map((item) => canonicalAttachment(item, limits));
+  const totalAttachmentBytes = attachments.reduce((sum, item) => sum + item.sizeBytes, 0);
+  if (totalAttachmentBytes > limits.MAX_TOTAL_ATTACHMENT_BYTES) {
+    throw flowError("FLOW_FINDING_LIMIT_EXCEEDED", "Attachments exceed the aggregate byte limit");
+  }
+  const evidenceIds = new Set();
+  const fileNames = new Set();
+  const tuples = new Set();
+  for (const item of attachments) {
+    const tuple = JSON.stringify([
+      item.evidenceId,
+      item.fileName,
+      item.mediaType,
+      item.sizeBytes,
+      item.sha256,
+    ]);
+    if (
+      evidenceIds.has(item.evidenceId) ||
+      fileNames.has(item.fileName) ||
+      tuples.has(tuple)
+    ) {
+      throw flowError("INVALID_FLOW_FINDING", "Attachment identities must be unique");
+    }
+    evidenceIds.add(item.evidenceId);
+    fileNames.add(item.fileName);
+    tuples.add(tuple);
+  }
+
+  assertExactKeys(
+    value.graph,
+    ["graphDigest", "nodeIds"],
+    "INVALID_FLOW_FINDING",
+    "Finding graph binding is invalid",
+  );
+  if (!Array.isArray(value.graph.nodeIds) || value.graph.nodeIds.length < 1) {
+    throw flowError("INVALID_FLOW_FINDING", "Finding graph node IDs must be a non-empty list");
+  }
+  if (value.graph.nodeIds.length > limits.MAX_NODE_IDS) {
+    throw flowError("FLOW_FINDING_LIMIT_EXCEEDED", "Finding graph node IDs exceed the item limit");
+  }
+  const nodeIds = value.graph.nodeIds.map((nodeId) => {
+    const validated = validatePlainText(nodeId, {
+      maxBytes: limits.MAX_TEXT_BYTES,
+      allowGraphNodeId: true,
+    });
+    if (!validated.startsWith(`${PRODUCT_ID}:`) || validated.length <= PRODUCT_ID.length + 1) {
+      throw flowError("INVALID_FLOW_FINDING", "Finding graph node ID is invalid");
+    }
+    return validated;
+  });
+  if (new Set(nodeIds).size !== nodeIds.length) {
+    throw flowError("INVALID_FLOW_FINDING", "Finding graph node IDs must be unique");
+  }
+
+  const regression = canonicalRegression(value.regression, limits);
+  assertExactKeys(
+    value.deduplication,
+    ["searchedAt", "result", "queryDigest"],
+    "INVALID_FLOW_FINDING",
+    "Finding deduplication metadata is invalid",
+  );
+  if (value.deduplication.result !== "no_duplicate") {
+    throw flowError("INVALID_FLOW_FINDING", "Finding deduplication result is invalid");
+  }
+  assertExactKeys(
+    value.confirmation,
+    ["freshContext", "deterministicOracle", "telemetryOnly"],
+    "INVALID_FLOW_FINDING",
+    "Finding confirmation is invalid",
+  );
+  if (
+    value.confirmation.freshContext !== true ||
+    value.confirmation.deterministicOracle !== true ||
+    value.confirmation.telemetryOnly !== false
+  ) {
+    throw flowError("PRIVACY_UNSAFE_FINDING", "Finding confirmation does not prove a safe defect");
+  }
+
+  const result = {
+    schemaVersion: 1,
+    productId: PRODUCT_ID,
+    classification: "confirmed_product_defect",
+    symptom,
+    affectedObjectOrRoute,
+    platform: value.platform,
+    runtimeIdentity: validateDigest(value.runtimeIdentity),
+    evidenceSignature: validateDigest(value.evidenceSignature),
+    environment: ENVIRONMENT,
+    priority: value.priority,
+    preconditions,
+    steps,
+    actual,
+    expected,
+    impact,
+    evidenceSummary,
+    attachments,
+    graph: {
+      graphDigest: validateDigest(value.graph.graphDigest),
+      nodeIds,
+    },
+    regression,
+    deduplication: {
+      searchedAt: canonicalUtcInstant(value.deduplication.searchedAt, "INVALID_FLOW_FINDING"),
+      result: "no_duplicate",
+      queryDigest: validateDigest(value.deduplication.queryDigest),
+    },
+    confirmation: {
+      freshContext: true,
+      deterministicOracle: true,
+      telemetryOnly: false,
+    },
+  };
+
+  const variableStrings = [
+    result.symptom,
+    result.affectedObjectOrRoute,
+    ...result.preconditions,
+    ...result.steps,
+    result.actual,
+    result.expected,
+    result.impact,
+    result.evidenceSummary,
+    ...result.attachments.flatMap((item) => [item.evidenceId, item.fileName, item.mediaType]),
+    ...result.graph.nodeIds,
+    ...(result.regression.testId === null ? [] : [result.regression.testId]),
+    result.regression.design,
+    result.deduplication.searchedAt,
+  ];
+  const aggregateBytes = variableStrings.reduce((sum, item) => sum + byteLength(item), 0);
+  if (aggregateBytes > limits.MAX_FINDING_VARIABLE_TEXT_BYTES) {
+    throw flowError("FLOW_FINDING_LIMIT_EXCEEDED", "Finding exceeds the aggregate UTF-8 text limit");
+  }
+  return result;
+}
+
+function validateFlowUrl(value) {
+  if (typeof value !== "string" || byteLength(value) > 512) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Remote Flow URL is invalid");
+  }
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw flowError("INVALID_FLOW_OUTBOX", "Remote Flow URL is invalid");
+  }
+  const decodedPath = decodePercentToFixedPoint(url.pathname, {
+    allowLiteralPercent: false,
+    code: "INVALID_FLOW_OUTBOX",
+    message: "Remote Flow URL is invalid",
+  });
+  const privacyDecodedPath = decodedPath.normalize("NFKC");
+  if (
+    url.origin !== FLOW_ORIGIN ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.search !== "" ||
+    url.hash !== "" ||
+    !url.pathname.startsWith("/") ||
+    url.pathname.includes("//") ||
+    privacyDecodedPath.startsWith("//") ||
+    privacyDecodedPath.includes("?") ||
+    privacyDecodedPath.includes("#") ||
+    privacyDecodedPath.includes("\\") ||
+    /(?:^|\/)\.{1,2}(?:\/|$)/u.test(privacyDecodedPath) ||
+    hasPrivacyUnsafeText(privacyDecodedPath, { allowRoute: true }) ||
+    url.href !== value
+  ) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Remote Flow URL is invalid");
+  }
+  return value;
+}
+
+function escapeHtml(value) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function buildExpectedBugDescriptionHtml(entry) {
+  const findingValue = entry.finding;
+  const list = (tag, items) => `<${tag}>${items
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join("")}</${tag}>`;
+  const regressionSummary = findingValue.regression.status === "AUTOMATED"
+    ? `AUTOMATED: ${findingValue.regression.testId}.`
+    : `MANUAL: ${findingValue.regression.reason}.`;
+  return [
+    `<section><h2>Environment</h2><p>${ENVIRONMENT}</p></section>`,
+    `<section><h2>Preconditions</h2>${list("ul", findingValue.preconditions)}</section>`,
+    `<section><h2>Steps</h2>${list("ol", findingValue.steps)}</section>`,
+    `<section><h2>Actual</h2><p>${escapeHtml(findingValue.actual)}</p></section>`,
+    `<section><h2>Expected</h2><p>${escapeHtml(findingValue.expected)}</p></section>`,
+    `<section><h2>Impact</h2><p>${escapeHtml(findingValue.impact)}</p></section>`,
+    `<section><h2>Evidence</h2><p>${escapeHtml(findingValue.evidenceSummary.replace(/[.!?]+$/u, ""))}; ${findingValue.evidenceSignature}.</p></section>`,
+    `<section><h2>Graph</h2><p>${findingValue.graph.nodeIds.map(escapeHtml).join("; ")}; ${findingValue.graph.graphDigest}.</p></section>`,
+    `<section><h2>Regression</h2><p>${escapeHtml(regressionSummary)}</p></section>`,
+    "<section><h2>Deduplication</h2><p>Complete active and recently-closed search found no duplicate.</p></section>",
+    `<p>QA Fingerprint: ${entry.fingerprint}</p>`,
+  ].join("");
+}
+
+function buildExpectedBugCreatePayload(entry) {
+  const formattedSymptom = entry.finding.symptom
+    .replace(/^./u, (character) => character.toUpperCase())
+    .replace(/\bhttp\b/giu, "HTTP");
+  return {
+    project_identifier: "NAPP",
+    name: `[BUG][${entry.finding.platform}] ${formattedSymptom}`,
+    description_html: buildExpectedBugDescriptionHtml(entry),
+    state_name: "Bugs",
+    label_names: ["Bug", entry.finding.platform].sort(),
+    priority: entry.finding.priority,
+  };
+}
+
+function validateGeneratedDescriptionHtml(
+  value,
+  expectedValue,
+  fingerprint,
+  affectedObjectOrRoute,
+  limits,
+) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    byteLength(value) > limits.MAX_GENERATED_DESCRIPTION_HTML_BYTES ||
+    !value.includes(fingerprint)
+  ) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Generated Flow description is invalid");
+  }
+  if (value === expectedValue) return value;
+  const reviewedRouteParagraph = `<p>Affected route: ${escapeHtml(affectedObjectOrRoute)}</p>`;
+  const withoutAllowedTags = value
+    .replaceAll(ENVIRONMENT, "")
+    .replace(/(?:sha256:|napp-v1-)[0-9a-f]{64}/g, "")
+    .replaceAll(reviewedRouteParagraph, "")
+    .replace(/<\/?(?:section|h2|p|ul|ol|li)>/g, "");
+  if (hasPrivacyUnsafeText(withoutAllowedTags)) {
+    throw flowError("PRIVACY_UNSAFE_OUTBOX", "Generated Flow description is privacy-unsafe");
+  }
+  throw flowError("INVALID_FLOW_OUTBOX", "Generated Flow description is not code-owned");
+}
+
+function canonicalRemote(value) {
+  if (value === null) return null;
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_OUTBOX");
+  assertExactKeys(
+    value,
+    ["id", "identifier", "url", "createdReadBackAt"],
+    "INVALID_FLOW_OUTBOX",
+    "Remote identity is invalid",
+  );
+  if (!UUID_PATTERN.test(value.id) || !ISSUE_IDENTIFIER_PATTERN.test(value.identifier)) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Remote identity is invalid");
+  }
+  return {
+    id: value.id,
+    identifier: value.identifier,
+    url: validateFlowUrl(value.url),
+    createdReadBackAt: canonicalUtcInstant(value.createdReadBackAt),
+  };
+}
+
+function canonicalMutationReceipt(value) {
+  if (value === null) return null;
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_OUTBOX");
+  assertRecord(value, "INVALID_FLOW_OUTBOX", "Mutation receipt is invalid");
+  if (value.kind !== "create_issue") {
+    throw flowError("INVALID_FLOW_OUTBOX", "Mutation receipt kind is invalid");
+  }
+  if (value.outcome === "ACKED") {
+    assertExactKeys(
+      value,
+      ["kind", "actionId", "actionDigest", "outcome", "remoteId", "observedAt"],
+      "INVALID_FLOW_OUTBOX",
+      "Create acknowledgement receipt is invalid",
+    );
+    if (!UUID_PATTERN.test(value.remoteId)) {
+      throw flowError("INVALID_FLOW_OUTBOX", "Create acknowledgement remote ID is invalid");
+    }
+    return {
+      kind: "create_issue",
+      actionId: validateActionId(value.actionId),
+      actionDigest: validateDigest(value.actionDigest, "INVALID_FLOW_OUTBOX"),
+      outcome: "ACKED",
+      remoteId: value.remoteId,
+      observedAt: canonicalUtcInstant(value.observedAt),
+    };
+  }
+  if (value.outcome === "AMBIGUOUS") {
+    assertExactKeys(
+      value,
+      ["kind", "actionId", "actionDigest", "outcome", "candidateRemoteId", "observedAt"],
+      "INVALID_FLOW_OUTBOX",
+      "Ambiguous create receipt is invalid",
+    );
+    if (value.candidateRemoteId !== null && !UUID_PATTERN.test(value.candidateRemoteId)) {
+      throw flowError("INVALID_FLOW_OUTBOX", "Ambiguous create candidate ID is invalid");
+    }
+    return {
+      kind: "create_issue",
+      actionId: validateActionId(value.actionId),
+      actionDigest: validateDigest(value.actionDigest, "INVALID_FLOW_OUTBOX"),
+      outcome: "AMBIGUOUS",
+      candidateRemoteId: value.candidateRemoteId,
+      observedAt: canonicalUtcInstant(value.observedAt),
+    };
+  }
+  throw flowError("INVALID_FLOW_OUTBOX", "Mutation receipt outcome is invalid");
+}
+
+function validateActionId(value) {
+  if (typeof value !== "string" || !ACTION_ID_PATTERN.test(value)) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Flow action ID is invalid");
+  }
+  return value;
+}
+
+function canonicalDescriptorBinding(value) {
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_OUTBOX");
+  assertExactKeys(
+    value,
+    [
+      "catalogRevision",
+      "capturedAt",
+      "workspaceSlug",
+      "projectIdentifier",
+      "attachmentEvidenceCapability",
+      "schemaDigests",
+    ],
+    "INVALID_FLOW_OUTBOX",
+    "Flow descriptor binding is invalid",
+  );
+  if (
+    value.workspaceSlug !== PRODUCT_ID ||
+    value.projectIdentifier !== "NAPP" ||
+    value.attachmentEvidenceCapability !== "BLOCKED_UNPROVEN_OUTPUT"
+  ) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Flow descriptor identity is invalid");
+  }
+  assertExactKeys(
+    value.schemaDigests,
+    DESCRIPTOR_SCHEMA_KEYS,
+    "INVALID_FLOW_OUTBOX",
+    "Flow descriptor schemas are invalid",
+  );
+  return {
+    catalogRevision: validateDigest(value.catalogRevision, "INVALID_FLOW_OUTBOX"),
+    capturedAt: canonicalUtcInstant(value.capturedAt),
+    workspaceSlug: PRODUCT_ID,
+    projectIdentifier: "NAPP",
+    attachmentEvidenceCapability: "BLOCKED_UNPROVEN_OUTPUT",
+    schemaDigests: Object.fromEntries(
+      DESCRIPTOR_SCHEMA_KEYS.map((key) => [
+        key,
+        validateDigest(value.schemaDigests[key], "INVALID_FLOW_OUTBOX"),
+      ]),
+    ),
+  };
+}
+
+function canonicalActionArguments(kind, value, entry, limits) {
+  const { fingerprint, finding: findingValue } = entry;
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_OUTBOX");
+  if (kind === "search_issues") {
+    assertExactKeys(
+      value,
+      ["workspaceSlug", "projectIdentifier", "fingerprint", "scopes", "requireComplete"],
+      "INVALID_FLOW_OUTBOX",
+      "Search action arguments are invalid",
+    );
+    if (
+      value.workspaceSlug !== PRODUCT_ID ||
+      value.projectIdentifier !== "NAPP" ||
+      value.fingerprint !== fingerprint ||
+      !Array.isArray(value.scopes) ||
+      value.scopes.length !== 2 ||
+      value.scopes[0] !== "active" ||
+      value.scopes[1] !== "recently_closed" ||
+      value.requireComplete !== true
+    ) {
+      throw flowError("INVALID_FLOW_OUTBOX", "Search action arguments are invalid");
+    }
+    return {
+      workspaceSlug: PRODUCT_ID,
+      projectIdentifier: "NAPP",
+      fingerprint,
+      scopes: ["active", "recently_closed"],
+      requireComplete: true,
+    };
+  }
+  if (kind === "get_issue") {
+    assertExactKeys(
+      value,
+      ["workspaceSlug", "projectIdentifier", "issueId"],
+      "INVALID_FLOW_OUTBOX",
+      "Get action arguments are invalid",
+    );
+    if (
+      value.workspaceSlug !== PRODUCT_ID ||
+      value.projectIdentifier !== "NAPP" ||
+      !UUID_PATTERN.test(value.issueId)
+    ) {
+      throw flowError("INVALID_FLOW_OUTBOX", "Get action arguments are invalid");
+    }
+    return {
+      workspaceSlug: PRODUCT_ID,
+      projectIdentifier: "NAPP",
+      issueId: value.issueId,
+    };
+  }
+  if (kind === "create_issue") {
+    assertExactKeys(
+      value,
+      ["project_identifier", "name", "description_html", "state_name", "label_names", "priority"],
+      "INVALID_FLOW_OUTBOX",
+      "Create action arguments are invalid",
+    );
+    const expectedPayload = buildExpectedBugCreatePayload(entry);
+    const name = value.name === expectedPayload.name
+      ? value.name
+      : validatePlainText(value.name, {
+        maxBytes: 512,
+        privacyCode: "PRIVACY_UNSAFE_OUTBOX",
+        limitCode: "INVALID_FLOW_OUTBOX",
+        invalidCode: "INVALID_FLOW_OUTBOX",
+      });
+    if (byteLength(name) > 512) {
+      throw flowError("INVALID_FLOW_OUTBOX", "Create action title exceeds its UTF-8 byte limit");
+    }
+    const descriptionHtml = validateGeneratedDescriptionHtml(
+      value.description_html,
+      expectedPayload.description_html,
+      fingerprint,
+      findingValue.affectedObjectOrRoute,
+      limits,
+    );
+    const canonical = {
+      project_identifier: value.project_identifier,
+      name,
+      description_html: descriptionHtml,
+      state_name: value.state_name,
+      label_names: value.label_names,
+      priority: value.priority,
+    };
+    if (!isDeepStrictEqual(canonical, expectedPayload)) {
+      throw flowError("INVALID_FLOW_OUTBOX", "Create action arguments are not code-owned");
+    }
+    if (byteLength(JSON.stringify(canonical)) > limits.MAX_CREATE_ACTION_JSON_BYTES) {
+      throw flowError("OUTBOX_LIMIT_EXCEEDED", "Create action exceeds its JSON byte limit");
+    }
+    return expectedPayload;
+  }
+  throw flowError("INVALID_FLOW_OUTBOX", "Flow action kind is invalid");
+}
+
+function oneEntryBatchDigest(entry) {
+  return `sha256:${digestJson({
+    version: 1,
+    productId: PRODUCT_ID,
+    workspaceSlug: PRODUCT_ID,
+    projectIdentifier: "NAPP",
+    entries: [{
+      fingerprint: entry.fingerprint,
+      findingDigest: entry.findingDigest,
+    }],
+  })}`;
+}
+
+function actionSemanticFields(manifest) {
+  return {
+    version: manifest.version,
+    productId: manifest.productId,
+    fingerprint: manifest.fingerprint,
+    findingDigest: manifest.findingDigest,
+    batchDigest: manifest.batchDigest,
+    proposedAt: manifest.proposedAt,
+    expiresAt: manifest.expiresAt,
+    kind: manifest.kind,
+    mutation: manifest.mutation,
+    descriptorBinding: manifest.descriptorBinding,
+    arguments: manifest.arguments,
+    expectedObservation: manifest.expectedObservation,
+  };
+}
+
+function actionIdForPredecessor(previousOutbox, manifest) {
+  return `napp-flow-action-v1-${digestJson({
+    version: 1,
+    outboxRevision: outboxDigest(previousOutbox),
+    action: actionSemanticFields(manifest),
+  })}`;
+}
+
+function canonicalManifest(value, entry, limits) {
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_OUTBOX");
+  const precedingKeys = [
+    "version",
+    "productId",
+    "actionId",
+    "fingerprint",
+    "findingDigest",
+    "batchDigest",
+    "proposedAt",
+    "expiresAt",
+    "kind",
+    "mutation",
+    "descriptorBinding",
+    "arguments",
+    "expectedObservation",
+  ];
+  assertExactKeys(
+    value,
+    [...precedingKeys, "actionDigest"],
+    "INVALID_FLOW_OUTBOX",
+    "Flow action manifest is invalid",
+  );
+  if (
+    value.version !== 1 ||
+    value.productId !== PRODUCT_ID ||
+    value.fingerprint !== entry.fingerprint ||
+    value.findingDigest !== entry.findingDigest
+  ) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Flow action manifest identity is invalid");
+  }
+  const kindMap = {
+    search_issues: { mutation: false, expectedObservation: "search" },
+    get_issue: { mutation: false, expectedObservation: "issue" },
+    create_issue: { mutation: true, expectedObservation: "mutation_ack" },
+  };
+  const kind = kindMap[value.kind];
+  if (!kind || value.mutation !== kind.mutation || value.expectedObservation !== kind.expectedObservation) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Flow action manifest kind is invalid");
+  }
+  const proposedAt = canonicalUtcInstant(value.proposedAt);
+  const expiresAt = canonicalUtcInstant(value.expiresAt);
+  if (Date.parse(expiresAt) !== Date.parse(proposedAt) + limits.MAX_ACTION_AGE_MS) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Flow action expiry is invalid");
+  }
+  const descriptorBinding = canonicalDescriptorBinding(value.descriptorBinding);
+  const descriptorAge = Date.parse(proposedAt) - Date.parse(descriptorBinding.capturedAt);
+  if (descriptorAge < 0 || descriptorAge > limits.MAX_ACTION_AGE_MS) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Flow action descriptor binding is stale or future-dated");
+  }
+  const batchDigest = oneEntryBatchDigest(entry);
+  if (value.batchDigest !== batchDigest) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Flow action batch digest is invalid");
+  }
+  const result = {
+    version: 1,
+    productId: PRODUCT_ID,
+    actionId: validateActionId(value.actionId),
+    fingerprint: entry.fingerprint,
+    findingDigest: entry.findingDigest,
+    batchDigest,
+    proposedAt,
+    expiresAt,
+    kind: value.kind,
+    mutation: kind.mutation,
+    descriptorBinding,
+    arguments: canonicalActionArguments(value.kind, value.arguments, entry, limits),
+    expectedObservation: kind.expectedObservation,
+  };
+  const expectedDigest = `sha256:${digestJson(result)}`;
+  if (value.actionDigest !== expectedDigest) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Flow action digest is invalid");
+  }
+  return { ...result, actionDigest: expectedDigest };
+}
+
+function canonicalPendingAction(value, entry, limits) {
+  if (value === null) return null;
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_OUTBOX");
+  assertExactKeys(
+    value,
+    ["manifest", "lifecycle", "dispatchedAt"],
+    "INVALID_FLOW_OUTBOX",
+    "Pending action is invalid",
+  );
+  if (!new Set(["PROPOSED", "DISPATCHED"]).has(value.lifecycle)) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Pending action lifecycle is invalid");
+  }
+  const manifest = canonicalManifest(value.manifest, entry, limits);
+  if (
+    (value.lifecycle === "PROPOSED" && value.dispatchedAt !== null) ||
+    (value.lifecycle === "DISPATCHED" && value.dispatchedAt === null)
+  ) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Pending action dispatch time is invalid");
+  }
+  const dispatchedAt = value.dispatchedAt === null
+    ? null
+    : canonicalUtcInstant(value.dispatchedAt);
+  if (
+    dispatchedAt !== null &&
+    (
+      Date.parse(dispatchedAt) < Date.parse(manifest.proposedAt) ||
+      Date.parse(dispatchedAt) >= Date.parse(manifest.expiresAt)
+    )
+  ) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Pending action dispatch time is invalid");
+  }
+  return { manifest, lifecycle: value.lifecycle, dispatchedAt };
+}
+
+function canonicalFailure(value) {
+  if (value === null) return null;
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_OUTBOX");
+  assertExactKeys(
+    value,
+    ["code", "failedAt", "recoveryClass"],
+    "INVALID_FLOW_OUTBOX",
+    "Outbox failure is invalid",
+  );
+  if (
+    !FAILURE_CODES.has(value.code) ||
+    !new Set(["RETRY_SAFE_READ", "CREATE_RECONCILIATION", "MANUAL", "SCHEMA_BLOCKED"])
+      .has(value.recoveryClass)
+  ) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Outbox failure disposition is invalid");
+  }
+  return {
+    code: value.code,
+    failedAt: canonicalUtcInstant(value.failedAt),
+    recoveryClass: value.recoveryClass,
+  };
+}
+
+function failureCombinationIsValid(failure, receipt) {
+  if (RETRY_SAFE_READ_CODES.has(failure.code)) {
+    return failure.recoveryClass === "RETRY_SAFE_READ";
+  }
+  if (failure.code === "REMOTE_CREATE_AMBIGUOUS") {
+    return failure.recoveryClass === "CREATE_RECONCILIATION" &&
+      receipt?.outcome === "AMBIGUOUS" &&
+      receipt.candidateRemoteId === null;
+  }
+  if (MANUAL_CODES.has(failure.code)) {
+    return failure.recoveryClass === "MANUAL";
+  }
+  if (failure.code === "FLOW_READBACK_MISMATCH") {
+    return receipt === null
+      ? failure.recoveryClass === "MANUAL"
+      : failure.recoveryClass === "RETRY_SAFE_READ";
+  }
+  if (failure.code === "FLOW_EVIDENCE_UNSUPPORTED") {
+    return failure.recoveryClass === "SCHEMA_BLOCKED" && receipt === null;
+  }
+  return false;
+}
+
+function receiptTargetId(receipt) {
+  if (receipt?.outcome === "ACKED") return receipt.remoteId;
+  if (receipt?.outcome === "AMBIGUOUS") return receipt.candidateRemoteId;
+  return null;
+}
+
+function actionIsRequiredReceiptRead(pendingAction, receipt, fingerprint) {
+  if (
+    pendingAction === null ||
+    receipt === null ||
+    pendingAction.manifest.actionId === receipt.actionId ||
+    pendingAction.manifest.actionDigest === receipt.actionDigest
+  ) {
+    return false;
+  }
+  const { manifest } = pendingAction;
+  const targetId = receiptTargetId(receipt);
+  if (targetId !== null) {
+    return manifest.kind === "get_issue" && manifest.arguments.issueId === targetId;
+  }
+  return receipt.outcome === "AMBIGUOUS" &&
+    manifest.kind === "search_issues" &&
+    manifest.arguments.fingerprint === fingerprint &&
+    manifest.arguments.requireComplete === true;
+}
+
+function actionReadsRemote(pendingAction, remote) {
+  return pendingAction !== null &&
+    remote !== null &&
+    pendingAction.manifest.kind === "get_issue" &&
+    pendingAction.manifest.arguments.issueId === remote.id;
+}
+
+function canonicalEntry(value, limits) {
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_OUTBOX");
+  assertExactKeys(
+    value,
+    [
+      "fingerprint",
+      "findingDigest",
+      "finding",
+      "state",
+      "attempts",
+      "createdAt",
+      "updatedAt",
+      "pendingAction",
+      "mutationReceipt",
+      "remote",
+      "failure",
+    ],
+    "INVALID_FLOW_OUTBOX",
+    "Outbox entry fields are invalid",
+  );
+  if (typeof value.fingerprint !== "string" || !FINGERPRINT_PATTERN.test(value.fingerprint)) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Outbox fingerprint is invalid");
+  }
+  const findingValue = canonicalFinding(value.finding, limits);
+  const expectedFingerprint = fingerprintFindingWithLimits(findingValue, limits);
+  const expectedFindingDigest = `sha256:${digestJson(findingValue)}`;
+  if (
+    value.fingerprint !== expectedFingerprint ||
+    value.findingDigest !== expectedFindingDigest
+  ) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Outbox finding binding is invalid");
+  }
+  if (!STATE_VALUES.has(value.state)) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Outbox state is invalid");
+  }
+  if (!Number.isSafeInteger(value.attempts) || value.attempts < 0) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Outbox attempts are invalid");
+  }
+  const createdAt = canonicalUtcInstant(value.createdAt);
+  const updatedAt = canonicalUtcInstant(value.updatedAt);
+  if (Date.parse(updatedAt) < Date.parse(createdAt)) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Outbox timestamps are not monotonic");
+  }
+  const draft = {
+    fingerprint: value.fingerprint,
+    findingDigest: expectedFindingDigest,
+    finding: findingValue,
+    state: value.state,
+    attempts: value.attempts,
+    createdAt,
+    updatedAt,
+    pendingAction: null,
+    mutationReceipt: null,
+    remote: null,
+    failure: null,
+  };
+  const mutationReceipt = canonicalMutationReceipt(value.mutationReceipt);
+  const remote = canonicalRemote(value.remote);
+  const failure = canonicalFailure(value.failure);
+  const pendingAction = canonicalPendingAction(value.pendingAction, draft, limits);
+
+  if (value.state === "pending_sync") {
+    if (pendingAction !== null || failure !== null || mutationReceipt !== null) {
+      throw flowError("INVALID_OUTBOX_TRANSITION", "Pending outbox state has invalid durable fields");
+    }
+  } else if (value.state === "syncing") {
+    if (pendingAction === null || failure !== null) {
+      throw flowError("INVALID_OUTBOX_TRANSITION", "Syncing outbox state has invalid durable fields");
+    }
+    if (
+      mutationReceipt !== null &&
+      !actionIsRequiredReceiptRead(pendingAction, mutationReceipt, value.fingerprint)
+    ) {
+      throw flowError("INVALID_OUTBOX_TRANSITION", "Syncing receipt requires its exact safe read");
+    }
+    const targetId = receiptTargetId(mutationReceipt);
+    if (
+      remote !== null &&
+      (
+        mutationReceipt === null
+          ? !actionReadsRemote(pendingAction, remote)
+          : targetId === null || remote.id !== targetId
+      )
+    ) {
+      throw flowError("INVALID_OUTBOX_TRANSITION", "Syncing remote identity is not safe-read-bound");
+    }
+  } else {
+    if (pendingAction !== null || failure === null || !failureCombinationIsValid(failure, mutationReceipt)) {
+      throw flowError("INVALID_OUTBOX_TRANSITION", "Failed outbox state has invalid durable fields");
+    }
+    if (failure.code === "FLOW_EVIDENCE_UNSUPPORTED" && remote === null) {
+      throw flowError("INVALID_OUTBOX_TRANSITION", "Evidence blocker requires a read-back remote identity");
+    }
+    const targetId = receiptTargetId(mutationReceipt);
+    if (remote !== null && mutationReceipt !== null && (targetId === null || remote.id !== targetId)) {
+      throw flowError("INVALID_OUTBOX_TRANSITION", "Failed remote identity is not receipt-bound");
+    }
+  }
+
+  return {
+    ...draft,
+    pendingAction,
+    mutationReceipt,
+    remote,
+    failure,
+  };
+}
+
+function canonicalOutbox(value, limits) {
+  assertClosedJsonShape(
+    value,
+    "INVALID_FLOW_OUTBOX",
+    "Outbox must be recursively closed JSON",
+  );
+  rejectPrivacyUnsafeKeys(value, "PRIVACY_UNSAFE_OUTBOX");
+  assertExactKeys(
+    value,
+    ["version", "entries"],
+    "INVALID_FLOW_OUTBOX",
+    "Outbox fields are invalid",
+  );
+  if (value.version !== OUTBOX_VERSION || !Array.isArray(value.entries)) {
+    throw flowError("INVALID_FLOW_OUTBOX", "Outbox version or entries are invalid");
+  }
+  if (value.entries.length > limits.MAX_ENTRIES) {
+    throw flowError("OUTBOX_LIMIT_EXCEEDED", "Outbox exceeds the entry limit");
+  }
+  const entries = value.entries.map((entry) => canonicalEntry(entry, limits));
+  const fingerprints = new Set();
+  const actionIds = new Set();
+  const actionDigests = new Set();
+  for (const entry of entries) {
+    if (fingerprints.has(entry.fingerprint)) {
+      throw flowError("INVALID_FLOW_OUTBOX", "Outbox fingerprints must be unique");
+    }
+    fingerprints.add(entry.fingerprint);
+    for (const identity of [entry.pendingAction?.manifest, entry.mutationReceipt]) {
+      if (identity === null || identity === undefined) continue;
+      if (actionIds.has(identity.actionId) || actionDigests.has(identity.actionDigest)) {
+        throw flowError("INVALID_FLOW_OUTBOX", "Durable Flow action identities must be globally unique");
+      }
+      actionIds.add(identity.actionId);
+      actionDigests.add(identity.actionDigest);
+    }
+  }
+  const result = { version: OUTBOX_VERSION, entries };
+  const serializedBytes = byteLength(`${JSON.stringify(result, null, 2)}\n`);
+  if (serializedBytes > limits.MAX_OUTBOX_BYTES) {
+    throw flowError("OUTBOX_LIMIT_EXCEEDED", "Outbox exceeds its JSON byte limit");
+  }
+  return result;
+}
+
+function isDispatchedAction(entry, kind) {
+  return entry.state === "syncing" &&
+    entry.pendingAction?.lifecycle === "DISPATCHED" &&
+    entry.pendingAction.manifest.kind === kind;
+}
+
+function receiptCandidatePromotionIsProven(previousEntry, nextReceipt) {
+  const previousReceipt = previousEntry.mutationReceipt;
+  if (
+    previousReceipt?.outcome !== "AMBIGUOUS" ||
+    previousReceipt.candidateRemoteId !== null ||
+    nextReceipt?.outcome !== "AMBIGUOUS" ||
+    nextReceipt.candidateRemoteId === null ||
+    !isDispatchedAction(previousEntry, "search_issues") ||
+    !actionIsRequiredReceiptRead(
+      previousEntry.pendingAction,
+      previousReceipt,
+      previousEntry.fingerprint,
+    )
+  ) {
+    return false;
+  }
+  return isDeepStrictEqual(nextReceipt, {
+    ...previousReceipt,
+    candidateRemoteId: nextReceipt.candidateRemoteId,
+  });
+}
+
+function isWithinSuccessObservationWindow(value, dispatchedAt) {
+  const observedMs = Date.parse(value);
+  const dispatchedMs = Date.parse(dispatchedAt);
+  return observedMs >= dispatchedMs &&
+    observedMs <= dispatchedMs + MAX_SUCCESS_OBSERVATION_AGE_MS;
+}
+
+function validateOutboxTransition(previous, next) {
+  const invalid = (message) => {
+    throw flowError("INVALID_OUTBOX_TRANSITION", message);
+  };
+  if (next.entries.length < previous.entries.length) {
+    invalid("Outbox entries cannot be removed");
+  }
+
+  for (let index = 0; index < next.entries.length; index += 1) {
+    const nextEntry = next.entries[index];
+    const previousEntry = previous.entries[index];
+    if (
+      nextEntry.pendingAction?.lifecycle === "DISPATCHED" &&
+      Date.parse(nextEntry.pendingAction.dispatchedAt) >=
+        Date.parse(nextEntry.pendingAction.manifest.expiresAt)
+    ) {
+      invalid("Flow actions must be dispatched strictly before expiry");
+    }
+    if (!previousEntry) {
+      if (
+        nextEntry.state !== "pending_sync" ||
+        nextEntry.attempts !== 0 ||
+        nextEntry.createdAt !== nextEntry.updatedAt ||
+        nextEntry.pendingAction !== null ||
+        nextEntry.mutationReceipt !== null ||
+        nextEntry.remote !== null ||
+        nextEntry.failure !== null
+      ) {
+        invalid("New outbox entries must start in the closed pending state");
+      }
+      continue;
+    }
+    if (nextEntry.fingerprint !== previousEntry.fingerprint) {
+      invalid("Outbox entry order and fingerprint identity are immutable");
+    }
+    if (
+      nextEntry.findingDigest !== previousEntry.findingDigest ||
+      !isDeepStrictEqual(nextEntry.finding, previousEntry.finding) ||
+      nextEntry.createdAt !== previousEntry.createdAt ||
+      Date.parse(nextEntry.updatedAt) < Date.parse(previousEntry.updatedAt)
+    ) {
+      invalid("Outbox entry evidence and timestamps are immutable or monotonic");
+    }
+
+    if (isDeepStrictEqual(nextEntry, previousEntry)) continue;
+
+    const entersSyncing = previousEntry.state !== "syncing" && nextEntry.state === "syncing";
+    if (nextEntry.attempts !== previousEntry.attempts + (entersSyncing ? 1 : 0)) {
+      invalid("Outbox attempts must increment exactly when entering syncing");
+    }
+    const allowedStateTransitions = {
+      pending_sync: new Set(["pending_sync", "syncing"]),
+      syncing: new Set(["syncing", "failed"]),
+      failed: new Set(["pending_sync", "syncing"]),
+    };
+    if (!allowedStateTransitions[previousEntry.state].has(nextEntry.state)) {
+      invalid("Outbox state transition is invalid");
+    }
+    if (previousEntry.state === "pending_sync" && nextEntry.state === "syncing") {
+      const initialAction = nextEntry.pendingAction;
+      const initialKindIsValid = previousEntry.remote === null
+        ? initialAction?.manifest.kind === "search_issues"
+        : actionReadsRemote(initialAction, previousEntry.remote);
+      if (initialAction?.lifecycle !== "PROPOSED" || !initialKindIsValid) {
+        invalid("Pending entries require their exact proposed initial safe read");
+      }
+    }
+    if (
+      nextEntry.pendingAction?.lifecycle === "PROPOSED" &&
+      (
+        previousEntry.pendingAction === null ||
+        !isDeepStrictEqual(
+          nextEntry.pendingAction.manifest,
+          previousEntry.pendingAction.manifest,
+        )
+      ) &&
+      nextEntry.pendingAction.manifest.actionId !== actionIdForPredecessor(
+        previous,
+        nextEntry.pendingAction.manifest,
+      )
+    ) {
+      invalid("A new proposed action must bind every semantic field and predecessor revision");
+    }
+    if (previousEntry.state === "syncing" && nextEntry.state === "failed") {
+      const previousAction = previousEntry.pendingAction;
+      const failedAt = Date.parse(nextEntry.failure.failedAt);
+      if (previousAction.lifecycle === "PROPOSED") {
+        const proposedAt = Date.parse(previousAction.manifest.proposedAt);
+        const expiresAt = Date.parse(previousAction.manifest.expiresAt);
+        const failureIsValid = failedAt >= proposedAt && (
+          failedAt > expiresAt
+            ? nextEntry.failure.code === "FLOW_ACTION_STALE"
+            : PROPOSED_FAILURE_CODES.has(nextEntry.failure.code)
+        );
+        if (!failureIsValid) {
+          invalid("A proposed action accepts only its exact pre-dispatch failure class");
+        }
+      } else {
+        const dispatchedAt = Date.parse(previousAction.dispatchedAt);
+        const allowedCodes = DISPATCHED_FAILURE_CODES[previousAction.manifest.kind];
+        if (failedAt < dispatchedAt || !allowedCodes.has(nextEntry.failure.code)) {
+          invalid("A dispatched action accepts only its kind-specific result failure");
+        }
+        const failureIsUnbounded = nextEntry.failure.code === "FLOW_READ_FAILED" ||
+          (
+            previousAction.manifest.kind === "create_issue" &&
+            nextEntry.failure.code === "REMOTE_CREATE_AMBIGUOUS"
+          );
+        if (
+          !failureIsUnbounded &&
+          failedAt > dispatchedAt + MAX_SUCCESS_OBSERVATION_AGE_MS
+        ) {
+          invalid("A success-derived failure is outside its dispatch observation window");
+        }
+        if (previousAction.manifest.kind === "search_issues") {
+          const previousReceipt = previousEntry.mutationReceipt;
+          const nextReceipt = nextEntry.mutationReceipt;
+          if (nextEntry.failure.code === "FLOW_RECONCILIATION_REQUIRED") {
+            if (
+              previousReceipt?.outcome !== "AMBIGUOUS" ||
+              previousReceipt.candidateRemoteId !== null ||
+              !isDeepStrictEqual(previousReceipt, nextReceipt)
+            ) {
+              invalid("Manual reconciliation requires the unchanged ambiguous null-candidate receipt");
+            }
+          } else if (
+            nextEntry.failure.code === "FLOW_DESCRIPTOR_STALE" &&
+            previousReceipt !== null
+          ) {
+            if (!receiptCandidatePromotionIsProven(previousEntry, nextReceipt)) {
+              invalid("Ambiguous search descriptor fallback requires exact candidate promotion");
+            }
+          } else if (!isDeepStrictEqual(previousReceipt, nextReceipt)) {
+            invalid("A search failure may not invent or promote unrelated receipt evidence");
+          }
+        }
+        if (previousAction.manifest.kind === "get_issue") {
+          const remoteChanged = !isDeepStrictEqual(previousEntry.remote, nextEntry.remote);
+          const receiptCleared = previousEntry.mutationReceipt !== null &&
+            nextEntry.mutationReceipt === null;
+          if (
+            (remoteChanged || receiptCleared) &&
+            nextEntry.failure.code !== "FLOW_EVIDENCE_UNSUPPORTED"
+          ) {
+            invalid("A proving get may record remote effect only on exact terminal read-back");
+          }
+        }
+      }
+    }
+    if (
+      previousEntry.state === "syncing" &&
+      previousEntry.pendingAction.lifecycle === "PROPOSED" &&
+      nextEntry.state === "syncing" &&
+      (
+        nextEntry.pendingAction.lifecycle !== "DISPATCHED" ||
+        !isDeepStrictEqual(
+          nextEntry.pendingAction.manifest,
+          previousEntry.pendingAction.manifest,
+        )
+      )
+    ) {
+      invalid("Dispatch may change only lifecycle metadata on the proposed action");
+    }
+    if (
+      previousEntry.state === "syncing" &&
+      previousEntry.pendingAction.lifecycle === "DISPATCHED" &&
+      nextEntry.state === "syncing" &&
+      nextEntry.pendingAction.lifecycle !== "PROPOSED"
+    ) {
+      invalid("A dispatched action may install only one proposed successor");
+    }
+    if (
+      previousEntry.state === "syncing" &&
+      previousEntry.pendingAction.lifecycle === "DISPATCHED" &&
+      nextEntry.state === "syncing"
+    ) {
+      const previousKind = previousEntry.pendingAction.manifest.kind;
+      const nextKind = nextEntry.pendingAction.manifest.kind;
+      if (!isWithinSuccessObservationWindow(
+        nextEntry.pendingAction.manifest.proposedAt,
+        previousEntry.pendingAction.dispatchedAt,
+      )) {
+        invalid("A success-derived successor is outside its dispatch observation window");
+      }
+      if (previousKind === "get_issue") {
+        invalid("A proving get has no syncing successor in V1");
+      }
+      if (previousKind === "search_issues") {
+        if (previousEntry.mutationReceipt === null) {
+          if (
+            nextEntry.mutationReceipt !== null ||
+            !new Set(["create_issue", "get_issue"]).has(nextKind)
+          ) {
+            invalid("An ordinary search may propose only create or duplicate read");
+          }
+        } else if (
+          nextKind !== "get_issue" ||
+          !receiptCandidatePromotionIsProven(previousEntry, nextEntry.mutationReceipt)
+        ) {
+          invalid("An ambiguous recovery search may propose only its candidate read");
+        }
+      }
+      if (previousKind === "create_issue") {
+        const receipt = nextEntry.mutationReceipt;
+        const hasSafeSuccessor = receipt?.outcome === "ACKED" && nextKind === "get_issue";
+        if (
+          previousEntry.mutationReceipt !== null ||
+          !hasSafeSuccessor ||
+          Date.parse(nextEntry.pendingAction.manifest.proposedAt) < Date.parse(receipt.observedAt)
+        ) {
+          invalid("A dispatched create requires its receipt-bound safe successor");
+        }
+      }
+    }
+    if (
+      previousEntry.state === "syncing" &&
+      previousEntry.pendingAction.lifecycle === "DISPATCHED" &&
+      previousEntry.pendingAction.manifest.kind === "create_issue" &&
+      nextEntry.state === "failed"
+    ) {
+      const receipt = nextEntry.mutationReceipt;
+      const hasSafeFailure = receipt?.outcome === "ACKED"
+        ? nextEntry.failure.code === "FLOW_DESCRIPTOR_STALE"
+        : receipt?.outcome === "AMBIGUOUS" &&
+          receipt.candidateRemoteId === null &&
+          nextEntry.failure.code === "REMOTE_CREATE_AMBIGUOUS";
+      if (
+        previousEntry.mutationReceipt !== null ||
+        !hasSafeFailure ||
+        receipt.observedAt !== nextEntry.failure.failedAt
+      ) {
+        invalid("A dispatched create failure must retain its exact delivery receipt");
+      }
+    }
+    if (
+      previousEntry.state === "failed" &&
+      nextEntry.state === "syncing" &&
+      nextEntry.pendingAction.lifecycle !== "PROPOSED"
+    ) {
+      invalid("Failed entries may resume only with a proposed safe read");
+    }
+    if (
+      previousEntry.state === "failed" &&
+      previousEntry.failure?.recoveryClass === "MANUAL" &&
+      !isDeepStrictEqual(nextEntry, previousEntry)
+    ) {
+      invalid("Manual reconciliation failures have no automatic transition");
+    }
+    if (
+      previousEntry.state === "failed" &&
+      previousEntry.failure?.recoveryClass === "SCHEMA_BLOCKED" &&
+      !isDeepStrictEqual(nextEntry, previousEntry)
+    ) {
+      invalid("Schema-blocked failures have no V1 transition");
+    }
+    if (
+      previousEntry.state === "failed" &&
+      nextEntry.state === "pending_sync" &&
+      (
+        previousEntry.failure?.recoveryClass !== "RETRY_SAFE_READ" ||
+        previousEntry.mutationReceipt !== null
+      )
+    ) {
+      invalid("Only receipt-free safe reads may recover to pending");
+    }
+    if (
+      previousEntry.state === "failed" &&
+      nextEntry.state === "syncing" &&
+      previousEntry.mutationReceipt === null
+    ) {
+      invalid("Failed entries need a retained receipt to resume directly in syncing");
+    }
+
+    const previousReceipt = previousEntry.mutationReceipt;
+    const nextReceipt = nextEntry.mutationReceipt;
+    if (previousReceipt === null && nextReceipt !== null) {
+      if (
+        !isDispatchedAction(previousEntry, "create_issue") ||
+        nextReceipt.actionId !== previousEntry.pendingAction.manifest.actionId ||
+        nextReceipt.actionDigest !== previousEntry.pendingAction.manifest.actionDigest ||
+        Date.parse(nextReceipt.observedAt) < Date.parse(previousEntry.pendingAction.dispatchedAt) ||
+        (
+          nextReceipt.outcome === "ACKED" &&
+          !isWithinSuccessObservationWindow(
+            nextReceipt.observedAt,
+            previousEntry.pendingAction.dispatchedAt,
+          )
+        )
+      ) {
+        invalid("A create receipt must bind the exact dispatched create predecessor");
+      }
+    } else if (previousReceipt !== null && nextReceipt !== null) {
+      if (
+        !isDeepStrictEqual(previousReceipt, nextReceipt) &&
+        !receiptCandidatePromotionIsProven(previousEntry, nextReceipt)
+      ) {
+        invalid("A durable create receipt cannot be rewritten");
+      }
+    } else if (previousReceipt !== null && nextReceipt === null) {
+      const targetId = receiptTargetId(previousReceipt);
+      if (
+        targetId === null ||
+        !isDispatchedAction(previousEntry, "get_issue") ||
+        previousEntry.pendingAction.manifest.arguments.issueId !== targetId ||
+        nextEntry.remote?.id !== targetId ||
+        !isWithinSuccessObservationWindow(
+          nextEntry.remote.createdReadBackAt,
+          previousEntry.pendingAction.dispatchedAt,
+        )
+      ) {
+        invalid("A create receipt clears only with its exact proving read");
+      }
+    }
+
+    const previousRemote = previousEntry.remote;
+    const nextRemote = nextEntry.remote;
+    if (previousRemote !== null && !isDeepStrictEqual(previousRemote, nextRemote)) {
+      invalid("A proven remote identity cannot be cleared or rewritten");
+    }
+    if (previousRemote === null && nextRemote !== null) {
+      const receiptTarget = receiptTargetId(previousReceipt);
+      const actionTarget = previousEntry.pendingAction?.manifest.arguments.issueId;
+      const targetId = previousReceipt === null ? actionTarget : receiptTarget;
+      if (
+        targetId === null ||
+        !isDispatchedAction(previousEntry, "get_issue") ||
+        previousEntry.pendingAction.manifest.arguments.issueId !== targetId ||
+        nextRemote.id !== targetId ||
+        nextReceipt !== null ||
+        !isWithinSuccessObservationWindow(
+          nextRemote.createdReadBackAt,
+          previousEntry.pendingAction.dispatchedAt,
+        )
+      ) {
+        invalid("A remote identity requires the exact proving read and receipt clear");
+      }
+    }
+    if (
+      nextEntry.state === "failed" &&
+      nextEntry.failure.code === "FLOW_EVIDENCE_UNSUPPORTED" &&
+      nextRemote !== null &&
+      (previousRemote === null || previousReceipt !== nextReceipt) &&
+      nextRemote.createdReadBackAt !== nextEntry.failure.failedAt
+    ) {
+      invalid("A terminal proving read stores one exact observation timestamp");
+    }
+  }
+}
+
+function outboxDigest(value) {
+  return `sha256:${digestJson(value)}`;
+}
+
+function deepFreeze(value) {
+  if (Array.isArray(value)) {
+    value.forEach(deepFreeze);
+    return Object.freeze(value);
+  }
+  if (isRecord(value)) {
+    Object.values(value).forEach(deepFreeze);
+    return Object.freeze(value);
+  }
+  return value;
+}
+
+function cloneCanonical(value) {
+  return structuredClone(value);
+}
+
+function sameInode(left, right) {
+  return Boolean(left && right && left.dev === right.dev && left.ino === right.ino);
+}
+
+function validateOwnerId(ownerId) {
+  if (typeof ownerId !== "string" || !OWNER_PATTERN.test(ownerId)) {
+    throw flowError("INVALID_OUTBOX_LEASE", "Lease owner ID is invalid");
+  }
+  if (hasPrivacyUnsafeText(ownerId)) {
+    throw flowError("INVALID_OUTBOX_LEASE", "Lease owner ID is privacy-unsafe");
+  }
+  return ownerId;
+}
+
+function validateLeaseMs(leaseMs, limits) {
+  if (!Number.isSafeInteger(leaseMs) || leaseMs < 1 || leaseMs > limits.MAX_LEASE_MS) {
+    throw flowError("INVALID_OUTBOX_LEASE", "Lease duration is invalid");
+  }
+  return leaseMs;
+}
+
+function clockSampler(now) {
+  if (typeof now === "function") {
+    return () => canonicalUtcInstant(now(), "INVALID_OUTBOX_LEASE");
+  }
+  const fixed = canonicalUtcInstant(now, "INVALID_OUTBOX_LEASE");
+  return () => fixed;
+}
+
+function lockRecord(ownerId, acquiredAt, expiresAt) {
+  return { ownerId, acquiredAt, expiresAt };
+}
+
+function parseLockRecord(bytes) {
+  let parsed;
+  try {
+    parsed = JSON.parse(bytes.toString("utf8"));
+  } catch {
+    throw flowError("OUTBOX_LOCK_REPLACED", "Outbox lock identity changed");
+  }
+  assertExactKeys(
+    parsed,
+    ["ownerId", "acquiredAt", "expiresAt"],
+    "OUTBOX_LOCK_REPLACED",
+    "Outbox lock identity changed",
+  );
+  return parsed;
+}
+
+async function readAttestedLock({ handle, lockFs, lockPath, expectedStat }) {
+  const held = await handle.stat({ bigint: true });
+  if (!held.isFile() || !sameInode(held, expectedStat) || held.size > 1024n) {
+    throw flowError("OUTBOX_LOCK_REPLACED", "Outbox lock identity changed");
+  }
+  let reader;
+  try {
+    reader = await lockFs.open(lockPath, "r");
+    const opened = await reader.stat({ bigint: true });
+    if (!opened.isFile() || !sameInode(opened, expectedStat) || opened.size > 1024n) {
+      throw flowError("OUTBOX_LOCK_REPLACED", "Outbox lock identity changed");
+    }
+    const buffer = Buffer.alloc(Number(opened.size));
+    const { bytesRead } = await reader.read(buffer, 0, buffer.length, 0);
+    if (bytesRead !== buffer.length) {
+      throw flowError("OUTBOX_LOCK_REPLACED", "Outbox lock identity changed");
+    }
+    return parseLockRecord(buffer);
+  } catch (error) {
+    if (error?.code === "OUTBOX_LOCK_REPLACED") throw error;
+    throw flowError("OUTBOX_LOCK_REPLACED", "Outbox lock identity changed");
+  } finally {
+    if (reader) await reader.close().catch(() => {});
+  }
+}
+
+function assertLockRecordMatches(actual, expected) {
+  if (
+    actual.ownerId !== expected.ownerId ||
+    actual.acquiredAt !== expected.acquiredAt ||
+    actual.expiresAt !== expected.expiresAt
+  ) {
+    throw flowError("OUTBOX_LOCK_REPLACED", "Outbox lock identity changed");
+  }
+}
+
+const productionIo = createJsonIo({
+  privateRoot: PRIVATE_ROOT,
+  maxBytes: MAX_OUTBOX_BYTES,
+});
+const productionService = createFlowOutboxService({
+  io: productionIo,
+  journalPath: resolve(PRIVATE_ROOT, "flow-outbox.journal.v1"),
+  snapshotPath: resolve(PRIVATE_ROOT, "flow-outbox.snapshot.v1.json"),
+  outboxPath: resolve(PRIVATE_ROOT, "flow-outbox.json"),
+  legacyLockPath: resolve(PRIVATE_ROOT, "flow-outbox.lock"),
+});
+
+export async function readOutbox() {
+  return productionService.readOutbox();
+}
+
+export async function withOutboxTransaction(input) {
+  return productionService.withOutboxTransaction(input);
+}
+
+export async function enqueueConfirmedFinding(input) {
+  return productionService.enqueueConfirmedFinding(input);
+}
+
+export async function recoverOutbox(input) {
+  return productionService.recoverOutbox(input);
+}
+
+// The V1 journal intentionally lives below the validator layer above.  Its
+// cache files are compatibility artifacts; only replayed events authorize a
+// transaction or a write.
+function journalError(code) {
+  return flowError(code, "Outbox journal authority is invalid or unavailable");
+}
+
+function journalSequenceName(sequence) {
+  return `${String(sequence).padStart(JOURNAL_SEQUENCE_WIDTH, "0")}.json`;
+}
+
+function journalDigest(value) {
+  return `sha256:${digestJson(value)}`;
+}
+
+function journalUuid(randomUUID) {
+  const value = randomUUID();
+  if (typeof value !== "string" || !JOURNAL_UUID_PATTERN.test(value)) {
+    throw journalError("INVALID_OUTBOX_JOURNAL");
+  }
+  return value;
+}
+
+async function writeAll(handle, bytes, code = "INVALID_OUTBOX_JOURNAL") {
+  let offset = 0;
+  while (offset < bytes.length) {
+    const { bytesWritten } = await handle.write(bytes, offset, bytes.length - offset, offset);
+    if (!Number.isSafeInteger(bytesWritten) || bytesWritten < 1 || bytesWritten > bytes.length - offset) {
+      throw journalError(code);
+    }
+    offset += bytesWritten;
+  }
+}
+
+async function closeQuietly(handle) {
+  if (handle) await handle.close().catch(() => {});
+}
+
+async function readJournalBytes(journalFs, path, maxBytes, code = "INVALID_OUTBOX_JOURNAL", sizeCode = code) {
+  let handle;
+  try {
+    handle = await journalFs.open(path, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+    const before = await handle.stat({ bigint: true });
+    if (!before.isFile() || before.isSymbolicLink()) throw journalError(code);
+    if (Number(before.size) > maxBytes) throw journalError(sizeCode);
+    const bytes = Buffer.alloc(Number(before.size));
+    const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
+    const after = await handle.stat({ bigint: true });
+    if (bytesRead !== bytes.length || !sameInode(before, after) || before.size !== after.size) {
+      throw journalError(code);
+    }
+    return { bytes, stat: after };
+  } catch (error) {
+    if (error?.code?.startsWith("OUTBOX_") || error?.code === "INVALID_OUTBOX_JOURNAL") throw error;
+    throw journalError(code);
+  } finally {
+    await closeQuietly(handle);
+  }
+}
+
+async function fsyncDirectory(journalFs, path, code) {
+  let handle;
+  try {
+    handle = await journalFs.open(path, fsConstants.O_RDONLY | (fsConstants.O_DIRECTORY ?? 0) | (fsConstants.O_NOFOLLOW ?? 0));
+    const stat = await handle.stat({ bigint: true });
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw journalError(code);
+    await handle.sync();
+  } catch (error) {
+    if (error?.code?.startsWith("OUTBOX_") || error?.code === "INVALID_OUTBOX_JOURNAL") throw error;
+    throw journalError(code);
+  } finally {
+    await closeQuietly(handle);
+  }
+}
+
+function exactEvent(event, limits) {
+  try {
+    assertExactKeys(event, [
+      "schemaVersion", "sequence", "publicationId", "kind", "recordedAt",
+      "previousEventDigest", "previousOutboxDigest", "nextOutboxDigest", "leaseId",
+      "fenceSequence", "payload", "eventDigest",
+    ], "INVALID_OUTBOX_JOURNAL", "Journal event fields are invalid");
+    if (event.schemaVersion !== OUTBOX_JOURNAL_VERSION || !Number.isSafeInteger(event.sequence) || event.sequence < 1 ||
+      !JOURNAL_UUID_PATTERN.test(event.publicationId) || !new Set(["bootstrap_v1", "lease_acquired", "lease_renewed", "outbox_committed", "lease_released"]).has(event.kind) ||
+      canonicalUtcInstant(event.recordedAt, "INVALID_OUTBOX_JOURNAL") !== event.recordedAt ||
+      (event.previousEventDigest !== null && !SHA256_PATTERN.test(event.previousEventDigest)) ||
+      (event.previousOutboxDigest !== null && !SHA256_PATTERN.test(event.previousOutboxDigest)) ||
+      !SHA256_PATTERN.test(event.nextOutboxDigest) ||
+      (event.leaseId !== null && !JOURNAL_UUID_PATTERN.test(event.leaseId)) ||
+      !Number.isSafeInteger(event.fenceSequence) || event.fenceSequence < 0 || !SHA256_PATTERN.test(event.eventDigest)) throw journalError("INVALID_OUTBOX_JOURNAL");
+    const { eventDigest, ...preceding } = event;
+    if (journalDigest(preceding) !== eventDigest) throw journalError("INVALID_OUTBOX_JOURNAL");
+    if (event.kind === "bootstrap_v1") {
+      assertExactKeys(event.payload, ["source", "legacyBarrierDigest", "outbox"], "INVALID_OUTBOX_JOURNAL", "Bootstrap payload is invalid");
+      if (event.sequence !== 1 || event.leaseId !== null || event.fenceSequence !== 0 ||
+        !new Set(["empty_v1", "legacy_v1_projection"]).has(event.payload.source) || !SHA256_PATTERN.test(event.payload.legacyBarrierDigest)) throw journalError("INVALID_OUTBOX_JOURNAL");
+      event.payload.outbox = canonicalOutbox(event.payload.outbox, limits);
+    }
+    else if (event.kind === "lease_acquired") {
+      assertExactKeys(event.payload, ["ownerId", "acquiredAt", "expiresAt"], "INVALID_OUTBOX_JOURNAL", "Lease-acquired payload is invalid");
+      if (event.leaseId === null || event.fenceSequence < 1) throw journalError("INVALID_OUTBOX_JOURNAL");
+      if (
+        validateOwnerId(event.payload.ownerId) !== event.payload.ownerId ||
+        canonicalUtcInstant(event.payload.acquiredAt, "INVALID_OUTBOX_JOURNAL") !== event.payload.acquiredAt ||
+        canonicalUtcInstant(event.payload.expiresAt, "INVALID_OUTBOX_JOURNAL") !== event.payload.expiresAt ||
+        event.payload.acquiredAt !== event.recordedAt ||
+        Date.parse(event.payload.expiresAt) <= Date.parse(event.recordedAt)
+      ) {
+        throw journalError("INVALID_OUTBOX_JOURNAL");
+      }
+    }
+    else if (event.kind === "lease_renewed") {
+      assertExactKeys(event.payload, ["ownerId", "acquiredAt", "previousExpiresAt", "expiresAt", "previousFenceSequence"], "INVALID_OUTBOX_JOURNAL", "Lease-renewed payload is invalid");
+      if (event.leaseId === null || event.fenceSequence < 1) throw journalError("INVALID_OUTBOX_JOURNAL");
+      if (
+        validateOwnerId(event.payload.ownerId) !== event.payload.ownerId ||
+        canonicalUtcInstant(event.payload.acquiredAt, "INVALID_OUTBOX_JOURNAL") !== event.payload.acquiredAt ||
+        canonicalUtcInstant(event.payload.previousExpiresAt, "INVALID_OUTBOX_JOURNAL") !== event.payload.previousExpiresAt ||
+        canonicalUtcInstant(event.payload.expiresAt, "INVALID_OUTBOX_JOURNAL") !== event.payload.expiresAt ||
+        !Number.isSafeInteger(event.payload.previousFenceSequence) ||
+        event.payload.previousFenceSequence < 1 ||
+        event.payload.previousFenceSequence >= event.fenceSequence ||
+        Date.parse(event.payload.expiresAt) <= Date.parse(event.recordedAt)
+      ) {
+        throw journalError("INVALID_OUTBOX_JOURNAL");
+      }
+    }
+    else if (event.kind === "outbox_committed") {
+      assertExactKeys(event.payload, ["outbox"], "INVALID_OUTBOX_JOURNAL", "Commit payload is invalid");
+      if (event.leaseId === null || event.fenceSequence < 1) throw journalError("INVALID_OUTBOX_JOURNAL");
+      event.payload.outbox = canonicalOutbox(event.payload.outbox, limits);
+    }
+    else if (event.kind === "lease_released") {
+      assertExactKeys(event.payload, [], "INVALID_OUTBOX_JOURNAL", "Lease-released payload is invalid");
+      if (event.leaseId === null || event.fenceSequence < 1) throw journalError("INVALID_OUTBOX_JOURNAL");
+    }
+    return event;
+  } catch (error) {
+    if (error?.code) throw error;
+    throw journalError("INVALID_OUTBOX_JOURNAL");
+  }
+}
+
+export function createFlowOutboxService({
+  io, journalPath, snapshotPath, outboxPath, legacyLockPath,
+  // `lockPath` is a temporary-fixture compatibility alias. Production never
+  // forwards it and all resolved paths remain siblings under the injected root.
+  lockPath, journalFs = defaultJournalFs, randomUUID = nodeRandomUUID, limits, debugHooks = null,
+} = {}) {
+  const fixtureRoot = typeof outboxPath === "string" && isAbsolute(outboxPath)
+    ? dirname(resolve(outboxPath)) : null;
+  journalPath ??= fixtureRoot && resolve(fixtureRoot, OUTBOX_JOURNAL_RELATIVE_PATH);
+  snapshotPath ??= fixtureRoot && resolve(fixtureRoot, OUTBOX_SNAPSHOT_RELATIVE_PATH);
+  legacyLockPath ??= lockPath;
+  if (!isRecord(io) || typeof io.readJson !== "function" || typeof io.writeJsonAtomic !== "function" ||
+    ![journalPath, snapshotPath, outboxPath, legacyLockPath].every((path) => typeof path === "string" && isAbsolute(path)) ||
+    dirname(resolve(journalPath)) !== dirname(resolve(outboxPath)) ||
+    !isRecord(journalFs) || !["open", "lstat", "readdir", "mkdir", "link", "unlink"].every((key) => typeof journalFs[key] === "function") ||
+    typeof randomUUID !== "function") throw flowError("INVALID_OUTBOX_SERVICE", "Outbox service dependencies are invalid");
+  const approvedLimits = validateLimits(limits);
+  const paths = Object.freeze({ journal: resolve(journalPath), snapshot: resolve(snapshotPath), outbox: resolve(outboxPath), barrier: resolve(legacyLockPath) });
+  const root = dirname(paths.outbox);
+  const issued = new WeakSet();
+  const brand = Object.freeze({});
+  const journalCandidatePrefix = ".flow-outbox-journal-candidate-v1-";
+  const barrierCandidatePrefix = ".flow-outbox-migration-barrier-v1-";
+  const journalCandidatePattern = /^\.flow-outbox-journal-candidate-v1-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.json$/;
+  const barrierCandidatePattern = /^\.flow-outbox-migration-barrier-v1-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.json$/;
+  const emitReplayEvent = typeof debugHooks?.onReplayEvent === "function"
+    ? (event, details) => {
+      try {
+        debugHooks.onReplayEvent(cloneCanonical(event), { ...details });
+      } catch {}
+    }
+    : () => {};
+  const emitReplayApplyState = typeof debugHooks?.onReplayApplyState === "function"
+    ? (event, details) => {
+      try {
+        debugHooks.onReplayApplyState(cloneCanonical(event), { ...details });
+      } catch {}
+    }
+    : () => {};
+  const JOURNAL_UNSUPPORTED_ERRNOS = new Set(["EXDEV", "EPERM", "EOPNOTSUPP", "ENOTSUP"]);
+
+  async function lstatMissing(path) {
+    try { return await journalFs.lstat(path, { bigint: true }); } catch (error) { if (error?.code === "ENOENT") return null; throw journalError("INVALID_OUTBOX_JOURNAL"); }
+  }
+  async function openAttestedDirectory(path, expectedMode, code) {
+    const stat = await lstatMissing(path);
+    if (!stat || stat.isSymbolicLink() || !stat.isDirectory() || Number(stat.mode & 0o777n) !== expectedMode) {
+      throw journalError(code);
+    }
+    let handle;
+    try {
+      handle = await journalFs.open(path, fsConstants.O_RDONLY | (fsConstants.O_DIRECTORY ?? 0) | (fsConstants.O_NOFOLLOW ?? 0));
+      const opened = await handle.stat({ bigint: true });
+      if (!opened.isDirectory() || opened.isSymbolicLink() || !sameInode(stat, opened) || Number(opened.mode & 0o777n) !== expectedMode) {
+        throw journalError(code);
+      }
+      return { handle, stat: opened };
+    } catch (error) {
+      await closeQuietly(handle);
+      if (error?.code?.startsWith("OUTBOX_") || error?.code === "INVALID_OUTBOX_JOURNAL") throw error;
+      throw journalError(code);
+    }
+  }
+  async function attestPrivateRoot(code) {
+    const stat = await lstatMissing(root);
+    if (!stat || stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw journalError(code);
+    }
+    const opened = await openAttestedDirectory(root, Number(stat.mode & 0o777n), code);
+    await closeQuietly(opened.handle);
+    return opened.stat;
+  }
+  async function attestJournalDirectory(code) {
+    const opened = await openAttestedDirectory(paths.journal, 0o700, code);
+    await closeQuietly(opened.handle);
+    return opened.stat;
+  }
+  async function attestCandidateFile(path, expectedMode, maxBytes, invalidCode, expectedBytes = null) {
+    const stat = await lstatMissing(path);
+    if (!stat || stat.isSymbolicLink() || !stat.isFile() || Number(stat.mode & 0o777n) !== expectedMode) {
+      throw journalError(invalidCode);
+    }
+    const { bytes, stat: opened } = await readJournalBytes(journalFs, path, maxBytes, invalidCode);
+    if (Number(opened.mode & 0o777n) !== expectedMode || !sameInode(stat, opened)) {
+      throw journalError(invalidCode);
+    }
+    if (expectedBytes && !bytes.equals(expectedBytes)) {
+      throw journalError(invalidCode);
+    }
+    const after = await lstatMissing(path);
+    if (
+      !after ||
+      after.isSymbolicLink() ||
+      !after.isFile() ||
+      Number(after.mode & 0o777n) !== expectedMode ||
+      !sameInode(opened, after) ||
+      opened.size !== after.size
+    ) {
+      throw journalError(invalidCode);
+    }
+    return { bytes, stat: after };
+  }
+  async function attestCandidateMetadata(path, expectedMode, maxBytes, invalidCode) {
+    const stat = await lstatMissing(path);
+    if (!stat || stat.isSymbolicLink() || !stat.isFile() || Number(stat.mode & 0o777n) !== expectedMode) {
+      throw journalError(invalidCode);
+    }
+    let handle;
+    try {
+      handle = await journalFs.open(path, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+      const opened = await handle.stat({ bigint: true });
+      if (
+        Number(opened.mode & 0o777n) !== expectedMode ||
+        Number(opened.size) > maxBytes ||
+        !sameInode(stat, opened) ||
+        Number(stat.size) !== Number(opened.size)
+      ) {
+        throw journalError(invalidCode);
+      }
+      return { stat: opened };
+    } catch (error) {
+      if (error?.code === invalidCode) throw error;
+      throw journalError(invalidCode);
+    } finally {
+      await closeQuietly(handle);
+    }
+  }
+  async function attestExactPathFile(path, expectedMode, maxBytes, invalidCode, expectedBytes = null) {
+    const stat = await lstatMissing(path);
+    if (!stat || stat.isSymbolicLink() || !stat.isFile() || Number(stat.mode & 0o777n) !== expectedMode) {
+      throw journalError(invalidCode);
+    }
+    const { bytes, stat: opened } = await readJournalBytes(
+      journalFs,
+      path,
+      maxBytes,
+      invalidCode,
+    );
+    if (!sameInode(stat, opened) || Number(opened.mode & 0o777n) !== expectedMode) {
+      throw journalError(invalidCode);
+    }
+    if (expectedBytes && !bytes.equals(expectedBytes)) {
+      throw journalError(invalidCode);
+    }
+    const after = await lstatMissing(path);
+    if (
+      !after ||
+      after.isSymbolicLink() ||
+      !after.isFile() ||
+      Number(after.mode & 0o777n) !== expectedMode ||
+      !sameInode(opened, after) ||
+      opened.size !== after.size
+    ) {
+      throw journalError(invalidCode);
+    }
+    return { bytes, stat: after };
+  }
+  function parseExactJournalEventBytes(bytes, invalidCode) {
+    let event;
+    try {
+      event = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    } catch {
+      throw journalError(invalidCode);
+    }
+    exactEvent(event, approvedLimits);
+    if (!bytes.equals(Buffer.from(`${JSON.stringify(event)}\n`, "utf8"))) {
+      throw journalError(invalidCode);
+    }
+    return event;
+  }
+  function canonicalSnapshotLease(value) {
+    if (value === null) return null;
+    assertExactKeys(
+      value,
+      ["leaseId", "ownerId", "acquiredAt", "expiresAt", "fenceSequence"],
+      "INVALID_OUTBOX_JOURNAL",
+      "Snapshot lease is invalid",
+    );
+    if (
+      !JOURNAL_UUID_PATTERN.test(value.leaseId) ||
+      validateOwnerId(value.ownerId) !== value.ownerId ||
+      canonicalUtcInstant(value.acquiredAt, "INVALID_OUTBOX_JOURNAL") !== value.acquiredAt ||
+      canonicalUtcInstant(value.expiresAt, "INVALID_OUTBOX_JOURNAL") !== value.expiresAt ||
+      !Number.isSafeInteger(value.fenceSequence) ||
+      value.fenceSequence < 1 ||
+      Date.parse(value.expiresAt) <= Date.parse(value.acquiredAt)
+    ) {
+      throw journalError("INVALID_OUTBOX_JOURNAL");
+    }
+    return {
+      leaseId: value.leaseId,
+      ownerId: value.ownerId,
+      acquiredAt: value.acquiredAt,
+      expiresAt: value.expiresAt,
+      fenceSequence: value.fenceSequence,
+    };
+  }
+  function canonicalSnapshot(value) {
+    assertExactKeys(
+      value,
+      ["schemaVersion", "throughSequence", "throughEventDigest", "outbox", "outboxDigest", "activeLease", "snapshotDigest"],
+      "INVALID_OUTBOX_JOURNAL",
+      "Snapshot payload is invalid",
+    );
+    if (value.schemaVersion !== 1 || !Number.isSafeInteger(value.throughSequence) || value.throughSequence < 1) {
+      throw journalError("INVALID_OUTBOX_JOURNAL");
+    }
+    const throughEventDigest = typeof value.throughEventDigest === "string" && SHA256_PATTERN.test(value.throughEventDigest)
+      ? value.throughEventDigest
+      : null;
+    if (!throughEventDigest) throw journalError("INVALID_OUTBOX_JOURNAL");
+    const outbox = canonicalOutbox(value.outbox, approvedLimits);
+    const normalized = {
+      schemaVersion: 1,
+      throughSequence: value.throughSequence,
+      throughEventDigest,
+      outbox,
+      outboxDigest: outboxDigest(outbox),
+      activeLease: canonicalSnapshotLease(value.activeLease),
+    };
+    if (
+      value.outboxDigest !== normalized.outboxDigest ||
+      value.snapshotDigest !== journalDigest(normalized)
+    ) {
+      throw journalError("INVALID_OUTBOX_JOURNAL");
+    }
+    return { ...normalized, snapshotDigest: value.snapshotDigest };
+  }
+  async function readSnapshotState() {
+    const stat = await lstatMissing(paths.snapshot);
+    if (!stat || stat.isSymbolicLink() || !stat.isFile() || Number(stat.mode & 0o777n) !== 0o600 || Number(stat.size) > MAX_OUTBOX_SNAPSHOT_BYTES) {
+      return null;
+    }
+    let handle;
+    try {
+      handle = await journalFs.open(paths.snapshot, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+      const before = await handle.stat({ bigint: true });
+      if (!before.isFile() || before.isSymbolicLink() || !sameInode(stat, before) || Number(before.mode & 0o777n) !== 0o600 || Number(before.size) > MAX_OUTBOX_SNAPSHOT_BYTES) {
+        return null;
+      }
+      const bytes = Buffer.alloc(Number(before.size));
+      const { bytesRead } = await handle.read(bytes, 0, bytes.length, 0);
+      const after = await handle.stat({ bigint: true });
+      if (bytesRead !== bytes.length || !sameInode(before, after) || before.size !== after.size) {
+        return null;
+      }
+      return canonicalSnapshot(JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)));
+    } catch {
+      return null;
+    } finally {
+      await closeQuietly(handle);
+    }
+  }
+  function isJournalCandidateName(name) {
+    return typeof name === "string" && journalCandidatePattern.test(name);
+  }
+  function isBarrierCandidateName(name) {
+    return typeof name === "string" && barrierCandidatePattern.test(name);
+  }
+  function parseJournalCandidateUuid(name) {
+    return typeof name === "string"
+      ? journalCandidatePattern.exec(name)?.[1] ?? null
+      : null;
+  }
+  function parseBarrierCandidateUuid(name) {
+    return typeof name === "string"
+      ? barrierCandidatePattern.exec(name)?.[1] ?? null
+      : null;
+  }
+  async function scanRootCandidates() {
+    const names = await journalFs.readdir(root);
+    if (!Array.isArray(names)) throw journalError("INVALID_OUTBOX_JOURNAL");
+    const entries = [];
+    let totalBytes = 0;
+    for (const name of [...names].sort()) {
+      if (typeof name !== "string") throw journalError("INVALID_OUTBOX_JOURNAL");
+      const looksLikeCandidate = name.startsWith(journalCandidatePrefix) || name.startsWith(barrierCandidatePrefix);
+      if (!looksLikeCandidate) continue;
+      const journalUuid = parseJournalCandidateUuid(name);
+      const barrierUuid = parseBarrierCandidateUuid(name);
+      if (!journalUuid && !barrierUuid) {
+        throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+      }
+      const candidatePath = resolve(root, name);
+      const candidateStat = await lstatMissing(candidatePath);
+      if (!candidateStat) continue;
+      if (candidateStat.isSymbolicLink() || !candidateStat.isFile()) {
+        throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+      }
+      if (candidateStat.size > BigInt(MAX_JOURNAL_EVENT_BYTES) || Number(candidateStat.size) > MAX_JOURNAL_EVENT_BYTES) {
+        throw journalError("OUTBOX_JOURNAL_ORPHAN_LIMIT_EXCEEDED");
+      }
+      if (entries.length + 1 > MAX_JOURNAL_CANDIDATES) {
+        throw journalError("OUTBOX_JOURNAL_ORPHAN_LIMIT_EXCEEDED");
+      }
+      if (journalUuid) {
+        const mode = Number(candidateStat.mode & 0o777n);
+        if (mode !== 0o400 && mode !== 0o600) {
+          throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+        }
+        if (mode === 0o600) {
+          let stat;
+          try {
+            ({ stat } = await attestCandidateMetadata(
+              candidatePath,
+              0o600,
+              MAX_JOURNAL_EVENT_BYTES,
+              "OUTBOX_JOURNAL_PUBLISHER_UNQUIESCED",
+            ));
+          } catch (error) {
+            if (error?.code === "OUTBOX_JOURNAL_PUBLISHER_UNQUIESCED" && !await lstatMissing(candidatePath)) {
+              continue;
+            }
+            throw error;
+          }
+          totalBytes += Number(stat.size);
+          if (totalBytes > MAX_JOURNAL_CANDIDATE_TOTAL_BYTES) {
+            throw journalError("OUTBOX_JOURNAL_ORPHAN_LIMIT_EXCEEDED");
+          }
+          entries.push({ kind: "journal", path: candidatePath, stat, bytes: null, mode, event: null });
+          continue;
+        }
+        let bytes;
+        let stat;
+        try {
+          ({ bytes, stat } = await attestCandidateFile(
+            candidatePath,
+            mode,
+            MAX_JOURNAL_EVENT_BYTES,
+            "INVALID_OUTBOX_JOURNAL_CANDIDATE",
+          ));
+        } catch (error) {
+          if (error?.code === "INVALID_OUTBOX_JOURNAL_CANDIDATE" && !await lstatMissing(candidatePath)) {
+            continue;
+          }
+          throw error;
+        }
+        const event = parseExactJournalEventBytes(bytes, "INVALID_OUTBOX_JOURNAL_CANDIDATE");
+        if (event.publicationId !== journalUuid) {
+          throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+        }
+        totalBytes += Number(stat.size);
+        if (totalBytes > MAX_JOURNAL_CANDIDATE_TOTAL_BYTES) {
+          throw journalError("OUTBOX_JOURNAL_ORPHAN_LIMIT_EXCEEDED");
+        }
+        entries.push({ kind: "journal", path: candidatePath, stat, bytes, mode, event });
+        continue;
+      }
+      if (Number(candidateStat.mode & 0o777n) !== 0o600) {
+        throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+      }
+      let bytes;
+      let stat;
+      try {
+        ({ bytes, stat } = await attestCandidateFile(
+          candidatePath,
+          0o600,
+          1024,
+          "INVALID_OUTBOX_JOURNAL_CANDIDATE",
+        ));
+      } catch (error) {
+        if (error?.code === "INVALID_OUTBOX_JOURNAL_CANDIDATE" && !await lstatMissing(candidatePath)) {
+          continue;
+        }
+        throw error;
+      }
+      const record = parseBarrierRecord(bytes, "INVALID_OUTBOX_JOURNAL_CANDIDATE");
+      if (record.ownerId !== `journal-v1-barrier-${barrierUuid}`) {
+        throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+      }
+      totalBytes += Number(stat.size);
+      if (totalBytes > MAX_JOURNAL_CANDIDATE_TOTAL_BYTES) {
+        throw journalError("OUTBOX_JOURNAL_ORPHAN_LIMIT_EXCEEDED");
+      }
+      entries.push({ kind: "barrier", path: candidatePath, stat, bytes, record });
+    }
+    return { entries, totalBytes };
+  }
+  async function attestRootCandidateInventory() {
+    await scanRootCandidates();
+  }
+  async function reserveCandidateInventory(candidateBytesLength) {
+    const { entries, totalBytes } = await scanRootCandidates();
+    if (
+      entries.length + 1 > MAX_JOURNAL_CANDIDATES ||
+      totalBytes + candidateBytesLength > MAX_JOURNAL_CANDIDATE_TOTAL_BYTES
+    ) {
+      throw journalError("OUTBOX_JOURNAL_ORPHAN_LIMIT_EXCEEDED");
+    }
+    if (entries.length > 0) {
+      throw journalError(entries.some((entry) => entry.kind === "journal") ? "OUTBOX_JOURNAL_PUBLISHER_UNQUIESCED" : "OUTBOX_LEGACY_BUSY");
+    }
+    await attestPrivateRoot("OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN");
+    await fsyncDirectory(journalFs, root, "OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN");
+  }
+  function parseBarrierRecord(bytes, invalidCode) {
+    let record;
+    try {
+      record = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+    } catch {
+      throw journalError(invalidCode);
+    }
+    assertExactKeys(record, ["ownerId", "acquiredAt", "expiresAt"], invalidCode, "Barrier payload is invalid");
+    const barrierPrefix = "journal-v1-barrier-";
+    const barrierUuid = typeof record.ownerId === "string" && record.ownerId.startsWith(barrierPrefix)
+      ? record.ownerId.slice(barrierPrefix.length)
+      : null;
+    if (
+      barrierUuid === null ||
+      !JOURNAL_UUID_PATTERN.test(barrierUuid) ||
+      canonicalUtcInstant(record.acquiredAt, invalidCode) !== record.acquiredAt ||
+      record.expiresAt !== "9999-12-31T23:59:59.999Z"
+    ) {
+      throw journalError(invalidCode);
+    }
+    if (!bytes.equals(Buffer.from(`${JSON.stringify(record)}\n`, "utf8"))) {
+      throw journalError(invalidCode);
+    }
+    return record;
+  }
+  async function parseBarrierState({ missingCode, invalidCode }) {
+    const stat = await lstatMissing(paths.barrier);
+    if (!stat) {
+      if (missingCode) throw journalError(missingCode);
+      return null;
+    }
+    if (stat.isSymbolicLink() || !stat.isFile() || Number(stat.mode & 0o777n) !== 0o600) {
+      throw journalError(invalidCode);
+    }
+    const { bytes } = await attestExactPathFile(paths.barrier, 0o600, 1024, invalidCode);
+    const record = parseBarrierRecord(bytes, invalidCode);
+    return { record, digest: journalDigest(record), stat };
+  }
+  async function assertBarrierBound(expectedDigest) {
+    if (!expectedDigest) return null;
+    const current = await parseBarrierState({
+      missingCode: "OUTBOX_LEGACY_BARRIER_LOST",
+      invalidCode: "OUTBOX_LEGACY_BARRIER_INVALID",
+    });
+    if (!current || current.digest !== expectedDigest) {
+      throw journalError("OUTBOX_LEGACY_BARRIER_INVALID");
+    }
+    return current;
+  }
+  async function inspectBarrierPublication(candidatePath, candidateStat, candidateBytes) {
+    const candidateAfter = await lstatMissing(candidatePath);
+    let candidateState = "ABSENT";
+    if (candidateAfter) {
+      if (candidateAfter.isSymbolicLink() || !candidateAfter.isFile() || Number(candidateAfter.mode & 0o777n) !== 0o600) {
+        throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+      }
+      if (!sameInode(candidateAfter, candidateStat)) {
+        return { candidateState: "REPLACED", destinationState: "UNKNOWN" };
+      }
+      candidateState = "EXACT";
+    }
+    const destinationStat = await lstatMissing(paths.barrier);
+    if (!destinationStat) return { candidateState, destinationState: "ABSENT" };
+    if (destinationStat.isSymbolicLink() || !destinationStat.isFile() || Number(destinationStat.mode & 0o777n) !== 0o600) {
+      return { candidateState, destinationState: "INVALID" };
+    }
+    let destinationBytes;
+    let destinationAttested;
+    try {
+      ({ bytes: destinationBytes, stat: destinationAttested } = await attestExactPathFile(
+        paths.barrier,
+        0o600,
+        1024,
+        "OUTBOX_JOURNAL_PUBLICATION_INCONSISTENT",
+      ));
+    } catch {
+      return { candidateState, destinationState: "INVALID" };
+    }
+    if (candidateState === "EXACT" && candidateBytes.equals(destinationBytes) && !sameInode(candidateAfter, destinationAttested)) {
+      return { candidateState, destinationState: "INVALID", destinationBytes, destinationStat: destinationAttested };
+    }
+    if (candidateBytes.equals(destinationBytes)) {
+      return { candidateState, destinationState: "MATCHING", destinationBytes, destinationStat: destinationAttested };
+    }
+    try {
+      const record = parseBarrierRecord(destinationBytes, "OUTBOX_JOURNAL_PUBLICATION_INCONSISTENT");
+      return { candidateState, destinationState: "DIFFERENT_VALID", destinationBytes, destinationStat: destinationAttested, record };
+    } catch {
+      return { candidateState, destinationState: "INVALID" };
+    }
+  }
+  function replaySeedFromAuthority(state) {
+    return state
+      ? {
+        previousEventDigest: state.throughEventDigest,
+        previousOutboxDigest: state.outboxDigest,
+        outbox: cloneCanonical(state.outbox),
+        activeLease: state.activeLease ? cloneCanonical(state.activeLease) : null,
+        totalBytes: state.totalBytes ?? 0,
+        barrierDigest: state.barrierDigest ?? null,
+        lastRecordedAt: state.lastRecordedAt ?? null,
+        seenPublicationIds: new Set(state.seenPublicationIds ?? []),
+        acquiredLeaseIds: new Set(state.acquiredLeaseIds ?? []),
+      }
+      : {
+        previousEventDigest: null,
+        previousOutboxDigest: null,
+        outbox: null,
+        activeLease: null,
+        totalBytes: 0,
+        barrierDigest: null,
+        lastRecordedAt: null,
+        seenPublicationIds: new Set(),
+        acquiredLeaseIds: new Set(),
+      };
+  }
+  async function inspectPublishedDestination(candidatePath, candidateStat, candidateBytes, destinationPath, expectedState = null) {
+    const candidateAfter = await lstatMissing(candidatePath);
+    let candidateState = "ABSENT";
+    if (candidateAfter) {
+      if (candidateAfter.isSymbolicLink() || !candidateAfter.isFile() || Number(candidateAfter.mode & 0o777n) !== 0o400) {
+        throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+      }
+      if (!sameInode(candidateAfter, candidateStat)) {
+        return { candidateState: "REPLACED", destinationState: "UNKNOWN" };
+      }
+      candidateState = "EXACT";
+    }
+    const destinationStat = await lstatMissing(destinationPath);
+    if (!destinationStat) {
+      return { candidateState, destinationState: "ABSENT" };
+    }
+    if (destinationStat.isSymbolicLink() || !destinationStat.isFile() || Number(destinationStat.mode & 0o777n) !== 0o400) {
+      return { candidateState, destinationState: "INVALID" };
+    }
+    let destinationBytes;
+    let destinationAttested;
+    try {
+      ({ bytes: destinationBytes, stat: destinationAttested } = await attestExactPathFile(
+        destinationPath,
+        0o400,
+        MAX_JOURNAL_EVENT_BYTES,
+        "INVALID_OUTBOX_JOURNAL",
+      ));
+    } catch {
+      return { candidateState, destinationState: "INVALID" };
+    }
+    if (candidateState === "EXACT" && sameInode(candidateAfter, destinationAttested) && !candidateBytes.equals(destinationBytes)) {
+      return { candidateState: "REPLACED", destinationState: "UNKNOWN", destinationBytes, destinationStat: destinationAttested };
+    }
+    if (candidateState === "EXACT" && candidateBytes.equals(destinationBytes) && !sameInode(candidateAfter, destinationAttested)) {
+      return { candidateState, destinationState: "INVALID", destinationBytes, destinationStat: destinationAttested };
+    }
+    if (candidateBytes.equals(destinationBytes)) {
+      return { candidateState, destinationState: "MATCHING", destinationBytes, destinationStat: destinationAttested };
+    }
+    try {
+      const event = parseExactJournalEventBytes(destinationBytes, "INVALID_OUTBOX_JOURNAL");
+      const candidateEvent = parseExactJournalEventBytes(candidateBytes, "INVALID_OUTBOX_JOURNAL_CANDIDATE");
+      if (
+        event.sequence !== candidateEvent.sequence ||
+        event.previousEventDigest !== candidateEvent.previousEventDigest ||
+        event.previousOutboxDigest !== candidateEvent.previousOutboxDigest
+      ) {
+        return { candidateState, destinationState: "INVALID", destinationBytes, destinationStat: destinationAttested };
+      }
+      const replayState = replaySeedFromAuthority(expectedState);
+      try {
+        applyReplayEvent(event, replayState);
+      } catch {
+        return { candidateState, destinationState: "INVALID", destinationBytes, destinationStat: destinationAttested };
+      }
+      return { candidateState, destinationState: "DIFFERENT_VALID", destinationBytes, destinationStat: destinationAttested, event };
+    } catch {
+      return { candidateState, destinationState: "INVALID" };
+    }
+  }
+  async function unlinkCandidate(candidatePath, candidateStat, cleanupFailedCode, expectedMode, expectedBytes) {
+    const attested = await attestCandidateFile(
+      candidatePath,
+      expectedMode,
+      Math.max(Number(candidateStat.size), expectedBytes.length),
+      "INVALID_OUTBOX_JOURNAL_CANDIDATE",
+      expectedBytes,
+    );
+    if (!sameInode(candidateStat, attested.stat)) {
+      throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+    }
+    try {
+      await journalFs.unlink(candidatePath);
+    } catch {
+      const after = await lstatMissing(candidatePath);
+      if (!after) return "ABSENT";
+      if (sameInode(after, candidateStat)) {
+        throw journalError(cleanupFailedCode);
+      }
+      throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+    }
+    const after = await lstatMissing(candidatePath);
+    if (!after) return "ABSENT";
+    if (sameInode(after, candidateStat)) {
+      throw journalError(cleanupFailedCode);
+    }
+    throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+  }
+  async function finalizePublishedEvent(candidatePath, candidateStat, candidateBytes, destinationPath, expectedState = null) {
+    await fsyncDirectory(journalFs, paths.journal, "OUTBOX_JOURNAL_DURABILITY_UNKNOWN");
+    const inspection = await inspectPublishedDestination(candidatePath, candidateStat, candidateBytes, destinationPath, expectedState);
+    await attestJournalDirectory("OUTBOX_JOURNAL_DURABILITY_UNKNOWN");
+    if (inspection.candidateState === "REPLACED") {
+      throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+    }
+    if (inspection.destinationState === "INVALID") {
+      throw journalError("INVALID_OUTBOX_JOURNAL");
+    }
+    if (inspection.destinationState !== "MATCHING") {
+      throw journalError("OUTBOX_JOURNAL_PUBLICATION_INCONSISTENT");
+    }
+    if (inspection.candidateState === "EXACT") {
+      await unlinkCandidate(candidatePath, candidateStat, "OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED", 0o400, candidateBytes);
+      await fsyncDirectory(journalFs, root, "OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN");
+    } else {
+      await fsyncDirectory(journalFs, root, "OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN");
+    }
+  }
+  function sameJournalLease(left, right) {
+    if (left === null && right === null) return true;
+    return Boolean(
+      left && right &&
+      left.leaseId === right.leaseId &&
+      left.ownerId === right.ownerId &&
+      left.acquiredAt === right.acquiredAt &&
+      left.expiresAt === right.expiresAt &&
+      left.fenceSequence === right.fenceSequence
+    );
+  }
+  async function cleanupPublishedCandidate(candidatePath, candidateStat) {
+    const { bytes } = await attestCandidateFile(
+      candidatePath,
+      0o400,
+      MAX_JOURNAL_EVENT_BYTES,
+      "INVALID_OUTBOX_JOURNAL_CANDIDATE",
+    );
+    await unlinkCandidate(candidatePath, candidateStat, "OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED", 0o400, bytes);
+    await fsyncDirectory(journalFs, root, "OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN");
+  }
+  async function cleanupPublishedBarrierCandidate(candidatePath, candidateStat) {
+    const { bytes } = await attestCandidateFile(
+      candidatePath,
+      0o600,
+      1024,
+      "INVALID_OUTBOX_JOURNAL_CANDIDATE",
+    );
+    await unlinkCandidate(candidatePath, candidateStat, "OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED", 0o600, bytes);
+    await fsyncDirectory(journalFs, root, "OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN");
+  }
+  async function assertPublicationAuthority(state, kind) {
+    if (!state) return;
+    const current = await replay();
+    if (!current) throw journalError("INVALID_OUTBOX_JOURNAL");
+    await assertBarrierBound(current.barrierDigest);
+    const leaseMatches = state.activeLease === null
+      ? current.activeLease === null
+      : sameJournalLease(current.activeLease, state.activeLease);
+    if (
+      current.throughSequence !== state.throughSequence ||
+      current.throughEventDigest !== state.throughEventDigest ||
+      current.outboxDigest !== state.outboxDigest ||
+      current.barrierDigest !== state.barrierDigest ||
+      !leaseMatches
+    ) {
+      throw journalError(kind === "bootstrap_v1" ? "OUTBOX_JOURNAL_CAS_LOST" : "OUTBOX_LEASE_FENCED");
+    }
+  }
+  async function cleanupPublishedCandidateResidues({ state, recordedAt, attestEmptyInventory }) {
+    const { entries: residues } = await scanRootCandidates();
+    let cleaned = false;
+    for (const residue of residues) {
+      if (residue.kind === "journal") {
+        if (residue.mode === 0o600) {
+          throw journalError("OUTBOX_JOURNAL_PUBLISHER_UNQUIESCED");
+        }
+        const destinationPath = resolve(paths.journal, journalSequenceName(residue.event.sequence));
+        const inspection = await inspectPublishedDestination(residue.path, residue.stat, residue.bytes, destinationPath);
+        if (inspection.destinationState !== "MATCHING") {
+          throw journalError("OUTBOX_JOURNAL_PUBLISHER_UNQUIESCED");
+        }
+        await unlinkCandidate(residue.path, residue.stat, "OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED", 0o400, residue.bytes);
+        cleaned = true;
+        continue;
+      }
+      const currentBarrier = await parseBarrierState({
+        missingCode: "OUTBOX_LEGACY_BUSY",
+        invalidCode: "OUTBOX_LEGACY_BUSY",
+      });
+      if (!currentBarrier || !residue.bytes.equals(Buffer.from(`${JSON.stringify(currentBarrier.record)}\n`, "utf8"))) {
+        throw journalError("OUTBOX_LEGACY_BUSY");
+      }
+      await unlinkCandidate(residue.path, residue.stat, "OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED", 0o600, residue.bytes);
+      cleaned = true;
+    }
+    if (cleaned) {
+      await fsyncDirectory(journalFs, root, "OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN");
+    } else if (attestEmptyInventory) {
+      await fsyncDirectory(journalFs, root, "OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN");
+    }
+  }
+  async function ensureDirectory() {
+    const rootStat = await lstatMissing(root);
+    if (!rootStat || rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+      throw journalError("OUTBOX_JOURNAL_DIRECTORY_DURABILITY_UNKNOWN");
+    }
+    const rootHandle = await openAttestedDirectory(
+      root,
+      Number(rootStat.mode & 0o777n),
+      "OUTBOX_JOURNAL_DIRECTORY_DURABILITY_UNKNOWN",
+    );
+    let stat = await lstatMissing(paths.journal);
+    if (!stat) {
+      try { await journalFs.mkdir(paths.journal, { mode: 0o700 }); } catch (error) { if (error?.code !== "EEXIST") throw journalError("INVALID_OUTBOX_JOURNAL"); }
+      stat = await lstatMissing(paths.journal);
+    }
+    try {
+      if (!stat || stat.isSymbolicLink() || !stat.isDirectory() || Number(stat.mode & 0o777n) !== 0o700) throw journalError("INVALID_OUTBOX_JOURNAL");
+      try {
+        await rootHandle.handle.sync();
+      } catch {
+        throw journalError("OUTBOX_JOURNAL_DIRECTORY_DURABILITY_UNKNOWN");
+      }
+    } finally {
+      await closeQuietly(rootHandle.handle);
+    }
+    await attestJournalDirectory("INVALID_OUTBOX_JOURNAL");
+  }
+  async function barrier(recordedAt) {
+    const reclaim = await lstatMissing(`${paths.barrier}.reclaim`);
+    if (reclaim) throw journalError("OUTBOX_LEGACY_BUSY");
+    const existing = await parseBarrierState({
+      missingCode: null,
+      invalidCode: "OUTBOX_LEGACY_BUSY",
+    });
+    if (existing) {
+      await fsyncDirectory(journalFs, root, "OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN");
+      return existing.digest;
+    }
+    const id = journalUuid(randomUUID);
+    const record = { ownerId: `journal-v1-barrier-${id}`, acquiredAt: recordedAt, expiresAt: "9999-12-31T23:59:59.999Z" };
+    const candidate = resolve(root, `${barrierCandidatePrefix}${id}.json`);
+    const bytes = Buffer.from(`${JSON.stringify(record)}\n`, "utf8");
+    await reserveCandidateInventory(bytes.length);
+    let handle;
+    try {
+      handle = await journalFs.open(candidate, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | (fsConstants.O_NOFOLLOW ?? 0), 0o600);
+      const created = await handle.stat({ bigint: true });
+      const createdStat = await lstatMissing(candidate);
+      if (
+        !created.isFile() ||
+        created.isSymbolicLink() ||
+        Number(created.mode & 0o777n) !== 0o600 ||
+        !createdStat ||
+        createdStat.isSymbolicLink() ||
+        !createdStat.isFile() ||
+        Number(createdStat.mode & 0o777n) !== 0o600 ||
+        !sameInode(created, createdStat)
+      ) {
+        throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+      }
+      await writeAll(handle, bytes, "OUTBOX_JOURNAL_PUBLICATION_FAILED"); await handle.sync();
+    } catch (error) {
+      if (error?.code?.startsWith("OUTBOX_") || error?.code === "INVALID_OUTBOX_JOURNAL_CANDIDATE") throw error;
+      throw journalError("OUTBOX_LEGACY_BUSY");
+    } finally { await closeQuietly(handle); }
+    const { stat: candidateStat } = await attestCandidateFile(candidate, 0o600, 1024, "INVALID_OUTBOX_JOURNAL_CANDIDATE", bytes);
+    await attestPrivateRoot("INVALID_OUTBOX_JOURNAL");
+    if (await lstatMissing(`${paths.barrier}.reclaim`)) {
+      await cleanupPublishedBarrierCandidate(candidate, candidateStat);
+      throw journalError("OUTBOX_LEGACY_BUSY");
+    }
+    const beforeLinkBarrier = await parseBarrierState({
+      missingCode: null,
+      invalidCode: "OUTBOX_LEGACY_BUSY",
+    });
+    if (beforeLinkBarrier) {
+      await cleanupPublishedBarrierCandidate(candidate, candidateStat);
+      return beforeLinkBarrier.digest;
+    }
+    try {
+      await journalFs.link(candidate, paths.barrier);
+    } catch (error) {
+      const inspection = await inspectBarrierPublication(candidate, candidateStat, bytes);
+      await attestPrivateRoot("OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN");
+      if (inspection.candidateState === "REPLACED") {
+        throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+      }
+      if (inspection.destinationState === "INVALID") {
+        throw journalError("OUTBOX_LEGACY_BUSY");
+      }
+      if (inspection.destinationState === "MATCHING" || inspection.destinationState === "DIFFERENT_VALID") {
+        if (inspection.candidateState === "EXACT") {
+          await cleanupPublishedBarrierCandidate(candidate, candidateStat);
+        } else {
+          await fsyncDirectory(journalFs, root, "OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN");
+        }
+        return journalDigest(inspection.destinationState === "MATCHING" ? record : inspection.record);
+      }
+      if (inspection.destinationState === "ABSENT" && !JOURNAL_UNSUPPORTED_ERRNOS.has(error?.code) && error?.code !== "EEXIST") {
+        await cleanupPublishedBarrierCandidate(candidate, candidateStat);
+      }
+      if (JOURNAL_UNSUPPORTED_ERRNOS.has(error?.code)) throw journalError("OUTBOX_JOURNAL_PUBLICATION_UNSUPPORTED");
+      if (error?.code === "EEXIST") throw journalError("OUTBOX_JOURNAL_PUBLICATION_INCONSISTENT");
+      throw journalError("OUTBOX_JOURNAL_PUBLICATION_FAILED");
+    }
+    const inspection = await inspectBarrierPublication(candidate, candidateStat, bytes);
+    await attestPrivateRoot("OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN");
+    if (inspection.candidateState === "REPLACED") throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+    if (inspection.destinationState === "INVALID") throw journalError("OUTBOX_LEGACY_BUSY");
+    if (inspection.destinationState !== "MATCHING") throw journalError("OUTBOX_JOURNAL_PUBLICATION_INCONSISTENT");
+    await cleanupPublishedBarrierCandidate(candidate, candidateStat);
+    return journalDigest(record);
+  }
+  function applyReplayEvent(event, state) {
+    if (state.lastRecordedAt !== null && Date.parse(event.recordedAt) < Date.parse(state.lastRecordedAt)) {
+      throw journalError("INVALID_OUTBOX_JOURNAL");
+    }
+    if (state.seenPublicationIds?.has(event.publicationId)) {
+      throw journalError("INVALID_OUTBOX_JOURNAL");
+    }
+    state.seenPublicationIds?.add(event.publicationId);
+    if (event.kind === "bootstrap_v1") {
+      if (state.outbox !== null) throw journalError("INVALID_OUTBOX_JOURNAL");
+      state.outbox = event.payload.outbox;
+      state.barrierDigest = event.payload.legacyBarrierDigest;
+    }
+    else if (state.outbox === null) {
+      throw journalError("INVALID_OUTBOX_JOURNAL");
+    }
+    else if (event.kind === "lease_acquired") {
+      if (
+        event.fenceSequence !== event.sequence ||
+        state.acquiredLeaseIds?.has(event.leaseId) ||
+        Date.parse(event.payload.expiresAt) - Date.parse(event.recordedAt) > approvedLimits.MAX_LEASE_MS ||
+        state.activeLease &&
+        (
+          Date.parse(event.recordedAt) <= Date.parse(state.activeLease.expiresAt) ||
+          event.fenceSequence <= state.activeLease.fenceSequence
+        )
+      ) {
+        throw journalError("INVALID_OUTBOX_JOURNAL");
+      }
+      state.activeLease = {
+        leaseId: event.leaseId,
+        ownerId: event.payload.ownerId,
+        acquiredAt: event.payload.acquiredAt,
+        expiresAt: event.payload.expiresAt,
+        fenceSequence: event.fenceSequence,
+      };
+      state.acquiredLeaseIds?.add(event.leaseId);
+    }
+    else if (event.kind === "lease_renewed") {
+      if (!state.activeLease || state.activeLease.leaseId !== event.leaseId) throw journalError("INVALID_OUTBOX_JOURNAL");
+      if (
+        event.fenceSequence !== event.sequence ||
+        event.payload.ownerId !== state.activeLease.ownerId ||
+        event.payload.acquiredAt !== state.activeLease.acquiredAt ||
+        event.payload.previousExpiresAt !== state.activeLease.expiresAt ||
+        event.payload.previousFenceSequence !== state.activeLease.fenceSequence ||
+        Date.parse(event.recordedAt) >= Date.parse(state.activeLease.expiresAt) ||
+        Date.parse(event.payload.expiresAt) - Date.parse(event.recordedAt) > approvedLimits.MAX_LEASE_MS
+      ) {
+        throw journalError("INVALID_OUTBOX_JOURNAL");
+      }
+      state.activeLease = {
+        ...state.activeLease,
+        expiresAt: event.payload.expiresAt,
+        fenceSequence: event.fenceSequence,
+      };
+    }
+    else if (event.kind === "outbox_committed") {
+      if (!state.activeLease || state.activeLease.leaseId !== event.leaseId || state.activeLease.fenceSequence !== event.fenceSequence) {
+        throw journalError("INVALID_OUTBOX_JOURNAL");
+      }
+      if (Date.parse(event.recordedAt) >= Date.parse(state.activeLease.expiresAt)) {
+        throw journalError("INVALID_OUTBOX_JOURNAL");
+      }
+      let nextOutbox;
+      try {
+        nextOutbox = canonicalOutbox(event.payload.outbox, approvedLimits);
+        validateOutboxTransition(state.outbox, nextOutbox);
+      } catch {
+        throw journalError("INVALID_OUTBOX_JOURNAL");
+      }
+      state.outbox = nextOutbox;
+      state.activeLease = null;
+    }
+    else if (event.kind === "lease_released") {
+      if (!state.activeLease || state.activeLease.leaseId !== event.leaseId || state.activeLease.fenceSequence !== event.fenceSequence) {
+        throw journalError("INVALID_OUTBOX_JOURNAL");
+      }
+      state.activeLease = null;
+    }
+    if (state.outbox && event.nextOutboxDigest !== outboxDigest(state.outbox)) throw journalError("INVALID_OUTBOX_JOURNAL");
+    state.previousEventDigest = event.eventDigest;
+    state.previousOutboxDigest = event.nextOutboxDigest;
+    state.lastRecordedAt = event.recordedAt;
+  }
+  async function replay() {
+    const directory = await lstatMissing(paths.journal);
+    if (!directory) return null;
+    if (directory.isSymbolicLink() || !directory.isDirectory() || Number(directory.mode & 0o777n) !== 0o700) throw journalError("INVALID_OUTBOX_JOURNAL");
+    await attestJournalDirectory("INVALID_OUTBOX_JOURNAL");
+    const names = await journalFs.readdir(paths.journal);
+    if (!Array.isArray(names) || names.some((name) => typeof name !== "string" || !/^[0-9]{20}\.json$/.test(name))) throw journalError("INVALID_OUTBOX_JOURNAL");
+    names.sort();
+    if (names.length > MAX_JOURNAL_EVENTS) throw journalError("OUTBOX_JOURNAL_LIMIT_EXCEEDED");
+    const snapshot = await readSnapshotState();
+    const runReplay = async (checkpoint = null) => {
+      const validationState = {
+        previousEventDigest: null,
+        previousOutboxDigest: null,
+        outbox: null,
+        activeLease: null,
+        totalBytes: 0,
+        barrierDigest: null,
+        lastRecordedAt: null,
+        seenPublicationIds: new Set(),
+        acquiredLeaseIds: new Set(),
+      };
+      const state = checkpoint
+        ? {
+          previousEventDigest: checkpoint.throughEventDigest,
+          previousOutboxDigest: checkpoint.outboxDigest,
+          outbox: cloneCanonical(checkpoint.outbox),
+          activeLease: checkpoint.activeLease ? cloneCanonical(checkpoint.activeLease) : null,
+          totalBytes: 0,
+          barrierDigest: null,
+          lastRecordedAt: null,
+          seenPublicationIds: new Set(),
+          acquiredLeaseIds: new Set(),
+        }
+        : validationState;
+      for (let index = 0; index < names.length; index += 1) {
+        const sequence = index + 1;
+        if (names[index] !== journalSequenceName(sequence)) throw journalError("INVALID_OUTBOX_JOURNAL");
+        const { bytes, stat } = await attestExactPathFile(
+          resolve(paths.journal, names[index]),
+          0o400,
+          MAX_JOURNAL_EVENT_BYTES,
+          "INVALID_OUTBOX_JOURNAL",
+        );
+        validationState.totalBytes += bytes.length;
+        if (validationState.totalBytes > MAX_JOURNAL_TOTAL_BYTES) throw journalError("OUTBOX_JOURNAL_LIMIT_EXCEEDED");
+        const event = parseExactJournalEventBytes(bytes, "INVALID_OUTBOX_JOURNAL");
+        if (event.sequence !== sequence || event.previousEventDigest !== validationState.previousEventDigest || event.previousOutboxDigest !== validationState.previousOutboxDigest) {
+          throw journalError("INVALID_OUTBOX_JOURNAL");
+        }
+        applyReplayEvent(event, validationState);
+        if (checkpoint && sequence <= checkpoint.throughSequence) {
+          emitReplayEvent(event, { phase: "validated_snapshot_prefix" });
+          if (sequence === checkpoint.throughSequence) {
+            if (
+              validationState.previousEventDigest !== checkpoint.throughEventDigest ||
+              validationState.previousOutboxDigest !== checkpoint.outboxDigest ||
+              !sameJournalLease(validationState.activeLease, checkpoint.activeLease)
+            ) {
+              return null;
+            }
+            state.barrierDigest = validationState.barrierDigest;
+            state.totalBytes = validationState.totalBytes;
+            state.lastRecordedAt = validationState.lastRecordedAt;
+            state.seenPublicationIds = new Set(validationState.seenPublicationIds);
+            state.acquiredLeaseIds = new Set(validationState.acquiredLeaseIds);
+          }
+          continue;
+        }
+        if (checkpoint) {
+          applyReplayEvent(event, state);
+          state.totalBytes = validationState.totalBytes;
+          emitReplayApplyState(event, { phase: "applied" });
+        } else {
+          emitReplayApplyState(event, { phase: "applied" });
+        }
+        emitReplayEvent(event, { phase: "applied" });
+      }
+      return state.outbox === null
+        ? null
+        : {
+          throughSequence: names.length,
+          throughEventDigest: state.previousEventDigest,
+          outbox: state.outbox,
+          outboxDigest: state.previousOutboxDigest,
+          activeLease: state.activeLease,
+          totalBytes: validationState.totalBytes,
+          barrierDigest: state.barrierDigest,
+          lastRecordedAt: validationState.lastRecordedAt,
+          seenPublicationIds: new Set(validationState.seenPublicationIds),
+          acquiredLeaseIds: new Set(validationState.acquiredLeaseIds),
+        };
+    };
+    if (snapshot && snapshot.throughSequence <= names.length) {
+      const snapshotted = await runReplay(snapshot);
+      if (snapshotted) return snapshotted;
+    }
+    return runReplay(null);
+  }
+  async function publish(state, kind, recordedAt, lease, payload) {
+    const sequence = (state?.throughSequence ?? 0) + 1, publicationId = journalUuid(randomUUID), nextOutbox = kind === "bootstrap_v1" || kind === "outbox_committed" ? payload.outbox : state.outbox;
+    const preceding = { schemaVersion: 1, sequence, publicationId, kind, recordedAt, previousEventDigest: state?.throughEventDigest ?? null, previousOutboxDigest: state?.outboxDigest ?? null, nextOutboxDigest: outboxDigest(nextOutbox), leaseId: lease?.leaseId ?? null, fenceSequence: lease?.fenceSequence ?? 0, payload };
+    const event = { ...preceding, eventDigest: journalDigest(preceding) }, bytes = Buffer.from(`${JSON.stringify(event)}\n`, "utf8");
+    if (bytes.length > MAX_JOURNAL_EVENT_BYTES || sequence > MAX_JOURNAL_EVENTS || (state?.totalBytes ?? 0) + bytes.length > MAX_JOURNAL_TOTAL_BYTES) throw journalError("OUTBOX_JOURNAL_LIMIT_EXCEEDED");
+    await reserveCandidateInventory(bytes.length);
+    const candidate = resolve(root, `.flow-outbox-journal-candidate-v1-${publicationId}.json`), destination = resolve(paths.journal, journalSequenceName(sequence)); let handle;
+    try {
+      handle = await journalFs.open(candidate, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | (fsConstants.O_NOFOLLOW ?? 0), 0o600);
+      const created = await handle.stat({ bigint: true });
+      const createdStat = await lstatMissing(candidate);
+      if (
+        !created.isFile() ||
+        created.isSymbolicLink() ||
+        Number(created.mode & 0o777n) !== 0o600 ||
+        !createdStat ||
+        createdStat.isSymbolicLink() ||
+        !createdStat.isFile() ||
+        Number(createdStat.mode & 0o777n) !== 0o600 ||
+        !sameInode(created, createdStat)
+      ) {
+        throw journalError("INVALID_OUTBOX_JOURNAL_CANDIDATE");
+      }
+      await writeAll(handle, bytes, "OUTBOX_JOURNAL_PUBLICATION_FAILED");
+      await handle.sync();
+      await handle.chmod(0o400);
+      await handle.sync();
+    } catch (error) {
+      if (error?.code?.startsWith("OUTBOX_") || error?.code === "INVALID_OUTBOX_JOURNAL_CANDIDATE") throw error;
+      throw journalError("OUTBOX_JOURNAL_PUBLICATION_FAILED");
+    } finally { await closeQuietly(handle); }
+    const { stat: candidateStat } = await attestCandidateFile(
+      candidate,
+      0o400,
+      MAX_JOURNAL_EVENT_BYTES,
+      "INVALID_OUTBOX_JOURNAL_CANDIDATE",
+      bytes,
+    );
+    await attestPrivateRoot("INVALID_OUTBOX_JOURNAL");
+    const journalDirectoryBeforeLink = await attestJournalDirectory("INVALID_OUTBOX_JOURNAL");
+    try {
+      await assertPublicationAuthority(state, kind);
+    } catch (error) {
+      await cleanupPublishedCandidate(candidate, candidateStat);
+      throw error;
+    }
+    try {
+      await journalFs.link(candidate, destination);
+    } catch (error) {
+      const inspection = await inspectPublishedDestination(candidate, candidateStat, bytes, destination, state);
+      const journalDirectoryAfterLink = await attestJournalDirectory("OUTBOX_JOURNAL_DURABILITY_UNKNOWN");
+      if (!sameInode(journalDirectoryBeforeLink, journalDirectoryAfterLink)) {
+        throw journalError("INVALID_OUTBOX_JOURNAL");
+      }
+      if (inspection.destinationState === "MATCHING") {
+        await finalizePublishedEvent(candidate, candidateStat, bytes, destination, state);
+        const result = await replay(); if (!result) throw journalError("INVALID_OUTBOX_JOURNAL");
+        await io.writeJsonAtomic(paths.snapshot, { schemaVersion: 1, throughSequence: result.throughSequence, throughEventDigest: result.throughEventDigest, outbox: result.outbox, outboxDigest: result.outboxDigest, activeLease: result.activeLease, snapshotDigest: journalDigest({ schemaVersion: 1, throughSequence: result.throughSequence, throughEventDigest: result.throughEventDigest, outbox: result.outbox, outboxDigest: result.outboxDigest, activeLease: result.activeLease }) }).catch(() => {});
+        if (kind === "bootstrap_v1" || kind === "outbox_committed") await io.writeJsonAtomic(paths.outbox, result.outbox).catch(() => {});
+        return result;
+      }
+      if (inspection.destinationState === "DIFFERENT_VALID") {
+        if (
+          kind === "bootstrap_v1" &&
+          inspection.event?.kind === "bootstrap_v1" &&
+          isDeepStrictEqual(inspection.event.payload, payload)
+        ) {
+          await fsyncDirectory(journalFs, paths.journal, "OUTBOX_JOURNAL_DURABILITY_UNKNOWN");
+          await cleanupPublishedCandidate(candidate, candidateStat);
+          const result = await replay(); if (!result) throw journalError("INVALID_OUTBOX_JOURNAL");
+          await io.writeJsonAtomic(paths.snapshot, { schemaVersion: 1, throughSequence: result.throughSequence, throughEventDigest: result.throughEventDigest, outbox: result.outbox, outboxDigest: result.outboxDigest, activeLease: result.activeLease, snapshotDigest: journalDigest({ schemaVersion: 1, throughSequence: result.throughSequence, throughEventDigest: result.throughEventDigest, outbox: result.outbox, outboxDigest: result.outboxDigest, activeLease: result.activeLease }) }).catch(() => {});
+          if (kind === "bootstrap_v1" || kind === "outbox_committed") await io.writeJsonAtomic(paths.outbox, result.outbox).catch(() => {});
+          return result;
+        }
+        await fsyncDirectory(journalFs, paths.journal, "OUTBOX_JOURNAL_DURABILITY_UNKNOWN");
+        await cleanupPublishedCandidate(candidate, candidateStat);
+        throw journalError(kind === "bootstrap_v1" || kind === "lease_acquired" ? "OUTBOX_JOURNAL_CAS_LOST" : "OUTBOX_LEASE_FENCED");
+      }
+      if (inspection.destinationState === "INVALID") {
+        throw journalError("INVALID_OUTBOX_JOURNAL");
+      }
+      if (JOURNAL_UNSUPPORTED_ERRNOS.has(error?.code)) throw journalError("OUTBOX_JOURNAL_PUBLICATION_UNSUPPORTED");
+      if (inspection.destinationState === "ABSENT" && state && error?.code !== "EEXIST") {
+        await unlinkCandidate(
+          candidate,
+          candidateStat,
+          "OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED",
+          0o400,
+          bytes,
+        );
+        await fsyncDirectory(journalFs, root, "OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN");
+      }
+      if (error?.code === "EEXIST") throw journalError("OUTBOX_JOURNAL_PUBLICATION_INCONSISTENT");
+      throw journalError("OUTBOX_JOURNAL_PUBLICATION_FAILED");
+    }
+    const journalDirectoryAfterLink = await attestJournalDirectory("OUTBOX_JOURNAL_DURABILITY_UNKNOWN");
+    if (!sameInode(journalDirectoryBeforeLink, journalDirectoryAfterLink)) {
+      throw journalError("INVALID_OUTBOX_JOURNAL");
+    }
+    await finalizePublishedEvent(candidate, candidateStat, bytes, destination, state);
+    const result = await replay(); if (!result) throw journalError("INVALID_OUTBOX_JOURNAL");
+    await io.writeJsonAtomic(paths.snapshot, { schemaVersion: 1, throughSequence: result.throughSequence, throughEventDigest: result.throughEventDigest, outbox: result.outbox, outboxDigest: result.outboxDigest, activeLease: result.activeLease, snapshotDigest: journalDigest({ schemaVersion: 1, throughSequence: result.throughSequence, throughEventDigest: result.throughEventDigest, outbox: result.outbox, outboxDigest: result.outboxDigest, activeLease: result.activeLease }) }).catch(() => {});
+    if (kind === "bootstrap_v1" || kind === "outbox_committed") await io.writeJsonAtomic(paths.outbox, result.outbox).catch(() => {});
+    return result;
+  }
+  async function journalState() {
+    await attestRootCandidateInventory();
+    const state = await replay();
+    if (state) await assertBarrierBound(state.barrierDigest);
+    return state;
+  }
+  async function authority(mutating, recordedAt) {
+    let state = await journalState();
+    if (mutating) {
+      if (
+        !(state?.activeLease && typeof recordedAt === "string" &&
+          Date.parse(state.activeLease.expiresAt) >= Date.parse(recordedAt))
+      ) {
+        await cleanupPublishedCandidateResidues({
+          state,
+          recordedAt,
+          attestEmptyInventory: Boolean(state || await lstatMissing(paths.journal)),
+        });
+        state = await journalState();
+      }
+    }
+    if (state) return state; if (!mutating) { try { return { outbox: canonicalOutbox(await io.readJson(paths.outbox), approvedLimits) }; } catch (error) { if (error?.code === "MISSING_ARTIFACT") return { outbox: { version: 1, entries: [] } }; throw error; } }
+    const digest = await barrier(recordedAt); await ensureDirectory(); state = await journalState(); if (state) return state;
+    let legacy; try { legacy = canonicalOutbox(await io.readJson(paths.outbox), approvedLimits); } catch (error) { if (error?.code === "MISSING_ARTIFACT") legacy = { version: 1, entries: [] }; else throw error; }
+    return publish(null, "bootstrap_v1", recordedAt, null, { source: legacy.entries.length ? "legacy_v1_projection" : "empty_v1", legacyBarrierDigest: digest, outbox: legacy });
+  }
+  async function transaction(input = {}) {
+    validateOwnerId(input.ownerId); validateLeaseMs(input.leaseMs, approvedLimits); if (typeof input.operation !== "function") throw flowError("INVALID_OUTBOX_TRANSACTION", "Outbox operation must be a function");
+    const now = clockSampler(input.now);
+    let state, lease, acquiredAt;
+    while (true) {
+      acquiredAt = now();
+      state = await authority(true, acquiredAt);
+      if (state.lastRecordedAt && Date.parse(acquiredAt) < Date.parse(state.lastRecordedAt)) {
+        acquiredAt = state.lastRecordedAt;
+      }
+      if (state.activeLease && Date.parse(state.activeLease.expiresAt) >= Date.parse(acquiredAt)) throw flowError("OUTBOX_LOCKED", "Outbox is held by an active lease");
+      lease = { leaseId: journalUuid(randomUUID), ownerId: input.ownerId, acquiredAt, expiresAt: new Date(Date.parse(acquiredAt) + input.leaseMs).toISOString(), fenceSequence: state.throughSequence + 1 };
+      try {
+        state = await publish(state, "lease_acquired", acquiredAt, lease, {
+          ownerId: lease.ownerId,
+          acquiredAt,
+          expiresAt: lease.expiresAt,
+        });
+      } catch (error) {
+        const current = await replay().catch(() => null);
+        if (
+          (error?.code === "OUTBOX_LEASE_FENCED" || error?.code === "OUTBOX_JOURNAL_CAS_LOST") &&
+          current?.activeLease &&
+          Date.parse(current.activeLease.expiresAt) >= Date.parse(acquiredAt)
+        ) {
+          throw flowError("OUTBOX_LOCKED", "Outbox is held by an active lease");
+        }
+        if (error?.code === "OUTBOX_JOURNAL_CAS_LOST") continue;
+        throw error;
+      }
+      if (state.activeLease?.leaseId === lease.leaseId && state.activeLease.fenceSequence === lease.fenceSequence) break;
+      if (state.activeLease && Date.parse(state.activeLease.expiresAt) >= Date.parse(acquiredAt)) throw flowError("OUTBOX_LOCKED", "Outbox is held by an active lease");
+    }
+    const txState = { active: true, committed: false, lease, snapshot: deepFreeze(cloneCanonical(state.outbox)), snapshotDigest: state.outboxDigest, tail: state.throughEventDigest, lastRecordedAt: acquiredAt, tx: null };
+    const monotonicLeaseInstant = (value) => {
+      const sampled = canonicalUtcInstant(value, "INVALID_OUTBOX_LEASE");
+      return Date.parse(sampled) < Date.parse(txState.lastRecordedAt)
+        ? txState.lastRecordedAt
+        : sampled;
+    };
+    const verify = async (receiver, at) => {
+      if (!issued.has(receiver) || receiver !== txState.tx) {
+        throw flowError("OUTBOX_TRANSACTION_FORGED", "Outbox transaction capability is invalid");
+      }
+      if (!txState.active) {
+        throw flowError(
+          txState.committed ? "OUTBOX_TRANSACTION_REUSED" : "OUTBOX_TRANSACTION_RELEASED",
+          txState.committed
+            ? "Outbox transaction is already committed"
+            : "Outbox transaction is no longer active",
+        );
+      }
+      const current = await journalState();
+      if (
+        !current ||
+        current.throughEventDigest !== txState.tail ||
+        !current.activeLease ||
+        current.activeLease.leaseId !== txState.lease.leaseId ||
+        current.activeLease.fenceSequence !== txState.lease.fenceSequence
+      ) {
+        throw flowError("OUTBOX_LEASE_FENCED", "Outbox lease is fenced");
+      }
+      if (Date.parse(at) >= Date.parse(txState.lease.expiresAt)) {
+        throw flowError("OUTBOX_LEASE_EXPIRED", "Outbox lease expired");
+      }
+      return current;
+    };
+    const tx = {
+      ownerId: lease.ownerId,
+      leaseId: lease.leaseId,
+      get fenceSequence() { return txState.lease.fenceSequence; },
+      acquiredAt,
+      get expiresAt() { return txState.lease.expiresAt; },
+      snapshot: txState.snapshot,
+      snapshotDigest: txState.snapshotDigest,
+      async assertOwned({ now: at } = {}) {
+        return Boolean(await verify(this, monotonicLeaseInstant(at)));
+      },
+      async renew({ now: at, leaseMs } = {}) {
+        validateLeaseMs(leaseMs, approvedLimits);
+        const sampled = monotonicLeaseInstant(at);
+        const current = await verify(this, sampled);
+        txState.lease = {
+          ...txState.lease,
+          expiresAt: new Date(Date.parse(sampled) + leaseMs).toISOString(),
+          fenceSequence: current.throughSequence + 1,
+        };
+        const next = await publish(current, "lease_renewed", sampled, txState.lease, {
+          ownerId: lease.ownerId,
+          acquiredAt,
+          previousExpiresAt: current.activeLease.expiresAt,
+          expiresAt: txState.lease.expiresAt,
+          previousFenceSequence: current.activeLease.fenceSequence,
+        });
+        txState.tail = next.throughEventDigest;
+        txState.lastRecordedAt = sampled;
+        return txState.lease.expiresAt;
+      },
+      async commit(nextOutbox) {
+        const recordedAt = monotonicLeaseInstant(now());
+        const current = await verify(this, recordedAt);
+        const next = canonicalOutbox(nextOutbox, approvedLimits);
+        validateOutboxTransition(txState.snapshot, next);
+        const result = await publish(current, "outbox_committed", recordedAt, txState.lease, {
+          outbox: next,
+        });
+        txState.committed = true;
+        txState.active = false;
+        txState.lastRecordedAt = recordedAt;
+        return cloneCanonical(result.outbox);
+      },
+    };
+    txState.tx = tx; issued.add(tx); Object.freeze(tx);
+    let operationError = null;
+    try {
+      return await input.operation(tx);
+    } catch (error) {
+      operationError = error;
+      throw error;
+    } finally {
+      if (txState.active) {
+        if (!(operationError?.code && NON_RETARGETABLE_TRANSACTION_ERROR_CODES.has(operationError.code))) {
+          let current = null;
+          try {
+            current = await replay();
+          } catch (error) {
+            if (!operationError) throw error;
+          }
+          if (current?.activeLease?.leaseId === txState.lease.leaseId && current.activeLease.fenceSequence === txState.lease.fenceSequence) {
+            try {
+              const sampledReleaseAt = monotonicLeaseInstant(now());
+              const releaseAt = Date.parse(sampledReleaseAt) < Date.parse(txState.lastRecordedAt)
+                ? txState.lastRecordedAt
+                : sampledReleaseAt;
+              await publish(current, "lease_released", releaseAt, txState.lease, {});
+            } catch (error) {
+              if (!operationError) throw error;
+            }
+          }
+        }
+        txState.active = false;
+      }
+    }
+  }
+  async function enqueueConfirmedFinding({ finding: input, ownerId, now, leaseMs } = {}) { const finding = canonicalFinding(input, approvedLimits), fingerprint = fingerprintFindingWithLimits(finding, approvedLimits), findingDigest = journalDigest(finding); return transaction({ ownerId, now, leaseMs, operation: async (tx) => { const existing = tx.snapshot.entries.find((entry) => entry.fingerprint === fingerprint); if (existing) { if (existing.findingDigest !== findingDigest) throw flowError("OUTBOX_FINGERPRINT_CONFLICT", "Fingerprint already binds a different finding"); return cloneCanonical(existing); } const entry = { fingerprint, findingDigest, finding, state: "pending_sync", attempts: 0, createdAt: tx.acquiredAt, updatedAt: tx.acquiredAt, pendingAction: null, mutationReceipt: null, remote: null, failure: null }; await tx.commit({ version: 1, entries: [...tx.snapshot.entries, entry] }); return cloneCanonical(entry); } }); }
+  async function recoverOutbox({ fingerprint, ownerId, now, leaseMs } = {}) { return transaction({ ownerId, now, leaseMs, operation: async (tx) => { const index = tx.snapshot.entries.findIndex((entry) => entry.fingerprint === fingerprint); if (index < 0) throw flowError("OUTBOX_ENTRY_NOT_FOUND", "Recovery entry does not exist"); const current = tx.snapshot.entries[index]; if (current.state !== "failed" || current.failure?.recoveryClass !== "RETRY_SAFE_READ" || current.mutationReceipt !== null) throw flowError("OUTBOX_RECOVERY_BLOCKED", "Outbox entry cannot be safely recovered"); const recovered = { ...cloneCanonical(current), state: "pending_sync", updatedAt: tx.acquiredAt, failure: null }; await tx.commit({ version: 1, entries: tx.snapshot.entries.map((entry, item) => item === index ? recovered : entry) }); return recovered; } }); }
+  return Object.freeze({ readOutbox: async () => cloneCanonical((await authority(false)).outbox), withOutboxTransaction: transaction, enqueueConfirmedFinding, recoverOutbox, fingerprintFinding: (input) => fingerprintFindingWithLimits(input, approvedLimits) });
+}

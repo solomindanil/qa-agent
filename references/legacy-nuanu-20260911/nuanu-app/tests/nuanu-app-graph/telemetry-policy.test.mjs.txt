@@ -1,0 +1,615 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import test from "node:test";
+import { fileURLToPath } from "node:url";
+
+import { digestJson } from "../../tools/nuanu-app-graph/model.mjs";
+import {
+  createP75PairDigestInput,
+  digestP75Pair,
+} from "../../tools/nuanu-app-graph/telemetry-contract.mjs";
+import {
+  buildTelemetrySignals,
+  validateTelemetryMappings,
+} from "../../tools/nuanu-app-graph/telemetry-policy.mjs";
+import { buildTelemetryCatalog } from "../../tools/nuanu-app-graph/telemetry.mjs";
+import { buildTestPlan, planImpact } from "../../tools/nuanu-app-graph/planner.mjs";
+
+const FIXTURE_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "posthog");
+const ACCESS_LOCK = JSON.parse(await readFile(join(FIXTURE_DIRECTORY, "access-lock.synthetic.json"), "utf8"));
+const CAPTURED_AT = "2026-08-26T00:03:00.000Z";
+const REVIEWED_AT = "2026-08-26T00:04:00.000Z";
+const REVIEW_DIGEST = "d".repeat(64);
+const ROUTE_ID = "nuanu-app:route:root";
+const SOURCE_ONLY_ID = "nuanu-app:capability:source-only";
+const SAFE_TEST_ID = "nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-001 safe shell";
+const UNSAFE_TEST_ID = "nuanu-app:auto:tests/nuanu-app/public/unsafe.spec.ts#NAPP-UNSAFE-001 mutates state";
+const BLOCKED_TEST_ID = "nuanu-app:auto:tests/nuanu-app/public/blocked.spec.ts#NAPP-BLOCKED-001 blocked";
+const UNVERIFIED_TEST_ID = "nuanu-app:auto:tests/nuanu-app/public/unverified.spec.ts#NAPP-UNVERIFIED-001 unverified";
+const NOT_DEPLOYED_TEST_ID = "nuanu-app:auto:tests/nuanu-app/public/not-deployed.spec.ts#NAPP-NOTDEP-001 not deployed";
+const MANUAL_TEST_ID = "nuanu-app:manual_test:provider-handoff";
+const MOBILE_TEST_ID = "nuanu-app:manual_test:mobile-safety";
+
+function clone(value) {
+  return structuredClone(value);
+}
+
+function metricCandidate(metricId = "route-health", overrides = {}) {
+  return {
+    queryId: metricId,
+    queryHash: ACCESS_LOCK.approvedQueryHashes[metricId]?.primary ?? "a".repeat(64),
+    p75Pairing: null,
+    metricId,
+    status: "AVAILABLE",
+    capturedAt: CAPTURED_AT,
+    bucketEndedAt: ACCESS_LOCK.approvedWindow.endAt,
+    aggregate: { sampleSize: 200, count: 10, rate: null, p75: null },
+    breakdowns: [],
+    exceptionGroups: [],
+    providerExceptionFingerprintAttestation: null,
+    limitations: ["NO_REVIEWED_THRESHOLD"],
+    ...overrides,
+  };
+}
+
+function p75Pairing(metricId = "web-vitals-lcp-p75", accessLock = ACCESS_LOCK) {
+  const approval = accessLock.approvedQueryHashes[metricId];
+  const p75PairDigestInput = createP75PairDigestInput({
+    metricId,
+    dimensions: ["browser"],
+    percentileQueryHash: approval.primary,
+    sampleCountQueryHash: approval.sampleCount,
+  });
+  return {
+    p75PairDigestInput,
+    pairDigest: digestP75Pair(p75PairDigestInput),
+    sampleSizeSource: "independent_total_count",
+  };
+}
+
+function p75Candidate(overrides = {}, accessLock = ACCESS_LOCK) {
+  const metricId = "web-vitals-lcp-p75";
+  return metricCandidate(metricId, {
+    queryHash: accessLock.approvedQueryHashes[metricId].primary,
+    p75Pairing: p75Pairing(metricId, accessLock),
+    aggregate: { sampleSize: 200, count: null, rate: null, p75: 2100.5 },
+    ...overrides,
+  });
+}
+
+function catalogFrom(candidates, accessLock = ACCESS_LOCK) {
+  return buildTelemetryCatalog({
+    accessLockDigest: digestJson(accessLock),
+    capturedAt: CAPTURED_AT,
+    candidates,
+    publicValueAllowlists: {},
+    randomUUID: () => "00000000-0000-4000-8000-000000000001",
+  });
+}
+
+function graphFixture() {
+  const sourceId = "nuanu-app:source_file:root";
+  const nodes = [
+    {
+      id: sourceId,
+      kind: "source_file",
+      path: "apps/nuanu-web/src/app/page.tsx",
+      provenance: "source",
+      coverageDisposition: "UNVERIFIED",
+    },
+    { id: ROUTE_ID, kind: "route", provenance: "source_and_runtime" },
+    {
+      id: SOURCE_ONLY_ID,
+      kind: "capability",
+      provenance: "source",
+      coverageDisposition: "UNVERIFIED",
+    },
+    {
+      id: SAFE_TEST_ID,
+      kind: "automated_test",
+      provenance: "runtime",
+      coverageDisposition: "AUTOMATED",
+      execution: "automated",
+      safety: "read_only",
+    },
+    {
+      id: UNSAFE_TEST_ID,
+      kind: "automated_test",
+      provenance: "runtime",
+      coverageDisposition: "AUTOMATED",
+      execution: "automated",
+      safety: "mutating",
+    },
+    {
+      id: BLOCKED_TEST_ID,
+      kind: "automated_test",
+      provenance: "runtime",
+      coverageDisposition: "BLOCKED",
+      execution: "automated",
+      safety: "read_only",
+    },
+    {
+      id: UNVERIFIED_TEST_ID,
+      kind: "automated_test",
+      provenance: "source",
+      coverageDisposition: "UNVERIFIED",
+      execution: "automated",
+      safety: "read_only",
+    },
+    {
+      id: NOT_DEPLOYED_TEST_ID,
+      kind: "automated_test",
+      provenance: "source_and_runtime",
+      coverageDisposition: "NOT_DEPLOYED",
+      execution: "automated",
+      safety: "read_only",
+    },
+    {
+      id: MANUAL_TEST_ID,
+      kind: "manual_test",
+      provenance: "runtime",
+      coverageDisposition: "MANUAL",
+    },
+    {
+      id: MOBILE_TEST_ID,
+      kind: "manual_test",
+      provenance: "runtime",
+      coverageDisposition: "MANUAL",
+      manualTier: "mobile_safety",
+    },
+  ];
+  const verifies = [
+    SAFE_TEST_ID,
+    UNSAFE_TEST_ID,
+    BLOCKED_TEST_ID,
+    UNVERIFIED_TEST_ID,
+    NOT_DEPLOYED_TEST_ID,
+    MANUAL_TEST_ID,
+    MOBILE_TEST_ID,
+  ].map((source) => ({ source, kind: "verifies", target: ROUTE_ID }));
+  return {
+    productId: "nuanu-app",
+    schemaVersion: "1.0.0",
+    nodes,
+    edges: [
+      { source: sourceId, kind: "implements", target: ROUTE_ID },
+      ...verifies,
+    ],
+    unresolved: [],
+  };
+}
+
+function mappingEntry(catalog, metricId = "route-health", overrides = {}) {
+  return {
+    mappingId: `napp-telemetry-map-v1:${metricId}`,
+    metricId,
+    disposition: "observe_only",
+    kind: "observed",
+    priority: "informational",
+    targetNodeIds: [ROUTE_ID],
+    reviewedAt: REVIEWED_AT,
+    reviewEvidenceDigest: REVIEW_DIGEST,
+    ...overrides,
+  };
+}
+
+function mappingDocument(catalog, entries) {
+  return {
+    version: 1,
+    productId: "nuanu-app",
+    catalogDigest: catalog.catalogDigest,
+    entries,
+  };
+}
+
+function futureSelect(catalog, metricId = "route-health", overrides = {}) {
+  return mappingEntry(catalog, metricId, {
+    disposition: "select",
+    kind: "regression",
+    priority: "elevated",
+    reviewEvidenceDigest: "e".repeat(64),
+    ...overrides,
+  });
+}
+
+function build({ catalog, entries, graph = graphFixture(), accessLock = ACCESS_LOCK }) {
+  return buildTelemetrySignals({
+    mappings: mappingDocument(catalog, entries),
+    graph,
+    catalog,
+    accessLock,
+  });
+}
+
+function emptyImpact() {
+  return {
+    mode: "source_diff",
+    changedFiles: [],
+    affectedNodeIds: [],
+    unmappedFiles: [],
+    paths: [],
+    sourceImpact: "UNVERIFIED",
+  };
+}
+
+test("baseline metrics default to observe_only informational signals", () => {
+  const graph = graphFixture();
+  const catalog = catalogFrom([metricCandidate()]);
+  const mappings = mappingDocument(catalog, [mappingEntry(catalog)]);
+
+  assert.deepEqual(
+    validateTelemetryMappings({ mappings, graph, catalog, accessLock: ACCESS_LOCK }),
+    { ok: true, errors: [] },
+  );
+  const [signal] = buildTelemetrySignals({ mappings, graph, catalog, accessLock: ACCESS_LOCK });
+  assert.equal(
+    signal.id,
+    "napp-telemetry-v1-221f05f73d9e84deba59e59064b74fbe4d0ee03689e869a5d77d0f14f8c83d7d",
+  );
+  assert.equal(signal.disposition, "observe_only");
+  assert.equal(signal.kind, "observed");
+  assert.equal(signal.priority, "informational");
+  const plan = buildTestPlan({
+    graph,
+    impact: emptyImpact(),
+    runnableTestIds: new Set([SAFE_TEST_ID]),
+    telemetrySignals: [signal],
+  });
+  assert.deepEqual(plan.selectedAutomated, []);
+  assert.equal(plan.fallbackApplied, false);
+  assert.throws(() => build({
+    catalog,
+    graph,
+    entries: [mappingEntry(catalog, "route-health", { disposition: "select" })],
+  }));
+});
+
+test("mapped select targets only existing runtime observed product nodes", () => {
+  const catalog = catalogFrom([metricCandidate()]);
+  const graph = graphFixture();
+  assert.equal(build({ catalog, entries: [futureSelect(catalog)] })[0].disposition, "select");
+
+  for (const targetNodeIds of [
+    [SOURCE_ONLY_ID],
+    ["nuanu-app:route:missing"],
+    [graph.nodes[0].id],
+    [BLOCKED_TEST_ID],
+    [NOT_DEPLOYED_TEST_ID],
+    [MANUAL_TEST_ID],
+  ]) {
+    assert.throws(() => build({
+      catalog,
+      graph,
+      entries: [futureSelect(catalog, "route-health", { targetNodeIds })],
+    }));
+  }
+  assert.throws(() => build({
+    catalog,
+    graph,
+    entries: [futureSelect(catalog, "route-health", { targetNodeIds: [ROUTE_ID, SOURCE_ONLY_ID] })],
+  }));
+});
+
+test("nullable mapping is represented as mappingId null with empty targets", () => {
+  const catalog = catalogFrom([metricCandidate()]);
+  const [signal] = build({
+    catalog,
+    entries: [mappingEntry(catalog, "route-health", { mappingId: null, targetNodeIds: [] })],
+  });
+  assert.equal(signal.mappingId, null);
+  assert.deepEqual(signal.targetNodeIds, []);
+  assert.throws(() => build({
+    catalog,
+    entries: [mappingEntry(catalog, "route-health", { mappingId: null })],
+  }));
+});
+
+test("missing instrumentation access and sample dispositions never select", () => {
+  const cases = [
+    {
+      candidate: metricCandidate("route-health", {
+        queryHash: null,
+        status: "NOT_INSTRUMENTED",
+        bucketEndedAt: null,
+        aggregate: null,
+        limitations: ["EVENT_NOT_PROVEN"],
+      }),
+      expected: "blocked",
+    },
+    {
+      candidate: metricCandidate("route-health", {
+        queryHash: null,
+        status: "BLOCKED",
+        bucketEndedAt: null,
+        aggregate: null,
+        limitations: ["ACCESS_BLOCKED"],
+      }),
+      expected: "blocked",
+    },
+    {
+      candidate: p75Candidate({
+        queryHash: ACCESS_LOCK.approvedQueryHashes["web-vitals-lcp-p75"].primary,
+        p75Pairing: null,
+        status: "UNAVAILABLE",
+        bucketEndedAt: null,
+        aggregate: null,
+        limitations: ["P75_COUNT_COMPANION_UNAVAILABLE"],
+      }),
+      expected: "blocked",
+    },
+    {
+      candidate: p75Candidate({
+        aggregate: { sampleSize: 19, count: null, rate: null, p75: 2100.5 },
+      }),
+      expected: "suppressed",
+    },
+  ];
+
+  for (const { candidate, expected } of cases) {
+    const catalog = catalogFrom([candidate]);
+    const [signal] = build({ catalog, entries: [futureSelect(catalog, candidate.metricId)] });
+    assert.equal(signal.disposition, expected);
+    const plan = buildTestPlan({
+      graph: graphFixture(),
+      impact: emptyImpact(),
+      runnableTestIds: new Set([SAFE_TEST_ID]),
+      telemetrySignals: [signal],
+    });
+    assert.deepEqual(plan.selectedAutomated, []);
+  }
+});
+
+test("missing app.nuanu.com host scope or structured query proof never selects", () => {
+  const hostBlocked = metricCandidate("route-health", {
+    queryHash: null,
+    status: "BLOCKED",
+    bucketEndedAt: null,
+    aggregate: null,
+    limitations: ["APP_HOST_SCOPE_BLOCKED"],
+  });
+  let catalog = catalogFrom([hostBlocked]);
+  assert.equal(build({ catalog, entries: [futureSelect(catalog)] })[0].disposition, "blocked");
+
+  const mismatchedLock = clone(ACCESS_LOCK);
+  mismatchedLock.approvedQueryHashes["route-health"].primary = "e".repeat(64);
+  catalog = catalogFrom([metricCandidate()], mismatchedLock);
+  assert.equal(build({
+    catalog,
+    accessLock: mismatchedLock,
+    entries: [futureSelect(catalog)],
+  })[0].disposition, "blocked");
+
+  const staleBucket = metricCandidate("route-health", { bucketEndedAt: "2026-08-25T23:59:00.000Z" });
+  catalog = catalogFrom([staleBucket]);
+  assert.equal(build({ catalog, entries: [futureSelect(catalog)] })[0].disposition, "blocked");
+});
+
+test("missing scoped transport and blocked HTTP status never select", () => {
+  const missingTransportLock = clone(ACCESS_LOCK);
+  missingTransportLock.effectiveCapabilities.query.scopedQueryCredential = "missing";
+  let catalog = catalogFrom([metricCandidate()], missingTransportLock);
+  assert.equal(build({
+    catalog,
+    accessLock: missingTransportLock,
+    entries: [futureSelect(catalog)],
+  })[0].disposition, "blocked");
+
+  const httpBlocked = metricCandidate("route-health", {
+    status: "BLOCKED",
+    bucketEndedAt: null,
+    aggregate: null,
+    limitations: ["HTTP_AUTH_BLOCKED"],
+  });
+  catalog = catalogFrom([httpBlocked]);
+  assert.equal(build({ catalog, entries: [futureSelect(catalog)] })[0].disposition, "blocked");
+});
+
+test("unavailable p75 with null pairing and primary hash never selects", () => {
+  const candidate = p75Candidate({
+    p75Pairing: null,
+    status: "UNAVAILABLE",
+    bucketEndedAt: null,
+    aggregate: null,
+    limitations: ["P75_COUNT_PAIR_MISMATCH"],
+  });
+  const catalog = catalogFrom([candidate]);
+  const [signal] = build({
+    catalog,
+    entries: [futureSelect(catalog, "web-vitals-lcp-p75")],
+  });
+  assert.equal(signal.disposition, "blocked");
+  assert.equal(catalog.metrics[0].queryHash, ACCESS_LOCK.approvedQueryHashes["web-vitals-lcp-p75"].primary);
+  assert.equal(catalog.metrics[0].p75Pairing, null);
+});
+
+test("available p75 with invalid structural pairing rejects the catalog", () => {
+  const catalog = catalogFrom([p75Candidate()]);
+  const forged = clone(catalog);
+  forged.metrics[0].p75Pairing.pairDigest = "f".repeat(64);
+  const { catalogDigest: _discarded, ...content } = forged;
+  forged.catalogDigest = digestJson(content);
+  assert.throws(() => build({
+    catalog: forged,
+    entries: [futureSelect(forged, "web-vitals-lcp-p75")],
+  }));
+});
+
+test("a reviewed mapped signal only adds runnable read-only automated tests", () => {
+  const graph = graphFixture();
+  const catalog = catalogFrom([metricCandidate()]);
+  const signals = build({ catalog, graph, entries: [futureSelect(catalog)] });
+  const plan = buildTestPlan({
+    graph,
+    impact: emptyImpact(),
+    runnableTestIds: new Set([
+      SAFE_TEST_ID,
+      UNSAFE_TEST_ID,
+      BLOCKED_TEST_ID,
+      UNVERIFIED_TEST_ID,
+      NOT_DEPLOYED_TEST_ID,
+    ]),
+    telemetrySignals: signals,
+  });
+
+  assert.deepEqual(plan.selectedAutomated.map(({ id }) => id), [SAFE_TEST_ID]);
+  assert.deepEqual(plan.manual, []);
+  assert.equal(plan.selectedAutomated[0].reasons[0].code, "telemetry_signal");
+});
+
+test("an elevated unmapped regression expands only the safe fallback", () => {
+  const graph = graphFixture();
+  const catalog = catalogFrom([metricCandidate()]);
+  const signals = build({
+    catalog,
+    graph,
+    entries: [futureSelect(catalog, "route-health", { mappingId: null, targetNodeIds: [] })],
+  });
+  const plan = buildTestPlan({
+    graph,
+    impact: emptyImpact(),
+    runnableTestIds: new Set([
+      SAFE_TEST_ID,
+      UNSAFE_TEST_ID,
+      BLOCKED_TEST_ID,
+      UNVERIFIED_TEST_ID,
+      NOT_DEPLOYED_TEST_ID,
+    ]),
+    telemetrySignals: signals,
+  });
+
+  assert.equal(plan.fallbackApplied, true);
+  assert.deepEqual(plan.selectedAutomated.map(({ id }) => id), [SAFE_TEST_ID]);
+  assert.deepEqual(plan.manual.map(({ id }) => id), [MOBILE_TEST_ID]);
+  assert.equal(plan.selectedAutomated[0].reasons[0].code, "full_fallback");
+});
+
+test("deterministic reasons survive alongside telemetry reasons", () => {
+  const graph = graphFixture();
+  const catalog = catalogFrom([metricCandidate()]);
+  const impact = planImpact({ graph, changedFiles: ["apps/nuanu-web/src/app/page.tsx"] });
+  const deterministic = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([SAFE_TEST_ID]),
+  });
+  const withTelemetry = buildTestPlan({
+    graph,
+    impact,
+    runnableTestIds: new Set([SAFE_TEST_ID]),
+    telemetrySignals: build({ catalog, graph, entries: [futureSelect(catalog)] }),
+  });
+
+  assert.equal(deterministic.selectedAutomated[0].reason, "impact");
+  assert.equal(withTelemetry.selectedAutomated[0].reason, "impact");
+  assert.deepEqual(
+    withTelemetry.selectedAutomated[0].reasons.map(({ code }) => code),
+    ["impact", "telemetry_signal"],
+  );
+  const withoutTelemetryReason = clone(withTelemetry.selectedAutomated[0]);
+  withoutTelemetryReason.reasons = withoutTelemetryReason.reasons.filter(({ code }) => code !== "telemetry_signal");
+  assert.deepEqual(withoutTelemetryReason.reasons, [{
+    code: "impact",
+    path: deterministic.selectedAutomated[0].path,
+  }]);
+});
+
+test("telemetry never promotes blocked unverified manual unsafe or not deployed work", () => {
+  const graph = graphFixture();
+  const catalog = catalogFrom([metricCandidate()]);
+  const plan = buildTestPlan({
+    graph,
+    impact: emptyImpact(),
+    runnableTestIds: new Set([
+      SAFE_TEST_ID,
+      UNSAFE_TEST_ID,
+      BLOCKED_TEST_ID,
+      UNVERIFIED_TEST_ID,
+      NOT_DEPLOYED_TEST_ID,
+    ]),
+    telemetrySignals: build({ catalog, graph, entries: [futureSelect(catalog)] }),
+  });
+  const selectedIds = new Set(plan.selectedAutomated.map(({ id }) => id));
+  assert.equal(selectedIds.has(SAFE_TEST_ID), true);
+  for (const id of [UNSAFE_TEST_ID, BLOCKED_TEST_ID, UNVERIFIED_TEST_ID, NOT_DEPLOYED_TEST_ID, MANUAL_TEST_ID, MOBILE_TEST_ID]) {
+    assert.equal(selectedIds.has(id), false);
+  }
+  assert.deepEqual(plan.unverified, [
+    { id: UNVERIFIED_TEST_ID, disposition: "UNVERIFIED" },
+    { id: SOURCE_ONLY_ID, disposition: "UNVERIFIED" },
+  ]);
+  assert.deepEqual(plan.notDeployed, [{ id: NOT_DEPLOYED_TEST_ID, disposition: "NOT_DEPLOYED" }]);
+});
+
+test("telemetry catalog mismatch rejects every signal", () => {
+  const catalog = catalogFrom([
+    metricCandidate("route-health"),
+    metricCandidate("funnel-discovery"),
+  ]);
+  const route = mappingEntry(catalog, "route-health");
+  assert.throws(() => buildTelemetrySignals({
+    mappings: { ...mappingDocument(catalog, [route]), catalogDigest: "f".repeat(64) },
+    graph: graphFixture(),
+    catalog,
+    accessLock: ACCESS_LOCK,
+  }));
+  assert.throws(() => build({ catalog, entries: [route] }));
+  assert.throws(() => build({
+    catalog,
+    entries: [route, { ...route, mappingId: "napp-telemetry-map-v1:duplicate" }],
+  }));
+});
+
+test("catalog accessLockDigest must match the exact validated access lock", () => {
+  const catalog = catalogFrom([metricCandidate()]);
+  const differentValidLock = clone(ACCESS_LOCK);
+  differentValidLock.organizationName = "Different Synthetic Organization";
+  assert.throws(() => build({
+    catalog,
+    accessLock: differentValidLock,
+    entries: [mappingEntry(catalog)],
+  }));
+});
+
+test("signal IDs and output ordering are deterministic and contain no metric values", () => {
+  const candidates = [
+    metricCandidate("route-health"),
+    metricCandidate("funnel-discovery", {
+      aggregate: { sampleSize: 321, count: 123, rate: null, p75: null },
+    }),
+  ];
+  const catalog = catalogFrom(candidates);
+  const entries = [
+    mappingEntry(catalog, "route-health"),
+    mappingEntry(catalog, "funnel-discovery", {
+      mappingId: "napp-telemetry-map-v1:funnel-discovery",
+      targetNodeIds: [ROUTE_ID],
+    }),
+  ];
+  const before = clone(entries);
+  const left = build({ catalog, entries });
+  const right = build({ catalog, entries: [...entries].reverse() });
+
+  assert.deepEqual(left, right);
+  assert.deepEqual(entries, before);
+  assert.ok(left.every((signal, index) =>
+    index === 0 || left[index - 1].id < signal.id));
+  assert.ok(left.every((signal) => /^napp-telemetry-v1-[0-9a-f]{64}$/.test(signal.id)));
+  assert.deepEqual(Object.keys(left[0]), [
+    "id",
+    "productId",
+    "catalogDigest",
+    "mappingId",
+    "metricId",
+    "disposition",
+    "kind",
+    "priority",
+    "targetNodeIds",
+  ]);
+  const serialized = JSON.stringify(left);
+  assert.equal(serialized.includes(CAPTURED_AT), false);
+  assert.equal(serialized.includes(ACCESS_LOCK.approvedQueryHashes["route-health"].primary), false);
+  assert.equal(serialized.includes("reviewEvidenceDigest"), false);
+  assert.equal(serialized.includes("aggregate"), false);
+  assert.equal(serialized.includes("queryHash"), false);
+});

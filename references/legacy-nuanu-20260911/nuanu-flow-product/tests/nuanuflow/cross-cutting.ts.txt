@@ -1,0 +1,319 @@
+import type { APIResponse } from '@playwright/test';
+
+export const sensitiveErrorPattern =
+  /(traceback|node_modules\/|select\s+.+\s+from|bearer\s+[a-z0-9._-]+|BEGIN [A-Z ]+PRIVATE KEY|https?:\/\/(?:localhost|[^/]*\.internal))/i;
+
+export type SensitiveErrorCategory =
+  | 'traceback'
+  | 'source-path'
+  | 'sql'
+  | 'bearer-token'
+  | 'private-key'
+  | 'internal-host';
+
+export type ErrorBodyInspection = {
+  byteLength: number;
+  inspectedBytes: number;
+  truncated: boolean;
+  leakCategory: SensitiveErrorCategory | undefined;
+};
+
+const classifySensitiveError = (
+  body: string,
+): SensitiveErrorCategory | undefined => {
+  if (!sensitiveErrorPattern.test(body)) return undefined;
+  if (/traceback/i.test(body)) return 'traceback';
+  if (/node_modules\//i.test(body)) return 'source-path';
+  if (/select\s+.+\s+from/i.test(body)) return 'sql';
+  if (/bearer\s+[a-z0-9._-]+/i.test(body)) return 'bearer-token';
+  if (/BEGIN [A-Z ]+PRIVATE KEY/i.test(body)) return 'private-key';
+  return 'internal-host';
+};
+
+export const inspectBoundedErrorBody = (
+  body: string | Uint8Array,
+  maxBytes: number,
+): ErrorBodyInspection => {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+    throw new Error('Error-body inspection limit must be a positive integer.');
+  }
+  const bytes = typeof body === 'string' ? Buffer.from(body) : Buffer.from(body);
+  const inspectedBytes = Math.min(bytes.byteLength, maxBytes);
+  const inspectedText = bytes.subarray(0, inspectedBytes).toString('utf8');
+  return {
+    byteLength: bytes.byteLength,
+    inspectedBytes,
+    truncated: inspectedBytes < bytes.byteLength,
+    leakCategory: classifySensitiveError(inspectedText),
+  };
+};
+
+export type SafeApiErrorEvidence = {
+  declaredBodyBytes: number | null;
+  bodyBytes: number | null;
+  bodyReadFailed: boolean;
+  contentType: 'json' | 'html' | 'other' | 'missing';
+  truncated: boolean | null;
+  leakCategory: SensitiveErrorCategory | null;
+};
+
+export const classifyResponseContentType = (
+  rawContentType: string | undefined,
+): SafeApiErrorEvidence['contentType'] => {
+  if (rawContentType === undefined) return 'missing';
+  const mediaType = rawContentType.split(';')[0]?.trim().toLowerCase();
+  if (mediaType === 'application/json') return 'json';
+  if (mediaType === 'text/html') return 'html';
+  return 'other';
+};
+
+export const readJsonWithoutRawError = async (response: {
+  json(): Promise<unknown>;
+}): Promise<unknown> => {
+  try {
+    return await response.json();
+  } catch {
+    throw new Error('API response was not valid JSON.');
+  }
+};
+
+export const collectSafeApiErrorEvidence = async (
+  response: APIResponse,
+  maxBytes: number,
+): Promise<SafeApiErrorEvidence> => {
+  const rawLength = response.headers()['content-length'];
+  const parsedLength = rawLength !== undefined && /^\d+$/.test(rawLength)
+    ? Number(rawLength)
+    : null;
+  const declaredBodyBytes =
+    parsedLength !== null && Number.isSafeInteger(parsedLength)
+      ? parsedLength
+      : null;
+  const contentType = classifyResponseContentType(
+    response.headers()['content-type'],
+  );
+  let inspection: ErrorBodyInspection | null = null;
+  let bodyReadFailed = false;
+
+  if (declaredBodyBytes !== null && declaredBodyBytes <= maxBytes) {
+    try {
+      inspection = inspectBoundedErrorBody(await response.body(), maxBytes);
+    } catch {
+      bodyReadFailed = true;
+    }
+  }
+
+  return {
+    declaredBodyBytes,
+    bodyBytes: inspection?.byteLength ?? null,
+    bodyReadFailed,
+    contentType,
+    truncated: inspection?.truncated ?? null,
+    leakCategory: inspection?.leakCategory ?? null,
+  };
+};
+
+export const validateSafeApiErrorEvidence = (
+  evidence: SafeApiErrorEvidence,
+  maxBytes: number,
+): string[] => {
+  const issues: string[] = [];
+  if (evidence.declaredBodyBytes === null) {
+    issues.push('declared-body:unavailable');
+  } else if (evidence.declaredBodyBytes > maxBytes) {
+    issues.push('declared-body:oversized');
+  }
+  if (evidence.bodyBytes === null) {
+    issues.push('body:unavailable');
+  } else if (evidence.bodyBytes === 0) {
+    issues.push('body:empty');
+  } else if (evidence.bodyBytes > maxBytes) {
+    issues.push('body:oversized');
+  }
+  if (evidence.bodyReadFailed) issues.push('body:read-failed');
+  if (evidence.contentType !== 'json') {
+    issues.push('content-type:not-json');
+  }
+  if (evidence.truncated === null) {
+    issues.push('inspection:unavailable');
+  } else if (evidence.truncated) {
+    issues.push('inspection:truncated');
+  }
+  if (evidence.leakCategory !== null) {
+    issues.push(`body:leak-${evidence.leakCategory}`);
+  }
+  return issues;
+};
+
+export const redactUrlQuery = (rawUrl: string): string => {
+  const url = new URL(rawUrl);
+  const query = [...url.searchParams.keys()]
+    .sort()
+    .map((key) => `${encodeURIComponent(key)}=<redacted>`)
+    .join('&');
+  return `${url.pathname}${query ? `?${query}` : ''}`;
+};
+
+const SAFE_HTTP_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+export const isMutatingFirstPartyRequest = (
+  method: string,
+  rawUrl: string,
+): boolean => {
+  const url = new URL(rawUrl);
+  return (
+    url.origin === 'https://flow.nuanu.com' &&
+    !SAFE_HTTP_METHODS.has(method.toUpperCase())
+  );
+};
+
+export type AxeFingerprint = {
+  ruleId: string;
+  impact: string;
+  target: string;
+};
+
+export type VerifiedAxeFingerprint = AxeFingerprint & {
+  ticket: 'NUANU-15';
+  routeName: string;
+  control: string;
+};
+
+const axeFingerprint = (finding: AxeFingerprint) =>
+  `${finding.ruleId}|${finding.impact}|${finding.target}`;
+
+export const partitionVerifiedAxeFingerprints = (
+  routeName: string,
+  findings: readonly AxeFingerprint[],
+  verified: readonly VerifiedAxeFingerprint[],
+) => {
+  const known: string[] = [];
+  const unexpected: string[] = [];
+  const verifiedByKey = new Map<string, VerifiedAxeFingerprint>();
+  for (const candidate of verified) {
+    const key = `${candidate.routeName}|${axeFingerprint(candidate)}`;
+    if (verifiedByKey.has(key)) {
+      throw new Error(`Duplicate verified axe fingerprint: ${key}`);
+    }
+    verifiedByKey.set(key, candidate);
+  }
+  const consumed = new Set<string>();
+  for (const finding of findings) {
+    const fingerprint = axeFingerprint(finding);
+    const key = `${routeName}|${fingerprint}`;
+    const exact = verifiedByKey.get(key);
+    if (exact && !consumed.has(key)) {
+      consumed.add(key);
+      known.push(
+        `${exact.ticket}|${exact.routeName}|${exact.control}|${fingerprint}`,
+      );
+    } else {
+      unexpected.push(fingerprint);
+    }
+  }
+  return { known, unexpected };
+};
+
+export type PerformanceMetrics = {
+  navigationDurationMs: number;
+  semanticReadyDurationMs: number;
+  firstPartyResourceCount: number;
+  firstPartyTransferBytes: number;
+  firstPartyEncodedBytes: number;
+  failedCriticalFirstPartyResources: number;
+  layoutShiftSupported: boolean;
+  cumulativeLayoutShift: number | null;
+  largestContentfulPaintSupported: boolean;
+  largestContentfulPaintMs: number | null;
+  longTaskSupported: boolean;
+  longTaskCount: number | null;
+  longTaskTotalDurationMs: number | null;
+  longTaskMaxDurationMs: number | null;
+};
+
+const finiteNonnegativeIssue = (name: string, value: number): string | undefined => {
+  if (!Number.isFinite(value)) return `${name}:not-finite`;
+  if (value < 0) return `${name}:negative`;
+  return undefined;
+};
+
+const validateOptionalMetric = (
+  issues: string[],
+  supported: boolean,
+  name: string,
+  value: number | null,
+) => {
+  if (!supported) {
+    if (value !== null) issues.push(`${name}:unsupported-value`);
+    return;
+  }
+  if (value === null) {
+    issues.push(`${name}:missing-supported-value`);
+    return;
+  }
+  const issue = finiteNonnegativeIssue(name, value);
+  if (issue) issues.push(issue);
+};
+
+export const validatePerformanceMetrics = (
+  metrics: PerformanceMetrics,
+): string[] => {
+  const issues: string[] = [];
+  for (const [name, value] of [
+    ['navigationDurationMs', metrics.navigationDurationMs],
+    ['semanticReadyDurationMs', metrics.semanticReadyDurationMs],
+    ['firstPartyResourceCount', metrics.firstPartyResourceCount],
+    ['firstPartyTransferBytes', metrics.firstPartyTransferBytes],
+    ['firstPartyEncodedBytes', metrics.firstPartyEncodedBytes],
+    [
+      'failedCriticalFirstPartyResources',
+      metrics.failedCriticalFirstPartyResources,
+    ],
+  ] as const) {
+    const issue = finiteNonnegativeIssue(name, value);
+    if (issue) issues.push(issue);
+  }
+  if (metrics.failedCriticalFirstPartyResources > 0) {
+    issues.push('failedCriticalFirstPartyResources:nonzero');
+  }
+
+  validateOptionalMetric(
+    issues,
+    metrics.layoutShiftSupported,
+    'cumulativeLayoutShift',
+    metrics.cumulativeLayoutShift,
+  );
+  validateOptionalMetric(
+    issues,
+    metrics.largestContentfulPaintSupported,
+    'largestContentfulPaintMs',
+    metrics.largestContentfulPaintMs,
+  );
+  validateOptionalMetric(
+    issues,
+    metrics.longTaskSupported,
+    'longTaskCount',
+    metrics.longTaskCount,
+  );
+  validateOptionalMetric(
+    issues,
+    metrics.longTaskSupported,
+    'longTaskTotalDurationMs',
+    metrics.longTaskTotalDurationMs,
+  );
+  validateOptionalMetric(
+    issues,
+    metrics.longTaskSupported,
+    'longTaskMaxDurationMs',
+    metrics.longTaskMaxDurationMs,
+  );
+  if (
+    metrics.longTaskSupported &&
+    metrics.longTaskMaxDurationMs !== null &&
+    metrics.longTaskTotalDurationMs !== null &&
+    metrics.longTaskMaxDurationMs > metrics.longTaskTotalDurationMs
+  ) {
+    issues.push('longTaskMaxDurationMs:exceeds-total');
+  }
+  return issues;
+};

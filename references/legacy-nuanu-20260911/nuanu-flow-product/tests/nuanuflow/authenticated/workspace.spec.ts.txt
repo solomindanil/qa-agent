@@ -1,0 +1,349 @@
+import {
+  type ConsoleMessage,
+  type Locator,
+  type Page,
+  type Response,
+  type TestInfo,
+} from '@playwright/test';
+import { test, expect } from '../fixtures/authenticated.fixture';
+import { AUTHENTICATED_ROUTES, YOUR_WORK_PATH } from '../routes';
+import {
+  partitionRouteObservations,
+  safeConsoleEvidence,
+  type ConsoleObservation,
+  type HttpObservation,
+} from '../route-observations';
+
+const homeRoute = () => {
+  const route = AUTHENTICATED_ROUTES[0];
+  if (!route) throw new Error('Authenticated route inventory is missing Home.');
+  return route;
+};
+
+const routeFailures = (page: Page, testInfo: TestInfo, routePath: string) => {
+  const failures: HttpObservation[] = [];
+  const consoleErrors: ConsoleObservation[] = [];
+  const listener = (response: { url(): string; status(): number }) => {
+    const url = response.url();
+    if (url.startsWith('https://flow.nuanu.com/') && response.status() >= 400) {
+      failures.push({ status: response.status(), url });
+    }
+  };
+  const consoleListener = (message: ConsoleMessage) => {
+    if (message.type() !== 'error') return;
+    const location = message.location();
+    consoleErrors.push({
+      message: message.text(),
+      source: location.url,
+      line: location.lineNumber,
+      column: location.columnNumber,
+    });
+  };
+  page.on('response', listener);
+  page.on('console', consoleListener);
+  return () => {
+    page.off('response', listener);
+    page.off('console', consoleListener);
+    const observations = partitionRouteObservations(
+      routePath,
+      failures,
+      consoleErrors,
+    );
+    if (observations.knownHttp.length > 0) {
+      testInfo.annotations.push({
+        type: 'Task 13 known first-party failure',
+        description: observations.knownHttp.join('\n'),
+      });
+    }
+    if (observations.knownConsole.length > 0) {
+      testInfo.annotations.push({
+        type: 'Task 13 hydration candidate',
+        description: observations.knownConsole.join('\n'),
+      });
+    }
+    return observations;
+  };
+};
+
+const renderedWidth = (locator: Locator) =>
+  locator.evaluate((element) => Math.round(element.getBoundingClientRect().width));
+
+const assertHomeHeadings = async (page: Page) => {
+  for (const heading of [
+    'Create a project',
+    'Invite your team',
+    'Set up your workspace.',
+    'Make Nuanu Flow yours.',
+  ]) {
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+  }
+};
+
+test.describe('Nuanu Flow authenticated workspace shell', () => {
+  test('renders each verified sandbox route with its observed readiness contract', async ({
+    page,
+    assertSandbox,
+    workspacePage,
+  }, testInfo) => {
+    expect(AUTHENTICATED_ROUTES).toHaveLength(18);
+
+    for (const route of AUTHENTICATED_ROUTES) {
+      const stopObserving = routeFailures(page, testInfo, route.path);
+      try {
+        await workspacePage.goto(route.path);
+        await assertSandbox();
+        expect(new URL(page.url()).pathname).toBe(route.path);
+        await expect(workspacePage.routeReady(route)).toBeVisible({
+          timeout: 15_000,
+        });
+      } finally {
+        const observations = stopObserving();
+        expect(observations.unexpectedHttp).toEqual([]);
+        expect(observations.unexpectedConsole).toEqual([]);
+      }
+    }
+  });
+
+  test('diagnoses Home hydration at the semantic readiness boundary', async ({
+    page,
+    assertSandbox,
+    workspacePage,
+  }, testInfo) => {
+    const home = homeRoute();
+    const consoleErrors: ConsoleObservation[] = [];
+    const failures: HttpObservation[] = [];
+    const consoleListener = (message: ConsoleMessage) => {
+      if (message.type() !== 'error') return;
+      const location = message.location();
+      consoleErrors.push({
+        message: message.text(),
+        source: location.url,
+        line: location.lineNumber,
+        column: location.columnNumber,
+      });
+    };
+    const responseListener = (response: Response) => {
+      if (
+        response.url().startsWith('https://flow.nuanu.com/') &&
+        response.status() >= 400
+      ) {
+        failures.push({ status: response.status(), url: response.url() });
+      }
+    };
+    page.on('console', consoleListener);
+    page.on('response', responseListener);
+    const startedAt = Date.now();
+    let navigationStatus: number | null = null;
+    let usefulUiRendered = false;
+    let operationalError: unknown;
+    try {
+      const navigation = await page.goto(home.path, {
+        waitUntil: 'domcontentloaded',
+      });
+      navigationStatus = navigation?.status() ?? null;
+      await expect(workspacePage.routeReady(home)).toBeVisible({ timeout: 15_000 });
+      await assertSandbox();
+      await assertHomeHeadings(page);
+      usefulUiRendered = true;
+    } catch (error) {
+      operationalError = error;
+    } finally {
+      page.off('console', consoleListener);
+      page.off('response', responseListener);
+    }
+
+    const observations = partitionRouteObservations(
+      home.path,
+      failures,
+      consoleErrors,
+    );
+    const safeEvidence = consoleErrors.map((entry) =>
+      safeConsoleEvidence(entry, home.path),
+    );
+    testInfo.annotations.push({
+      type: observations.knownConsole.length + observations.unexpectedConsole.length > 0
+        ? 'Task 13 hydration candidate'
+        : 'route-scoped hydration diagnostic',
+      description: JSON.stringify({
+        route: home.path,
+        navigationStatus,
+        semanticReadyDurationMs: Date.now() - startedAt,
+        usefulUiRendered,
+        knownConsoleCount: observations.knownConsole.length,
+        unexpectedConsoleCount: observations.unexpectedConsole.length,
+        evidence: safeEvidence,
+      }),
+    });
+    if (operationalError !== undefined) throw operationalError;
+    expect(observations.unexpectedHttp).toEqual([]);
+    expect(observations.unexpectedConsole).toEqual([]);
+  });
+
+  test('keeps Home stable across reload and browser history', async ({
+    page,
+    assertSandbox,
+    workspacePage,
+  }) => {
+    const home = homeRoute();
+    const drafts = AUTHENTICATED_ROUTES[1];
+    if (!drafts) throw new Error('Authenticated route inventory is missing Drafts.');
+
+    await workspacePage.goto(home.path);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    expect(new URL(page.url()).pathname).toBe(home.path);
+    await expect(workspacePage.routeReady(home)).toBeVisible({ timeout: 15_000 });
+
+    await workspacePage.goto(drafts.path);
+    await page.goBack({ waitUntil: 'domcontentloaded' });
+    expect(new URL(page.url()).pathname).toBe(home.path);
+    await page.goForward({ waitUntil: 'domcontentloaded' });
+    expect(new URL(page.url()).pathname).toBe(drafts.path);
+    await assertSandbox();
+  });
+
+  test('renders the authenticated unknown-route 404 outside the workspace shell', async ({
+    page,
+  }) => {
+    await page.goto('/nf-qa-sandbox/qa-e2e-unknown-route/', {
+      waitUntil: 'domcontentloaded',
+    });
+    expect(new URL(page.url()).pathname).toBe('/nf-qa-sandbox/qa-e2e-unknown-route/');
+    await expect(page).toHaveTitle('404 - Page Not Found');
+    await expect(page.getByRole('heading', { name: 'Oops! Something went wrong.' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Go to Home' })).toBeVisible();
+  });
+
+  test('keeps an invalid-workspace screen isolated from the sandbox shell', async ({
+    page,
+    workspacePage,
+  }) => {
+    await page.goto('/qa-e2e-invalid-workspace/', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: 'Workspace not found' })).toBeVisible();
+    await expect(workspacePage.workspaceSwitcher).toBeHidden();
+    await expect(workspacePage.workspaceIdentity).toBeHidden();
+    await expect(workspacePage.mainSidebar).toBeHidden();
+  });
+
+  test('protects the sandbox from a valid alternate-workspace URL', async () => {
+    test.fixme(
+      true,
+      'No authorized alternate-workspace fixture or non-mutating protection contract is available; do not visit a real alternate workspace.',
+    );
+  });
+
+  test('redirects an isolated expired session to the observed anonymous destination', async () => {
+    test.fixme(
+      true,
+      'No approved auth state exists to establish the exact expired-session redirect contract.',
+    );
+  });
+
+  test('collapses and expands the sidebar with the verified keyboard shortcut', async ({
+    page,
+    workspacePage,
+  }) => {
+    await workspacePage.goto(homeRoute().path);
+    const expandedWidth = await renderedWidth(workspacePage.mainSidebar);
+    expect(expandedWidth).toBeGreaterThan(1);
+    await page.keyboard.press('ControlOrMeta+B');
+    await expect
+      .poll(async () =>
+        renderedWidth(workspacePage.mainSidebar),
+      )
+      .toBeLessThanOrEqual(1);
+    await page.keyboard.press('ControlOrMeta+B');
+    await expect
+      .poll(async () =>
+        renderedWidth(workspacePage.mainSidebar),
+      )
+      .toBeGreaterThanOrEqual(expandedWidth);
+  });
+
+  test('opens command search and closes Suggestions with Escape', async ({
+    page,
+    workspacePage,
+  }) => {
+    await workspacePage.goto(homeRoute().path);
+    await workspacePage.commandSearch.click();
+    const suggestions = page.getByRole('listbox', { name: 'Suggestions' });
+    await expect(suggestions).toBeVisible();
+    await workspacePage.commandSearch.press('Escape');
+    await expect(suggestions).toBeHidden();
+  });
+
+  test('opens the sandbox Inbox through the notifications link', async ({
+    page,
+    workspacePage,
+  }) => {
+    await workspacePage.goto(homeRoute().path);
+    await workspacePage.notifications.click();
+    await expect(page).toHaveTitle('NF QA Sandbox - Inbox');
+    expect(await page.getByText('Inbox', { exact: true }).count()).toBeGreaterThan(0);
+  });
+
+  test('keeps the verified Home setup headings after reload', async ({
+    page,
+    workspacePage,
+  }) => {
+    const home = homeRoute();
+    await workspacePage.goto(home.path);
+    await assertHomeHeadings(page);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(workspacePage.routeReady(home)).toBeVisible({ timeout: 15_000 });
+    await assertHomeHeadings(page);
+  });
+
+  test('creates, cancels, and resumes an owned draft only with exact-ID cleanup', async () => {
+    test.fixme(
+      true,
+      'Drafts currently exposes only Work items, Projects, and Objectives tabs; no exact-ID draft creation/cleanup contract is known.',
+    );
+  });
+
+  test('opens and closes verified Your work filters without changing assignments', async ({
+    page,
+    workspacePage,
+  }) => {
+    await workspacePage.goto(YOUR_WORK_PATH);
+    const filterToggle = page.locator('button:has(svg.lucide-list-filter)');
+    await expect(filterToggle).toHaveCount(1);
+    await filterToggle.click();
+    const filters = page.getByRole('listbox');
+    await expect(filters.getByRole('option', { name: 'State Group' })).toBeVisible();
+    await expect(filters.getByRole('option', { name: 'Priority' })).toBeVisible();
+    await filterToggle.click();
+    await expect(filters).toBeHidden();
+  });
+
+  test('links from Your work only to a ledger-owned work item', async () => {
+    test.fixme(
+      true,
+      'Task 4 must first create and register an exact-ID owned work item.',
+    );
+  });
+
+  test('opens and closes AI topics without sending a message or uploading a file', async ({
+    page,
+    workspacePage,
+  }) => {
+    await workspacePage.goto(homeRoute().path);
+    const aiToggle = page.locator('button:has(svg.lucide-message-square)');
+    await expect(aiToggle).toHaveCount(1);
+    const sidebar = page.getByRole('complementary', { name: 'AI Chat sidebar' });
+    await expect.poll(async () => renderedWidth(sidebar)).toBeLessThanOrEqual(1);
+    await aiToggle.click();
+    await expect.poll(async () => renderedWidth(sidebar)).toBeGreaterThanOrEqual(300);
+    await sidebar.getByRole('button', { name: 'View all topics' }).click();
+    await expect(sidebar.getByRole('heading', { name: 'Topics' })).toBeVisible();
+    await expect(sidebar.getByText('No topics yet', { exact: true })).toBeVisible();
+    await sidebar.getByRole('button', { name: 'Close topics drawer' }).click();
+    await sidebar.getByRole('button', { name: 'New topic' }).click();
+    await expect(sidebar.getByPlaceholder('Type a message...')).toHaveValue('');
+    await expect(sidebar.getByRole('button', { name: 'Attach file' })).toBeVisible();
+    await expect(sidebar.getByRole('button', { name: 'Send' })).toHaveCount(0);
+    const close = sidebar.locator('button:has(svg.lucide-x)');
+    await expect(close).toHaveCount(1);
+    await close.click();
+    await expect.poll(async () => renderedWidth(sidebar)).toBeLessThanOrEqual(1);
+  });
+});

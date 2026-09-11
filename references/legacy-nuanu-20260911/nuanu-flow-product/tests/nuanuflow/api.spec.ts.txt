@@ -1,0 +1,39 @@
+import { expect, test } from '@playwright/test';
+import {
+  collectSafeApiErrorEvidence,
+  redactUrlQuery,
+  validateSafeApiErrorEvidence,
+} from './cross-cutting';
+
+const MAX_ERROR_BODY_BYTES = 16_384;
+
+test.describe('Nuanu Flow public API boundaries', () => {
+  test('anonymous users/me read rejects access without redirect, 5xx, or leaks', async ({
+    request,
+  }, testInfo) => {
+    const response = await request.get('/be/api/users/me/', {
+      failOnStatusCode: false,
+      maxRedirects: 0,
+    });
+    const evidence = await collectSafeApiErrorEvidence(
+      response,
+      MAX_ERROR_BODY_BYTES,
+    );
+
+    testInfo.annotations.push({
+      type: 'sanitized anonymous API contract',
+      description: JSON.stringify({
+        status: response.status(),
+        path: redactUrlQuery(response.url()),
+        ...evidence,
+      }),
+    });
+
+    expect([401, 403]).toContain(response.status());
+    expect(response.status()).not.toBe(200);
+    expect(response.status()).toBeLessThan(500);
+    expect(
+      validateSafeApiErrorEvidence(evidence, MAX_ERROR_BODY_BYTES),
+    ).toEqual([]);
+  });
+});

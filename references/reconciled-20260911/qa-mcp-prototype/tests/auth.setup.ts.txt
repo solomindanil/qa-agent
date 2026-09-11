@@ -1,0 +1,16 @@
+import { test as setup, expect } from '@playwright/test';
+import { LoginPage } from './pages/login.page';
+import { env, hasDashboardEnv } from './fixtures/env';
+
+const STORAGE_STATE = 'playwright/.auth/user.json';
+
+setup('authenticate', async ({ page }) => {
+  setup.skip(!hasDashboardEnv, 'STAGING_BASE_URL / TEST_USER_* не заданы в .env — дашборд-тесты пропущены');
+
+  const loginPage = new LoginPage(page);
+  await loginPage.login(env.testUserEmail!, env.testUserPassword!);
+
+  // TODO(product): заменить на надёжный признак залогиненности (URL или элемент)
+  await expect(page).not.toHaveURL(/login/);
+  await page.context().storageState({ path: STORAGE_STATE });
+});

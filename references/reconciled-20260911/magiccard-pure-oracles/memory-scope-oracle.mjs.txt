@@ -1,0 +1,31 @@
+// Pure evaluation of six owned Memory metadata cases. No product calls or generic DLP claim.
+import {isDeepStrictEqual} from 'node:util';
+export const memoryCases=[['missing-scope','list_memory_items',{}],['conflicting-scope','list_memory_items',{allSites:true,url:'https://qa-wave2.example.invalid/form'}],['site-active','list_memory_items',{url:'https://qa-wave2.example.invalid/form',status:'active'}],['site-templates','list_memory_items',{url:'https://qa-wave2.example.invalid/form',includeTemplates:true}],['absent-site','list_memory_items',{url:'https://qa-no-records-640.example.invalid/form',status:'active'}],['exact-item','get_memory_item',{itemId:'5938e72c-9f85-4657-8e71-2ec387820d5e'}]];
+const sha=/^[a-f0-9]{40}$/;const uuid=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
+const forbidden=new Set(['values','value','secret','password','token','handles','pan','cvv','value_handle','providerPayload','provider_payload','rawCard','cardNumber']);
+const fieldPattern=/["'](?:values|value|secret|password|token|handles|pan|cvv|value_handle|providerPayload|provider_payload|rawCard|cardNumber)["']\s*:/;
+export function evaluateMemoryScope(raw,{expectedSha,expectedAgentId,forbiddenTextTokens=[]}={}){
+ const rec=n=>raw[n]?.record??raw[n];const result=n=>rec(n)?.response?.result;const data=n=>result(n)?.structuredContent;
+ const envelope=n=>rec(n)?.httpStatus===200&&rec(n)?.response?.jsonrpc==='2.0'&&rec(n)?.response?.error===undefined&&result(n)&&typeof result(n)==='object'&&Array.isArray(result(n).content);
+ const success=n=>envelope(n)&&result(n).isError!==true&&data(n)&&typeof data(n)==='object'&&!Array.isArray(data(n));
+ const grouped=n=>success(n)&&Array.isArray(data(n).entities)&&data(n).entities.every(e=>e&&typeof e==='object'&&Array.isArray(e.items));
+ const items=n=>grouped(n)?data(n).entities.flatMap(e=>e.items):null;
+ const checks=[];const check=(id,ok)=>checks.push({id,status:ok===true?'PASS':'FAIL'});
+ check('explicit_expected_identity',sha.test(expectedSha??'')&&uuid.test(expectedAgentId??''));
+ check('stable_development_identity',['identity-before','identity-after'].every(n=>success(n)&&data(n).environment==='development'&&data(n).buildId===expectedSha&&['x402PaymentRun','cryptoPaymentRun','browserPaymentRun'].every(k=>data(n)[k]?.selectedAgentId===expectedAgentId)));
+ check('saved_inputs_exact',memoryCases.every(([n,t,i])=>isDeepStrictEqual(raw[n]?.input,i)&&(raw[n]?.toolName===undefined||raw[n]?.toolName===t)));
+ for(const n of ['missing-scope','conflicting-scope']){
+  let issues;try{issues=JSON.parse(result(n)?.content?.filter(c=>c.type==='text').map(c=>c.text).join('\n'));}catch{}
+  check(n,envelope(n)&&result(n).isError===true&&Array.isArray(issues)&&issues.some(i=>i.code==='custom'&&i.message==='Memory list scope requires exactly one of url or allSites.'&&Array.isArray(i.path)&&i.path.length===0));
+ }
+ const active=items('site-active');
+ check('active_site_filter_exact_retained_fixtures',active!==null&&active.length===2&&active.every(i=>i.status==='active'&&i.resource?.key==='qa-wave2.example.invalid')&&['5938e72c-9f85-4657-8e71-2ec387820d5e','5e47b1ec-5c89-46ec-9eaf-e9b38137dee6'].every(id=>active.some(i=>i.id===id)));
+ const templates=items('site-templates');
+ check('templates_do_not_widen_site_scope',templates!==null&&Array.isArray(data('site-templates')?.templates)&&data('site-templates').templates.length>0&&templates.every(i=>i.resource?.key==='qa-wave2.example.invalid')&&['5938e72c-9f85-4657-8e71-2ec387820d5e','5e47b1ec-5c89-46ec-9eaf-e9b38137dee6'].every(id=>templates.some(i=>i.id===id&&i.status==='active')));
+ check('known_empty_site_no_items',items('absent-site')!==null&&items('absent-site').length===0);
+ check('exact_item_metadata',success('exact-item')&&data('exact-item').item?.id==='5938e72c-9f85-4657-8e71-2ec387820d5e'&&data('exact-item').item?.entityId==='ff2406e4-3be0-4fef-a3aa-8ee754e96648');
+ function valueFree(o){if(!o||typeof o!=='object')return true;if(Array.isArray(o))return o.every(valueFree);return Object.entries(o).every(([k,v])=>!forbidden.has(k)&&valueFree(v));}
+ const positive=['site-active','site-templates','absent-site','exact-item'];
+ check('known_forbidden_fields_absent_both_representations',positive.every(n=>success(n)&&valueFree(data(n))&&result(n).content.every(c=>c.type==='text'&&typeof c.text==='string'&&!fieldPattern.test(c.text)&&forbiddenTextTokens.every(t=>typeof t==='string'&&t.length>0&&!c.text.includes(t)))));
+ return {passed:checks.every(c=>c.status==='PASS'),checks,buildId:data('identity-before')?.buildId??null,legacyMissingToolNames:memoryCases.filter(([n])=>raw[n]?.toolName===undefined).map(([n])=>n),scope:'Six exact captured Memory metadata calls on retained fixtures. Known forbidden field names and explicitly supplied text markers only; not complete text leakage detection, cross-account isolation, value release or native Codex acceptance.'};
+}

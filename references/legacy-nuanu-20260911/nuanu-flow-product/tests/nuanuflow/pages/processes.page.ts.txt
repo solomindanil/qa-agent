@@ -1,0 +1,3076 @@
+import {
+  expect,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+  type Request,
+  type Response,
+  type Route,
+} from '@playwright/test';
+import { QA_PREFIX } from '../fixtures/sandbox-data';
+import { SANDBOX } from '../fixtures/sandbox-data';
+
+export const PROCESS_SANDBOX_WORKSPACE_ID =
+  '8f081389-298d-4dc2-93d5-7cd80c5109da';
+
+const CANONICAL_PROCESS_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+type JsonRecord = Record<string, unknown>;
+
+const isRecord = (value: unknown): value is JsonRecord =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+export const isCanonicalProcessId = (value: unknown): value is string =>
+  typeof value === 'string' && CANONICAL_PROCESS_ID.test(value);
+
+const exactProcessPathId = (id: string) => {
+  if (!isCanonicalProcessId(id)) {
+    throw new Error('Process route requires one exact canonical ID.');
+  }
+  return id;
+};
+
+export const PROCESS_PATHS = Object.freeze({
+  list: `/${SANDBOX.workspaceSlug}/process/`,
+  detail: (id: string) =>
+    `/${SANDBOX.workspaceSlug}/process/${exactProcessPathId(id)}/`,
+  collectionApi:
+    `/be/api/workspaces/${SANDBOX.workspaceSlug}/process-templates/`,
+  detailApi: (id: string) =>
+    `/be/api/workspaces/${SANDBOX.workspaceSlug}/process-templates/${exactProcessPathId(id)}/`,
+  versionsApi: (id: string) =>
+    `/be/api/workspaces/${SANDBOX.workspaceSlug}/process-templates/${exactProcessPathId(id)}/versions/`,
+});
+
+const assertOwnedProcessName = (
+  name: string,
+  requiredRunToken?: string,
+) => {
+  const prefix = requiredRunToken
+    ? `${QA_PREFIX} ${requiredRunToken} `
+    : `${QA_PREFIX} `;
+  if (!name.startsWith(prefix) || name.trim() !== name || name === prefix) {
+    throw new Error(
+      'Process name must be a full exact current-run QA E2E name.',
+    );
+  }
+};
+
+export type ProcessCategory =
+  | 'operational'
+  | 'service'
+  | 'financial'
+  | 'maintenance';
+
+type ExactProcessCreatePayload = {
+  name: string;
+  description: string;
+  category: ProcessCategory;
+  logo_props: Record<string, never>;
+};
+
+export type ProcessMetadataPatch =
+  | { name: string }
+  | { description: string }
+  | { category: ProcessCategory };
+
+export const assertExactProcessMetadataPayload = (
+  body: unknown,
+  expected: ProcessMetadataPatch,
+): ProcessMetadataPatch => {
+  const expectedKeys = Object.keys(expected);
+  if (
+    !isRecord(body) ||
+    expectedKeys.length !== 1 ||
+    Object.keys(body).length !== 1
+  ) {
+    throw new Error(
+      'Process metadata request must contain one exact observed field.',
+    );
+  }
+  if ('name' in expected) {
+    if (
+      expectedKeys[0] !== 'name' ||
+      body.name !== expected.name
+    ) {
+      throw new Error(
+        'Process metadata request did not match its exact planned name.',
+      );
+    }
+    assertOwnedProcessName(expected.name);
+  } else if ('description' in expected) {
+    if (
+      expectedKeys[0] !== 'description' ||
+      typeof expected.description !== 'string' ||
+      body.description !== expected.description
+    ) {
+      throw new Error(
+        'Process metadata request did not match its exact description.',
+      );
+    }
+  } else {
+    if (
+      expectedKeys[0] !== 'category' ||
+      body.category !== expected.category ||
+      !new Set<ProcessCategory>([
+        'operational',
+        'service',
+        'financial',
+        'maintenance',
+      ]).has(expected.category)
+    ) {
+      throw new Error(
+        'Process metadata request did not match an observed inert category.',
+      );
+    }
+  }
+  return expected;
+};
+
+export const assertExactProcessCreatePayload = (
+  body: unknown,
+  expected: Omit<ExactProcessCreatePayload, 'logo_props'>,
+): ExactProcessCreatePayload => {
+  assertOwnedProcessName(expected.name);
+  if (
+    !isRecord(body) ||
+    Object.keys(body).length !== 4 ||
+    body.name !== expected.name ||
+    body.description !== expected.description ||
+    body.category !== expected.category ||
+    !isRecord(body.logo_props) ||
+    Object.keys(body.logo_props).length !== 0
+  ) {
+    throw new Error(
+      'Process create request did not match the exact inert UI payload.',
+    );
+  }
+  return {
+    name: expected.name,
+    description: expected.description,
+    category: expected.category,
+    logo_props: {},
+  };
+};
+
+export type CreatedProcess = {
+  kind: 'process';
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  isActive: boolean;
+  workspaceId: string;
+  projectId?: string;
+  requestOrdinal: number;
+};
+
+type ProcessOwnershipSnapshot = Readonly<{
+  kind: 'process';
+  id: string;
+  workspaceId: string;
+  hasProjectId: boolean;
+  projectId: string | undefined;
+  requestOrdinal: number;
+  initialName: string;
+  initialDescription: string;
+  initialCategory: string;
+  isActive: boolean;
+}>;
+
+type TrustedProcessMetadataState = {
+  currentName: string;
+  currentDescription: string;
+  currentCategory: string;
+  authorizedNames: Set<string>;
+  authorizedDescriptions: Set<string>;
+  authorizedCategories: Set<string>;
+};
+
+const responseOwnedProcessSnapshots =
+  new WeakMap<CreatedProcess, ProcessOwnershipSnapshot>();
+const trustedProcessMetadataStates =
+  new WeakMap<CreatedProcess, TrustedProcessMetadataState>();
+
+const requireExactResponseOwnedProcess = (
+  created: CreatedProcess,
+) => {
+  const ownership = responseOwnedProcessSnapshots.get(created);
+  const metadata = trustedProcessMetadataStates.get(created);
+  let currentNameValid = true;
+  try {
+    assertOwnedProcessName(created.name);
+  } catch {
+    currentNameValid = false;
+  }
+  if (
+    ownership === undefined ||
+    metadata === undefined ||
+    created.kind !== ownership.kind ||
+    created.id !== ownership.id ||
+    created.workspaceId !== ownership.workspaceId ||
+    Object.hasOwn(created, 'projectId') !== ownership.hasProjectId ||
+    created.projectId !== ownership.projectId ||
+    created.requestOrdinal !== ownership.requestOrdinal ||
+    !Number.isSafeInteger(ownership.requestOrdinal) ||
+    ownership.requestOrdinal < 0 ||
+    created.isActive !== ownership.isActive ||
+    created.name !== metadata.currentName ||
+    created.description !== metadata.currentDescription ||
+    created.category !== metadata.currentCategory ||
+    !currentNameValid
+  ) {
+    throw new Error(
+      'Operation requires one exact immutable response-owned process; its response-owned identity and trusted metadata state must not drift.',
+    );
+  }
+  return { ownership, metadata };
+};
+
+type ProcessResponseIdentity = {
+  observedId?: string;
+  exactId?: string;
+  observedIds?: string[];
+  exactIds?: string[];
+};
+
+export type CreatedProcessRun = {
+  kind: 'process-run';
+  id: string;
+  processId: string;
+  workspaceId: string;
+  initialStatus:
+    | 'created'
+    | 'pending'
+    | 'running'
+    | 'completed'
+    | 'failed'
+    | 'cancelled';
+  requestOrdinal: number;
+};
+
+export type ProcessMetadataReceipt = {
+  processId: string;
+  name: string;
+  description: string;
+  category: string;
+  isActive: boolean;
+  workspaceId: string;
+  projectId?: string;
+  requestOrdinal: number;
+};
+
+type ParseCreatedProcessOptions = {
+  requestedName: string;
+  workspaceId: string;
+  requestOrdinal: number;
+  projectId?: string;
+  responseStatus?: number;
+  expectedStatus?: number;
+  expectedDescription?: string;
+  expectedCategory?: ProcessCategory;
+  expectedIsActive?: boolean;
+};
+
+const PROCESS_CREATE_PROVEN_UUID_PATHS = new Set([
+  'id',
+  'workspace_id',
+  'project_id',
+]);
+
+const isIdentityLikeKey = (key: string) =>
+  /(?:^|[_-])(?:id|uuid)$/iu.test(key) ||
+  /(?:Id|ID|Uuid|UUID)$/u.test(key);
+
+const scanProcessCreateResponseIdentities = (body: unknown) => {
+  const observedIds: string[] = [];
+  const exactIds: string[] = [];
+  const ambiguousPaths: string[] = [];
+  const observed = new Set<string>();
+  const exact = new Set<string>();
+  const ambiguous = new Set<string>();
+  const seen = new WeakSet<object>();
+  const recordObserved = (value: string) => {
+    if (!observed.has(value)) {
+      observed.add(value);
+      observedIds.push(value);
+    }
+  };
+  const recordExact = (value: string) => {
+    if (!exact.has(value)) {
+      exact.add(value);
+      exactIds.push(value);
+    }
+  };
+  const recordAmbiguous = (path: string) => {
+    if (!ambiguous.has(path)) {
+      ambiguous.add(path);
+      ambiguousPaths.push(path);
+    }
+  };
+
+  const visit = (value: unknown, path: string[]) => {
+    const pathLabel = path.join('.');
+    const isProvenTopLevelPath =
+      path.length === 1 &&
+      PROCESS_CREATE_PROVEN_UUID_PATHS.has(pathLabel);
+    const key = path.at(-1);
+    const identityLike = key !== undefined && isIdentityLikeKey(key);
+
+    if (typeof value === 'string') {
+      if (identityLike) recordObserved(value);
+      if (isCanonicalProcessId(value)) {
+        if (pathLabel === 'id') recordExact(value);
+        else if (!isProvenTopLevelPath) {
+          recordExact(value);
+          recordAmbiguous(pathLabel);
+        }
+      }
+      if (identityLike && !isProvenTopLevelPath) {
+        recordAmbiguous(pathLabel);
+      }
+      return;
+    }
+    if (value === null || value === undefined) return;
+    if (identityLike && !isProvenTopLevelPath) {
+      recordAmbiguous(pathLabel);
+    }
+    if (Array.isArray(value)) {
+      if (seen.has(value)) {
+        recordAmbiguous(pathLabel || '<root>');
+        return;
+      }
+      seen.add(value);
+      value.forEach((entry, index) =>
+        visit(entry, [...path, `[${index}]`]),
+      );
+      return;
+    }
+    if (!isRecord(value)) return;
+    if (seen.has(value)) {
+      recordAmbiguous(pathLabel || '<root>');
+      return;
+    }
+    seen.add(value);
+    for (const [childKey, childValue] of Object.entries(value)) {
+      visit(childValue, [...path, childKey]);
+    }
+  };
+
+  if (isRecord(body)) {
+    const topLevelId = body.id;
+    if (typeof topLevelId === 'string') {
+      recordObserved(topLevelId);
+      if (isCanonicalProcessId(topLevelId)) recordExact(topLevelId);
+    }
+  }
+  visit(body, []);
+  return { observedIds, exactIds, ambiguousPaths };
+};
+
+export const extractProcessCreateResponseIdentity = (
+  body: unknown,
+): ProcessResponseIdentity => {
+  const topLevelId =
+    isRecord(body) &&
+    typeof body.id === 'string' &&
+    body.id.length > 0
+      ? body.id
+      : undefined;
+  const { observedIds, exactIds } =
+    scanProcessCreateResponseIdentities(body);
+  return {
+    observedId: topLevelId,
+    exactId:
+      isCanonicalProcessId(topLevelId)
+        ? topLevelId
+        : exactIds[0],
+    ...(observedIds.length === 0 ? {} : { observedIds }),
+    ...(exactIds.length === 0 ? {} : { exactIds }),
+  };
+};
+
+export const parseCreatedProcess = (
+  body: unknown,
+  {
+    requestedName,
+    workspaceId,
+    requestOrdinal,
+    projectId,
+    responseStatus,
+    expectedStatus = 201,
+    expectedDescription,
+    expectedCategory,
+    expectedIsActive,
+  }: ParseCreatedProcessOptions,
+): CreatedProcess => {
+  assertOwnedProcessName(requestedName);
+  if (
+    !Number.isSafeInteger(requestOrdinal) ||
+    requestOrdinal < 0
+  ) {
+    throw new Error(
+      'Process create response request ordinal must be a non-negative safe integer before ownership branding.',
+    );
+  }
+  const identityScan = scanProcessCreateResponseIdentities(body);
+  if (
+    responseStatus !== undefined &&
+    responseStatus !== expectedStatus
+  ) {
+    throw new Error(
+      `Process create returned unexpected success status ${responseStatus}.`,
+    );
+  }
+  if (
+    !isRecord(body) ||
+    identityScan.ambiguousPaths.length > 0 ||
+    !isCanonicalProcessId(body.id) ||
+    body.name !== requestedName ||
+    typeof body.description !== 'string' ||
+    typeof body.category !== 'string' ||
+    body.category.length === 0 ||
+    typeof body.is_active !== 'boolean' ||
+    (expectedDescription !== undefined &&
+      body.description !== expectedDescription) ||
+    (expectedCategory !== undefined &&
+      body.category !== expectedCategory) ||
+    (expectedIsActive !== undefined &&
+      body.is_active !== expectedIsActive) ||
+    body.workspace_id !== workspaceId ||
+    (projectId === undefined
+      ? body.project_id !== undefined
+      : body.project_id !== projectId)
+  ) {
+    throw new Error(
+      'Process create response did not match its exact response-owned schema.',
+    );
+  }
+  const created: CreatedProcess = {
+    kind: 'process',
+    id: body.id,
+    name: requestedName,
+    description: body.description,
+    category: body.category,
+    isActive: body.is_active,
+    workspaceId,
+    ...(projectId === undefined ? {} : { projectId }),
+    requestOrdinal,
+  };
+  responseOwnedProcessSnapshots.set(
+    created,
+    Object.freeze({
+      kind: 'process',
+      id: created.id,
+      workspaceId: created.workspaceId,
+      hasProjectId: Object.hasOwn(created, 'projectId'),
+      projectId: created.projectId,
+      requestOrdinal: created.requestOrdinal,
+      initialName: created.name,
+      initialDescription: created.description,
+      initialCategory: created.category,
+      isActive: created.isActive,
+    }),
+  );
+  trustedProcessMetadataStates.set(created, {
+    currentName: created.name,
+    currentDescription: created.description,
+    currentCategory: created.category,
+    authorizedNames: new Set([created.name]),
+    authorizedDescriptions: new Set([created.description]),
+    authorizedCategories: new Set([created.category]),
+  });
+  return created;
+};
+
+export const parseUpdatedProcessMetadata = (
+  body: unknown,
+  {
+    created,
+    allowedNames,
+    patch,
+    requestOrdinal,
+    responseStatus,
+  }: {
+    created: CreatedProcess;
+    allowedNames: ReadonlySet<string>;
+    patch: ProcessMetadataPatch;
+    requestOrdinal: number;
+    responseStatus: number;
+  },
+): ProcessMetadataReceipt => {
+  const { ownership, metadata } =
+    requireExactResponseOwnedProcess(created);
+  if (responseStatus !== 200) {
+    throw new Error(
+      `Process metadata update returned unexpected success status ${responseStatus}.`,
+    );
+  }
+  if (
+    !isRecord(body) ||
+    body.id !== ownership.id ||
+    typeof body.name !== 'string' ||
+    !allowedNames.has(body.name) ||
+    typeof body.description !== 'string' ||
+    typeof body.category !== 'string' ||
+    typeof body.is_active !== 'boolean' ||
+    body.workspace_id !== ownership.workspaceId ||
+    (ownership.hasProjectId
+      ? body.project_id !== ownership.projectId
+      : body.project_id !== undefined) ||
+    ('name' in patch &&
+      !metadata.authorizedNames.has(patch.name)) ||
+    ('description' in patch &&
+      !metadata.authorizedDescriptions.has(patch.description)) ||
+    ('category' in patch &&
+      !metadata.authorizedCategories.has(patch.category))
+  ) {
+    throw new Error(
+      'Process metadata response did not retain its exact owned identity.',
+    );
+  }
+  const expectedName =
+    'name' in patch ? patch.name : metadata.currentName;
+  const expectedDescription =
+    'description' in patch
+      ? patch.description
+      : metadata.currentDescription;
+  const expectedCategory =
+    'category' in patch ? patch.category : metadata.currentCategory;
+  if (
+    body.name !== expectedName ||
+    body.description !== expectedDescription ||
+    body.category !== expectedCategory ||
+    body.is_active !== ownership.isActive
+  ) {
+    throw new Error(
+      'Process metadata response changed an unrequested field.',
+    );
+  }
+  return {
+    processId: ownership.id,
+    name: body.name,
+    description: body.description,
+    category: body.category,
+    isActive: body.is_active,
+    workspaceId: ownership.workspaceId,
+    ...(ownership.hasProjectId
+      ? { projectId: ownership.projectId }
+      : {}),
+    requestOrdinal,
+  };
+};
+
+type ParseCreatedProcessRunOptions = {
+  processId: string;
+  workspaceId: string;
+  requestOrdinal: number;
+};
+
+export const parseCreatedProcessRun = (
+  _body: unknown,
+  {
+    processId,
+    workspaceId,
+    requestOrdinal,
+  }: ParseCreatedProcessRunOptions,
+): CreatedProcessRun => {
+  if (
+    !isCanonicalProcessId(processId) ||
+    workspaceId !== PROCESS_SANDBOX_WORKSPACE_ID ||
+    !Number.isSafeInteger(requestOrdinal) ||
+    requestOrdinal < 0
+  ) {
+    throw new Error(
+      'Process run parser received invalid expected ownership.',
+    );
+  }
+  throw new Error(
+    'Process run POST success contract is unproven; read-side template_id evidence is not a create contract.',
+  );
+};
+
+export const assertExactProcessCleanupTarget = (
+  body: unknown,
+  created: CreatedProcess,
+  allowedNames: ReadonlySet<string>,
+) => {
+  const { ownership, metadata } =
+    requireExactResponseOwnedProcess(created);
+  if (
+    ownership.workspaceId !== PROCESS_SANDBOX_WORKSPACE_ID ||
+    !allowedNames.has(metadata.currentName) ||
+    !isRecord(body) ||
+    body.id !== ownership.id ||
+    typeof body.name !== 'string' ||
+    !allowedNames.has(body.name) ||
+    !metadata.authorizedNames.has(body.name) ||
+    body.workspace_id !== ownership.workspaceId ||
+    typeof body.category !== 'string' ||
+    !metadata.authorizedCategories.has(body.category) ||
+    body.is_active !== ownership.isActive ||
+    (ownership.hasProjectId
+      ? body.project_id !== ownership.projectId
+      : body.project_id !== undefined)
+  ) {
+    throw new Error(
+      'Refusing process cleanup without an exact response-owned identity.',
+    );
+  }
+  assertOwnedProcessName(body.name);
+  return body;
+};
+
+export const preauthorizeProcessRename = (
+  requestedName: string,
+  allowedNames: Set<string>,
+  options: { requiredRunToken?: string } = {},
+) => {
+  const [existingName] = allowedNames;
+  if (!existingName) {
+    throw new Error('Process rename requires an existing owned name.');
+  }
+  const inferredRunToken = existingName.slice(`${QA_PREFIX} `.length).split(' ')[0];
+  const requiredRunToken =
+    options.requiredRunToken ?? inferredRunToken;
+  if (!requiredRunToken) {
+    throw new Error('Process rename could not establish its exact run token.');
+  }
+  for (const name of allowedNames) {
+    assertOwnedProcessName(name, requiredRunToken);
+  }
+  assertOwnedProcessName(requestedName, requiredRunToken);
+  allowedNames.add(requestedName);
+};
+
+const preauthorizeProcessMetadataPatch = (
+  patch: ProcessMetadataPatch,
+  created: CreatedProcess,
+  allowedNames: Set<string>,
+) => {
+  const { metadata } = requireExactResponseOwnedProcess(created);
+  if ('name' in patch) {
+    preauthorizeProcessRename(patch.name, allowedNames);
+    metadata.authorizedNames.add(patch.name);
+    return;
+  }
+  if ('description' in patch) {
+    metadata.authorizedDescriptions.add(patch.description);
+    return;
+  }
+  metadata.authorizedCategories.add(patch.category);
+};
+
+const commitTrustedProcessMetadata = (
+  created: CreatedProcess,
+  receipt: ProcessMetadataReceipt,
+) => {
+  const { ownership, metadata } =
+    requireExactResponseOwnedProcess(created);
+  if (
+    receipt.processId !== ownership.id ||
+    receipt.workspaceId !== ownership.workspaceId ||
+    receipt.isActive !== ownership.isActive ||
+    (ownership.hasProjectId
+      ? receipt.projectId !== ownership.projectId
+      : Object.hasOwn(receipt, 'projectId')) ||
+    !metadata.authorizedNames.has(receipt.name) ||
+    !metadata.authorizedDescriptions.has(receipt.description) ||
+    !metadata.authorizedCategories.has(receipt.category)
+  ) {
+    throw new Error(
+      'Process metadata commit did not retain its immutable response-owned identity and preauthorization.',
+    );
+  }
+  metadata.currentName = receipt.name;
+  metadata.currentDescription = receipt.description;
+  metadata.currentCategory = receipt.category;
+  created.name = receipt.name;
+  created.description = receipt.description;
+  created.category = receipt.category;
+  created.isActive = receipt.isActive;
+};
+
+const mergeTrustedProcessCleanupAuthorizations = (
+  retained: CreatedProcess,
+  candidates: readonly CreatedProcess[],
+) => {
+  const retainedState = requireExactResponseOwnedProcess(retained).metadata;
+  for (const candidate of candidates) {
+    const candidateState =
+      requireExactResponseOwnedProcess(candidate).metadata;
+    for (const name of candidateState.authorizedNames) {
+      retainedState.authorizedNames.add(name);
+    }
+    for (const description of candidateState.authorizedDescriptions) {
+      retainedState.authorizedDescriptions.add(description);
+    }
+    for (const category of candidateState.authorizedCategories) {
+      retainedState.authorizedCategories.add(category);
+    }
+  }
+};
+
+export type ProcessMutationKind =
+  | 'create'
+  | 'update'
+  | 'archive'
+  | 'delete'
+  | 'run';
+
+export const runGuardedProcessMutation = async <T>({
+  assertSandbox,
+  action,
+}: {
+  kind: ProcessMutationKind;
+  assertSandbox: () => Promise<void>;
+  action: () => Promise<T>;
+}): Promise<T> => {
+  await assertSandbox();
+  return action();
+};
+
+export type ProcessMutationCapture<T> = {
+  actionError?: unknown;
+  attemptCount: number;
+  responseCount: number;
+  successfulEntries: Array<{
+    requestOrdinal: number;
+    created: T;
+  }>;
+  nonSuccessResponses: Array<{
+    requestOrdinal: number;
+    status: number;
+    url: string;
+  }>;
+  contractErrors: Array<{
+    requestOrdinal: number;
+    observedId?: string;
+    exactId?: string;
+    observedIds?: string[];
+    exactIds?: string[];
+    error: unknown;
+  }>;
+  registrationErrors: Array<{
+    requestOrdinal: number;
+    created: T;
+    error: unknown;
+  }>;
+  requestFailedOutcomes: Array<{
+    requestOrdinal: number;
+    url: string;
+  }>;
+  unexpectedMutationAttempts: Array<{
+    requestOrdinal: number;
+    method: string;
+    url: string;
+  }>;
+};
+
+type CaptureExactProcessMutationsOptions<T> = {
+  page: Page;
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  endpoint: string;
+  guardPattern?: string;
+  successStatus: number;
+  action: () => Promise<unknown>;
+  validateRequest: (request: Request) => void;
+  parse: (
+    body: unknown,
+    requestOrdinal: number,
+    responseStatus: number,
+    request: Request,
+  ) => T;
+  register: (created: T) => unknown | Promise<unknown>;
+  extractResponseIdentity?: (
+    body: unknown,
+  ) => ProcessResponseIdentity;
+  quietMs?: number;
+  minAdmissionMs?: number;
+  maxAdmissionMs?: number;
+};
+
+type ObservedProcessMutation = {
+  requestOrdinal: number;
+  responseStarted: boolean;
+  terminalResolved: boolean;
+  terminal: Promise<void>;
+  resolveTerminal: () => void;
+};
+
+const delay = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+const sortedMapValues = <T>(values: Map<number, T>) =>
+  [...values.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, value]) => value);
+
+const extractTopLevelProcessIdentity = (body: unknown) => {
+  if (!isRecord(body)) return {};
+  const observedId =
+    typeof body.id === 'string' && body.id.length > 0
+      ? body.id
+      : undefined;
+  return {
+    observedId,
+    exactId: isCanonicalProcessId(observedId) ? observedId : undefined,
+  };
+};
+
+export const captureExactProcessMutations = async <T>({
+  page,
+  method,
+  endpoint,
+  guardPattern = endpoint,
+  successStatus,
+  action,
+  validateRequest,
+  parse,
+  register,
+  extractResponseIdentity = extractTopLevelProcessIdentity,
+  quietMs = 500,
+  minAdmissionMs = 0,
+  maxAdmissionMs = 2_000,
+}: CaptureExactProcessMutationsOptions<T>): Promise<
+  ProcessMutationCapture<T>
+> => {
+  if (
+    minAdmissionMs < 0 ||
+    maxAdmissionMs <= 0 ||
+    minAdmissionMs > maxAdmissionMs
+  ) {
+    throw new Error('Mutation admission bounds were invalid.');
+  }
+  const observed = new Map<Request, ObservedProcessMutation>();
+  const successfulByOrdinal = new Map<
+    number,
+    { requestOrdinal: number; created: T }
+  >();
+  const nonSuccessByOrdinal = new Map<
+    number,
+    { requestOrdinal: number; status: number; url: string }
+  >();
+  const contractErrorsByOrdinal = new Map<
+    number,
+    {
+      requestOrdinal: number;
+      observedId?: string;
+      exactId?: string;
+      observedIds?: string[];
+      exactIds?: string[];
+      error: unknown;
+    }
+  >();
+  const registrationErrorsByOrdinal = new Map<
+    number,
+    { requestOrdinal: number; created: T; error: unknown }
+  >();
+  const failedByOrdinal = new Map<
+    number,
+    { requestOrdinal: number; url: string }
+  >();
+  const unexpectedByRequest = new Map<
+    Request,
+    { requestOrdinal: number; method: string; url: string }
+  >();
+  const responseOrdinals = new Set<number>();
+  let admissionClosed = false;
+  let lastActivityAt = Date.now();
+
+  const admit = (request: Request) => {
+    const existing = observed.get(request);
+    if (existing) return existing;
+    let resolveTerminal = () => {};
+    const terminal = new Promise<void>((resolve) => {
+      resolveTerminal = resolve;
+    });
+    const entry: ObservedProcessMutation = {
+      requestOrdinal: observed.size,
+      responseStarted: false,
+      terminalResolved: false,
+      terminal,
+      resolveTerminal,
+    };
+    observed.set(request, entry);
+    lastActivityAt = Date.now();
+    return entry;
+  };
+
+  const resolveTerminal = (entry: ObservedProcessMutation) => {
+    if (entry.terminalResolved) return;
+    entry.terminalResolved = true;
+    lastActivityAt = Date.now();
+    entry.resolveTerminal();
+  };
+
+  const onRequest = (request: Request) => {
+    if (
+      admissionClosed ||
+      request.method() !== method ||
+      request.url() !== endpoint
+    ) {
+      return;
+    }
+    admit(request);
+  };
+
+  const guardingRoute = async (route: Route) => {
+    const request = route.request();
+    if (admissionClosed) {
+      await route.fallback();
+      return;
+    }
+    if (
+      request.method() !== method ||
+      request.url() !== endpoint
+    ) {
+      if (
+        ['POST', 'PUT', 'PATCH', 'DELETE'].includes(
+          request.method(),
+        )
+      ) {
+        if (!unexpectedByRequest.has(request)) {
+          unexpectedByRequest.set(request, {
+            requestOrdinal: unexpectedByRequest.size,
+            method: request.method(),
+            url: request.url(),
+          });
+          lastActivityAt = Date.now();
+        }
+        await route.abort('blockedbyclient');
+        return;
+      }
+      await route.fallback();
+      return;
+    }
+    const entry = admit(request);
+    try {
+      validateRequest(request);
+      await route.fallback();
+    } catch (error) {
+      contractErrorsByOrdinal.set(entry.requestOrdinal, {
+        requestOrdinal: entry.requestOrdinal,
+        error,
+      });
+      lastActivityAt = Date.now();
+      await route.abort('blockedbyclient');
+    }
+  };
+
+  const processResponse = async (
+    entry: ObservedProcessMutation,
+    response: Response,
+  ) => {
+    responseOrdinals.add(entry.requestOrdinal);
+    if (response.status() !== successStatus) {
+      nonSuccessByOrdinal.set(entry.requestOrdinal, {
+        requestOrdinal: entry.requestOrdinal,
+        status: response.status(),
+        url: response.url(),
+      });
+      let body: unknown;
+      try {
+        body = await response.json();
+      } catch {
+        return;
+      }
+      const identity = extractResponseIdentity(body);
+      if (
+        identity.observedId !== undefined ||
+        identity.exactId !== undefined
+      ) {
+        contractErrorsByOrdinal.set(entry.requestOrdinal, {
+          requestOrdinal: entry.requestOrdinal,
+          ...identity,
+          error: new Error(
+            `Mutation returned unexpected terminal status ${response.status()} with a response identity.`,
+          ),
+        });
+      }
+      return;
+    }
+    let body: unknown;
+    let created: T;
+    try {
+      body = await response.json();
+      created = parse(
+        body,
+        entry.requestOrdinal,
+        response.status(),
+        response.request(),
+      );
+    } catch (error) {
+      contractErrorsByOrdinal.set(entry.requestOrdinal, {
+        requestOrdinal: entry.requestOrdinal,
+        ...extractResponseIdentity(body),
+        error,
+      });
+      return;
+    }
+    successfulByOrdinal.set(entry.requestOrdinal, {
+      requestOrdinal: entry.requestOrdinal,
+      created,
+    });
+    try {
+      await register(created);
+    } catch (error) {
+      registrationErrorsByOrdinal.set(entry.requestOrdinal, {
+        requestOrdinal: entry.requestOrdinal,
+        created,
+        error,
+      });
+    }
+  };
+
+  const onResponse = (response: Response) => {
+    const entry = observed.get(response.request());
+    if (!entry || entry.responseStarted) return;
+    entry.responseStarted = true;
+    void processResponse(entry, response)
+      .catch((error) => {
+        contractErrorsByOrdinal.set(entry.requestOrdinal, {
+          requestOrdinal: entry.requestOrdinal,
+          error,
+        });
+      })
+      .finally(() => resolveTerminal(entry));
+  };
+
+  const onRequestFailed = (request: Request) => {
+    const entry = observed.get(request);
+    if (!entry || entry.responseStarted) return;
+    entry.responseStarted = true;
+    failedByOrdinal.set(entry.requestOrdinal, {
+      requestOrdinal: entry.requestOrdinal,
+      url: request.url(),
+    });
+    resolveTerminal(entry);
+  };
+
+  page.on('request', onRequest);
+  page.on('response', onResponse);
+  page.on('requestfailed', onRequestFailed);
+  await page.route(guardPattern, guardingRoute);
+
+  let actionError: unknown;
+  try {
+    try {
+      await action();
+    } catch (error) {
+      actionError = error;
+    }
+
+    const settleStartedAt = Date.now();
+    lastActivityAt = Math.max(lastActivityAt, settleStartedAt);
+    while (Date.now() - settleStartedAt < maxAdmissionMs) {
+      const pendingCount = [...observed.values()].filter(
+        ({ terminalResolved }) => !terminalResolved,
+      ).length;
+      if (
+        Date.now() - settleStartedAt >= minAdmissionMs &&
+        pendingCount === 0 &&
+        Date.now() - lastActivityAt >= quietMs
+      ) {
+        break;
+      }
+      await delay(Math.min(25, Math.max(1, quietMs)));
+    }
+    admissionClosed = true;
+    page.off('request', onRequest);
+    await page.unroute(guardPattern, guardingRoute);
+    await Promise.allSettled(
+      [...observed.values()].map(({ terminal }) => terminal),
+    );
+  } finally {
+    admissionClosed = true;
+    page.off('request', onRequest);
+    page.off('response', onResponse);
+    page.off('requestfailed', onRequestFailed);
+    await page.unroute(guardPattern, guardingRoute).catch(() => {});
+  }
+
+  return {
+    actionError,
+    attemptCount: observed.size,
+    responseCount: responseOrdinals.size,
+    successfulEntries: sortedMapValues(successfulByOrdinal),
+    nonSuccessResponses: sortedMapValues(nonSuccessByOrdinal),
+    contractErrors: sortedMapValues(contractErrorsByOrdinal),
+    registrationErrors: sortedMapValues(registrationErrorsByOrdinal),
+    requestFailedOutcomes: sortedMapValues(failedByOrdinal),
+    unexpectedMutationAttempts: [...unexpectedByRequest.values()].sort(
+      (left, right) =>
+        left.requestOrdinal - right.requestOrdinal,
+    ),
+  };
+};
+
+export type BlockedProcessMutationCapture = {
+  attemptCount: number;
+  allowedCount: 0;
+  actionError?: unknown;
+  requestFailedOutcomes: Array<{
+    requestOrdinal: number;
+    method: string;
+    url: string;
+  }>;
+};
+
+type BlockedProcessTarget = {
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  endpoint: string;
+};
+
+const blockedProcessGuardPattern = (endpoint: string) => {
+  const familyMarker = '/process-templates/';
+  const familyIndex = endpoint.indexOf(familyMarker);
+  if (familyIndex === -1) return `${endpoint.split('?')[0]}**`;
+  return `${endpoint.slice(
+    0,
+    familyIndex + familyMarker.length,
+  )}**`;
+};
+
+export const withBlockedProcessMutations = async ({
+  page,
+  targets,
+  action,
+  quietMs = 500,
+  minAdmissionMs = 0,
+  maxAdmissionMs = 2_000,
+}: {
+  page: Page;
+  targets: BlockedProcessTarget[];
+  action: () => Promise<unknown>;
+  quietMs?: number;
+  minAdmissionMs?: number;
+  maxAdmissionMs?: number;
+}): Promise<BlockedProcessMutationCapture> => {
+  if (
+    minAdmissionMs < 0 ||
+    maxAdmissionMs <= 0 ||
+    minAdmissionMs > maxAdmissionMs
+  ) {
+    throw new Error('Blocked mutation admission bounds were invalid.');
+  }
+  const attempted = new Map<
+    Request,
+    { requestOrdinal: number; method: string; url: string }
+  >();
+  const failedByOrdinal = new Map<
+    number,
+    { requestOrdinal: number; method: string; url: string }
+  >();
+  let lastActivityAt = Date.now();
+
+  const mutationMethods = new Set([
+    'POST',
+    'PUT',
+    'PATCH',
+    'DELETE',
+  ]);
+  const handlers = [
+    ...new Set(targets.map(({ endpoint }) =>
+      blockedProcessGuardPattern(endpoint))),
+  ].map((pattern) => {
+    const handler = async (route: Route) => {
+      const request = route.request();
+      if (!mutationMethods.has(request.method())) {
+        await route.fallback();
+        return;
+      }
+      if (!attempted.has(request)) {
+        attempted.set(request, {
+          requestOrdinal: attempted.size,
+          method: request.method(),
+          url: request.url(),
+        });
+      }
+      lastActivityAt = Date.now();
+      await route.abort('blockedbyclient');
+    };
+    return { pattern, handler };
+  });
+
+  const onRequestFailed = (request: Request) => {
+    const entry = attempted.get(request);
+    if (!entry) return;
+    failedByOrdinal.set(entry.requestOrdinal, entry);
+    lastActivityAt = Date.now();
+  };
+
+  page.on('requestfailed', onRequestFailed);
+  for (const { pattern, handler } of handlers) {
+    await page.route(pattern, handler);
+  }
+
+  let actionError: unknown;
+  try {
+    try {
+      await action();
+    } catch (error) {
+      actionError = error;
+    }
+    const settleStartedAt = Date.now();
+    lastActivityAt = Math.max(lastActivityAt, settleStartedAt);
+    while (Date.now() - settleStartedAt < maxAdmissionMs) {
+      if (
+        Date.now() - settleStartedAt >= minAdmissionMs &&
+        failedByOrdinal.size === attempted.size &&
+        Date.now() - lastActivityAt >= quietMs
+      ) {
+        break;
+      }
+      await delay(Math.min(25, Math.max(1, quietMs)));
+    }
+  } finally {
+    page.off('requestfailed', onRequestFailed);
+    for (const { pattern, handler } of handlers) {
+      await page.unroute(pattern, handler).catch(() => {});
+    }
+  }
+
+  return {
+    attemptCount: attempted.size,
+    allowedCount: 0,
+    actionError,
+    requestFailedOutcomes: sortedMapValues(failedByOrdinal),
+  };
+};
+
+type ProcessInspection = {
+  status: number;
+  body?: unknown;
+};
+
+type ReconcileRejectedProcessOptions = {
+  id: string;
+  requestedName: string;
+  requestOrdinal: number;
+  workspaceId: string;
+  projectId?: string;
+  inspect: (id: string) => Promise<ProcessInspection>;
+  cleanup: (created: CreatedProcess) => Promise<unknown>;
+};
+
+const residualProcessError = (id: string, error: unknown) =>
+  new AggregateError(
+    [error],
+    `Process exact-ID recovery refused or failed; residual ID: ${id}`,
+  );
+
+export const reconcileRejectedProcessExactId = async ({
+  id,
+  requestedName,
+  requestOrdinal,
+  workspaceId,
+  projectId,
+  inspect,
+  cleanup,
+}: ReconcileRejectedProcessOptions) => {
+  assertOwnedProcessName(requestedName);
+  if (!isCanonicalProcessId(id)) {
+    throw new Error(`Process recovery received a non-canonical ID: ${id}`);
+  }
+  let inspection: ProcessInspection;
+  try {
+    inspection = await inspect(id);
+  } catch (error) {
+    throw residualProcessError(id, error);
+  }
+  if (inspection.status === 404) return;
+  if (inspection.status !== 200) {
+    throw residualProcessError(
+      id,
+      new Error(`Ownership GET returned ${inspection.status}.`),
+    );
+  }
+  let created: CreatedProcess;
+  try {
+    created = parseCreatedProcess(inspection.body, {
+      requestedName,
+      requestOrdinal,
+      workspaceId,
+      projectId,
+      responseStatus: 201,
+      expectedStatus: 201,
+    });
+  } catch (error) {
+    throw residualProcessError(id, error);
+  }
+  if (created.id !== id) {
+    throw residualProcessError(
+      id,
+      new Error('Ownership GET returned a different canonical process ID.'),
+    );
+  }
+  try {
+    await cleanup(created);
+  } catch (error) {
+    throw residualProcessError(id, error);
+  }
+};
+
+export const reconcileRejectedProcessExactIds = async ({
+  rejections,
+  requestedName,
+  workspaceId,
+  projectId,
+  inspect,
+  cleanup,
+}: {
+  rejections: ReadonlyArray<{
+    requestOrdinal: number;
+    exactId?: string;
+    exactIds?: readonly string[];
+  }>;
+  requestedName: string;
+  workspaceId: string;
+  projectId?: string;
+  inspect: (id: string) => Promise<ProcessInspection>;
+  cleanup: (created: CreatedProcess) => Promise<unknown>;
+}) => {
+  const unique = new Map<
+    string,
+    { requestOrdinal: number; exactId: string }
+  >();
+  for (const rejection of rejections) {
+    const candidates = [
+      ...(rejection.exactIds ?? []),
+      ...(rejection.exactId === undefined
+        ? []
+        : [rejection.exactId]),
+    ];
+    for (const exactId of candidates) {
+      if (!unique.has(exactId)) {
+        unique.set(exactId, {
+          requestOrdinal: rejection.requestOrdinal,
+          exactId,
+        });
+      }
+    }
+  }
+  const errors: unknown[] = [];
+  for (const { requestOrdinal, exactId } of unique.values()) {
+    try {
+      await reconcileRejectedProcessExactId({
+        id: exactId,
+        requestedName,
+        requestOrdinal,
+        workspaceId,
+        projectId,
+        inspect,
+        cleanup,
+      });
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0) {
+    throw new AggregateError(
+      errors,
+      'One or more parser-rejected process identities could not be reconciled.',
+    );
+  }
+};
+
+type ProcessCleanupResponse = {
+  status: () => number;
+  json: () => Promise<unknown>;
+};
+
+export type ProcessCleanupRequestContext = Pick<
+  APIRequestContext,
+  'get' | 'delete'
+>;
+
+type CleanupCapturedProcessBatchOptions = {
+  page: Page;
+  requestContext: ProcessCleanupRequestContext;
+  assertSandbox: () => Promise<void>;
+  created: CreatedProcess[];
+  allowedNames: ReadonlySet<string>;
+  detailEndpoint: (id: string) => string;
+  collectionEndpoint: string;
+  uiPath: string;
+  onResolved?: (created: CreatedProcess) => unknown;
+};
+
+const isIdentityFreeProcessTombstone = (body: unknown) =>
+  isRecord(body) &&
+  body.deleted === true &&
+  body.id === undefined &&
+  body.name === undefined &&
+  body.workspace_id === undefined &&
+  Object.keys(body).every((key) => key === 'deleted');
+
+const processCollectionRows = (body: unknown): JsonRecord[] => {
+  if (!Array.isArray(body)) {
+    throw new Error('Process collection response was not the observed array.');
+  }
+  return body.filter(isRecord);
+};
+
+export const assertExactProcessNameAbsent = async ({
+  page,
+  requestContext,
+  assertSandbox,
+  name,
+  collectionEndpoint,
+  uiPath,
+}: {
+  page: Page;
+  requestContext: Pick<APIRequestContext, 'get'>;
+  assertSandbox: () => Promise<void>;
+  name: string;
+  collectionEndpoint: string;
+  uiPath: string;
+}) => {
+  assertOwnedProcessName(name);
+  const response = (await requestContext.get(
+    collectionEndpoint,
+  )) as ProcessCleanupResponse;
+  if (response.status() !== 200) {
+    throw new Error(
+      `Exact-name absence collection GET returned ${response.status()}.`,
+    );
+  }
+  const rows = processCollectionRows(await response.json());
+  const retained = rows.filter((row) => row.name === name);
+  if (retained.length > 0) {
+    const ids = [
+      ...new Set(
+        retained
+          .map((row) => row.id)
+          .filter(isCanonicalProcessId),
+      ),
+    ];
+    const identity =
+      ids.length === 0
+        ? ''
+        : ids.length === 1
+          ? `; residual ID: ${ids[0]}`
+          : `; residual IDs: ${ids.join(', ')}`;
+    throw new Error(
+      `Process collection retained the exact current-run name${identity}`,
+    );
+  }
+
+  await page.goto(uiPath, { waitUntil: 'domcontentloaded' });
+  await expect(
+    page.getByRole('button', {
+      name: 'Create Process',
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: 15_000 });
+  await assertSandbox();
+  if ((await page.getByText(name, { exact: true }).count()) !== 0) {
+    throw new Error(
+      `Process UI retained the exact current-run name: ${name}`,
+    );
+  }
+};
+
+const cleanupAggregate = (
+  errors: unknown[],
+  residualIds: Set<string>,
+) => {
+  if (errors.length === 0) return;
+  const ids = [...residualIds];
+  const label =
+    ids.length === 0
+      ? ''
+      : ids.length === 1
+        ? `; residual ID: ${ids[0]}`
+        : `; residual IDs: ${ids.join(', ')}`;
+  throw new AggregateError(
+    errors,
+    `Process exact-ID batch cleanup refused or failed${label}`,
+  );
+};
+
+export const cleanupCapturedProcessBatch = async ({
+  page,
+  requestContext,
+  assertSandbox,
+  created,
+  allowedNames,
+  detailEndpoint,
+  collectionEndpoint,
+  uiPath,
+  onResolved,
+}: CleanupCapturedProcessBatchOptions) => {
+  if (created.length === 0) return;
+  const errors: unknown[] = [];
+  const residualIds = new Set<string>();
+  type CleanupEntry = {
+    created: CreatedProcess;
+    ownership: ProcessOwnershipSnapshot;
+  };
+  const unique = new Map<string, CleanupEntry>();
+  const conflictedIds = new Set<string>();
+  for (const process of created) {
+    const brandedOwnership = responseOwnedProcessSnapshots.get(process);
+    try {
+      const { ownership, metadata } =
+        requireExactResponseOwnedProcess(process);
+      if (
+        ownership.workspaceId !== PROCESS_SANDBOX_WORKSPACE_ID ||
+        !allowedNames.has(metadata.currentName)
+      ) {
+        throw new Error(
+          'Process cleanup batch contained a non-exact response identity.',
+        );
+      }
+      if (conflictedIds.has(ownership.id)) continue;
+      const existing = unique.get(ownership.id);
+      if (!existing) {
+        unique.set(ownership.id, { created: process, ownership });
+        continue;
+      }
+      if (
+        existing.ownership.workspaceId !== ownership.workspaceId ||
+        existing.ownership.hasProjectId !== ownership.hasProjectId ||
+        existing.ownership.projectId !== ownership.projectId ||
+        existing.ownership.initialName !== ownership.initialName ||
+        existing.ownership.initialDescription !==
+          ownership.initialDescription ||
+        existing.ownership.initialCategory !==
+          ownership.initialCategory ||
+        existing.ownership.isActive !== ownership.isActive
+      ) {
+        unique.delete(ownership.id);
+        conflictedIds.add(ownership.id);
+        residualIds.add(ownership.id);
+        errors.push(
+          residualProcessError(
+            ownership.id,
+            new Error(
+              'Repeated process ID carried conflicting owned identity.',
+            ),
+          ),
+        );
+        continue;
+      }
+      const retained =
+        ownership.requestOrdinal > existing.ownership.requestOrdinal
+          ? { created: process, ownership }
+          : existing;
+      mergeTrustedProcessCleanupAuthorizations(retained.created, [
+        existing.created,
+        process,
+      ]);
+      unique.set(ownership.id, retained);
+    } catch (error) {
+      if (brandedOwnership !== undefined) {
+        residualIds.add(brandedOwnership.id);
+        errors.push(residualProcessError(brandedOwnership.id, error));
+      } else if (isCanonicalProcessId(process.id)) {
+        residualIds.add(process.id);
+        errors.push(residualProcessError(process.id, error));
+      } else {
+        errors.push(error);
+      }
+    }
+  }
+
+  const deleteTargets: CleanupEntry[] = [];
+  const tombstoneIds = new Set<string>();
+  const resolvedIds = new Set<string>();
+  const recordResidual = (entry: CleanupEntry, error: unknown) => {
+    residualIds.add(entry.ownership.id);
+    errors.push(residualProcessError(entry.ownership.id, error));
+  };
+
+  for (const entry of unique.values()) {
+    try {
+      const inspection = (await requestContext.get(
+        detailEndpoint(entry.ownership.id),
+      )) as ProcessCleanupResponse;
+      if (inspection.status() === 404) {
+        resolvedIds.add(entry.ownership.id);
+        continue;
+      }
+      if (inspection.status() !== 200) {
+        throw new Error(`Ownership GET returned ${inspection.status()}.`);
+      }
+      const body = await inspection.json();
+      if (isIdentityFreeProcessTombstone(body)) {
+        tombstoneIds.add(entry.ownership.id);
+        continue;
+      }
+      assertExactProcessCleanupTarget(
+        body,
+        entry.created,
+        allowedNames,
+      );
+      deleteTargets.push(entry);
+    } catch (error) {
+      recordResidual(entry, error);
+    }
+  }
+
+  for (const entry of [...deleteTargets].sort(
+    (left, right) =>
+      right.ownership.requestOrdinal - left.ownership.requestOrdinal,
+  )) {
+    try {
+      await assertSandbox();
+      requireExactResponseOwnedProcess(entry.created);
+      const response = await requestContext.delete(
+        detailEndpoint(entry.ownership.id),
+      );
+      if (response.status() !== 204) {
+        throw new Error(
+          `Exact-ID DELETE returned ${response.status()}.`,
+        );
+      }
+      const verification = (await requestContext.get(
+        detailEndpoint(entry.ownership.id),
+      )) as ProcessCleanupResponse;
+      if (verification.status() === 404) {
+        resolvedIds.add(entry.ownership.id);
+      } else if (verification.status() === 200) {
+        const body = await verification.json();
+        if (!isIdentityFreeProcessTombstone(body)) {
+          throw new Error(
+            'Exact-ID detail remained after successful DELETE.',
+          );
+        }
+        tombstoneIds.add(entry.ownership.id);
+      } else {
+        throw new Error(
+          `Post-delete ownership GET returned ${verification.status()}.`,
+        );
+      }
+    } catch (error) {
+      recordResidual(entry, error);
+    }
+  }
+
+  let collectionRows: JsonRecord[] | undefined;
+  try {
+    const response = (await requestContext.get(
+      collectionEndpoint,
+    )) as ProcessCleanupResponse;
+    if (response.status() !== 200) {
+      throw new Error(
+        `Process collection GET returned ${response.status()}.`,
+      );
+    }
+    collectionRows = processCollectionRows(await response.json());
+  } catch (error) {
+    errors.push(error);
+  }
+  if (collectionRows) {
+    for (const entry of unique.values()) {
+      if (
+        collectionRows.some(
+          (row) => row.id === entry.ownership.id,
+        )
+      ) {
+        if (!residualIds.has(entry.ownership.id)) {
+          recordResidual(
+            entry,
+            new Error(
+              'Process remained in its exact collection after cleanup.',
+            ),
+          );
+        }
+      }
+    }
+    const names = new Set(allowedNames);
+    for (const row of collectionRows) {
+      if (
+        typeof row.name === 'string' &&
+        names.has(row.name) &&
+        isCanonicalProcessId(row.id) &&
+        !unique.has(row.id)
+      ) {
+        residualIds.add(row.id);
+        errors.push(
+          new Error(
+            `Process collection retained an uncaptured exact current-run identity: ${row.id}`,
+          ),
+        );
+      }
+    }
+  }
+
+  let uiLoaded = false;
+  try {
+    await page.goto(uiPath, { waitUntil: 'domcontentloaded' });
+    await expect(
+      page.getByRole('button', {
+        name: 'Create Process',
+        exact: true,
+      }),
+    ).toBeVisible({ timeout: 15_000 });
+    uiLoaded = true;
+  } catch (error) {
+    errors.push(error);
+  }
+  if (uiLoaded) {
+    for (const entry of unique.values()) {
+      try {
+        const count = await page
+          .locator(
+            `a[href="${PROCESS_PATHS.detail(entry.ownership.id)}"]`,
+          )
+          .count();
+        expect(count).toBe(0);
+      } catch (error) {
+        if (!residualIds.has(entry.ownership.id)) {
+          recordResidual(entry, error);
+        }
+      }
+    }
+    for (const name of new Set(allowedNames)) {
+      try {
+        const count = await page.getByText(name, { exact: true }).count();
+        expect(count).toBe(0);
+      } catch (error) {
+        const sameName = [...unique.values()].filter(
+          (entry) => entry.created.name === name,
+        );
+        if (
+          !sameName.some((entry) =>
+            residualIds.has(entry.ownership.id),
+          )
+        ) {
+          errors.push(
+            new AggregateError(
+              [error],
+              `Process UI retained a preauthorized current-run name: ${name}`,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  for (const id of tombstoneIds) {
+    if (!residualIds.has(id) && collectionRows && uiLoaded) {
+      resolvedIds.add(id);
+    }
+  }
+  for (const entry of unique.values()) {
+    if (
+      resolvedIds.has(entry.ownership.id) &&
+      !residualIds.has(entry.ownership.id)
+    ) {
+      try {
+        await onResolved?.(entry.created);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+  }
+  cleanupAggregate(errors, residualIds);
+};
+
+type RunAbsenceInspection = {
+  status: number;
+  body?: unknown;
+};
+
+const exactRunAbsent = (
+  inspection: RunAbsenceInspection,
+  runId: string,
+) => {
+  if (inspection.status === 404) return true;
+  if (inspection.status !== 200) return false;
+  if (Array.isArray(inspection.body)) {
+    return !inspection.body.some(
+      (entry) => isRecord(entry) && entry.id === runId,
+    );
+  }
+  return false;
+};
+
+export const verifyExactProcessRunCascade = async ({
+  runId,
+  inspectRun,
+  inspectHistory,
+}: {
+  runId: string;
+  inspectRun: () => Promise<RunAbsenceInspection>;
+  inspectHistory: () => Promise<RunAbsenceInspection>;
+}) => {
+  if (!isCanonicalProcessId(runId)) {
+    throw new Error('Run cascade proof requires one exact canonical run ID.');
+  }
+  const [run, history] = await Promise.all([
+    inspectRun(),
+    inspectHistory(),
+  ]);
+  if (
+    !exactRunAbsent(run, runId) ||
+    !exactRunAbsent(history, runId)
+  ) {
+    throw new Error(
+      `Process deletion did not prove exact run/history cascade absence; residual ID: ${runId}`,
+    );
+  }
+};
+
+type Nuanu8ProcessOutcome = {
+  submitCompleted: boolean;
+  dialogVisible: boolean;
+  actionableValidation: boolean;
+  exactProcessVisible: boolean;
+  successfulProcessCount: number;
+  exactNameAbsenceProven: boolean;
+  operationalErrors: unknown[];
+  cleanupResidualIds: string[];
+};
+
+export const classifyNuanu8ProcessOutcome = ({
+  submitCompleted,
+  dialogVisible,
+  actionableValidation,
+  exactProcessVisible,
+  successfulProcessCount,
+  exactNameAbsenceProven,
+  operationalErrors,
+  cleanupResidualIds,
+}: Nuanu8ProcessOutcome): unknown | undefined => {
+  if (operationalErrors.length > 0) {
+    if (operationalErrors.length === 1) throw operationalErrors[0];
+    throw new AggregateError(
+      operationalErrors,
+      'NUANU-8 attempt had operational failures.',
+    );
+  }
+  if (cleanupResidualIds.length > 0) {
+    throw new Error(
+      `NUANU-8 cleanup left residual IDs: ${cleanupResidualIds.join(', ')}`,
+    );
+  }
+  if (successfulProcessCount === 0 && !exactNameAbsenceProven) {
+    throw new Error(
+      'NUANU-8 exact-name absence was not proven in both collection and hydrated UI.',
+    );
+  }
+  if (
+    submitCompleted &&
+    dialogVisible &&
+    !actionableValidation &&
+    !exactProcessVisible &&
+    successfulProcessCount === 0
+  ) {
+    return new Error(
+      'NUANU-8 silent signature: completed submit left the dialog open without validation or an exact created process.',
+    );
+  }
+  if (
+    submitCompleted &&
+    ((successfulProcessCount === 1 &&
+      exactProcessVisible &&
+      !dialogVisible) ||
+      (successfulProcessCount === 0 &&
+        actionableValidation &&
+        !exactProcessVisible))
+  ) {
+    return undefined;
+  }
+  throw new Error(
+    'NUANU-8 attempt was inconclusive or outside the narrow known-bug signature.',
+  );
+};
+
+export const requireNuanu8KnownBugFailure = (
+  behaviorFailure: unknown | undefined,
+) => {
+  if (behaviorFailure !== undefined) return behaviorFailure;
+  throw new Error(
+    'NUANU-8 unexpectedly passed after guarded exact cleanup.',
+  );
+};
+
+export class ProcessesPage {
+  readonly createButton: Locator;
+  readonly createDialog: Locator;
+  readonly nameInput: Locator;
+  readonly descriptionInput: Locator;
+  readonly categorySelect: Locator;
+  readonly cancelButton: Locator;
+  readonly submitCreateButton: Locator;
+
+  constructor(
+    readonly page: Page,
+    readonly assertSandbox: () => Promise<void>,
+    readonly requestContext: APIRequestContext = page.request,
+  ) {
+    this.createButton = page
+      .locator('main button')
+      .filter({ hasText: 'Create Process' });
+    this.createDialog = page.getByRole('dialog');
+    this.nameInput = this.createDialog.getByLabel('Name *', {
+      exact: true,
+    });
+    this.descriptionInput = this.createDialog
+      .getByLabel('Description', { exact: true })
+      .or(
+        this.createDialog.getByPlaceholder(
+          'Describe this process...',
+          { exact: true },
+        ),
+      );
+    this.categorySelect = this.createDialog.getByLabel('Category', {
+      exact: true,
+    });
+    this.cancelButton = this.createDialog.getByRole('button', {
+      name: 'Cancel',
+      exact: true,
+    });
+    this.submitCreateButton = this.createDialog.getByRole('button', {
+      name: 'Create Process',
+      exact: true,
+    });
+  }
+
+  ownedProcessLink(id: string) {
+    return this.page.locator(
+      `a[href="${PROCESS_PATHS.detail(id)}"]`,
+    );
+  }
+
+  private appUrl(path: string) {
+    try {
+      const current = new URL(this.page.url());
+      if (current.protocol === 'http:' || current.protocol === 'https:') {
+        return new URL(path, current.origin).href;
+      }
+    } catch {
+      // A fresh Playwright page uses the configured baseURL for relative paths.
+    }
+    return path;
+  }
+
+  async gotoList() {
+    await this.page.goto(this.appUrl(PROCESS_PATHS.list), {
+      waitUntil: 'domcontentloaded',
+    });
+    await this.createButton.waitFor({ state: 'visible' });
+  }
+
+  async gotoOwned(created: CreatedProcess) {
+    const { ownership } = requireExactResponseOwnedProcess(created);
+    if (ownership.workspaceId !== PROCESS_SANDBOX_WORKSPACE_ID) {
+      throw new Error('Refusing to open a non-owned process route.');
+    }
+    await this.page.goto(this.appUrl(PROCESS_PATHS.detail(ownership.id)), {
+      waitUntil: 'domcontentloaded',
+    });
+  }
+
+  async openCreate() {
+    await this.createButton.click();
+    await this.createDialog.waitFor({ state: 'visible' });
+  }
+
+  async fillCreate({
+    name,
+    description,
+    category = 'Operational',
+  }: {
+    name: string;
+    description: string;
+    category?: 'Operational' | 'Service' | 'Financial' | 'Maintenance';
+  }) {
+    assertOwnedProcessName(name);
+    await this.nameInput.fill(name);
+    await this.descriptionInput.fill(description);
+    await this.categorySelect.selectOption({ label: category });
+  }
+
+  async createNameValidationMessages() {
+    return this.nameInput.evaluate((field) => {
+      const input = field as HTMLInputElement;
+      const ariaInvalid =
+        input.getAttribute('aria-invalid') === 'true';
+      const nativeInvalid = !input.validity.valid;
+      if (!ariaInvalid && !nativeInvalid) return [];
+
+      const referenceIds = [
+        input.getAttribute('aria-errormessage'),
+        input.getAttribute('aria-describedby'),
+      ]
+        .flatMap((value) => value?.split(/\s+/u) ?? [])
+        .filter((value) => value.length > 0);
+      const messages = referenceIds
+        .map((id) => document.getElementById(id)?.textContent?.trim())
+        .filter(
+          (message): message is string =>
+            message !== undefined && message.length > 0,
+        );
+      if (
+        nativeInvalid &&
+        input.validationMessage.trim().length > 0
+      ) {
+        messages.push(input.validationMessage.trim());
+      }
+      return [...new Set(messages)];
+    });
+  }
+
+  async cancelCreate() {
+    await this.cancelButton.click();
+    await this.createDialog.waitFor({ state: 'hidden' });
+  }
+
+  async guardedSubmitCreate() {
+    return runGuardedProcessMutation({
+      kind: 'create',
+      assertSandbox: this.assertSandbox,
+      action: () => this.submitCreateButton.click(),
+    });
+  }
+
+  async createOwned({
+    name,
+    description,
+    category,
+    register,
+    quietMs,
+    minAdmissionMs,
+    maxAdmissionMs,
+  }: {
+    name: string;
+    description: string;
+    category: 'Operational' | 'Service' | 'Financial' | 'Maintenance';
+    register: (created: CreatedProcess) => unknown | Promise<unknown>;
+    quietMs?: number;
+    minAdmissionMs?: number;
+    maxAdmissionMs?: number;
+  }): Promise<ProcessMutationCapture<CreatedProcess>> {
+    assertOwnedProcessName(name);
+    await this.gotoList();
+    await this.openCreate();
+    await this.fillCreate({ name, description, category });
+    const endpoint = new URL(
+      PROCESS_PATHS.collectionApi,
+      this.page.url(),
+    ).href;
+    const apiCategory =
+      category.toLowerCase() as ExactProcessCreatePayload['category'];
+    return captureExactProcessMutations<CreatedProcess>({
+      page: this.page,
+      method: 'POST',
+      endpoint,
+      guardPattern: `${endpoint}**`,
+      successStatus: 201,
+      action: () => this.guardedSubmitCreate(),
+      validateRequest: (request) => {
+        let body: unknown;
+        try {
+          body = request.postDataJSON();
+        } catch (error) {
+          throw new AggregateError(
+            [error],
+            'Process create request was not JSON.',
+          );
+        }
+        assertExactProcessCreatePayload(body, {
+          name,
+          description,
+          category: apiCategory,
+        });
+      },
+      parse: (body, requestOrdinal, responseStatus) =>
+        parseCreatedProcess(body, {
+          requestedName: name,
+          workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+          requestOrdinal,
+          responseStatus,
+          expectedStatus: 201,
+          expectedDescription: description,
+          expectedCategory: apiCategory,
+          expectedIsActive: false,
+        }),
+      extractResponseIdentity: extractProcessCreateResponseIdentity,
+      register,
+      quietMs,
+      minAdmissionMs,
+      maxAdmissionMs,
+    });
+  }
+}
+
+export class ProcessEditorPage {
+  readonly editorTab: Locator;
+  readonly runsTab: Locator;
+  readonly tasksTab: Locator;
+  readonly undoButton: Locator;
+  readonly redoButton: Locator;
+  readonly autosaveSwitch: Locator;
+  readonly savedIndicator: Locator;
+  readonly validationIndicator: Locator;
+  readonly zeroErrorsIndicator: Locator;
+  readonly noIssuesIndicator: Locator;
+  readonly eventPalette: Locator;
+  readonly taskPalette: Locator;
+  readonly gatewayPalette: Locator;
+  readonly gatewayPaletteGroup: Locator;
+  readonly eventPaletteGroup: Locator;
+  readonly gatewayOptions: Locator;
+  readonly exclusiveGatewayOption: Locator;
+  readonly endEventOption: Locator;
+  readonly appendHumanTaskAction: Locator;
+  readonly appendEndEventAction: Locator;
+  readonly globalConnectTool: Locator;
+  readonly contextConnectAction: Locator;
+  readonly canvas: Locator;
+  readonly humanTaskNameInput: Locator;
+  readonly oneWarningIndicator: Locator;
+  readonly processNameInput: Locator;
+  readonly processDescriptionInput: Locator;
+  readonly processCategorySelect: Locator;
+  readonly activateButton: Locator;
+  readonly deactivateButton: Locator;
+  readonly startRunButton: Locator;
+  readonly deleteProcessButton: Locator;
+
+  constructor(
+    readonly page: Page,
+    readonly assertSandbox: () => Promise<void>,
+  ) {
+    this.editorTab = page.getByRole('button', {
+      name: 'Editor',
+      exact: true,
+    });
+    this.runsTab = page
+      .getByRole('button')
+      .filter({ hasText: 'Runs' });
+    this.tasksTab = page.getByRole('button', {
+      name: 'Tasks',
+      exact: true,
+    });
+    this.undoButton = page.getByRole('button', {
+      name: 'Undo',
+      exact: true,
+    });
+    this.redoButton = page.getByRole('button', {
+      name: 'Redo',
+      exact: true,
+    });
+    this.autosaveSwitch = page.getByRole('switch', {
+      name: 'Autosave',
+      exact: true,
+    });
+    this.savedIndicator = page.getByText('Saved', { exact: true });
+    this.validationIndicator = page.getByRole('button', {
+      name: /^(?:No Issues|\d+ Errors, \d+ Warnings)$/,
+    });
+    this.zeroErrorsIndicator = page.getByRole('button', {
+      name: /^(?:No Issues|0 Errors, \d+ Warnings)$/,
+    });
+    this.noIssuesIndicator = page.getByRole('button', {
+      name: 'No Issues',
+      exact: true,
+    });
+    this.eventPalette = page.locator(
+      '[title^="Event —"], [aria-label^="Event"]',
+    );
+    this.taskPalette = page.locator(
+      '[title^="Task —"], [aria-label^="Task —"]',
+    );
+    this.gatewayPalette = page.locator(
+      '[title^="Gateway —"], [aria-label^="Gateway"]',
+    );
+    this.gatewayPaletteGroup = page.locator(
+      '[data-action="create.group-gateway"]',
+    );
+    this.eventPaletteGroup = page.locator(
+      '[data-action="create.group-event"]',
+    );
+    this.gatewayOptions = page.getByRole('button', {
+      name: /^(?:Exclusive|Inclusive|Parallel|Event-based)$/,
+    });
+    this.exclusiveGatewayOption = page.getByRole('button', {
+      name: 'Exclusive',
+      exact: true,
+    });
+    this.endEventOption = page.getByRole('button', {
+      name: 'End',
+      exact: true,
+    });
+    this.appendHumanTaskAction = page.locator(
+      '[title="Append Human Task"]',
+    );
+    this.appendEndEventAction = page.locator(
+      '[title="Append end event"]',
+    );
+    this.globalConnectTool = page.locator(
+      '[data-action="global-connect-tool"]',
+    );
+    this.contextConnectAction = page.locator(
+      '.djs-context-pad [data-action="connect"]',
+    );
+    this.canvas = page.locator('.djs-container');
+    this.humanTaskNameInput = page.getByPlaceholder(
+      'Task name (syncs to canvas label)...',
+      { exact: true },
+    );
+    this.oneWarningIndicator = page.getByRole('button', {
+      name: '0 Errors, 1 Warnings',
+      exact: true,
+    });
+    this.processNameInput = page.getByPlaceholder('Process name', {
+      exact: true,
+    });
+    this.processDescriptionInput = page.getByPlaceholder(
+      'What does this process do?',
+      { exact: true },
+    );
+    this.processCategorySelect = page.getByRole('combobox');
+    this.activateButton = page.getByRole('button', {
+      name: 'Activate',
+      exact: true,
+    });
+    this.deactivateButton = page.getByRole('button', {
+      name: 'Deactivate',
+      exact: true,
+    });
+    this.startRunButton = page.getByRole('button', {
+      name: 'Start Run',
+      exact: true,
+    });
+    this.deleteProcessButton = page.getByRole('button', {
+      name: 'Delete process',
+      exact: true,
+    });
+  }
+
+  elementById(id: string) {
+    if (
+      !/^[A-Za-z][A-Za-z0-9_-]*$/.test(id) ||
+      id.includes('"')
+    ) {
+      throw new Error('BPMN element ID was not safe and exact.');
+    }
+    return this.page.locator(
+      `.djs-element[data-element-id="${id}"]`,
+    );
+  }
+
+  async undoByKeyboard() {
+    await this.page.keyboard.press('ControlOrMeta+z');
+  }
+
+  async redoByKeyboard() {
+    await this.page.keyboard.press('ControlOrMeta+Shift+z');
+  }
+
+  async appendHumanTaskFrom(sourceId: string) {
+    await this.assertSandbox();
+    await this.elementById(sourceId).click();
+    if ((await this.appendHumanTaskAction.count()) !== 1) {
+      throw new Error(
+        'Human Task context action was not unique for the exact source.',
+      );
+    }
+    await this.assertSandbox();
+    await this.appendHumanTaskAction.click();
+  }
+
+  async appendEndEventFrom(humanTaskId: string) {
+    await this.assertSandbox();
+    await this.elementById(humanTaskId).click();
+    if ((await this.appendEndEventAction.count()) !== 1) {
+      throw new Error(
+        'End event context action was not unique for the exact Human Task.',
+      );
+    }
+    await this.assertSandbox();
+    await this.appendEndEventAction.click();
+  }
+
+  async renameSelectedHumanTask(name: string) {
+    assertOwnedProcessName(name);
+    await this.assertSandbox();
+    await this.humanTaskNameInput.fill(name);
+    await this.humanTaskNameInput.press('Tab');
+  }
+
+  private async placeFromPalette(
+    paletteGroup: Locator,
+    option: Locator,
+    description: string,
+  ) {
+    if (
+      (await paletteGroup.count()) !== 1 ||
+      (await this.canvas.count()) !== 1
+    ) {
+      throw new Error(
+        `${description} palette group or BPMN canvas was not unique.`,
+      );
+    }
+    await paletteGroup.hover();
+    if ((await option.count()) !== 1) {
+      throw new Error(`${description} palette option was not unique.`);
+    }
+    await this.assertSandbox();
+    await option.click();
+
+    const canvasBox = await this.canvas.boundingBox();
+    const shapes = this.page.locator(
+      '.djs-shape[data-element-id]',
+    );
+    const shapeCount = await shapes.count();
+    const shapeBoxes = [];
+    for (let index = 0; index < shapeCount; index += 1) {
+      const box = await shapes.nth(index).boundingBox();
+      if (box) shapeBoxes.push(box);
+    }
+    if (!canvasBox || shapeBoxes.length === 0) {
+      throw new Error(
+        `${description} placement missed canvas or existing shape bounds.`,
+      );
+    }
+    const rightMost = Math.max(
+      ...shapeBoxes.map(({ x, width }) => x + width),
+    );
+    const verticalCenter =
+      shapeBoxes.reduce(
+        (sum, { y, height }) => sum + y + height / 2,
+        0,
+      ) / shapeBoxes.length;
+    const x = Math.min(
+      rightMost + 100,
+      canvasBox.x + canvasBox.width - 60,
+    );
+    const y = Math.max(
+      canvasBox.y + 60,
+      Math.min(
+        verticalCenter,
+        canvasBox.y + canvasBox.height - 60,
+      ),
+    );
+    if (x <= rightMost + 20) {
+      throw new Error(
+        `${description} had no proven empty placement space.`,
+      );
+    }
+    await this.assertSandbox();
+    await this.page.mouse.click(x, y);
+  }
+
+  async createExclusiveGateway() {
+    await this.placeFromPalette(
+      this.gatewayPaletteGroup,
+      this.exclusiveGatewayOption,
+      'Exclusive Gateway',
+    );
+  }
+
+  async createEndEvent() {
+    await this.placeFromPalette(
+      this.eventPaletteGroup,
+      this.endEventOption,
+      'End event',
+    );
+  }
+
+  async connectWithGlobalTool(sourceId: string, targetId: string) {
+    if ((await this.globalConnectTool.count()) !== 1) {
+      throw new Error('Global connect tool was not unique.');
+    }
+    await this.assertSandbox();
+    await this.globalConnectTool.click();
+    await this.elementById(sourceId).click();
+    await this.assertSandbox();
+    await this.elementById(targetId).click();
+  }
+
+  async connectFromContext(sourceId: string, targetId: string) {
+    await this.elementById(sourceId).click();
+    if ((await this.contextConnectAction.count()) !== 1) {
+      throw new Error(
+        'Context connect action was not unique for the source.',
+      );
+    }
+    await this.assertSandbox();
+    await this.contextConnectAction.click();
+    await this.assertSandbox();
+    await this.elementById(targetId).click();
+  }
+
+  async undoWithButton() {
+    await this.assertSandbox();
+    await this.undoButton.click();
+  }
+
+  async redoWithButton() {
+    await this.assertSandbox();
+    await this.redoButton.click();
+  }
+
+  async guardedStartRun() {
+    return runGuardedProcessMutation({
+      kind: 'run',
+      assertSandbox: this.assertSandbox,
+      action: () => this.startRunButton.click(),
+    });
+  }
+}
+
+type ProcessSaveReceipt = {
+  processId: string;
+  requestOrdinal: number;
+};
+
+type ForeignProcessSaveAttempt = {
+  method: string;
+  url: string;
+  processId?: string;
+};
+
+const escapeXmlAttribute = (value: string) =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+
+const FORBIDDEN_BPMN_AUTOSAVE_MARKERS =
+  /<bpmn:(?:serviceTask|sendTask|receiveTask|scriptTask|businessRuleTask|callActivity|messageEventDefinition|signalEventDefinition)\b|<plane:(?:automationConfig|notificationConfig|agentConfig)\b|webhook_url|integration/iu;
+
+export const assertExactInertBpmnAutosavePayload = (
+  body: unknown,
+  {
+    requiredElementIds,
+    requiredLabel,
+  }: {
+    requiredElementIds: readonly string[];
+    requiredLabel?: string;
+  },
+) => {
+  if (
+    !isRecord(body) ||
+    Object.keys(body).length !== 1 ||
+    typeof body.bpmn_xml !== 'string' ||
+    !body.bpmn_xml.startsWith('<?xml version="1.0"') ||
+    !body.bpmn_xml.includes('<bpmn:definitions') ||
+    !body.bpmn_xml.includes('<bpmn:process') ||
+    !body.bpmn_xml.includes('isExecutable="true"') ||
+    FORBIDDEN_BPMN_AUTOSAVE_MARKERS.test(body.bpmn_xml)
+  ) {
+    throw new Error(
+      'BPMN autosave request was not the exact inert XML-only payload.',
+    );
+  }
+  for (const id of requiredElementIds) {
+    if (
+      !/^[A-Za-z][A-Za-z0-9_-]*$/.test(id) ||
+      !body.bpmn_xml.includes(`id="${id}"`)
+    ) {
+      throw new Error(
+        `BPMN autosave XML missed required exact element ID: ${id}`,
+      );
+    }
+  }
+  if (requiredLabel !== undefined) {
+    assertOwnedProcessName(requiredLabel);
+    if (
+      !body.bpmn_xml.includes(
+        `name="${escapeXmlAttribute(requiredLabel)}"`,
+      )
+    ) {
+      throw new Error(
+        'BPMN autosave XML missed its exact current-run task label.',
+      );
+    }
+  }
+  return body.bpmn_xml;
+};
+
+export const assertExactInertBpmnAutosaveResponse = (
+  body: unknown,
+  {
+    processId,
+    workspaceId,
+    requestXml,
+  }: {
+    processId: string;
+    workspaceId: string;
+    requestXml: string;
+  },
+) => {
+  if (
+    !isCanonicalProcessId(processId) ||
+    workspaceId !== PROCESS_SANDBOX_WORKSPACE_ID ||
+    !isRecord(body) ||
+    body.id !== processId ||
+    body.workspace_id !== workspaceId ||
+    typeof body.bpmn_xml !== 'string' ||
+    body.bpmn_xml !== requestXml.trimEnd()
+  ) {
+    throw new Error(
+      'BPMN autosave response did not retain exact ownership and trimEnd normalization.',
+    );
+  }
+  return body.bpmn_xml;
+};
+
+export type InertHumanTaskGraph = {
+  startId: string;
+  humanTaskId: string;
+  endId: string;
+  startToTaskFlowId: string;
+  taskToEndFlowId: string;
+  taskLabel: string;
+};
+
+const BPMN_ELEMENT_ID = /^[A-Za-z][A-Za-z0-9_-]*$/;
+
+const openingBpmnTags = (xml: string, localName: string) =>
+  [...xml.matchAll(new RegExp(`<bpmn:${localName}\\b[^>]*>`, 'gu'))];
+
+const xmlAttribute = (
+  openingTag: RegExpMatchArray,
+  attribute: string,
+) =>
+  openingTag[0].match(
+    new RegExp(`\\b${attribute}="([^"]*)"`, 'u'),
+  )?.[1];
+
+const requireOneBpmnTag = (
+  xml: string,
+  localName: string,
+) => {
+  const matches = openingBpmnTags(xml, localName);
+  if (matches.length !== 1) {
+    throw new Error(
+      `Inert BPMN graph requires exactly one ${localName}.`,
+    );
+  }
+  const match = matches[0];
+  if (!match) {
+    throw new Error(`Inert BPMN graph missed ${localName}.`);
+  }
+  return match;
+};
+
+const exactXmlTextCount = (xml: string, fragment: string) =>
+  xml.split(fragment).length - 1;
+
+export const assertExactInertHumanTaskGraph = (
+  xml: string,
+  {
+    taskLabel,
+    expectedStartId = 'StartEvent_1',
+  }: {
+    taskLabel: string;
+    expectedStartId?: string;
+  },
+): InertHumanTaskGraph => {
+  assertOwnedProcessName(taskLabel);
+  if (
+    !BPMN_ELEMENT_ID.test(expectedStartId) ||
+    /<bpmn:(?:task|manualTask|serviceTask|sendTask|receiveTask|scriptTask|businessRuleTask|callActivity|subProcess|exclusiveGateway|inclusiveGateway|parallelGateway|eventBasedGateway|intermediateCatchEvent|intermediateThrowEvent|boundaryEvent)\b/u.test(
+      xml,
+    )
+  ) {
+    throw new Error(
+      'Inert Human Task graph contained an extra executable node.',
+    );
+  }
+
+  const start = requireOneBpmnTag(xml, 'startEvent');
+  const humanTask = requireOneBpmnTag(xml, 'userTask');
+  const end = requireOneBpmnTag(xml, 'endEvent');
+  const flows = openingBpmnTags(xml, 'sequenceFlow');
+  const startId = xmlAttribute(start, 'id');
+  const humanTaskId = xmlAttribute(humanTask, 'id');
+  const endId = xmlAttribute(end, 'id');
+  const observedTaskLabel = xmlAttribute(humanTask, 'name');
+  if (
+    startId !== expectedStartId ||
+    !humanTaskId ||
+    !endId ||
+    !BPMN_ELEMENT_ID.test(humanTaskId) ||
+    !BPMN_ELEMENT_ID.test(endId) ||
+    observedTaskLabel !== taskLabel ||
+    flows.length !== 2
+  ) {
+    throw new Error(
+      'Inert Human Task graph did not have its exact nodes and label.',
+    );
+  }
+
+  const flowRecords = flows.map((flow) => ({
+    id: xmlAttribute(flow, 'id'),
+    sourceRef: xmlAttribute(flow, 'sourceRef'),
+    targetRef: xmlAttribute(flow, 'targetRef'),
+  }));
+  const startToTask = flowRecords.find(
+    ({ sourceRef, targetRef }) =>
+      sourceRef === startId && targetRef === humanTaskId,
+  );
+  const taskToEnd = flowRecords.find(
+    ({ sourceRef, targetRef }) =>
+      sourceRef === humanTaskId && targetRef === endId,
+  );
+  if (
+    !startToTask?.id ||
+    !taskToEnd?.id ||
+    startToTask.id === taskToEnd.id ||
+    !BPMN_ELEMENT_ID.test(startToTask.id) ||
+    !BPMN_ELEMENT_ID.test(taskToEnd.id)
+  ) {
+    throw new Error(
+      'Inert Human Task graph did not have exactly Start → Task → End.',
+    );
+  }
+
+  const expectedReferences = [
+    `<bpmn:outgoing>${startToTask.id}</bpmn:outgoing>`,
+    `<bpmn:incoming>${startToTask.id}</bpmn:incoming>`,
+    `<bpmn:outgoing>${taskToEnd.id}</bpmn:outgoing>`,
+    `<bpmn:incoming>${taskToEnd.id}</bpmn:incoming>`,
+    `<plane:taskConfig name="${escapeXmlAttribute(taskLabel)}"`,
+  ];
+  if (
+    expectedReferences.some(
+      (fragment) => exactXmlTextCount(xml, fragment) !== 1,
+    )
+  ) {
+    throw new Error(
+      'Inert Human Task graph references or local task config were incomplete.',
+    );
+  }
+
+  assertExactInertBpmnAutosavePayload(
+    { bpmn_xml: xml },
+    {
+      requiredElementIds: [
+        startId,
+        humanTaskId,
+        endId,
+        startToTask.id,
+        taskToEnd.id,
+      ],
+      requiredLabel: taskLabel,
+    },
+  );
+  return {
+    startId,
+    humanTaskId,
+    endId,
+    startToTaskFlowId: startToTask.id,
+    taskToEndFlowId: taskToEnd.id,
+    taskLabel,
+  };
+};
+
+export type InertExclusiveGatewayGraph = {
+  startId: string;
+  gatewayId: string;
+  endId: string;
+  startToGatewayFlowId: string;
+  gatewayToEndFlowId: string;
+};
+
+export const assertExactInertExclusiveGatewayGraph = (
+  xml: string,
+  {
+    expectedStartId = 'StartEvent_1',
+  }: {
+    expectedStartId?: string;
+  } = {},
+): InertExclusiveGatewayGraph => {
+  if (
+    !BPMN_ELEMENT_ID.test(expectedStartId) ||
+    /<bpmn:(?:task|userTask|manualTask|serviceTask|sendTask|receiveTask|scriptTask|businessRuleTask|callActivity|subProcess|inclusiveGateway|parallelGateway|eventBasedGateway|intermediateCatchEvent|intermediateThrowEvent|boundaryEvent)\b/u.test(
+      xml,
+    )
+  ) {
+    throw new Error(
+      'Inert Exclusive Gateway graph contained an extra executable node.',
+    );
+  }
+
+  const start = requireOneBpmnTag(xml, 'startEvent');
+  const gateway = requireOneBpmnTag(xml, 'exclusiveGateway');
+  const end = requireOneBpmnTag(xml, 'endEvent');
+  const flows = openingBpmnTags(xml, 'sequenceFlow');
+  const startId = xmlAttribute(start, 'id');
+  const gatewayId = xmlAttribute(gateway, 'id');
+  const endId = xmlAttribute(end, 'id');
+  if (
+    startId !== expectedStartId ||
+    !gatewayId ||
+    !endId ||
+    !BPMN_ELEMENT_ID.test(gatewayId) ||
+    !BPMN_ELEMENT_ID.test(endId) ||
+    flows.length !== 2
+  ) {
+    throw new Error(
+      'Inert Exclusive Gateway graph did not have its exact nodes.',
+    );
+  }
+
+  const flowRecords = flows.map((flow) => ({
+    id: xmlAttribute(flow, 'id'),
+    sourceRef: xmlAttribute(flow, 'sourceRef'),
+    targetRef: xmlAttribute(flow, 'targetRef'),
+  }));
+  const startToGateway = flowRecords.find(
+    ({ sourceRef, targetRef }) =>
+      sourceRef === startId && targetRef === gatewayId,
+  );
+  const gatewayToEnd = flowRecords.find(
+    ({ sourceRef, targetRef }) =>
+      sourceRef === gatewayId && targetRef === endId,
+  );
+  if (
+    !startToGateway?.id ||
+    !gatewayToEnd?.id ||
+    startToGateway.id === gatewayToEnd.id ||
+    !BPMN_ELEMENT_ID.test(startToGateway.id) ||
+    !BPMN_ELEMENT_ID.test(gatewayToEnd.id)
+  ) {
+    throw new Error(
+      'Inert Exclusive Gateway graph was not exactly Start → Gateway → End.',
+    );
+  }
+
+  const expectedReferences = [
+    `<bpmn:outgoing>${startToGateway.id}</bpmn:outgoing>`,
+    `<bpmn:incoming>${startToGateway.id}</bpmn:incoming>`,
+    `<bpmn:outgoing>${gatewayToEnd.id}</bpmn:outgoing>`,
+    `<bpmn:incoming>${gatewayToEnd.id}</bpmn:incoming>`,
+  ];
+  if (
+    expectedReferences.some(
+      (fragment) => exactXmlTextCount(xml, fragment) !== 1,
+    )
+  ) {
+    throw new Error(
+      'Inert Exclusive Gateway graph flow references were incomplete.',
+    );
+  }
+
+  assertExactInertBpmnAutosavePayload(
+    { bpmn_xml: xml },
+    {
+      requiredElementIds: [
+        startId,
+        gatewayId,
+        endId,
+        startToGateway.id,
+        gatewayToEnd.id,
+      ],
+    },
+  );
+  return {
+    startId,
+    gatewayId,
+    endId,
+    startToGatewayFlowId: startToGateway.id,
+    gatewayToEndFlowId: gatewayToEnd.id,
+  };
+};
+
+export const captureExactProcessMetadataUpdate = async ({
+  page,
+  created,
+  allowedNames,
+  endpoint,
+  familyPattern,
+  patch,
+  assertSandbox,
+  action,
+  register,
+  quietMs = 500,
+  maxAdmissionMs = 2_000,
+}: {
+  page: Page;
+  created: CreatedProcess;
+  allowedNames: Set<string>;
+  endpoint: string;
+  familyPattern: string;
+  patch: ProcessMetadataPatch;
+  assertSandbox: () => Promise<void>;
+  action: () => Promise<unknown>;
+  register?: (
+    receipt: ProcessMetadataReceipt,
+  ) => unknown | Promise<unknown>;
+  quietMs?: number;
+  maxAdmissionMs?: number;
+}): Promise<{
+  capture: ProcessMutationCapture<ProcessMetadataReceipt>;
+  foreignWriteAttempts: ForeignProcessSaveAttempt[];
+}> => {
+  assertExactProcessMetadataPayload(patch, patch);
+  const { ownership, metadata } =
+    requireExactResponseOwnedProcess(created);
+  if (
+    ownership.workspaceId !== PROCESS_SANDBOX_WORKSPACE_ID ||
+    !allowedNames.has(metadata.currentName) ||
+    !endpoint.includes(`/process-templates/${ownership.id}/`)
+  ) {
+    throw new Error(
+      'Metadata capture requires its exact response-owned process.',
+    );
+  }
+  const foreignWriteAttempts: ForeignProcessSaveAttempt[] = [];
+  const familyGuard = async (route: Route) => {
+    const request = route.request();
+    if (
+      !['POST', 'PUT', 'PATCH', 'DELETE'].includes(
+        request.method(),
+      )
+    ) {
+      await route.fallback();
+      return;
+    }
+    const match = new URL(request.url()).pathname.match(
+      /\/process-templates\/([0-9a-f-]+)\/$/,
+    );
+    const observedProcessId = match?.[1];
+    if (
+      request.method() === 'PATCH' &&
+      request.url() === endpoint &&
+      observedProcessId === ownership.id
+    ) {
+      let immutableStateValid = true;
+      try {
+        requireExactResponseOwnedProcess(created);
+      } catch {
+        immutableStateValid = false;
+      }
+      if (immutableStateValid) {
+        await route.fallback();
+        return;
+      }
+    }
+    foreignWriteAttempts.push({
+      method: request.method(),
+      url: request.url(),
+      processId: observedProcessId,
+    });
+    await route.abort('blockedbyclient');
+  };
+
+  await page.route(familyPattern, familyGuard);
+  try {
+    const capture =
+      await captureExactProcessMutations<ProcessMetadataReceipt>({
+        page,
+        method: 'PATCH',
+        endpoint,
+        successStatus: 200,
+        action: () =>
+          runGuardedProcessMutation({
+            kind: 'update',
+            assertSandbox,
+            action: async () => {
+              requireExactResponseOwnedProcess(created);
+              preauthorizeProcessMetadataPatch(
+                patch,
+                created,
+                allowedNames,
+              );
+              return action();
+            },
+          }),
+        validateRequest: (request) => {
+          requireExactResponseOwnedProcess(created);
+          if (request.url() !== endpoint) {
+            throw new Error(
+              'Metadata request crossed its exact process endpoint.',
+            );
+          }
+          let body: unknown;
+          try {
+            body = request.postDataJSON();
+          } catch (error) {
+            throw new AggregateError(
+              [error],
+              'Process metadata request was not JSON.',
+            );
+          }
+          assertExactProcessMetadataPayload(body, patch);
+          requireExactResponseOwnedProcess(created);
+        },
+        parse: (body, requestOrdinal, responseStatus) =>
+          parseUpdatedProcessMetadata(body, {
+            created,
+            allowedNames,
+            patch,
+            requestOrdinal,
+            responseStatus,
+          }),
+        register: async (receipt) => {
+          commitTrustedProcessMetadata(created, receipt);
+          await register?.(receipt);
+        },
+        quietMs,
+        maxAdmissionMs,
+      });
+    return { capture, foreignWriteAttempts };
+  } finally {
+    await page.unroute(familyPattern, familyGuard).catch(() => {});
+  }
+};
+
+export const captureExactProcessSaves = async ({
+  page,
+  created,
+  allowedNames,
+  assertSandbox,
+  action,
+  validatePayload,
+  validateResponse,
+  quietMs = 500,
+  maxAdmissionMs = 2_000,
+}: {
+  page: Page;
+  created: CreatedProcess;
+  allowedNames: ReadonlySet<string>;
+  assertSandbox: () => Promise<void>;
+  action: () => Promise<unknown>;
+  validatePayload: (request: Request) => void;
+  validateResponse?: (body: unknown, request: Request) => void;
+  quietMs?: number;
+  maxAdmissionMs?: number;
+}): Promise<{
+  capture: ProcessMutationCapture<ProcessSaveReceipt>;
+  foreignWriteAttempts: ForeignProcessSaveAttempt[];
+}> => {
+  const { ownership, metadata } =
+    requireExactResponseOwnedProcess(created);
+  if (
+    !allowedNames.has(metadata.currentName) ||
+    ownership.workspaceId !== PROCESS_SANDBOX_WORKSPACE_ID ||
+    (ownership.hasProjectId &&
+      ownership.projectId !== SANDBOX.projectId) ||
+    ownership.isActive !== false
+  ) {
+    throw new Error(
+      'Autosave capture requires one exact response-owned process with its full current-run sandbox identity.',
+    );
+  }
+  let currentUrl: URL;
+  try {
+    currentUrl = new URL(page.url());
+  } catch (error) {
+    throw new AggregateError(
+      [error],
+      'Autosave capture could not derive its trusted process route.',
+    );
+  }
+  if (
+    !['http:', 'https:'].includes(currentUrl.protocol) ||
+    currentUrl.pathname !== PROCESS_PATHS.detail(ownership.id) ||
+    currentUrl.search !== '' ||
+    currentUrl.hash !== ''
+  ) {
+    throw new Error(
+      'Autosave capture requires the exact response-owned process editor route.',
+    );
+  }
+  const endpoint = new URL(
+    PROCESS_PATHS.detailApi(ownership.id),
+    currentUrl.origin,
+  ).href;
+  const familyPattern = '**/process-templates/**';
+  await assertSandbox();
+  requireExactResponseOwnedProcess(created);
+
+  const foreignWriteAttempts: ForeignProcessSaveAttempt[] = [];
+  const familyGuard = async (route: Route) => {
+    const request = route.request();
+    if (
+      !['POST', 'PUT', 'PATCH', 'DELETE'].includes(
+        request.method(),
+      )
+    ) {
+      await route.fallback();
+      return;
+    }
+    const match = new URL(request.url()).pathname.match(
+      /\/process-templates\/([0-9a-f-]+)\/$/,
+    );
+    const observedProcessId = match?.[1];
+    if (
+      request.method() === 'PATCH' &&
+      request.url() === endpoint &&
+      observedProcessId === ownership.id
+    ) {
+      let immutableStateValid = true;
+      try {
+        requireExactResponseOwnedProcess(created);
+      } catch {
+        immutableStateValid = false;
+      }
+      if (immutableStateValid) {
+        await route.fallback();
+        return;
+      }
+    }
+    foreignWriteAttempts.push({
+      method: request.method(),
+      url: request.url(),
+      processId: observedProcessId,
+    });
+    await route.abort('blockedbyclient');
+  };
+
+  await page.route(familyPattern, familyGuard);
+  try {
+    const capture =
+      await captureExactProcessMutations<ProcessSaveReceipt>({
+        page,
+        method: 'PATCH',
+        endpoint,
+        successStatus: 200,
+        action: () =>
+          runGuardedProcessMutation({
+            kind: 'update',
+            assertSandbox,
+            action: async () => {
+              requireExactResponseOwnedProcess(created);
+              return action();
+            },
+          }),
+        validateRequest: (request) => {
+          requireExactResponseOwnedProcess(created);
+          if (request.url() !== endpoint) {
+            throw new Error(
+              'Autosave request crossed its exact process endpoint.',
+            );
+          }
+          validatePayload(request);
+          requireExactResponseOwnedProcess(created);
+        },
+        parse: (body, requestOrdinal, _responseStatus, request) => {
+          if (
+            !isRecord(body) ||
+            body.id !== ownership.id ||
+            body.workspace_id !== ownership.workspaceId ||
+            (ownership.hasProjectId
+              ? body.project_id !== ownership.projectId
+              : body.project_id !== undefined)
+          ) {
+            throw new Error(
+              'Autosave response did not retain the exact owned process identity.',
+            );
+          }
+          validateResponse?.(body, request);
+          return { processId: ownership.id, requestOrdinal };
+        },
+        register: () => {},
+        quietMs,
+        maxAdmissionMs,
+      });
+    return { capture, foreignWriteAttempts };
+  } finally {
+    await page.unroute(familyPattern, familyGuard).catch(() => {});
+  }
+};

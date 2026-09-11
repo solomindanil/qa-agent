@@ -1,0 +1,168 @@
+{
+  "blueprint_version": "nuanu.universal-qa-flow.blueprint.v1",
+  "binding_tokens": [
+    "__BINDING_IN_PROGRESS_STATE_ID__",
+    "__BINDING_READY_FOR_PRODUCTION_STATE_ID__",
+    "__BINDING_QA_AGENT_EMPLOYEE_ID__",
+    "__BINDING_QA_AGENT_VERSION_ID__"
+  ],
+  "graph": {
+    "schema_version": 1,
+    "name": "Universal QA evidence flow",
+    "nodes": [
+      {
+        "id": "10000000-0000-5000-8000-000000000018",
+        "key": "finalize_transition",
+        "type": "agent_task",
+        "name": "Finalize QA transition",
+        "config": {
+          "agent_employee_id": "__BINDING_QA_AGENT_EMPLOYEE_ID__",
+          "agent_version_id": "__BINDING_QA_AGENT_VERSION_ID__",
+          "failure_handling": {
+            "mode": "stop"
+          },
+          "runtime_hints": {
+            "required_worker_capabilities": [
+              "browser_qa_v1"
+            ]
+          },
+          "instruction": "Ты выполняешь один stock-compatible Product Graph QAH canary только из платформенного входа {{input.project_start.artifacts.flow_item}} и уже предоставленного worker-ом Resolved structured input Artifact. Не вызывай get_artifact для входного Flow item или чужих task Artifacts. Из exact Flow item snapshot создай canonical task-local prepare input с ровно phase, source_ref, source_name, source_media_type, source_snapshot. source_snapshot содержит ровно issue_id, identifier, title, description, project_key, state_name, labels, updated_at: issue_id — UUID Flow item; identifier и title — из exact имени/source payload; description — exact bounded description HTML или пустая строка; project_key — lowercase project identifier; state_name — Ready for QA; labels — bounded unique label names либо пустой массив; updated_at — exact canonical source timestamp. Не добавляй токены, credentials или догадки. Запусти node scripts/qah/ui-graph-canary.mjs prepare --input <absolute-task-input> --output-dir \"$NUANU_TASK_DIR/qah/ui-graph-canary\". CLI сам строит Product Graph impact plan, применяет code-owned knowledge policy критичности и формирует stock Proof Gate claim. Если source snapshot выбирает code-owned browser target, CLI подключается только к worker-provisioned CDP, выполняет read-only UI probe без отправки форм и включает его результат в evidence; иначе сохраняется offline canary без product repository/network/credentials. Опубликуй qah-verification.json через publish_artifact_file с output_path item.artifacts.qah_verification, kind document, role output, media_type application/json. Передай actual ref ровно artifact_id, version_id, kind, role в phase=finalize input и запусти тот же CLI с finalize. Опубликуй finalization.json через publish_artifact_file с output_path item.artifacts.finalization_report, kind document, role output, media_type application/json. Передай оба actual ref ровно artifact_id, version_id, kind, role в phase=complete input и запусти CLI с complete. PRE-SUPERVISOR RAW RESULT CONTRACT: верни stdout phase=complete verbatim как единственный JSON object с ровно item и artifact_outputs, без Markdown и без пояснений. item.artifacts должен быть пустым. artifact_outputs должен содержать ровно item.artifacts.finalization_report и item.artifacts.qah_verification с actual refs; artifact_outputs MUST NOT contain verified_commit. Не создавай Git commit вручную: repository supervisor после проверки raw result сам проверяет и публикует текущую task-ветку и только затем заполняет verified_commit. Никаких свободно синтезированных outputs, смены статуса или иных команд.",
+          "output": {
+            "data": {
+              "transition_allowed": {
+                "type": "boolean",
+                "description": "True only after authoritative comment and cleanup verification"
+              },
+              "target_state": {
+                "type": "string",
+                "description": "ready_for_production, in_progress, or ready_for_qa"
+              },
+              "reason_codes": {
+                "type": "json",
+                "description": "Closed sorted finalization reason codes"
+              },
+              "kind": {
+                "type": "string",
+                "description": "Literal qa admitted by QAH"
+              },
+              "verdict": {
+                "type": "string",
+                "description": "pass, fail, or blocked admitted by QAH"
+              },
+              "tested_head_sha": {
+                "type": "string",
+                "description": "Exact trusted 40-character repository commit"
+              },
+              "checks": {
+                "type": "json",
+                "description": "Closed checks derived from exact verified branch ArtifactVersions"
+              }
+            },
+            "artifacts": {
+              "qah_verification": {
+                "description": "Exact Product Graph plan, criticality, harness evidence, and routing receipt",
+                "kind": "document",
+                "restrictions": {
+                  "media_types": [
+                    "application/json"
+                  ]
+                }
+              },
+              "finalization_report": {
+                "description": "Verified final transition gate result",
+                "kind": "document",
+                "restrictions": {
+                  "media_types": [
+                    "application/json"
+                  ]
+                }
+              },
+              "verified_commit": {
+                "description": "Server-verified task branch commit used by the stock Proof Gate",
+                "kind": "git.commit"
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "10000000-0000-5000-8000-000000000026",
+        "key": "transition_proof_gate",
+        "type": "proof_gate",
+        "name": "Route final QA state",
+        "config": {
+          "profile_key": "qa_result_v1",
+          "profile_version": "1",
+          "ai_assessment": "off"
+        }
+      },
+      {
+        "id": "10000000-0000-5000-8000-000000000020",
+        "key": "ready_for_production_end",
+        "type": "end",
+        "name": "Ready for Production",
+        "config": {
+          "project_status": {
+            "target_state_id": "__BINDING_READY_FOR_PRODUCTION_STATE_ID__"
+          }
+        }
+      },
+      {
+        "id": "10000000-0000-5000-8000-000000000021",
+        "key": "in_progress_end",
+        "type": "end",
+        "name": "Return to In Progress",
+        "config": {
+          "project_status": {
+            "target_state_id": "__BINDING_IN_PROGRESS_STATE_ID__"
+          }
+        }
+      },
+      {
+        "id": "10000000-0000-5000-8000-000000000022",
+        "key": "qa_needs_human_end",
+        "type": "end",
+        "name": "Keep in Ready for QA",
+        "config": {
+          "project_status": {
+            "target_state_id": null
+          }
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "20000000-0000-5000-8000-000000000022",
+        "source": "10000000-0000-5000-8000-000000000018",
+        "target": "10000000-0000-5000-8000-000000000026"
+      },
+      {
+        "id": "20000000-0000-5000-8000-000000000023",
+        "source": "10000000-0000-5000-8000-000000000026",
+        "target": "10000000-0000-5000-8000-000000000020",
+        "name": "passed",
+        "when": {
+          "outcome": "passed"
+        }
+      },
+      {
+        "id": "20000000-0000-5000-8000-000000000024",
+        "source": "10000000-0000-5000-8000-000000000026",
+        "target": "10000000-0000-5000-8000-000000000021",
+        "name": "not_passed",
+        "when": {
+          "outcome": "not_passed"
+        }
+      },
+      {
+        "id": "20000000-0000-5000-8000-000000000025",
+        "source": "10000000-0000-5000-8000-000000000026",
+        "target": "10000000-0000-5000-8000-000000000022",
+        "name": "unable_to_verify",
+        "when": {
+          "outcome": "unable_to_verify"
+        }
+      }
+    ]
+  }
+}

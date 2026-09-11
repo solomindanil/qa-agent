@@ -1,0 +1,791 @@
+# Freeland Nuanu-Native QA Control Plane — supersession design
+
+**Date:** 2026-08-07
+
+**Status:** approved native-first architecture; implementation remains gated by
+the acceptance probes in section 11
+
+**Scope:** control-plane correction for the Freeland autonomous QA program
+
+**Supersedes:** only the custom orchestration, queue, agent-registry, generic
+artifact, decision-inbox, and Nuanu-routing portions of
+`2026-07-31-freeland-autonomous-qa-harness-design.md`
+
+**Preserves:** the coverage, attestation, verdict, browser-safety, persona,
+evidence, Computer Use, Telegram, payment, and release-safety requirements of
+the original design
+
+**Implementation impact:** supersedes the custom Nuanu orchestration portions
+of the seven `2026-08-07-freeland-*` implementation drafts. Those drafts remain
+historical input until a smaller native-first implementation plan replaces
+them; their Freeland-specific runner, Computer Use, Telegram, payment, and
+release-safety requirements remain authoritative where this design preserves
+them.
+
+## 1. Decision
+
+FreelandQA will use Nuanu Flow as its control plane and keep a custom,
+deterministic QA domain kernel.
+
+Nuanu Flow owns process state, Column and General Process scheduling, agent-task
+delivery, run and task history, human Decisions, sanitized Artifact versions,
+and Manual/Assist/Auto journey behavior. FreelandQA owns what is specific to
+testing Freeland: coverage selection, candidate and issue attestation,
+Playwright/API execution, safe browser and Computer Use execution,
+deterministic verdicts, persona state, payment safety, evidence redaction, and
+external-effect reconciliation.
+
+This is an architectural rescope, not a rewrite. Existing coverage, Playwright,
+contract, and CDP work remains valid. Most of the saving is avoided future code.
+
+## 2. Why the plan changes now
+
+The original program correctly required durable orchestration and safe routing,
+but assumed that FreelandQA had to build most of that platform itself. The
+current Nuanu Flow 0.3.10 plugin contract and live operation catalog expose the
+required generic mechanisms:
+
+- Column Processes bound to an exact project state;
+- Manual, Assist, and Auto journey modes;
+- General Processes with manual or scheduled triggers;
+- structured BPMN-style graphs with agent tasks, human tasks, Decisions, and
+  gateways;
+- remote agent workers with claims, heartbeats, retry/requeue behavior, and
+  idempotent completion;
+- run, task, and journey history;
+- versioned Artifacts linked to runs, tasks, projects, and Flow items;
+- process experiments and approval-gated promotion.
+
+Building parallel versions of those mechanisms would increase failure modes
+without improving Freeland-specific QA quality.
+
+The current connected account exposes no Freeland project and the live Nuanu
+Flow `NF` project has no configured Process binding. Therefore these
+capabilities are not yet an operating Freeland QA loop.
+
+They are nevertheless proven platform behavior rather than a paper API. On
+2026-08-09 the accessible `PayDemo QA Harness` sandbox had an active Column
+Process bound to `Ready for QA`, a compiled graph with 22 nodes and 26 edges,
+and 16 recorded `from_project` runs. Five runs completed, six failed, and five
+were cancelled. A completed Auto journey applied the intended
+`Ready for QA -> In Progress` transition and exposed its transition counter,
+frozen execution mode, Agent-version snapshots, and 12-transition journey
+budget. Earlier frozen graph versions executed three parallel QA branches.
+This proves the native trigger, graph, task, human-step, journey, and End path;
+it does not prove Freeland integration or production reliability.
+
+Known platform risks remain explicit acceptance inputs: NF-5 remote-worker
+completion conflict, NF-43/NF-65 Decision routing, a failed stop probe, Artifact
+metadata/phantom findings, and a live AI-judge failure caused by an invalid API
+key. None of those findings justify rebuilding the workflow engine; each gates
+the affected native capability until its canary passes.
+
+The owner reports that the Nuanu release scheduled for 2026-08-07 adds the
+production path in which a column trigger invokes an agent and the item then
+continues through a BPMN flow that may include a human. This directly validates
+the selected control-plane direction. It remains a release input until the
+deployed build passes the acceptance probes in section 11; delivery,
+deduplication, recovery, lease, and stale-transition semantics are not inferred
+from feature availability.
+
+## 3. Considered approaches
+
+### 3.1 Recommended: Nuanu-native control plane plus QA domain kernel
+
+Use one Freeland `QA` Column Process for ticket validation, separate scheduled
+General Processes for proactive coverage and reconciliation, and Nuanu remote
+agent tasks to invoke the local FreelandQA runner.
+
+Benefits:
+
+- smallest custom operational surface;
+- native audit trail and state-machine visibility;
+- Manual to Assist to Auto promotion without replacing the graph;
+- current FreelandQA code remains reusable;
+- process refinement can use Nuanu experiments instead of a custom experiment
+  scheduler.
+
+### 3.2 Fallback: Nuanu orchestration plus a custom intake/router service
+
+Keep a custom scanner and state-transition service while using Nuanu for tasks
+and Decisions. This remains a fallback only if capability probes demonstrate
+that Column Processes cannot recover missed entry events or cannot prevent a
+stale Auto transition.
+
+The fallback must still be thin: it may perform watermarked reconciliation,
+candidate freshness checks, and compare-and-set routing, but it must not grow
+into a second workflow engine.
+
+### 3.3 Rejected: fully custom controller, queue, worker registry, and inbox
+
+This duplicates the largest generic part of Nuanu Flow. It is justified only if
+Nuanu fails the mandatory reliability probes and cannot be extended with the
+missing guarantees. No current evidence supports paying this cost.
+
+## 4. Ownership boundary
+
+| Concern | Authoritative owner | FreelandQA responsibility |
+| --- | --- | --- |
+| Process graph and active version | Nuanu Flow | Keep reviewed graph source/contract and verify read-back |
+| QA-column trigger and journey mode | Nuanu Flow | Verify exact project/state binding and audit missed entries |
+| Agent identity and task delivery | Nuanu Flow | Least-privilege prompt, immutable input, schema validation |
+| Generic task claim/retry/history | Nuanu Flow | Idempotent `qaRunKey`; classify duplicate/stale callbacks |
+| Coverage and dependency expansion | FreelandQA | Versioned registry and non-zero selected test set |
+| Issue and candidate identity | FreelandQA | Freeze, hash, attest, and re-read before verdict |
+| Playwright/API/browser execution | FreelandQA | Strict zero-retry verdict lane plus diagnostic children |
+| Computer Use and Telegram Web | FreelandQA | Signed bounded scenarios, exact origins, OS-visible assertions |
+| Verdict | FreelandQA deterministic evaluator | Nuanu branches only on validated typed output |
+| Persona and environment custody | FreelandQA | Lease, reset, retire, quarantine, and cleanup proof |
+| Payment authorization and safety | FreelandQA | Ledger, mutex, fencing, quote lock, submit cardinality, reconciliation |
+| Human exception decision | Nuanu Flow | Publish focused options and exact sanitized evidence version |
+| Sanitized evidence catalog | Nuanu Flow Artifacts | Redact/classify before upload; retain hashes and links |
+| Sensitive raw evidence | Restricted FreelandQA store | Encryption, access audit, TTL, scrub and deletion receipt |
+| Experiment orchestration | Nuanu Process Experiments | Frozen corpus, deterministic evaluator, human promotion approval |
+
+Target repository ownership remains explicit. `NuanuFlowQA` will contain the
+reusable kernel, schemas, worker adapters, and generic skills. The private
+`FreelandQA` repository will contain Freeland-specific coverage, tests,
+scenarios, environment contracts, payment profiles, and temporary upstream
+patchsets. Today this migration is incomplete: the working NuanuFlowQA tree
+still contains Freeland-specific tests, coverage, environment contracts, and
+CDP policy, and no Nuanu worker adapter exists. A later move between personal
+and organization GitHub ownership must not change the target logical boundary
+or make untracked local files authoritative.
+
+## 5. Target operating loop
+
+```text
+Flow item enters exact Freeland QA state
+  -> Nuanu Column Process starts a journey
+  -> freeze issue revision + attest exact candidate
+  -> select non-empty reviewed coverage
+  -> run required lanes in bounded parallel tasks
+       Computer Use / Telegram Web when required
+       Playwright/API
+       safe CDP/browser observations
+       payment execution + provider reconciliation when authorized
+  -> deterministic aggregation in FreelandQA
+  -> re-read issue, candidate, coverage, policy, and payment identity
+  -> branch on typed verdict
+       PASS          -> intended Ready for prod
+       PRODUCT_FAIL  -> intended In Progress/development
+       non-verdict   -> remain QA + focused Decision/incident
+```
+
+The process never asks an LLM whether a ticket passed. An agent task may explain
+or summarize a result, but it cannot change `issueVerdict`, `candidateVerdict`,
+`assessment`, `applicability`, `executionHealth`, or payment lifecycle fields
+produced by the deterministic runner.
+
+Ticket validation and release certification remain separate. A ticket may pass
+while an unrelated release baseline blocks swapping staging with production.
+
+For user-visible Freeland flows, the versioned Computer Use scenario is the
+primary black-box acceptance lane requested by the owner. Playwright/API is the
+faster deterministic secondary lane and cannot substitute for a required
+Computer Use or real Telegram observation.
+
+## 6. Nuanu process topology
+
+### 6.1 QA Column Process
+
+The first production-shaped graph is:
+
+```text
+Generated QA Column Start
+  -> Agent Task: freeze-and-plan
+  -> XOR: eligible?
+       no  -> Decision or QA-hold End
+       yes -> inclusive fork of required execution lanes
+              -> inclusive join with timeout
+              -> Agent Task: deterministic aggregate
+              -> Agent Task: freshness recheck
+              -> XOR: verdict
+                   PASS         -> Ready-for-prod End
+                   PRODUCT_FAIL -> In-progress End
+                   otherwise    -> QA-hold End + focused Decision
+```
+
+Rules:
+
+1. The generated Column Start is not edited.
+2. Every End has an explicit project-state target. The QA-hold End targets the
+   same QA state or the platform-supported no-transition equivalent.
+3. All blocking graph errors must be zero before save. Advisory capability and
+   `LAYOUT_EDGE_*` diagnostics are recorded but do not block or trigger semantic
+   graph rewrites.
+4. The saved graph is read back and compared before activation.
+5. The first active binding is Manual, then Assist. Auto remains disabled until
+   section 11 is satisfied.
+6. The graph stays below the Nuanu automatic-transition journey limit.
+
+### 6.2 Scheduled General Processes
+
+Column entry is the low-latency trigger. Scheduled General Processes provide:
+
+- proactive mapping of tickets in Triage, Backlog, Todo, and In Progress;
+- nightly regression with no ticket-state mutation;
+- a thin reconciliation audit for QA items that have no matching journey;
+- worker-health, stale-run, and evidence-retention checks.
+
+The reconciler records a watermark and repairs only missing orchestration. It
+does not own a second queue or second process state machine.
+
+### 6.3 Decisions
+
+Routine deterministic PASS and PRODUCT_FAIL do not require a Decision after
+calibration. A Decision is created for ambiguity, conflicting lanes, stale
+identity, provider challenge, safety incidents, policy exceptions, or a route
+that has not yet earned Auto authority.
+
+Each Decision has an explicit owner and separate approve, deny, and refine
+paths. Refine returns to the evidence-producing step rather than silently
+overwriting the prior attempt.
+
+## 7. Remote worker contract
+
+The Nuanu worker is a transport adapter, not the test system of record.
+
+Each task receives only immutable, non-secret references:
+
+- `qaRunKey` and process/task identifiers;
+- Flow item ID, frozen revision/hash, and requirement IDs;
+- candidate/environment identity and allowed surface;
+- runner command ID from a closed allowlist;
+- payment authorization reference when applicable;
+- output schema revision and deadline.
+
+`qaRunKey` is the SHA-256 of canonical JSON containing the exact issue ID,
+issue revision and content digest; candidate digest; coverage, oracle,
+classifier, policy, environment, data, and catalog digests; process-template
+version; execution mode; sorted surfaces and lanes; and, when applicable, the
+payment authorization ID and payment-profile revision. Account, worker, retry,
+and Nuanu task IDs do not change this identity. The same logical work therefore
+cannot become a new authoritative run merely by moving to another executor.
+
+Ticket title, description, comments, attachments, and acceptance text are
+untrusted product data, not agent instructions. The planner passes normalized
+fields and reviewed requirement identifiers through a typed boundary; embedded
+prompts cannot widen tool, origin, repository, payment, or mutation authority.
+
+The worker invokes a closed FreelandQA command, validates the returned schema,
+publishes only sanitized derivatives, and completes the task idempotently. It
+does not accept arbitrary shell text, URL, origin, repository path, or test
+selector from an agent prompt.
+
+Long browser suites are split into bounded lane tasks. Until Nuanu lease renewal
+and long-running reclaim behavior are proven, every executor also claims the
+same durable `qaRunKey`; a reclaimed task can observe or reconcile an existing
+attempt but cannot create a second authoritative attempt.
+
+## 8. Deterministic result contract
+
+The minimum process-facing result is:
+
+```ts
+type Assessment = 'SATISFIED' | 'VIOLATED' | 'INCONCLUSIVE';
+type ExecutionHealth = 'HEALTHY' | 'INFRA_FAILURE' | 'CANCELLED';
+type Applicability = 'MATCHED' | 'STALE' | 'UNVERIFIED' | 'SUPERSEDED';
+type EvidenceStatus = 'SUFFICIENT' | 'INCOMPLETE' | 'REDACTION_BLOCKED';
+type PaymentLifecycleState =
+  | 'NOT_STARTED'
+  | 'BUDGET_RESERVED'
+  | 'CHECKOUT_CREATED'
+  | 'SUBMITTED_PENDING'
+  | 'RECONCILED_PAID'
+  | 'RECONCILED_DECLINED'
+  | 'RECONCILED_CANCELLED'
+  | 'UNKNOWN_HELD';
+
+interface PaymentLifecycle {
+  authorizationId: string;
+  authorizationPolicyDigest: string;
+  paymentProfileDigest: string;
+  environment: 'staging' | 'production';
+  fullReleaseSha: string;
+  sku: string;
+  purpose: string;
+  budgetReservationId: string;
+  canonicalIntentId: string;
+  currency: string;
+  authorizedAmountMinor: number;
+  reservedAmountMinor: number;
+  settledAmountMinor: number;
+  checkoutsCreated: number;
+  submittedPayments: number;
+  fencingEpoch: number;
+  state: PaymentLifecycleState;
+  reconciliation: {
+    provider: {
+      status: 'MATCHED' | 'DECLINED' | 'CANCELLED' | 'UNKNOWN';
+      digest: string | null;
+    };
+    order: {
+      status: 'MATCHED' | 'NOT_CREATED' | 'UNKNOWN';
+      digest: string | null;
+    };
+    entitlement: {
+      status: 'PROVISIONED' | 'NOT_EXPECTED' | 'MISSING' | 'UNKNOWN';
+      digest: string | null;
+    };
+  };
+}
+
+interface QaRunResult {
+  schemaVersion: 1;
+  qaRunKey: string;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateBeforeDigest: string;
+  candidateAfterDigest: string;
+  coverageDigest: string;
+  oracleDigest: string;
+  policyDigest: string;
+  classifierDigest: string;
+  environmentDigest: string;
+  dataDigest: string;
+  catalogDigest: string;
+  assessment: Assessment;
+  executionHealth: ExecutionHealth;
+  applicability: Applicability;
+  evidenceStatus: EvidenceStatus;
+  selectedChecks: number;
+  executedChecks: number;
+  laneResults: Array<{
+    lane: 'api' | 'playwright' | 'cdp' | 'computer-use' | 'telegram' | 'payment';
+    resultDigest: string;
+    status: 'PASS' | 'FAIL' | 'BLOCKED' | 'NOT_REQUIRED';
+  }>;
+  issueVerdict:
+    | 'PASS'
+    | 'PRODUCT_FAIL'
+    | 'AWAITING_DEPLOYMENT'
+    | 'ENV_BLOCKED'
+    | 'PROVIDER_BLOCKED'
+    | 'HARNESS_FAIL'
+    | 'FLAKY'
+    | 'NEEDS_HUMAN';
+  candidateVerdict:
+    | 'CANDIDATE_RELEASE_READY'
+    | 'CANDIDATE_RELEASE_BLOCKED'
+    | 'CANDIDATE_RELEASE_INCONCLUSIVE';
+  payment: PaymentLifecycle | null;
+  artifacts: Array<{ artifactId: string; versionId: string; sha256: string }>;
+}
+```
+
+`payment` is `null` only when the payment lane is `NOT_REQUIRED`; otherwise the
+full lifecycle is mandatory and schema-validated. A generic payment-lane PASS
+cannot authorize routing or evidence reuse without the exact authorization,
+budget, intent, cardinality, fence, lifecycle, and reconciliation facts.
+
+`PASS` requires all mandatory lanes, an unchanged issue and candidate, a
+non-empty selected set, zero skips/retries/expected failures in the verdict
+lane, complete cleanup, complete external-effect reconciliation, and a passed
+redaction barrier. Anything missing becomes a typed non-verdict, never a
+partial pass.
+
+## 9. Evidence boundary
+
+Nuanu Artifact Registry stores exact versions of already-sanitized material:
+
+- result JSON and manifest;
+- redacted report;
+- redacted screenshots or summaries permitted by policy;
+- hashes and restricted-store pointers for sensitive evidence;
+- route read-back and cleanup receipts.
+
+Raw cookies, storage state, tokens, signed URLs, personal data, full PAN, and CVV
+must not be uploaded to Nuanu, Git, ordinary logs, Playwright HTML/JUnit output,
+or agent prompts. Sensitive raw capture, when strictly required, stays inside
+the dedicated encrypted FreelandQA evidence boundary. CVV is transient and is
+not retained after the submission barrier.
+
+Artifact versioning does not replace pre-upload classification, data-class
+retention, scrub verification, or deletion receipts.
+
+## 10. Automated payments without a per-purchase human gate
+
+The owner has authorized automated staging and production canaries and controls
+the outer financial exposure through the available test balance. Therefore an
+ordinary allowlisted purchase does not require an interactive owner
+confirmation. The physical balance is an external ceiling, not the harness's
+only machine-readable gate.
+
+Automation is nevertheless conditional on a durable authorization envelope:
+
+- an immutable `authorizationId` minted only through an owner-controlled
+  administration path; planners, agents, and workers have consume-only access
+  and cannot create or widen an authorization;
+- exact environment and release identity;
+- product/SKU, purpose, currency, recurrence, maximum quoted amount, aggregate
+  authorized amount, effective time, and expiry;
+- a database-unique canonical slot keyed by `authorizationId`, `environment`,
+  `fullReleaseSha`, and `sku`; issue, run, account, worker, retry, and
+  payment-profile revisions are deliberately excluded, so changing them cannot
+  mint another purchase slot;
+- an atomic budget ledger with `authorized`, `reserved`, `spent`, and
+  `pending_unknown` amounts;
+- one canonical payment intent;
+- `max_checkouts_created = 1`;
+- `max_submitted_payments = 1`;
+- a global payment-instrument mutex and monotonic fencing epoch;
+- local secret injection directly into verified provider fields;
+- pre-submit CVV scrub confirmation for every non-field copy;
+- provider/order/entitlement reconciliation after submit;
+- a terminal unknown state that prohibits any new submit;
+- separate staging and production authorization/profile/candidate identities.
+
+Budget is reserved before checkout and settled only from reconciled provider
+facts. An unknown submission retains its reservation. Increasing the budget or
+widening product/environment scope requires a new owner policy revision, while
+ordinary executions within that revision remain unattended.
+
+Nuanu retry may repeat observation or reconciliation. It must never repeat a
+payment submit. Worker loss after submit keeps the payment fence closed until
+provider reconciliation proves the outcome.
+
+Critical human escalation remains for a safety or policy exception: unexpected
+amount/currency/recurrence, duplicate checkout or submit, wrong origin,
+challenge that automation cannot safely complete, unknown provider outcome,
+scrub failure, data-boundary violation, or exhausted budget. The gate is not a
+routine purchase confirmation.
+
+Payment execution authority and ticket-routing authority are independent. A
+policy-authorized purchase may run while the Flow item remains in Assist. No
+successful charge by itself permits an automatic `Ready for prod` transition.
+Global and per-environment, per-provider, and per-product kill switches must be
+exercised before the first unattended submit.
+
+## 11. Manual, Assist, and Auto promotion gates
+
+### 11.1 Manual vertical slice
+
+One synthetic or non-critical Freeland item runs end-to-end with no automatic
+state change. The test proves graph validation, worker claim, typed output,
+artifact read-back, deny/refine behavior, and restart recovery.
+
+### 11.2 Assist shadow
+
+QA-column entry starts the process automatically, but a human still applies the
+status. Run 30–50 blinded cases across known-good, known-bad, stale, blocked,
+flaky, infrastructure-failure, and conflicting-lane examples.
+
+Required result:
+
+- zero critical false green;
+- zero wrong-issue or wrong-candidate verdicts;
+- all missed entries recovered;
+- deterministic agreement with reviewed outcomes;
+- no secret or personal-data artifact finding;
+- no unresolved duplicate or lost worker execution.
+
+### 11.3 Limited Auto
+
+Auto is capability-scoped, not project-wide. Reversible low-risk PASS and
+deterministic PRODUCT_FAIL routes may be enabled only after:
+
+1. an adversarial test proves that concurrent item edit, move, cancellation, or
+   new deployment cannot apply a stale End transition;
+2. missed-event recovery and idempotent task completion pass restart tests;
+3. lease expiry during a long task cannot create two authoritative attempts;
+4. every mutation has read-back and a kill switch;
+5. the exact graph version, policy digest, and eligible capability set are
+   approved.
+
+If Nuanu cannot provide an exact revision/state guard for End transitions, the
+system remains in Assist or uses the thin compare-and-set fallback. A local
+read-check-write sequence is not sufficient for Auto.
+
+### 11.4 Payment Auto
+
+Payment Auto is a separate capability gate after Computer Use, ledger, fencing,
+scrub, provider reconciliation, and fault-injection acceptance. It is not
+implicitly enabled by non-payment Limited Auto.
+
+## 12. Revised delivery phases
+
+### N0 — freeze architecture and prove Nuanu guarantees
+
+- preserve this approved supersession and reject implementation work that
+  reintroduces a generic custom workflow engine;
+- pin the exact live Nuanu catalog revision, Process graph hash, and plugin
+  contract used by each acceptance run;
+- exercise the released column-trigger → agent → BPMN → optional-human path;
+- resolve and pin the exact Freeland `QA`, `Ready for prod`, and `In Progress`
+  state UUIDs separately from any sandbox states;
+- run BPMN validate/save/read-back probes;
+- test worker claim/reclaim/idempotent completion;
+- test Column Process missed-entry and stale-transition behavior.
+
+Exit: every platform assumption is either demonstrated or assigned to the thin
+fallback. A fallback that owns intake or compare-and-set routing requires its
+own approved design and the same race, recovery, idempotency, and receipt tests;
+the dependent phase remains blocked until those tests pass. No live Freeland
+route or purchase is changed.
+
+### N1 — compose the existing local kernel into one typed runner
+
+- reuse the coverage registry, staging attestation, Playwright support, and CDP
+  broker already implemented;
+- add the process-facing run/result schema and deterministic evaluator;
+- add allowlisted runner commands and sanitized artifact bundle output;
+- classify existing gaps explicitly instead of treating them as passed.
+
+Exit: known-good, known-bad, stale, and infrastructure-failure fixtures produce
+different reproducible results from a clean checkout; zero selected tests,
+untracked authoritative assets, or secret findings fail the gate.
+
+### N2 — Nuanu Manual vertical slice
+
+- create the remote agent employee and local Codex worker;
+- create the QA Column Process in Manual mode;
+- execute handshake, one real read-only Freeland case, deny, and refine;
+- verify exact Artifact versions, history, idempotency, and recovery.
+
+Exit: one useful ticket validation reaches a human without copying context.
+
+### N3 — real multilane Computer Use and Telegram operations
+
+- implement a private local control daemon/CLI around the existing CDP broker
+  and add its live-smoke contract;
+- constrain that daemon to browser custody and closed allowlisted command
+  execution; it owns no scheduling, queue, retry, lease, agent registry, or
+  workflow state that belongs to Nuanu;
+- execute versioned semantic web scenarios through the safe CDP/Computer Use
+  boundary;
+- add real Telegram Web Mini App sessions with runtime attestation;
+- add deterministic lane selection, persona leases, scheduled regression, and
+  recovery/retention jobs;
+- keep staging and production evidence separate where staging TMA does not
+  exist.
+
+Exit: required Computer Use and Playwright/API lanes agree, and worker-loss,
+requeue, takeover, persona-quarantine, lane-conflict, clipboard, and
+evidence-redaction drills pass.
+
+### N4 — Process Experiments and Assist calibration
+
+- bind the exact Freeland QA state in Assist;
+- add the thin scheduled missed-entry audit;
+- use frozen Nuanu Process Experiments to compare candidate graph/prompt
+  versions without changing the deterministic oracle;
+- run 30–50 blinded shadow verdicts;
+- map every current QA item to explicit requirements or a typed coverage gap.
+
+Exit: at least 98% reviewed agreement, zero critical false green, zero wrong
+issue/candidate/state, and zero missed or duplicate authoritative runs.
+
+The 98% aggregate metric permits promotion from Manual to Assist only. It never
+authorizes Auto for a capability that has a false green or false route.
+
+### N5 — bounded staging payments
+
+- implement persona custody and the full payment ledger/mutex/fencing kernel;
+- run failure injection before enabling submit;
+- perform one authorized staging canary per required product/candidate class;
+- reconcile charge, order, entitlement, and post-purchase behavior;
+- maintain the complete payment-data artifact inventory, obtain backend
+  deletion receipts plus independent tombstone/not-found checks, and prove CVV
+  scrub on normal, timeout, provider-error, and worker-loss paths;
+- run the independent watchdog on lease loss and prove that every PAN-bearing
+  durable copy is deleted within the 24-hour maximum TTL.
+
+Exit: terminal normal cases have zero duplicate submits and the expected
+provisioning/post-purchase result. Forced unknown cases retain their budget
+reservation, keep the fence closed, pause the payment lane, prohibit resubmit,
+and enter reconciliation/escalation. There is zero payment data outside the
+boundary, every harness-side CVV copy has a scrub proof, every durable backend
+copy has a deletion receipt plus tombstone/not-found proof, lease-loss watchdog
+recovery passes, and no PAN-bearing copy exceeds its 24-hour TTL.
+
+### N6 — pre-deploy staging candidate release certification
+
+- aggregate ticket verdicts with the full mandatory staging release baseline;
+- require the exact staging candidate, catalog, integration, policy, and
+  payment-canary identities to remain unchanged;
+- emit `CANDIDATE_RELEASE_READY`, `CANDIDATE_RELEASE_BLOCKED`, or
+  `CANDIDATE_RELEASE_INCONCLUSIVE` before deployment;
+- preserve every ticket verdict separately from the candidate verdict.
+
+Exit: the staging-to-production decision is reproducible from pre-deploy
+evidence and cannot be inferred from `Ready for prod` ticket counts alone.
+
+### N7 — post-deploy production canary
+
+- attest production independently;
+- use a production-only authorization, account, catalog, and evidence identity;
+- run the bounded production canary after deployment;
+- on failure, open a production incident and pause the affected capability; do
+  not retroactively rewrite the pre-deploy staging decision.
+
+Exit: the production canary is reproducible, cannot reuse staging evidence, and
+has an explicit incident/rollback result independent of the preceding release
+decision.
+
+### N8 — capability-scoped Auto routing
+
+- enable only proven reversible low-risk capabilities first;
+- verify stale-transition protection and transition receipts under concurrent
+  issue edits, moves, journey cancellation, process-version changes, and
+  candidate changes;
+- keep ambiguous and conflicting-lane cases in Assist;
+- promote payment-related routing separately from already-authorized payment
+  execution;
+- run the global and per-lane kill-switch drill before activation.
+
+Each promotion record predeclares the exact capability, verdict classes, corpus,
+and observation window. The minimum is 30 conclusive capability-specific shadow
+journeys over at least seven consecutive days, with zero false green, zero false
+route, and 100% reviewed precision for automatic PRODUCT_FAIL returns. Aggregate
+98% agreement cannot override a capability-specific miss.
+
+Kill-switch rollback first disables new automatic End transitions, then stops
+new journeys, cancels or takes over in-flight journeys, rejects late completion
+as stale, audits every item touched during the window, and leaves affected
+items in Assist until reconciliation completes.
+
+Exit: the predeclared denominator/window passes with no false route; one action
+executes the tested rollback above and returns the capability to Assist.
+
+### N9 — complete inventory and continuous refinement
+
+- close every active `MISSING` requirement or mark it explicitly blocked or
+  inapplicable with current evidence;
+- run proactive pre-QA coverage analysis as a scheduled General Process;
+- detect route/catalog/capability drift;
+- use frozen Nuanu Process Experiments to compare process variants;
+- feed escaped defects back into the mandatory baseline.
+
+Exit: every active inventory leaf has an executable check or a reviewed typed
+exception, and every QA route follows this design.
+
+## 13. Migration from the original program
+
+### Delete from future custom scope
+
+- generic controller workflow state machine;
+- Postgres job queue and generic task-lease daemon;
+- custom agent registry and Codex adapter;
+- bespoke human exception inbox;
+- generic run/artifact catalog for sanitized outputs;
+- generic experiment scheduler and winner store;
+- raw BPMN XML generation or a custom BPMN editor/compiler.
+
+### Keep and complete
+
+- versioned coverage registry and ticket mapping;
+- candidate/source/environment attestation;
+- strict Playwright/API result reporter;
+- CDP/browser safety kernel and private Mac execution boundary;
+- Computer Use and Telegram scenarios;
+- deterministic verdict and flake classification;
+- personas and cleanup;
+- full payment safety kernel;
+- sensitive evidence store and sanitization;
+- release certification and operational kill switches;
+- thin watermarked missed-event/revision reconciler where Nuanu guarantees are
+  not proven.
+
+### Current progressive-plan correction
+
+The draft `2026-08-07-nuanu-flow-progressive-qa-harness.md` remains useful for
+incremental validation, but its implementation plan must be rewritten after
+this specification is approved:
+
+- replace its 0.3.8 capability baseline with the exact deployed
+  post-2026-08-07 build and verified behavior;
+- replace planned duplicate runner/contract work with composition of existing
+  coverage, Playwright, attestation, and CDP modules;
+- remove the generic controller/queue/worker-registry/artifact work;
+- change routine authorized payment from mandatory human Decision to the
+  durable policy and budget gate in section 10;
+- add exact issue-revision Auto-transition and long-worker-lease probes;
+- separate sanitized Nuanu Artifacts from restricted raw evidence;
+- make the Manual/Assist/Auto ladder capability-scoped;
+- make every phase point to executable acceptance evidence rather than a
+  feature checklist;
+- remove branch/PR creation from the QA loop; it may publish a fix brief, while
+  product-code changes remain a separate development process;
+- make PDF rendering optional presentation only, so its failure cannot change a
+  product verdict;
+- use Process Experiments during calibration rather than as a late optional
+  optimization.
+
+## 14. Honest progress interpretation
+
+The answer depends on the denominator:
+
+- **Generic orchestration layer:** mostly supplied by Nuanu; an estimated
+  65–80% of the originally planned custom platform code should not be built.
+- **Existing local CDP lane:** approximately 70–80% complete as a narrow safety
+  library through typed browser command composition. It still has no
+  daemon/CLI/service entrypoint or accepted live smoke.
+- **Freeland-specific domain kernel:** conservatively 25–30% implemented. The
+  static coverage subsystem and CDP custody are strong, but the current
+  coverage report records all 180 checks as `NOT_RUN`, with zero `PASS`, zero
+  `STABLE`, and zero promotion-eligible checks.
+- **Whole revised autonomous QA product:** not a majority-complete operating
+  service. The live Freeland project has no active QA process, and runner/result
+  ingestion, deterministic process-facing aggregation, personas, real Computer
+  Use/Telegram, payment safety, shadow calibration, and Auto routing remain to
+  be delivered.
+
+Therefore the correct management statement is: **we have completed much of the
+reusable technical foundation and Nuanu supplies most generic orchestration,
+but we have not yet completed most of the working autonomous product.** A
+conservative progress percentage must be calculated from acceptance gates, not
+from lines of code or the presence of platform features.
+
+As of this design, there is no accepted live path from a Nuanu trigger through
+exact candidate selection, execution, deterministic verdict, versioned
+evidence, and a safe state transition. None of phases N0–N9 may be marked
+complete merely because its underlying Nuanu feature exists.
+
+## 15. Program completion criteria
+
+The product is complete only when all of the following are demonstrated:
+
+1. Every current Freeland QA item maps to explicit reviewed requirements or a
+   typed, owned coverage gap.
+2. Web application and Telegram Web/Mini App policies are both enforced with
+   exact environment attestation.
+3. Required Playwright/API and Computer Use lanes execute and agree according
+   to risk policy.
+4. Staging and production payment canaries are ledger-backed, bounded,
+   non-duplicating, safely entered, and externally reconciled.
+5. Nuanu task loss, worker restart, missed entry, stale issue, stale candidate,
+   and concurrent-route drills pass.
+6. Sanitized evidence is immutable and reviewable in Nuanu; sensitive evidence
+   satisfies its separate retention and deletion rules.
+7. Shadow calibration has zero critical false green.
+8. Every enabled Auto route has exact freshness protection, read-back, audit,
+   and a tested kill switch.
+9. The full release registry, not the status of one ticket, controls the
+   staging-to-production certification.
+10. A clean checkout can reproduce contracts, selection, execution, verdict,
+    and sanitized evidence for an accepted run.
+
+## 16. Open proof obligations
+
+These are implementation probes, not questions to resolve by assumption:
+
+1. Does the released column trigger recover or expose every missed QA-column
+   entry, and how are duplicate deliveries represented?
+2. How does a long-running worker renew or lose its task lease, and what exact
+   state is visible to a replacement worker?
+3. Can a Column Process End be guarded by the frozen issue revision as well as
+   project and state?
+4. What is the exact behavior when a Flow item is edited, moved, or its journey
+   is cancelled immediately before End?
+5. Can a QA-hold End target the current QA state without creating a transition
+   loop?
+6. Which Artifact retention and deletion properties are platform guarantees,
+   and which remain FreelandQA responsibilities?
+7. Can the remote worker run from an exact pinned checkout rather than a mutable
+   working directory?
+
+Failure of a proof obligation does not silently weaken the design. It either
+keeps the affected capability in Assist or starts a separately approved
+fallback design with equivalent acceptance tests. A fallback is never activated
+only because the native probe failed.

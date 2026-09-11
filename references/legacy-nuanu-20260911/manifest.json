@@ -1,0 +1,3098 @@
+{
+  "version": 1,
+  "date": "2026-09-11",
+  "active": false,
+  "sourceOnly": true,
+  "scope": "Private selective source snapshots, including historical operational metadata, plus separately attributed unreviewed working overlays and source audit. Not an executable dependency closure, complete historical blob archive, installation, current execution authority or product verdict. No env/auth/session files or raw provider captures. Four branch ranges contain188 unique commits; deduplicate against other archives.",
+  "baseCommit": "6274b6d51ebabde6092e8123fbf130c1779e651e",
+  "uniqueCommitCount": 188,
+  "completeHistoricalBlobs": false,
+  "executableDependencyClosure": false,
+  "retiredSources": [
+    {
+      "sourcePath": "scripts/qah/nuanu-install-adapter.mjs",
+      "addedCommit": "9b404d6",
+      "removedCommit": "5d6ffcc",
+      "disposition": "superseded by direct install preflight; historical blob not included; never implicitly restore"
+    }
+  ],
+  "groups": [
+    {
+      "id": "universal-qah-paydemo",
+      "commit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "commitsNotInLegacyBase": [
+        "9f92eceee6eda41c8693dcc4822182a3b692e87a\ted2a31cdf6ef25cc4fd843451dc1c0415481c6c1\tfeat: add atomic Freeland source access prepare",
+        "efac3e58e8642f70853273d19bcad41708a7dd56\t9f92eceee6eda41c8693dcc4822182a3b692e87a\tfix: prevent source access promotion clobber",
+        "7f933a06fc0bef69551d82e6ca1d195b3f5989c5\tefac3e58e8642f70853273d19bcad41708a7dd56\tfix: harden source access custody validation",
+        "81c9c0cc5666d90a98c438cc403b804de1e35a4a\t7f933a06fc0bef69551d82e6ca1d195b3f5989c5\tfix: bind source access temp cleanup identity",
+        "6dba9b3b4229da3efd4c84f28bf859983a5e0cbd\t81c9c0cc5666d90a98c438cc403b804de1e35a4a\tfeat: verify Freeland source access is read only",
+        "9456576418945bef096964ac7bf09b7e2563d679\t6dba9b3b4229da3efd4c84f28bf859983a5e0cbd\tfix: harden Freeland source verification runner",
+        "0e7fc478aadc92eacee878291b1d9dae89c266b8\t9456576418945bef096964ac7bf09b7e2563d679\tfeat: expose closed Freeland source access CLI",
+        "36c77cd8f8e03e44bafb377078cfabfd4594aaea\t0e7fc478aadc92eacee878291b1d9dae89c266b8\tfeat: add isolated PayDemo checkout",
+        "5845da33a9d30aa9b00fbd0ab4f3fb7b1b229e0c\t36c77cd8f8e03e44bafb377078cfabfd4594aaea\tfeat: automate deterministic PayDemo QA harness",
+        "c4ffb31afc7646e5b9515afdb4d5f8bce7882d1d\t5845da33a9d30aa9b00fbd0ab4f3fb7b1b229e0c\tfeat: add scoped PayDemo environment broker",
+        "9fe1f36aa72aac6eac61e66ea888bbf29da62118\tc4ffb31afc7646e5b9515afdb4d5f8bce7882d1d\tfix: bind broker cleanup to process step",
+        "086c3a03c39c7b8a42c49bfe0d83011d0517dfd6\t9fe1f36aa72aac6eac61e66ea888bbf29da62118\tfeat: route QA outcomes through verified gates",
+        "554861145fd0584ce68722f80ef075d481e2d4ae\t086c3a03c39c7b8a42c49bfe0d83011d0517dfd6\tfeat: route verified QA to production readiness",
+        "9db45eaa4073e49ea7b5ad1498191b1af545d1ad\t554861145fd0584ce68722f80ef075d481e2d4ae\tdocs: design universal Nuanu QA flow",
+        "dda5912c68022826dc5f1969c45c1996dad40f3e\t9db45eaa4073e49ea7b5ad1498191b1af545d1ad\tdocs: plan universal Nuanu QA flow",
+        "650eef4c0b6a0fe4ae1af4715221c42d849bbfef\tdda5912c68022826dc5f1969c45c1996dad40f3e\tfeat: define universal QA contracts",
+        "0b7218578735d29c267c144b7554f915d9fb4ef4\t650eef4c0b6a0fe4ae1af4715221c42d849bbfef\tfix: bind QA profile and branch contracts",
+        "684d40d210cee39be7ffbc27b7cbaf7ea4fb0055\t0b7218578735d29c267c144b7554f915d9fb4ef4\tfix: keep release decisions closed",
+        "b3f8ecf761d22943591b95e40af59d41b01f03dd\t684d40d210cee39be7ffbc27b7cbaf7ea4fb0055\tfeat: plan ticket-specific QA scope",
+        "c38912568746db22070da1afa49fe04a4b965cb7\tb3f8ecf761d22943591b95e40af59d41b01f03dd\tfix: validate deterministic QA planning inputs",
+        "21bfc3376614440e15bb921c91031765e6d0dd30\tc38912568746db22070da1afa49fe04a4b965cb7\tfeat: generalize isolated QA environments",
+        "a8ebdbf4c796c7000caccc46ed753f2f7bea259d\t21bfc3376614440e15bb921c91031765e6d0dd30\tfix: harden QA environment ownership",
+        "e1cab64915868f9858e29b252a25ef80da26e64d\ta8ebdbf4c796c7000caccc46ed753f2f7bea259d\tfix: fence QA runtime recovery",
+        "8672a00a6e6046c91a1ea540a335b2a281dbdd46\te1cab64915868f9858e29b252a25ef80da26e64d\tfix: persist uncertain QA recovery",
+        "5a61d3ef300e03062deafee4f762d689fa1d9fe4\t8672a00a6e6046c91a1ea540a335b2a281dbdd46\tfeat: run applicable QA branches uniformly",
+        "7da05a8f2cf6d408a5b3cc92e4f6c8f30f4870fd\t5a61d3ef300e03062deafee4f762d689fa1d9fe4\tfix: bind QA branches to verified evidence",
+        "ee257b3283b6a39b9342556593df11e336094b6e\t7da05a8f2cf6d408a5b3cc92e4f6c8f30f4870fd\tfix: fail closed on UI transport cleanup",
+        "893428ecc8dabb5525cf3db6a6c21204455b8b51\tee257b3283b6a39b9342556593df11e336094b6e\tfix: bound UI values before transfer",
+        "206da14393b8a61d1666e9ca52736a3cebc31da9\t893428ecc8dabb5525cf3db6a6c21204455b8b51\tfix: isolate UI receipt measurement",
+        "1b1086184a56a7018a8efa1b28cb72337f3e6d75\t206da14393b8a61d1666e9ca52736a3cebc31da9\tfeat: decide QA release from verified evidence",
+        "f38bd9e1efb2c1311d4c795d60a56bd96af7b905\t1b1086184a56a7018a8efa1b28cb72337f3e6d75\tfix: trust materialized QA evidence",
+        "1b493167d16c187d39e67b25b3078e24dacd93ff\tf38bd9e1efb2c1311d4c795d60a56bd96af7b905\tfix: bind QA evidence to Nuanu artifacts",
+        "f32958d858aed0c418f68cc9c5b3e2d13aae8633\t1b493167d16c187d39e67b25b3078e24dacd93ff\tfix: verify Nuanu artifact versions at decision",
+        "2de8c9fd8b002124a04f0111236d86f26db79c0a\tf32958d858aed0c418f68cc9c5b3e2d13aae8633\tfix: revalidate release evidence at decision",
+        "d91d40fe697caaee4c4b7b93a74924d17b295e68\t2de8c9fd8b002124a04f0111236d86f26db79c0a\tfix: close verified test plan contract",
+        "30bf7ab3425754094fc502b540591f5b212921c5\td91d40fe697caaee4c4b7b93a74924d17b295e68\tfeat: gate QA transitions on comment and cleanup",
+        "95ccb1f4d8972ab7907a27e7ebdadebb18090fca\t30bf7ab3425754094fc502b540591f5b212921c5\tfix: revalidate QA publication and cleanup receipts",
+        "610b350724ea42a0565c4daa4666d097e9e12f92\t95ccb1f4d8972ab7907a27e7ebdadebb18090fca\tfix: validate live QA source and aggregate authority",
+        "30dfa3b01d1c5851c2af1eb20a597dd321aec267\t610b350724ea42a0565c4daa4666d097e9e12f92\tfix: reconstruct aggregate policy authority",
+        "f84b05d1333f3c905eb76b74e768ba3fa39b3c42\t30dfa3b01d1c5851c2af1eb20a597dd321aec267\tfeat: define universal QA process blueprint",
+        "b67cdb80a39fc720abd738b405f29519bae0b738\tf84b05d1333f3c905eb76b74e768ba3fa39b3c42\tfeat: define universal QA process blueprint",
+        "7e9464d75a958efe4ff84f92e15fd3ce85f603d0\tb67cdb80a39fc720abd738b405f29519bae0b738\tfix: harden universal QA process installation",
+        "9b404d6dbff2474d95b272b33105c44c3d3907fc\t7e9464d75a958efe4ff84f92e15fd3ce85f603d0\tfix: harden universal QA install boundary",
+        "5d6ffcc7cff09d4b94a34b760c096f2eec26de55\t9b404d6dbff2474d95b272b33105c44c3d3907fc\tfix: use direct QA install preflight",
+        "72d849f35c7862c0f35489f93461dc3830943472\t5d6ffcc7cff09d4b94a34b760c096f2eec26de55\tfix: align QA preflight with live contracts",
+        "be54d3fe748192c040325584075387bf1e678ca4\t72d849f35c7862c0f35489f93461dc3830943472\ttest: verify universal QA flow locally",
+        "c22d54921d94874ceb62f7693bff41b256c008ca\tbe54d3fe748192c040325584075387bf1e678ca4\tfix: own docs repository execution",
+        "bbbc1baeaad5747c68585979d6187e2dca7fafbf\tc22d54921d94874ceb62f7693bff41b256c008ca\tdocs: adapt universal qah to current nuanu",
+        "c1e89ad3a22803257b37b1a0493b20d16ec3dfed\tbbbc1baeaad5747c68585979d6187e2dca7fafbf\tdocs: plan current nuanu proof gate adaptation",
+        "8d626a069bad3404f11e953523025c1b7da0358a\tc1e89ad3a22803257b37b1a0493b20d16ec3dfed\tfix: align qah worker contract with 0.3.14",
+        "d175d0e27c1ff6cc1189b218758384a45497efe2\t8d626a069bad3404f11e953523025c1b7da0358a\tfeat: classify closed qah release outcomes",
+        "391a738e18f355ee2345f6be6a600ab9b85c580b\td175d0e27c1ff6cc1189b218758384a45497efe2\tfeat: admit trusted qah finalization claims",
+        "fb64770d0d54300ceef87818f123b82060e99807\t391a738e18f355ee2345f6be6a600ab9b85c580b\tfix: normalize malformed finalization classification input",
+        "2a79f87e5f8df3c4389fbcc7e765be31e3be2e14\tfb64770d0d54300ceef87818f123b82060e99807\tfeat: validate trusted qah proof claims",
+        "11841abd08b002a5821f0fea95ae9b5682bd5843\t2a79f87e5f8df3c4389fbcc7e765be31e3be2e14\tfeat: route universal qah through trusted proof gate",
+        "e3810cc0328e739151e8e4c963a54846537a4aa9\t11841abd08b002a5821f0fea95ae9b5682bd5843\tdocs: add universal qah proof gate runbook",
+        "59111945b625490ec001e19ad07659057ada8dc9\te3810cc0328e739151e8e4c963a54846537a4aa9\tfix: harden universal qah preflight custody",
+        "32a325fdaf42234324dd3cf7581a34563a3189a0\t59111945b625490ec001e19ad07659057ada8dc9\tfix: seal qah git attestation authority",
+        "346f1d33fc37b326f6b3c417f87f89e132624476\t32a325fdaf42234324dd3cf7581a34563a3189a0\tfix: close qah preflight authority shapes",
+        "33a170e660863947e80dd24a3a93656bf0f28389\t346f1d33fc37b326f6b3c417f87f89e132624476\tfix: close qah install binding authority",
+        "1218189102145d2b44a31d29c4c4d4a868c939f8\t33a170e660863947e80dd24a3a93656bf0f28389\tfix: migrate qah route to immutable proof gate",
+        "bd88c1aa10d7fd0c6379f07fafa4e696d9c1a693\t1218189102145d2b44a31d29c4c4d4a868c939f8\tfix: accept exact stock proof gate readback",
+        "c55c0d2b75faeac3d9c39083bbc2234a11ea43af\tbd88c1aa10d7fd0c6379f07fafa4e696d9c1a693\tfix: use Nuanu backend worker ingress",
+        "e9988094e4de4086b5a6404aa027dcc8936da4f7\tc55c0d2b75faeac3d9c39083bbc2234a11ea43af\tfix: match Nuanu persisted prompt bytes",
+        "34b54ed8f16b92f5e7b4591fdb9dd10eaf3404a2\te9988094e4de4086b5a6404aa027dcc8936da4f7\tfix: negotiate Nuanu artifact downloads",
+        "030bdfeb731b2b988599bf80c6bf323ed218a2a7\t34b54ed8f16b92f5e7b4591fdb9dd10eaf3404a2\tfeat: run stock qah canary in one task",
+        "a6bf68dc676a21c9c6073eacc140a212099bd7d0\t030bdfeb731b2b988599bf80c6bf323ed218a2a7\tfix: carry profile authority from source item",
+        "a6b84d9916070c2ce8d406e461e2c88f4cbcea27\ta6bf68dc676a21c9c6073eacc140a212099bd7d0\tfix: use bounded proof gate verification",
+        "825e49a80c02b71bf6d1a2b5ba203706e0855f2f\ta6b84d9916070c2ce8d406e461e2c88f4cbcea27\tfix: keep remote proof gate sandbox safe",
+        "5489be78f96211a5afe4be6f8586ddcb723a5c95\t825e49a80c02b71bf6d1a2b5ba203706e0855f2f\tfix: bind qah canary to task checkout",
+        "812c56bd5e88e667d8ea6c348a99c775cca8bf8b\t5489be78f96211a5afe4be6f8586ddcb723a5c95\tfix: bootstrap qah canary checkout",
+        "56f7fe37f969dc751e2fb12b98c385d58117f147\t812c56bd5e88e667d8ea6c348a99c775cca8bf8b\tfix: verify qah in task workspace",
+        "9257dd2cf9992df61ba2b2425b63c9bf9d0db999\t56f7fe37f969dc751e2fb12b98c385d58117f147\tfix: accept successful npm diagnostics",
+        "8623ebedc8861e0f66e2f0b173879f05e724a89f\t9257dd2cf9992df61ba2b2425b63c9bf9d0db999\tfix: publish qah provider branch through worker",
+        "d758e424616b4079c99877e2d03724cd761e493f\t8623ebedc8861e0f66e2f0b173879f05e724a89f\tfix: separate raw qah result from provider commit",
+        "d7e3d1826f1bc9e9f0e6ddcbc5e480ef9066cd20\td758e424616b4079c99877e2d03724cd761e493f\tdocs: design offline product graph qah integration",
+        "2c870bf1ba53572166a7c19e2fdeb9dce6030a70\td7e3d1826f1bc9e9f0e6ddcbc5e480ef9066cd20\tdocs: plan offline product graph qah integration",
+        "a74d2098fcd9827b044ca64051ab584738ebda6c\t2c870bf1ba53572166a7c19e2fdeb9dce6030a70\tfeat: add closed qah graph plan contracts",
+        "2b2a3f7c85301b3c1223896cf3ac0f3926a1f360\ta74d2098fcd9827b044ca64051ab584738ebda6c\tfeat: plan qah scope from product graph receipts",
+        "408bd6bafeb01139a006acb0384edcd8d3801a4a\t2b2a3f7c85301b3c1223896cf3ac0f3926a1f360\tfeat: run offline graph driven qah flow",
+        "c891bcd484720699c987085f7e8e01dc25c54138\t408bd6bafeb01139a006acb0384edcd8d3801a4a\tfeat: add offline product graph qah demo",
+        "57ceb6a8e32a39e2ee6c489e1b824becb9a7621c\tc891bcd484720699c987085f7e8e01dc25c54138\tfeat: run graph-bound qah in Nuanu UI",
+        "b88874b3248053a6be19041d5afe325000bf492a\t57ceb6a8e32a39e2ee6c489e1b824becb9a7621c\tfix: bind UI canary to worker commit",
+        "5ca26d4c4c81d322a1dfa368e0d19837fbe13f28\tb88874b3248053a6be19041d5afe325000bf492a\tfix: complete stock proof gate canary",
+        "a927eed9f3f6d78746627994c7a3822089337f57\t5ca26d4c4c81d322a1dfa368e0d19837fbe13f28\tfeat: run Onyx browser QA from Nuanu flow",
+        "58a8182ad6a5a9a90891dc50fe4386e5f999242f\ta927eed9f3f6d78746627994c7a3822089337f57\tfix: support no-repository Nuanu demo results"
+      ],
+      "sourceFiles": 110,
+      "workingOverlay": []
+    },
+    {
+      "id": "nuanu-app",
+      "commit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "commitsNotInLegacyBase": [
+        "b90b012242d6c67a0ae98d5ffd34ff3957575b50\tf5f1fc99446c17d950d3124252461206c97a7d53\ttest: scaffold standalone Nuanu App QA",
+        "d16012963a0e18cb096a6deccd5c6807967c906c\tb90b012242d6c67a0ae98d5ffd34ff3957575b50\ttest: add Nuanu App browser safety evidence",
+        "4e3ea4aefd6f706d077538d33900a01d2e56c35f\td16012963a0e18cb096a6deccd5c6807967c906c\ttest: harden Nuanu App evidence safety",
+        "7f2a86a81eda027b569a78954fa4edc994661c28\t4e3ea4aefd6f706d077538d33900a01d2e56c35f\tfeat: add standalone Nuanu App graph model",
+        "bfd34699d11542a1232281a7d9d35b9ff5037100\t7f2a86a81eda027b569a78954fa4edc994661c28\tfix: strengthen Nuanu App graph validation",
+        "86865276b69bdf302a64a6153080e9c54f9d15ef\tbfd34699d11542a1232281a7d9d35b9ff5037100\tfeat: attest Nuanu App source mappings",
+        "778c1498a301a35c83777e56c79d9515270fdc85\t86865276b69bdf302a64a6153080e9c54f9d15ef\tfix: harden Nuanu App source attestation",
+        "751f6d32671ba4411c88ee2eb73fc4e650b6d7c7\t778c1498a301a35c83777e56c79d9515270fdc85\tfeat: catalog Nuanu App public runtime",
+        "bd2f07f4f3bf6ce2eb1004e9e3af1592a6b00f57\t751f6d32671ba4411c88ee2eb73fc4e650b6d7c7\tfix: harden Nuanu App runtime catalog",
+        "e959a08330dbf0fc3bee02a8e1568a99dc32597b\tbd2f07f4f3bf6ce2eb1004e9e3af1592a6b00f57\tfix: confine Nuanu App runtime observation",
+        "5b34aa5bc7d7aa5c907e4c5f55f032c9df2b20ec\te959a08330dbf0fc3bee02a8e1568a99dc32597b\tfix: preserve safe Nuanu App taxonomy",
+        "5e44fc382fc5f6ba3c893e5e15d72c379cefe3c7\t5b34aa5bc7d7aa5c907e4c5f55f032c9df2b20ec\tfeat: plan Nuanu App impact coverage",
+        "7504860fbacde369925656faaf544574091f22b0\t5e44fc382fc5f6ba3c893e5e15d72c379cefe3c7\tfix: harden Nuanu App impact planning",
+        "5136bdcb8e75a7beadd60a38e768566559921783\t7504860fbacde369925656faaf544574091f22b0\tdocs: add Nuanu App PostHog telemetry plan",
+        "c9bb0a35d09dff4d39db971a0fd03240fbabb371\t5136bdcb8e75a7beadd60a38e768566559921783\tfix: close Nuanu App planner policy bypasses",
+        "be404d479d8ab263584d05af1b64f0396e3575e2\tc9bb0a35d09dff4d39db971a0fd03240fbabb371\tfix: partition Nuanu App planner impact paths",
+        "d295be7171ed00348664f5f55f3a533b5cde8e4d\tbe404d479d8ab263584d05af1b64f0396e3575e2\tfeat: support runtime-only Nuanu App plans",
+        "62a6adb612cfb0860575b89ba1f07a9468ab5a08\td295be7171ed00348664f5f55f3a533b5cde8e4d\tfix: validate runtime-only Nuanu App impacts",
+        "3f2939efd66dcaeaf49934b06f96a4e2acd9cd23\t62a6adb612cfb0860575b89ba1f07a9468ab5a08\tdocs: harden Nuanu App PostHog telemetry plan",
+        "9b72a3e286d6c155868ac3cbf6a7a92a3e362e0f\t3f2939efd66dcaeaf49934b06f96a4e2acd9cd23\tfeat: add Nuanu App graph preflight CLI",
+        "883bcaff96680605cf8c979b6c670ac057e64f11\t9b72a3e286d6c155868ac3cbf6a7a92a3e362e0f\tdocs: require counted PostHog p75 cohorts",
+        "abea3b6a6d65afa8341ff90c621145763032d3a2\t883bcaff96680605cf8c979b6c670ac057e64f11\tdocs: lock PostHog candidate and catalog contracts",
+        "d8e88dcafeeb01238fbe227d8782066f99b093e5\tabea3b6a6d65afa8341ff90c621145763032d3a2\tfix: harden Nuanu App graph artifact transactions",
+        "db60c2588e48d00f064bc1bba5af3dfc73035ebe\td8e88dcafeeb01238fbe227d8782066f99b093e5\tfix: recover ambiguous graph artifact commits",
+        "febaabbde25e77cc93d3600ff93c4bc1275b3e93\tdb60c2588e48d00f064bc1bba5af3dfc73035ebe\tdocs: harden Nuanu App live coverage gates",
+        "86200c6d18810daedbd4d3593e41607bd683b2b1\tfebaabbde25e77cc93d3600ff93c4bc1275b3e93\tfeat: normalize Nuanu App aggregate telemetry",
+        "6476de5ff8d0e2ce7acd348a241ddce0bdf40a9e\t86200c6d18810daedbd4d3593e41607bd683b2b1\tfix: bootstrap Nuanu App private graph root",
+        "bf1859b7319d3dd6e3c17e3a7c29f68962951a3a\t6476de5ff8d0e2ce7acd348a241ddce0bdf40a9e\tdocs: define Nuanu App QA foundation",
+        "d452a0fdfb323ffd4dbb4d55c147cd27bd9a5c00\tbf1859b7319d3dd6e3c17e3a7c29f68962951a3a\tdocs: make Nuanu App live coverage executable",
+        "7cc11a52617f654b5e25221333b1eecc59389acd\td452a0fdfb323ffd4dbb4d55c147cd27bd9a5c00\tfix: harden aggregate telemetry privacy validation",
+        "e95c435e8637bd2ecbed16fb22aa4f322cc79178\t7cc11a52617f654b5e25221333b1eecc59389acd\tdocs: fix Nuanu App source planning runbook",
+        "2dbe9b2cfaa0caeea514f050f5325f01ecd8bfe0\te95c435e8637bd2ecbed16fb22aa4f322cc79178\tdocs: prevent ambiguous live selector certification",
+        "21a8ca67ef624ae5cd038abc40b5c21bc6f0ce47\t2dbe9b2cfaa0caeea514f050f5325f01ecd8bfe0\tfix: add explicit graph validation refresh",
+        "726a9814a23f0185e34ee38b0c6c53f36508a442\t21a8ca67ef624ae5cd038abc40b5c21bc6f0ce47\tfix: attest stored graph envelopes before refresh",
+        "0ab695c83bbfda476f4d8330b35f7c75a0661bd1\t726a9814a23f0185e34ee38b0c6c53f36508a442\ttest: lock Nuanu App runtime discovery contract",
+        "fc52034a5f4c79f6400ce075f9f95a4a07060a99\t0ab695c83bbfda476f4d8330b35f7c75a0661bd1\tdocs: harden Nuanu App PostHog telemetry plan",
+        "7119457dab0c2a7eabb18562a9fc4fce9a0b63d5\tfc52034a5f4c79f6400ce075f9f95a4a07060a99\tfix: reject non-string graph digests",
+        "0ffe77e6b7b211d111a62093be19bef1af47ddd1\t7119457dab0c2a7eabb18562a9fc4fce9a0b63d5\tdocs: document Nuanu App graph refresh mode",
+        "14dd156d8034673b887ab3482a5eb5d09ed83f36\t0ffe77e6b7b211d111a62093be19bef1af47ddd1\tdocs: resolve PostHog p75 evidence precedence",
+        "e217f42081bf279d61f9f6dfbc2888a3ad4a4294\t14dd156d8034673b887ab3482a5eb5d09ed83f36\tdocs: scope PostHog coordinate ambiguity",
+        "d8ca394d008415bd2e2adef50ef5f0113b06fd39\te217f42081bf279d61f9f6dfbc2888a3ad4a4294\tfix: harden Nuanu App runtime contract gate",
+        "6e505fef84222c4dbacfb2eb24a3eb676116395e\td8ca394d008415bd2e2adef50ef5f0113b06fd39\tfix: close Nuanu App action and method evidence gaps",
+        "3ec8de2df4b3d31a0c4048342eafd32f5da28623\t6e505fef84222c4dbacfb2eb24a3eb676116395e\tfeat: guard Nuanu App structured telemetry queries",
+        "3a5302c39f3e29b6ea3e8f8c6af6161ff5a341d8\t3ec8de2df4b3d31a0c4048342eafd32f5da28623\tfix: harden PostHog telemetry boundary",
+        "f5e42a18fcb2d325ab5cc2b1c84ccfca3be99979\t3a5302c39f3e29b6ea3e8f8c6af6161ff5a341d8\tfeat: integrate Nuanu App selector contract CLI",
+        "342fb2fec26b8fce7935c445b70809e24cbc69b7\tf5e42a18fcb2d325ab5cc2b1c84ccfca3be99979\tdocs: harden Nuanu App Flow control plane",
+        "aa7ecec5cbff56681c8678fb0c71bf951a190649\t342fb2fec26b8fce7935c445b70809e24cbc69b7\tfeat: map aggregate telemetry to Nuanu App tests",
+        "96c7b8adce0033631728501e6e34ed4bb129e980\taa7ecec5cbff56681c8678fb0c71bf951a190649\tfix: attribute Nuanu App runtime candidates",
+        "726810e28496593a0f4bacb1cd6e1a2d064ef685\t96c7b8adce0033631728501e6e34ed4bb129e980\tfeat: attest Nuanu App telemetry CLI input",
+        "74f997ac2c0f2bf59735a401c53c267ece7366cd\t726810e28496593a0f4bacb1cd6e1a2d064ef685\tfeat: add durable Nuanu App defect outbox",
+        "7145c880ed91f94e9b423ecca2c457a486f2cca2\t74f997ac2c0f2bf59735a401c53c267ece7366cd\tfix: reject invalid UTF-8 graph artifacts",
+        "f18099aa637bb6568be76bd7ef6109b4ed2e4c39\t7145c880ed91f94e9b423ecca2c457a486f2cca2\tdocs: fence Nuanu App QA control planes",
+        "2d0079fcae464226e86d3a1e4dad7665f431f1c3\tf18099aa637bb6568be76bd7ef6109b4ed2e4c39\tdocs: tighten Nuanu semantic settle acceptance",
+        "444a97a7bcd61474b93de22b7d4d00d30d64d36c\t2d0079fcae464226e86d3a1e4dad7665f431f1c3\tdocs: sequence Nuanu semantic settle gates",
+        "a4cb8f7ea4f9de39841e93956fd949b9213fbab7\t444a97a7bcd61474b93de22b7d4d00d30d64d36c\tdocs: close Nuanu mobile and Flow sequencing gaps",
+        "914f0e8484188dcac5f5c6018e71bbe35dbb815a\ta4cb8f7ea4f9de39841e93956fd949b9213fbab7\tdocs: thread Nuanu settle through CLI attestation",
+        "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2\t914f0e8484188dcac5f5c6018e71bbe35dbb815a\tdocs: resolve Nuanu journal pre-link race"
+      ],
+      "sourceFiles": 64,
+      "workingOverlay": [
+        {
+          "path": "tests/nuanu-app-graph/cli.test.mjs",
+          "status": " M",
+          "sha256": "e2b296d4b0a738fc771104be50baada81254a3180eb1260e1568f29d0b2797f3"
+        },
+        {
+          "path": "tests/nuanu-app-graph/flow-outbox.test.mjs",
+          "status": " M",
+          "sha256": "852333f541707c5167f3b92795e198114883b4261188700c5b7996d81d1a9162"
+        },
+        {
+          "path": "tests/nuanu-app-graph/runtime-contract.test.mjs",
+          "status": " M",
+          "sha256": "f9c464badd16ec2227ee8a1898b91f9605febcb351af13ffbaa6eb34d2754d47"
+        },
+        {
+          "path": "tests/nuanu-app-graph/runtime.test.mjs",
+          "status": " M",
+          "sha256": "8a2e123cd1a21214a3e97382416383f84f8b5138018721e44870dd011b78040c"
+        },
+        {
+          "path": "tests/nuanu-app-graph/selector-observation.test.mjs",
+          "status": " M",
+          "sha256": "c2b1300fd3d9c23bc80fcf5c84d175740d4b0c189dd3f006bfd2a32b9d0bd522"
+        },
+        {
+          "path": "tools/nuanu-app-graph/cli.mjs",
+          "status": " M",
+          "sha256": "770f0a11a9bae2def5327142ee96921d067f706ef7261d2a8065fad9dcb7deb2"
+        },
+        {
+          "path": "tools/nuanu-app-graph/flow-outbox.mjs",
+          "status": " M",
+          "sha256": "c2cb7a1ddd5b71d6017a75bf08785793548b9f73a1d10422aaaf77244a527392"
+        },
+        {
+          "path": "tools/nuanu-app-graph/runtime-contract.d.mts",
+          "status": " M",
+          "sha256": "c799d07d9ed448a6466238241a1c6ea54568695659ffa18f7a8093d99af93e6c"
+        },
+        {
+          "path": "tools/nuanu-app-graph/runtime-contract.mjs",
+          "status": " M",
+          "sha256": "31d043297a8d0ac1184d32fab19792e5b28e56826a1cf34bbb51c94c38ec588c"
+        },
+        {
+          "path": "tools/nuanu-app-graph/runtime.mjs",
+          "status": " M",
+          "sha256": "c378c1e527a0375daa90a9c1d5deb749e04cd4e5b8509a170d558248e0cc25ef"
+        },
+        {
+          "path": "tests/nuanu-app-graph/semantic-settle.test.mjs",
+          "status": "??",
+          "sha256": "dd1da97334d087b79774195fd5a212924fda7bbd4f0e508a848c790a32375153"
+        }
+      ]
+    },
+    {
+      "id": "nuanu-flow-product",
+      "commit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "commitsNotInLegacyBase": [
+        "df39c429c04b8f1ca7fb90f43dbdc7c4957c7dbf\t1ce496bc97d561e5e5f6a1a1862fb44a6aac12f6\ttest: add Nuanu Flow public smoke baseline",
+        "1943f66293807aeca5c5bd1d5b9f7c81ea56dcc8\tdf39c429c04b8f1ca7fb90f43dbdc7c4957c7dbf\ttest: cover Nuanu Flow public auth",
+        "8049cfb8ae66e6b6091ac92e76934c4feb51c2be\t1943f66293807aeca5c5bd1d5b9f7c81ea56dcc8\ttest: cover Nuanu Flow public routes",
+        "357ac81a3d0470b65adcc247486fa2ad7b89ac50\t8049cfb8ae66e6b6091ac92e76934c4feb51c2be\ttest: add Nuanu Flow responsive matrix",
+        "845dfbc884627c5439554982962849be5ed23ee6\t357ac81a3d0470b65adcc247486fa2ad7b89ac50\ttest: cover NUANU-8 BPMN regression",
+        "92090b6c5c403cd9b8bbdd5c9546b1ca57eeb5c0\t845dfbc884627c5439554982962849be5ed23ee6\tdocs: design deep Nuanu Flow QA campaign",
+        "add2332ebc90601cbf92db22ac622c302ea45159\t92090b6c5c403cd9b8bbdd5c9546b1ca57eeb5c0\tdocs: plan deep Nuanu Flow E2E campaign",
+        "fc98178de2e972d8aa5d15b830d1a91f006c45df\tadd2332ebc90601cbf92db22ac622c302ea45159\ttest: isolate Nuanu Flow authenticated project",
+        "dabf68e4e567d7a3dffce8defac908c1c5ee0823\tfc98178de2e972d8aa5d15b830d1a91f006c45df\ttest: validate Nuanu Flow auth state path",
+        "e83c2ca04d4024524e546726fcf911434b641341\tdabf68e4e567d7a3dffce8defac908c1c5ee0823\ttest: reject symlinked Nuanu Flow auth state",
+        "02096049dd74db4e3f74b3c0f20a8414cb328a32\te83c2ca04d4024524e546726fcf911434b641341\ttest: guard Nuanu Flow sandbox mutations",
+        "1dbac7d2a969a20ff8a76eea6de686e4a99f592a\t02096049dd74db4e3f74b3c0f20a8414cb328a32\ttest: harden Nuanu Flow process cleanup",
+        "38192e75473c66b07b7de36eb7d5cb3be63ee55b\t1dbac7d2a969a20ff8a76eea6de686e4a99f592a\ttest: isolate Nuanu Flow known bug classification",
+        "b38a6528d9e68a752bdb12f3eadd3ec188022406\t38192e75473c66b07b7de36eb7d5cb3be63ee55b\ttest: cover Nuanu Flow authenticated workspace shell",
+        "197cf82b374c05f3a7f6475e86c5a93607821c1a\tb38a6528d9e68a752bdb12f3eadd3ec188022406\ttest: verify Nuanu Flow workspace routes",
+        "8ab626188aed43761a941da8c181b25f1ff1a15e\t197cf82b374c05f3a7f6475e86c5a93607821c1a\ttest: enforce Nuanu Flow route anomalies",
+        "bba95bb800023f18b95ef344a7832a9cacc50d11\t8ab626188aed43761a941da8c181b25f1ff1a15e\ttest: scope Nuanu Flow anomaly allowlist",
+        "cc79cedd48447f99d92337409e713a7240db1391\tbba95bb800023f18b95ef344a7832a9cacc50d11\ttest: cover Nuanu Flow work-item lifecycle",
+        "c8c90f6548e87e73d4c3a0ff17c7369ee8cfc103\tcc79cedd48447f99d92337409e713a7240db1391\ttest: harden Nuanu Flow work-item safety",
+        "80d97e6ee21a69b28e6686763a4e0c7fabd0e642\tc8c90f6548e87e73d4c3a0ff17c7369ee8cfc103\ttest: harden Nuanu Flow response ownership",
+        "ddae0a381fe00d00f76fc1e0b121def84df78105\t80d97e6ee21a69b28e6686763a4e0c7fabd0e642\ttest: await every admitted Nuanu Flow response",
+        "f65d82101faa32f72514b48bbb9e2a1219da4354\tddae0a381fe00d00f76fc1e0b121def84df78105\ttest: cover Nuanu Flow project planning lifecycle",
+        "be9b47bf12d939bf325a974b323bd43ea8635b3e\tf65d82101faa32f72514b48bbb9e2a1219da4354\ttest: harden project planning mutations",
+        "01cb69b07d0a18c68e43df5153c858504a7f77d8\tbe9b47bf12d939bf325a974b323bd43ea8635b3e\ttest: preflight project planning mutations",
+        "d265825eda91d112e2ba7ed18548a315745a4b06\t01cb69b07d0a18c68e43df5153c858504a7f77d8\ttest: drain project planning retries",
+        "4d9b88ad8871317c620e3b2a3a28eced926ba272\td265825eda91d112e2ba7ed18548a315745a4b06\ttest: cover Nuanu Flow knowledge workflows",
+        "408e010065340f00f3acb4f208ef68a70ce88ecb\t4d9b88ad8871317c620e3b2a3a28eced926ba272\ttest: harden knowledge workflow cleanup",
+        "c4b6e8bd51bca9347effd09918e729f693397129\t408e010065340f00f3acb4f208ef68a70ce88ecb\ttest: make saved-view cleanup idempotent",
+        "2b439c653e0fffb4055b79c967344cb9c33987fc\tc4b6e8bd51bca9347effd09918e729f693397129\ttest: cover Nuanu Flow workspace operations",
+        "b784076ca6bd9e3e97166bfafdf8b84279a719e8\t2b439c653e0fffb4055b79c967344cb9c33987fc\ttest: deepen Nuanu Flow BPMN coverage",
+        "17978207b74a4f2dc1ffe33f489d4ea5746119e4\tb784076ca6bd9e3e97166bfafdf8b84279a719e8\ttest: bind BPMN saves to response ownership",
+        "4f3bb1855470ade52816eecccd09c144171e72b4\t17978207b74a4f2dc1ffe33f489d4ea5746119e4\ttest: freeze BPMN response ownership",
+        "e72308ae7789673c3178b711989e8b6bad0aecc4\t4f3bb1855470ade52816eecccd09c144171e72b4\ttest: deepen Nuanu Flow meeting transcription coverage",
+        "32add52e5c9c26311ed0d0d6f471dfd6a6b05a1a\te72308ae7789673c3178b711989e8b6bad0aecc4\ttest: harden Nuanu Flow meeting safety",
+        "7ab2cbb050724a15802861af4f1bb14d58f6b86e\t32add52e5c9c26311ed0d0d6f471dfd6a6b05a1a\ttest: fix meeting home navigation",
+        "87668ebb57b1e0d8019cf198886835cf939d927c\t7ab2cbb050724a15802861af4f1bb14d58f6b86e\ttest: add Nuanu Flow cross-cutting quality coverage",
+        "c7dc76b80ed139e0ba950ccbacd444985395a963\t87668ebb57b1e0d8019cf198886835cf939d927c\ttest: verify Nuanu Flow MCP UI parity",
+        "3a7ccc87ed9c8bda4f04a54fe75e17ec458c0aea\tc7dc76b80ed139e0ba950ccbacd444985395a963\tdocs: route Nuanu Flow QA through its MCP",
+        "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5\t3a7ccc87ed9c8bda4f04a54fe75e17ec458c0aea\ttest: stabilize Nuanu Flow legal readiness"
+      ],
+      "sourceFiles": 61,
+      "workingOverlay": [
+        {
+          "path": "docs/superpowers/plans/2026-07-26-nuanu-flow-deep-e2e-plan.md",
+          "status": " M",
+          "sha256": "595952f51e5eeaddd1f4859418c03f3246874b34f747d65870c601c440757130"
+        },
+        {
+          "path": "docs/superpowers/specs/2026-07-26-nuanu-flow-e2e-design.md",
+          "status": " M",
+          "sha256": "977b6466217d90df1bf926ddc2a6d6df4fa7b00a517c6d67ac863642f6d07288"
+        },
+        {
+          "path": "tests/nuanuflow/authenticated/mcp-parity.spec.ts",
+          "status": "deleted-in-donor-working-tree"
+        },
+        {
+          "path": "tests/nuanuflow/authenticated/meetings-transcription.spec.ts",
+          "status": " M",
+          "sha256": "2b1948ad59ed1cc3293ccde4a0194ec65c7705e115616d49b8407411bbf442fa"
+        },
+        {
+          "path": "tests/nuanuflow/authenticated/views-wiki.spec.ts",
+          "status": " M",
+          "sha256": "fcbad3f459386bac87e27090fdeb6519f953361b1844fd5c459cac25156c9829"
+        },
+        {
+          "path": "tests/nuanuflow/fixtures/mcp-client.ts",
+          "status": "deleted-in-donor-working-tree"
+        },
+        {
+          "path": "tests/nuanuflow/knowledge-features-safety.spec.ts",
+          "status": " M",
+          "sha256": "21907809fbd9c0949e680484d6d946ceca79246f4f5db10d6519e4f94e132f6b"
+        },
+        {
+          "path": "tests/nuanuflow/mcp-client-safety.spec.ts",
+          "status": "deleted-in-donor-working-tree"
+        },
+        {
+          "path": "tests/nuanuflow/pages/knowledge-features.page.ts",
+          "status": " M",
+          "sha256": "192451aaa4885e25082603a81092c091064f19615af7dce8a7215298e40e6156"
+        },
+        {
+          "path": "tests/nuanuflow/performance.spec.ts",
+          "status": " M",
+          "sha256": "49acd458d6ca6521a5a191f4b563950db5ae4c78e05658fcf151bd686b44f994"
+        }
+      ]
+    },
+    {
+      "id": "acceptance-boundary",
+      "commit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "commitsNotInLegacyBase": [
+        "a9fc5f88fdff1c12c6b0506099b4514c1295711c\t2056c9a8ce2864fc3c7a56812b1fd7ef582645e2\tdocs: define product and acceptance QA boundary",
+        "f9c3773c31c91aa9f002c69230aa05ad835d7292\ta9fc5f88fdff1c12c6b0506099b4514c1295711c\tfix: enforce strict release handshake boundary",
+        "affd6e1727c69d483b7886763eb52b495f5bf3b1\tf9c3773c31c91aa9f002c69230aa05ad835d7292\tdocs: rescope Freeland QA around Nuanu",
+        "a7131a1b7bd8eeb122f1882317092e855b1ae187\taffd6e1727c69d483b7886763eb52b495f5bf3b1\tdocs: approve native-first Freeland QA pivot",
+        "34ca5bea67a99ef9caf0f214f70665322d2ff7e1\ta7131a1b7bd8eeb122f1882317092e855b1ae187\tdocs: plan native Assist boundary canary",
+        "35b33028fbb029e1775f0d285564ebb37061ed2e\t34ca5bea67a99ef9caf0f214f70665322d2ff7e1\tdocs: refresh native Assist canary pins"
+      ],
+      "sourceFiles": 8,
+      "workingOverlay": [
+        {
+          "path": "docs/superpowers/plans/2026-08-07-freeland-auto-routing-continuous-coverage.md",
+          "status": "??",
+          "sha256": "7914a901bc42cb743aa329e310b6e3d14c67460a39a18acf4d441d2753c23d08"
+        },
+        {
+          "path": "docs/superpowers/plans/2026-08-07-freeland-computer-use-telegram.md",
+          "status": "??",
+          "sha256": "415e2385f925b2bb662839f14ccc73fc94922c19caf8eecb97651f803c580b93"
+        },
+        {
+          "path": "docs/superpowers/plans/2026-08-07-freeland-deterministic-runner-evidence.md",
+          "status": "??",
+          "sha256": "c3eb04ee4bfb6e75a91b79e0ed8f5d1e605d90a7eba384a188edb18b70c91a8f"
+        },
+        {
+          "path": "docs/superpowers/plans/2026-08-07-freeland-nuanu-control-plane.md",
+          "status": "??",
+          "sha256": "adfe8dc1b2f546807654186bf1f5c033d41f088684073131a2d35acdd6deec0f"
+        },
+        {
+          "path": "docs/superpowers/plans/2026-08-07-freeland-nuanu-native-execution-index.md",
+          "status": "??",
+          "sha256": "b15a76a7386164dfff98fa6f2ea1cd46ee4979988c0096e3d3b0dff0d43d8218"
+        },
+        {
+          "path": "docs/superpowers/plans/2026-08-07-freeland-payment-automation.md",
+          "status": "??",
+          "sha256": "506824c7bd79594d0adec8fcbcea4f7cdb440faa5575625ebc5bb56e786400f3"
+        },
+        {
+          "path": "docs/superpowers/plans/2026-08-07-freeland-release-certification.md",
+          "status": "??",
+          "sha256": "7e95a191bcc52f951b071877e13d4e1e3efce54d4beb44b50a47ea907a25fd6e"
+        }
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "LICENSE",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/LICENSE.txt",
+      "sha256": "db80358bea86ed171c8ea1ffe6d20e868d2e4062eefc543de85f6d0abf91d0aa",
+      "bytes": 1070
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "README.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/README.md.txt",
+      "sha256": "fd6391d348aa0d38ead041ea57d365fc7268019edad45eb76ef2b1d9d2b51e99",
+      "bytes": 11129
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "apps/paydemo/public/app.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/apps/paydemo/public/app.mjs.txt",
+      "sha256": "47ced055106ded316594bdf8e333a8a3ec0fcf9549b2e308cb8f63cfb69d5334",
+      "bytes": 1170
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "apps/paydemo/public/index.html",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/apps/paydemo/public/index.html.txt",
+      "sha256": "78f838f40d0611a44c296e44c0b29417d2d8a720a688bfae600b7fed2a257f97",
+      "bytes": 820
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "apps/paydemo/public/styles.css",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/apps/paydemo/public/styles.css.txt",
+      "sha256": "9b9a68771f6ea4823101b7a3123525c808f36e8af825e5fac5a9364c72d881ef",
+      "bytes": 407
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "apps/paydemo/server.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/apps/paydemo/server.mjs.txt",
+      "sha256": "d295bbda1dd30a9b8d92236f1e28a8991f14c5bf234cbd7f570c9075225e8144",
+      "bytes": 7839
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "docs/operations/OFFLINE-GRAPH-DEMO.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/docs/operations/OFFLINE-GRAPH-DEMO.md.txt",
+      "sha256": "325eea140bd0f3590ad0ef6511309b205c8713bb26ad0539339013f026979db1",
+      "bytes": 1263
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "docs/operations/universal-qa-proof-gate-runbook.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/docs/operations/universal-qa-proof-gate-runbook.md.txt",
+      "sha256": "2380bccefc00583fb9bd22bb7eaf06d459a8a865817e361300ef96e112045127",
+      "bytes": 17577
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "docs/superpowers/plans/2026-08-09-universal-nuanu-qa-flow.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/docs/superpowers/plans/2026-08-09-universal-nuanu-qa-flow.md.txt",
+      "sha256": "d72db998274228f3216d8e532e3c6b7e722659d49d132af3225c9bb9e2460573",
+      "bytes": 31644
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "docs/superpowers/plans/2026-08-11-current-nuanu-proof-gate-adaptation.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/docs/superpowers/plans/2026-08-11-current-nuanu-proof-gate-adaptation.md.txt",
+      "sha256": "c4e3fbc077ba556a00c5af4263543b2af081fc068b40326346745aff4151be1d",
+      "bytes": 104099
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "docs/superpowers/plans/2026-08-12-qah-product-graph-offline-integration.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/docs/superpowers/plans/2026-08-12-qah-product-graph-offline-integration.md.txt",
+      "sha256": "5befb0c272e69f146451ff062d5f7baffeb0340d0fc148bb704dbcb57acc3d5e",
+      "bytes": 14882
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "docs/superpowers/plans/2026-08-12-task-owned-checkout-canary-fix.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/docs/superpowers/plans/2026-08-12-task-owned-checkout-canary-fix.md.txt",
+      "sha256": "afa79d74ec3545bc5ff7be85e517413d82a2884787fbc3df0d2d8d15edf7ef78",
+      "bytes": 8163
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "docs/superpowers/specs/2026-08-09-universal-nuanu-qa-flow-design.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/docs/superpowers/specs/2026-08-09-universal-nuanu-qa-flow-design.md.txt",
+      "sha256": "33230a2bf960b274e4170a0cba3e21216ece7c694b4e173c86bb781cba57609d",
+      "bytes": 19038
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "docs/superpowers/specs/2026-08-11-current-nuanu-proof-gate-adaptation-design.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/docs/superpowers/specs/2026-08-11-current-nuanu-proof-gate-adaptation-design.md.txt",
+      "sha256": "8e9e7c0b3ff15d48c5789c1409cddf162f53f7f4b562c1a78e16796bb7c98985",
+      "bytes": 25621
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "docs/superpowers/specs/2026-08-12-qah-product-graph-offline-integration-design.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/docs/superpowers/specs/2026-08-12-qah-product-graph-offline-integration-design.md.txt",
+      "sha256": "613ec692b0f8bc1849b4089339b0598ce794a95b3a09de0489ad438cbc0e0b5e",
+      "bytes": 12926
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "docs/superpowers/specs/2026-08-12-stock-nuanu-single-task-canary-design.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/docs/superpowers/specs/2026-08-12-stock-nuanu-single-task-canary-design.md.txt",
+      "sha256": "d7fe1d62eb860e69039a7cd5d8c58ee0932058972504f780bcea8cc71fe8000a",
+      "bytes": 7466
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "package-lock.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/package-lock.json.txt",
+      "sha256": "6b76c14a133a0ac253a087d15fd700a80b4c765694bb371c4e0df52fd079b7f8",
+      "bytes": 4345
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "package.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/package.json.txt",
+      "sha256": "e87b27bb14f7cca11f18fda7a0dd4d958b924c55655476c170660524db21a566",
+      "bytes": 2515
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "playwright.paydemo.config.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/playwright.paydemo.config.ts.txt",
+      "sha256": "dc8b4ff196e49382c50f878b510b7594a89b242aa9cf247b0a51baf568a38aa2",
+      "bytes": 746
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "processes/universal-qa-flow.graph.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/processes/universal-qa-flow.graph.json.txt",
+      "sha256": "efc8451d5df38c53651dc5a6f953464009b53203e7b991aa94efc7ff6dc76b1c",
+      "bytes": 8554
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "qa-harness.yaml",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/qa-harness.yaml.txt",
+      "sha256": "b4b8fcaf1c4f6afa8eb4193ac221cce963da11d85335ceb5e0b47d6141fbd493",
+      "bytes": 2394
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "qah/generic-decision.v1.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/qah/generic-decision.v1.md.txt",
+      "sha256": "98728ba1af2f85102da8bc19172efdde7a40930d77a45fb963ec336de107398c",
+      "bytes": 517
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "qah/generic-qa.v1.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/qah/generic-qa.v1.md.txt",
+      "sha256": "f116b97041a37e1855750a222c5f4f4f7c8755f271c4b18cc01a4824b11e4546",
+      "bytes": 619
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "qah/install-policy.v1.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/qah/install-policy.v1.json.txt",
+      "sha256": "ae833be3ff1ea80b19d39b3f575becf9e5e564246bbe355663ffb79b848d4c27",
+      "bytes": 699
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "schemas/qah/branch-result.schema.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/schemas/qah/branch-result.schema.json.txt",
+      "sha256": "329639979ae759b3cf4f6572925814c5e2f75a173b3abfe932b39f18b7dd6d91",
+      "bytes": 1518
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "schemas/qah/project-profile.schema.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/schemas/qah/project-profile.schema.json.txt",
+      "sha256": "8bb2acd2ff68c3b1651c9cf693ae039744ef5770a219fda95fa1edb258c6d5ba",
+      "bytes": 4393
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "schemas/qah/release-decision.schema.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/schemas/qah/release-decision.schema.json.txt",
+      "sha256": "39f9522336f9969fc72d489c5da10bff0041c7a57390be95579fbe8c490165a6",
+      "bytes": 1295
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "schemas/qah/resolved-context.schema.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/schemas/qah/resolved-context.schema.json.txt",
+      "sha256": "c70588ba4bf86e0378f497aea30329af624703ac5856946d1ad5fad9dc20cce4",
+      "bytes": 705
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "schemas/qah/test-plan.schema.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/schemas/qah/test-plan.schema.json.txt",
+      "sha256": "6c388d0c1c468eb1bdfcdb38c1ca50634652727a8a25770cfdd9477da72912aa",
+      "bytes": 669
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/build-paydemo.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/build-paydemo.mjs.txt",
+      "sha256": "43612b1a3e7b551309238f78eb119a4406c4241a649131768f73520532b5b0cb",
+      "bytes": 3603
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/paydemo-qah-broker.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/paydemo-qah-broker.mjs.txt",
+      "sha256": "4acdcb4c28ed19682c98684f966ab15170a14785166caf584ae786406c15bf82",
+      "bytes": 29165
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/paydemo-qah-environment.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/paydemo-qah-environment.mjs.txt",
+      "sha256": "30e9a937ecfb1bee63d04ce92e38d068e164da294ed80f57a3cd59208d8926fc",
+      "bytes": 18960
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/paydemo-qah-finalize.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/paydemo-qah-finalize.mjs.txt",
+      "sha256": "6095bd030e0d030f69ae95437ca5c16e6dad05957a280c180e94cb27e07dc70f",
+      "bytes": 5886
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/paydemo-qah-probe.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/paydemo-qah-probe.mjs.txt",
+      "sha256": "931948d71c872023abe87a889ff2e015d801c9e8832c38fd905a06b1a3a46ea1",
+      "bytes": 31427
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/paydemo-qah-route.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/paydemo-qah-route.mjs.txt",
+      "sha256": "026ce39693b01aeed6552688e21153e4f9b7a57e208700fcdce709645a10b31e",
+      "bytes": 4463
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/paydemo-qah-synthesize.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/paydemo-qah-synthesize.mjs.txt",
+      "sha256": "213c5b0065fa6ae28d0fd64c9c95b698567aad7ff0137ca3130bf3d23d7f1c44",
+      "bytes": 22346
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/adapters/paydemo.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/adapters/paydemo.mjs.txt",
+      "sha256": "5ac1f930e97ac3e754bd580636b66c0f1e5b5e906fb10d397b014e26c642239f",
+      "bytes": 20644
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/aggregate.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/aggregate.mjs.txt",
+      "sha256": "723d906ec1d6a6cf6895a347ca73c8c88bc83ffe2c7a1bd62841311fb100ba1a",
+      "bytes": 50143
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/canonical.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/canonical.mjs.txt",
+      "sha256": "db9f3da2c729333c08ba1ae05d691e8dae1140cf07f0f41e90630534ddc4d16f",
+      "bytes": 1089
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/claim-adapter.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/claim-adapter.mjs.txt",
+      "sha256": "9736c7229e4a1596a5fe67df61293ea1019a8bab5df9620bf09ef278fac917ed",
+      "bytes": 10448
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/context.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/context.mjs.txt",
+      "sha256": "0a0545eddcbe972c86c3cd344c515fc69c57b36a5c5723bc31a52f7e4e80f304",
+      "bytes": 9033
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/contracts.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/contracts.mjs.txt",
+      "sha256": "ccc38b3d62afa6111e993289d7aa1c1dfae29343f1237fb26a2c78e531ff91c2",
+      "bytes": 13823
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/decide.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/decide.mjs.txt",
+      "sha256": "1d50089393b7c73faa62a5b52a0e1e485d5304a5d17ce7c8a9826e6630c91f1d",
+      "bytes": 23856
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/environment.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/environment.mjs.txt",
+      "sha256": "ef21477ce0f76309dd72a90b1dcff3796aef05e9350bb93d1c784832d15cf7c3",
+      "bytes": 46023
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/finalize.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/finalize.mjs.txt",
+      "sha256": "702ec6a013e06567c3e02b1eb4d84069115d04cadb6e554a09e09505e12a6c61",
+      "bytes": 6629
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/graph-plan.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/graph-plan.mjs.txt",
+      "sha256": "efea469aafef8c23c827b3cec21f754bf741181ca4e6ac91dc799a553db2a59d",
+      "bytes": 17587
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/install-preflight.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/install-preflight.mjs.txt",
+      "sha256": "16d1041a39ec7b9aaf65ed4f6f458fcc29e6fd6109aee39200ede664b5e7b01e",
+      "bytes": 24601
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/install-process.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/install-process.mjs.txt",
+      "sha256": "73e55dc93de699a9a787aafb2d265621e091edf6c09ffc51ce67c9decba26b14",
+      "bytes": 1558
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/local-harness.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/local-harness.mjs.txt",
+      "sha256": "4f7fb82f5f8e9568d53a9d0b4768c407ef68d36186e351cfb0905901f519c134",
+      "bytes": 28082
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/offline-graph-demo.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/offline-graph-demo.mjs.txt",
+      "sha256": "c2828607d28d320fe9dced86f910a4e8534e44ae9a77662fcabfb232817ded4c",
+      "bytes": 2792
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/offline-graph-flow.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/offline-graph-flow.mjs.txt",
+      "sha256": "9ee0b16ebc9ec381dfbe8c629de52d2b20996a88b3689619784d9ae398b7fcb2",
+      "bytes": 7245
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/onyx-browser-probe.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/onyx-browser-probe.mjs.txt",
+      "sha256": "cb31afa99f58368f82120a04df3afd5adbaad150e47edb3e854bc76799f60009",
+      "bytes": 5351
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/plan.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/plan.mjs.txt",
+      "sha256": "4e2bc797712d87ce086c0969a833b2f2e3d3fb26babc3df2f408d2052d7ae6d1",
+      "bytes": 4883
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/preflight-report.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/preflight-report.mjs.txt",
+      "sha256": "11b1e0d0ff4b355b418f4c0c23f71a927998293acf22e4843306ac604be8c459",
+      "bytes": 10923
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/profile.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/profile.mjs.txt",
+      "sha256": "4c7cf32274be9ab38c6432b13c3e645d376ae074d1c1c8fe2d5f793f995e6355",
+      "bytes": 2918
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/proof-gate-canary.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/proof-gate-canary.mjs.txt",
+      "sha256": "46c3fcb569a312eb9d7f27ca15ba68f829cc4dc829a578acd8ad22b0762449d7",
+      "bytes": 18478
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/release-policy.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/release-policy.mjs.txt",
+      "sha256": "0586180a5f4af0b34f9908fe88f36751e7905fdf13cc17c179933f04c5ce770c",
+      "bytes": 4422
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/render-comment.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/render-comment.mjs.txt",
+      "sha256": "a5f1d121b64face930a33ca20d739acb1cb093124be321f3f4cdc35ab69fd7dd",
+      "bytes": 17053
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/render-process.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/render-process.mjs.txt",
+      "sha256": "4ea8e6ea9632b1e5b355509a5ed8090b71825328a9928ef91f98127eb6bab038",
+      "bytes": 18488
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/run-branch.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/run-branch.mjs.txt",
+      "sha256": "7fd42602c11f26f477bc93806dacbe246b662042589cb8f0efe3e1bd64c47c75",
+      "bytes": 40678
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/task-runtime.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/task-runtime.mjs.txt",
+      "sha256": "5703391430a2e3dab7e6af7c8e680a48d777489a16507598c4111ba3da592289",
+      "bytes": 40941
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/ui-graph-canary.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/ui-graph-canary.mjs.txt",
+      "sha256": "008bd1d5f51640b11940053e03c03ea1205a97468b8cb60296af6a8f2a656c3e",
+      "bytes": 20078
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "scripts/qah/worker-contract.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/scripts/qah/worker-contract.mjs.txt",
+      "sha256": "e25d05b82da31031d11e10b73b573f028b5a21a99514d8f4e84fe42bc2157585",
+      "bytes": 2234
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/paydemo-broker/broker.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/paydemo-broker/broker.test.mjs.txt",
+      "sha256": "7336982011c6bb1e01c247c45c1e32d46ada045825c1050536a0d75d9705e92a",
+      "bytes": 30379
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/paydemo-environment/environment.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/paydemo-environment/environment.test.mjs.txt",
+      "sha256": "61c066970038814cfa5fcd08a6c9a73f67e9f8bd437c1faa53a6f1b284b52d64",
+      "bytes": 22982
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/paydemo-probe/probe.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/paydemo-probe/probe.test.mjs.txt",
+      "sha256": "315c6b2a6474521dfd13187afe00e347a9478514fcdf0b2486ff7f1456b15603",
+      "bytes": 37491
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/paydemo-route/finalize.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/paydemo-route/finalize.test.mjs.txt",
+      "sha256": "b8a6efbf0029897e1280b9b4d1aa8f15893d074d9e99165a7ae9916025a8ce42",
+      "bytes": 4230
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/paydemo-route/route.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/paydemo-route/route.test.mjs.txt",
+      "sha256": "08178f0dddcf1143a1d08f501a606a21590356844a1b2b8794ee37ff57b23322",
+      "bytes": 4629
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/paydemo-synthesize/synthesize.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/paydemo-synthesize/synthesize.test.mjs.txt",
+      "sha256": "afd9a1f1744ee37540de4e3ca5cb883d4c130a92d3b270e0e6c03b6b824398b2",
+      "bytes": 23585
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/paydemo/build-provenance.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/paydemo/build-provenance.test.mjs.txt",
+      "sha256": "8d6800656a9742669f5156751cad89de38990571f4631609a4ff23603a019375",
+      "bytes": 6394
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/paydemo/controlled-bug.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/paydemo/controlled-bug.spec.ts.txt",
+      "sha256": "c76c0aa63a3269db35ddc98532ced6f205542f1e0e4c7bf16081741729706207",
+      "bytes": 2621
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/paydemo/fixed.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/paydemo/fixed.spec.ts.txt",
+      "sha256": "5a2190e988a53e22c9dd2f03773f9c23803f571bdb7924d0c4d101d1cc47434a",
+      "bytes": 4016
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/paydemo/server-identity.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/paydemo/server-identity.test.mjs.txt",
+      "sha256": "00063d57a745f6d270bce07d79f17e7bd83efc366d1cb0e835abab31ed281753",
+      "bytes": 9828
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/aggregate.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/aggregate.test.mjs.txt",
+      "sha256": "22b655795751498053cd18d5f8f6c017dede4b43073acd6379431243ffbd1d8d",
+      "bytes": 50597
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/branch-runner.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/branch-runner.test.mjs.txt",
+      "sha256": "30f5056afcd24a2a1310212799500f9788d7acfaa8d10e7aa4367b4f160c9160",
+      "bytes": 60053
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/claim-adapter.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/claim-adapter.test.mjs.txt",
+      "sha256": "4f0505e56bc7e62e46887c3efd6e5d09671aff76646da9365ba4efa7d3009ab8",
+      "bytes": 12664
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/context.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/context.test.mjs.txt",
+      "sha256": "7f07b0888cceabc6c73480fc01ed1480330e6ef5ce303174907f7366c84c2574",
+      "bytes": 1886
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/contracts.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/contracts.test.mjs.txt",
+      "sha256": "3858194a3b2422395003d4ebaa779806c269cbb361042d88dece791a389144ed",
+      "bytes": 15050
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/decision.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/decision.test.mjs.txt",
+      "sha256": "fefe46f9a9184d726f6ba32783fe265ddb2e1a038590bb6d5d40e4d9c9b7f313",
+      "bytes": 23187
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/e2e.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/e2e.test.mjs.txt",
+      "sha256": "7278bbe4febc22563891bde18f3d419c6d5c8162a739e56caead63329b6a2c91",
+      "bytes": 7064
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/environment.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/environment.test.mjs.txt",
+      "sha256": "5d1b6c18c90015370b891677f0974401ccff27ed7aab123cc777b11f60679996",
+      "bytes": 30857
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/finalize.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/finalize.test.mjs.txt",
+      "sha256": "624ff34a085c063dc1b90f6618c1d82304b0261a96b9737fcb51828b7cb6555f",
+      "bytes": 32691
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/branch-api-pass.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/branch-api-pass.json.txt",
+      "sha256": "f9e4cb272d80da433450be2d9df77ca5dfb04483deacdd69955a8c2b767556b9",
+      "bytes": 206
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/branch-code-pass.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/branch-code-pass.json.txt",
+      "sha256": "a48872de9040a6607dbfab4e7b7cbcbefdc34617024a80fb47b9fca0493549c2",
+      "bytes": 197
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/branch-domain-pass.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/branch-domain-pass.json.txt",
+      "sha256": "ddd378274fb77d5241d204c7d5c4b1d54de998c176181b4d02bca17ee36c3e14",
+      "bytes": 208
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/branch-infra-failure.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/branch-infra-failure.json.txt",
+      "sha256": "2d8949bcdd69a3c07f0dbf95223f4b4a890c723ff8a4e370fa02138e6fbe9a63",
+      "bytes": 215
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/branch-ui-pass.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/branch-ui-pass.json.txt",
+      "sha256": "01278f3ae599a2f4c971a2a95956377783a83e947a00568a7d3db44e65edc269",
+      "bytes": 200
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/context-api.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/context-api.json.txt",
+      "sha256": "fa58ef8eea699570fa94805810041242237cf4a8db7add2d57c9c92d706ac11d",
+      "bytes": 780
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/context-docs.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/context-docs.json.txt",
+      "sha256": "9c9bb87627ba741d35e8d2df8e1341c9763224f16dff93ad91193d6e19eecf9c",
+      "bytes": 765
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/context-fintech.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/context-fintech.json.txt",
+      "sha256": "63a10412e332c7bd5ee16dbec28d8f91442f626c3aca96079324a4e8789ba1e8",
+      "bytes": 820
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/context-mixed.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/context-mixed.json.txt",
+      "sha256": "f5cf61fdda877f70ec9ff4f8b3a0eb63b104c01ec14705b25606e5e69ef04188",
+      "bytes": 883
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/context-ui.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/context-ui.json.txt",
+      "sha256": "a3079c49c5e2ecaf3b29b3106a2781145e541a049eb7af2dc8250df97a4726cf",
+      "bytes": 916
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/live-column-start.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/live-column-start.json.txt",
+      "sha256": "1ad937d33b575fdc2fa832680c4658db42969c5f20bbe739ea8ddaf050b8e649",
+      "bytes": 782
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/fixtures/qa-harness.docs.yaml",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/fixtures/qa-harness.docs.yaml.txt",
+      "sha256": "09b0d454a7ac2850417384ce6ca4c2a278479f2fc62b480e11b34db7d2ea1df5",
+      "bytes": 2233
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/graph-plan.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/graph-plan.test.mjs.txt",
+      "sha256": "df8d28f02de2b320eeaa344e76576de50611932d93465420c8005f79e35f36b5",
+      "bytes": 4440
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/helpers/worker-contract.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/helpers/worker-contract.mjs.txt",
+      "sha256": "4c06e2f7aecc54b834b6063dc1da29ace2f3f704f51f13ef77ac5a3d9bffcba4",
+      "bytes": 90
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/offline-graph-demo.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/offline-graph-demo.test.mjs.txt",
+      "sha256": "8409db2cf31b288e73703622716c10ab04ad61f19441d170d6f36a6f65bc13e8",
+      "bytes": 1857
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/offline-graph-flow.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/offline-graph-flow.test.mjs.txt",
+      "sha256": "be70c1d187847879ccd96d19ce4b5990485e93b8971a36cb4960261a8863cea6",
+      "bytes": 6056
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/onyx-browser-probe.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/onyx-browser-probe.test.mjs.txt",
+      "sha256": "62bfd64d32ee4a1019d9870a94162c503352d7777ea8e2ee1b5ba4a7914cb4ff",
+      "bytes": 3155
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/plan.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/plan.test.mjs.txt",
+      "sha256": "451ee1bdbc41beeffbaf15a5680eddacba407bd26d4bce9884a52f8dfaaf5395",
+      "bytes": 7270
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/preflight-report.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/preflight-report.test.mjs.txt",
+      "sha256": "fbf1900c8f054deb3e2b8069abd5292aee9397f99ec83e8691ec587fdba8b497",
+      "bytes": 10979
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/process-blueprint.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/process-blueprint.test.mjs.txt",
+      "sha256": "baa1ccc8624ad8e7ca4f281194ebe22e25bec745cd5797e6303e734b46267996",
+      "bytes": 21881
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/proof-gate-canary.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/proof-gate-canary.test.mjs.txt",
+      "sha256": "720993c7a5052db1b723c2928973ac4c548dc6c72783903d872e4f3fe3099d49",
+      "bytes": 12263
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/release-policy.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/release-policy.test.mjs.txt",
+      "sha256": "94daa55b040305f40c0b8f239ae6eea21c2a7f07c628a5562f26130aa8569791",
+      "bytes": 5296
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/task-runtime.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/task-runtime.test.mjs.txt",
+      "sha256": "c078de8dd6b5360c14e330d86a2d7361dd8d22464dd34446edd7ad65caa2ef94",
+      "bytes": 34978
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/task7-round2.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/task7-round2.test.mjs.txt",
+      "sha256": "04fad4ca02ff204f967bf22c1eff0a7c98fbae4704f96ec40f7cd918cec28585",
+      "bytes": 9224
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/task7-round3.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/task7-round3.test.mjs.txt",
+      "sha256": "67e91abbbdbfd1ddc1b7599a536414b23686b43ef1b9409148245380c041078a",
+      "bytes": 7521
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/task7-round4.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/task7-round4.test.mjs.txt",
+      "sha256": "89db876bdb6dbbbc9e486f5b13fdc6e8fb025bdad583853467cde9148fa728c1",
+      "bytes": 19537
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/task7-round5.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/task7-round5.test.mjs.txt",
+      "sha256": "a1a199d091dd8513103b562234d1cf41feb5aae3260ade04c7f9476647574e4d",
+      "bytes": 4418
+    },
+    {
+      "group": "universal-qah-paydemo",
+      "sourcePath": "tests/qah/ui-graph-canary.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "58a8182ad6a5a9a90891dc50fe4386e5f999242f",
+      "status": "inactive-committed-source",
+      "archivePath": "universal-qah-paydemo/tests/qah/ui-graph-canary.test.mjs.txt",
+      "sha256": "6e56860e46f022df321be94c0c1863e1a7a65be708060fd2592b7bf380eec322",
+      "bytes": 12353
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "LICENSE",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/LICENSE.txt",
+      "sha256": "db80358bea86ed171c8ea1ffe6d20e868d2e4062eefc543de85f6d0abf91d0aa",
+      "bytes": 1070
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "README.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/README.md.txt",
+      "sha256": "fb32f1d664c1d6fd8ab2768cdda561b22febf7e1295fdb1a1a4ba13db5300a48",
+      "bytes": 4591
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "docs/nuanu-app/COVERAGE-MAP.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/docs/nuanu-app/COVERAGE-MAP.md.txt",
+      "sha256": "c60567738c4e722b8ece1147f108ab39be67fa56b5705ce8b336f9b85d53f096",
+      "bytes": 5865
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "docs/nuanu-app/README.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/docs/nuanu-app/README.md.txt",
+      "sha256": "d0309817ee27df2f13bf8d7d3ada72c303af0d7882bea1b572fffda2169436ea",
+      "bytes": 8072
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "docs/nuanu-app/TEST-CASES.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/docs/nuanu-app/TEST-CASES.md.txt",
+      "sha256": "2752e53781887bfaf3ee7749156917355fe447d8cc09df0b2ed92a7e60a2a997",
+      "bytes": 5658
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "docs/nuanu-app/TEST-STRATEGY.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/docs/nuanu-app/TEST-STRATEGY.md.txt",
+      "sha256": "ef66e1908b08edde87b7b6006c3930f5e02841d33162f9633cbddc2a5d131755",
+      "bytes": 5861
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "docs/superpowers/plans/2026-08-26-nuanu-app-flow-control-plane.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/docs/superpowers/plans/2026-08-26-nuanu-app-flow-control-plane.md.txt",
+      "sha256": "41e27845eab9ffbe66850b697cd6a4335cd27b9c8b73bd5b5cda29b1ad2c6ee4",
+      "bytes": 122923
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "docs/superpowers/plans/2026-08-26-nuanu-app-posthog-telemetry.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/docs/superpowers/plans/2026-08-26-nuanu-app-posthog-telemetry.md.txt",
+      "sha256": "ad3e5173104d1754d89823f1d625274232ca58a0418af924574dc6dc7b518b6a",
+      "bytes": 133566
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "docs/superpowers/plans/2026-08-26-nuanu-app-qa-foundation.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/docs/superpowers/plans/2026-08-26-nuanu-app-qa-foundation.md.txt",
+      "sha256": "4d0e6a839603bbd9d577370015c1361fa00b3f35b7d616585c55c162ef4abacd",
+      "bytes": 36719
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "docs/superpowers/plans/2026-08-26-nuanu-app-web-coverage.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/docs/superpowers/plans/2026-08-26-nuanu-app-web-coverage.md.txt",
+      "sha256": "c6611a879eefba4aeffe7e5b5349a294e8aa380d79ace461080406aabbbec0a9",
+      "bytes": 136635
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "docs/superpowers/specs/2026-08-26-nuanu-app-qa-project-design.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/docs/superpowers/specs/2026-08-26-nuanu-app-qa-project-design.md.txt",
+      "sha256": "314a9c2044e2212ffa1169621077bf78e1a48287bd97412410f9c983f57b503c",
+      "bytes": 81441
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "package-lock.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/package-lock.json.txt",
+      "sha256": "704a0b43e1cd9d4e9c9e6c3cd4417f649b8550ad864c29f63a665f95992e9a45",
+      "bytes": 3913
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "package.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/package.json.txt",
+      "sha256": "1d611eb4fa8241af2085d82f8324b863bd1460af7577d79c6a24803dbab84c95",
+      "bytes": 691
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "playwright.config.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/playwright.config.ts.txt",
+      "sha256": "b503c53191db7e1eff430eae928b0e19629ac86ac7ff9a62f8f4e816415d300f",
+      "bytes": 4691
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/cli.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/cli.test.mjs.txt",
+      "sha256": "3ee97730480970f65a0d1ebe249d2b0c1f81896f676841ef0ac4894b0fb34edf",
+      "bytes": 104558
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/flow-outbox/empty.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/flow-outbox/empty.json.txt",
+      "sha256": "7c1051f6e2bc3943b7c1dbe4da229694455681b8875a346c99279e555edb733f",
+      "bytes": 36
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/mappings.foreign.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/mappings.foreign.json.txt",
+      "sha256": "3e4ce3a7924d6d13b98b02a9c1c96370efd6f09431bb0a306621b51542ecd2da",
+      "bytes": 523
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/mappings.valid.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/mappings.valid.json.txt",
+      "sha256": "93118f444a6df6aa4a049ed32eb5b705b9b4d828dd77fd6ac68fc66d4028bda9",
+      "bytes": 633
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/playwright-list.txt",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/playwright-list.txt.txt",
+      "sha256": "f329f23373f7ae6ba2b7de4521b261638ebb4f0dbf293580ed8efb009235f757",
+      "bytes": 1185
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/posthog/access-lock.synthetic.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/posthog/access-lock.synthetic.json.txt",
+      "sha256": "2cf9d5b4375715b5971e450ed3623a9eadb96d5676b8f3f075dcb746f2f0a533",
+      "bytes": 4263
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/posthog/aggregate-forbidden.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/posthog/aggregate-forbidden.json.txt",
+      "sha256": "b0d1b9653f9db14740901610df0b39e6b2bfff123b80ca421c635027f5c6b5d1",
+      "bytes": 1061
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/posthog/aggregate-safe.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/posthog/aggregate-safe.json.txt",
+      "sha256": "cfcd4ba6ba387d1ae875a0ed358104cb8c74ceb77b9ba7b0cb8dfcf68f60a4ad",
+      "bytes": 1571
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/posthog/query-manifest.synthetic.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/posthog/query-manifest.synthetic.json.txt",
+      "sha256": "6f5343f298ecceee10889f390057e120e2bd1e4a432f159e2ba5e1834f227245",
+      "bytes": 3626
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/posthog/schema-facts.synthetic.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/posthog/schema-facts.synthetic.json.txt",
+      "sha256": "6ca916ecbc844699d7083fd5f61bd5302ff887c111a79317b41c0de757f900fa",
+      "bytes": 4688
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/runtime-observation.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/runtime-observation.json.txt",
+      "sha256": "55f158c914c3efae4727def1fc7fa093fd2cf31db218260b21cad6308a393cc8",
+      "bytes": 1620
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/selector-bindings.synthetic.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/selector-bindings.synthetic.json.txt",
+      "sha256": "ce108c2a03aba75d2e22aabb852c74f56b947ca75557cb206c1a907cc2cefd6a",
+      "bytes": 3462
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/selector-capture-plan.synthetic.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/selector-capture-plan.synthetic.json.txt",
+      "sha256": "2934a90f0a69ec0903004cf7677a2b6966d3a831d65b11350252d0d3fbeaa1ca",
+      "bytes": 876
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/fixtures/selector-observation.synthetic.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/fixtures/selector-observation.synthetic.json.txt",
+      "sha256": "953d271137bf2aa97de7a6d86cbabd73302e7732a74f9276ecd05c7f469e2201",
+      "bytes": 3389
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/flow-outbox.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/flow-outbox.test.mjs.txt",
+      "sha256": "4230367df0526e5217b5d394fe1e8d49ac879fe0f965cbee91f0bc7fcbcac08d",
+      "bytes": 125479
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/model.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/model.test.mjs.txt",
+      "sha256": "946731b97cb1cc50ae30167314fb5f4271d959fa23a99ccb60f9771a9f238cc8",
+      "bytes": 11312
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/planner.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/planner.test.mjs.txt",
+      "sha256": "f7aea6112f76128769ea620189c7aa4b5bc8929371040ac4d9bcdede2942ecce",
+      "bytes": 45491
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/posthog-query-builders.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/posthog-query-builders.test.mjs.txt",
+      "sha256": "9a043b016e980968fb542f749e19eb3f55d9c10a52cf769c569f72ee84d1e502",
+      "bytes": 21714
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/posthog-read.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/posthog-read.test.mjs.txt",
+      "sha256": "5cd208177779f58157af2e7f3fed980cd781cab2b206052a11a58cbb932db02e",
+      "bytes": 53048
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/runtime-contract.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/runtime-contract.test.mjs.txt",
+      "sha256": "b59e40859a2cafce5fc5a750d86f19b88a58c4cdb2b2e1d24e3402d712e929e8",
+      "bytes": 21213
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/runtime.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/runtime.test.mjs.txt",
+      "sha256": "56affc6cd373aa4edc20ec22f90df2ae9d9dde4ea4c3c800b331c07797c71f73",
+      "bytes": 32524
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/selector-observation.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/selector-observation.test.mjs.txt",
+      "sha256": "9795bd652199b51582a22fb2cfc78cda41b89736b6149dcd865c37ba75750c12",
+      "bytes": 19972
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/source.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/source.test.mjs.txt",
+      "sha256": "cf36dd0daca9f3070ffffe584a96b7202ecd77bb912e2addab4438360d31419e",
+      "bytes": 9540
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/telemetry-policy.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/telemetry-policy.test.mjs.txt",
+      "sha256": "eeca8e44eba559ab5261ad0595a7cc80edee60b75d710855a1279b767766ab76",
+      "bytes": 20141
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app-graph/telemetry.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app-graph/telemetry.test.mjs.txt",
+      "sha256": "1d3cb8a92e85b65d3b303cdf042e0fbbcb89881a3517e6fb4c41ec039fa28f88",
+      "bytes": 22951
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app/README.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app/README.md.txt",
+      "sha256": "6ae89d1bf3068c9ba3d1010be8e41d2c4d9a2cac1051cea00939ea16c0b59bdb",
+      "bytes": 2787
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app/fixtures/env.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app/fixtures/env.ts.txt",
+      "sha256": "d18b36e1358399a24477239d03f846e0da950756d62850df7f0d162b51987fdb",
+      "bytes": 410
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app/fixtures/evidence.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app/fixtures/evidence.ts.txt",
+      "sha256": "439b325aaa1e001dfecd593cad69e84b64f76bf82f5e8cf03e7fb5b0fc007cf3",
+      "bytes": 3270
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app/fixtures/runtime.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app/fixtures/runtime.ts.txt",
+      "sha256": "99eadec4d36abfac034ae2a30de1423a7c39375e1bae12e79ac6feb5680d99d6",
+      "bytes": 850
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app/fixtures/safety.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app/fixtures/safety.ts.txt",
+      "sha256": "9eaeaefa14a6d65d188e56aaeadce03b26e5369cf71528e1842079a51e9e185b",
+      "bytes": 2334
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app/offline/runtime-contract.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app/offline/runtime-contract.spec.ts.txt",
+      "sha256": "5356ca2f16fb919121fa3a9d29ed072791951057da434350376fef6da9d7e4a4",
+      "bytes": 5791
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app/pages/discovery.page.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app/pages/discovery.page.ts.txt",
+      "sha256": "d3b416317beafb0d28fede6740a6d26ee04f3061bbe746999945b4af1f8ee7fd",
+      "bytes": 1582
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app/public/safety-contract.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app/public/safety-contract.spec.ts.txt",
+      "sha256": "211df1bffb410ee40b6ef615338eac1de327aacd176ef78f01777f56a7cc9e8b",
+      "bytes": 9464
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tests/nuanu-app/public/smoke.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tests/nuanu-app/public/smoke.spec.ts.txt",
+      "sha256": "f8abd643e785e604d64991b3b1cf9485a938a096ded140c355c161c6cd99b63f",
+      "bytes": 3781
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/cli.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/cli.mjs.txt",
+      "sha256": "9cc4e31631d578864b569d70fef56afd40da85e51df6d45a568817e13ac32f7c",
+      "bytes": 47352
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/flow-outbox.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/flow-outbox.mjs.txt",
+      "sha256": "ea664cadd1417dcddd838a83df1c2497f58e9782b641075400d4591286f448d0",
+      "bytes": 93000
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/io.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/io.mjs.txt",
+      "sha256": "cb7d29d2cb98508199569ae2445c4feb698dffca5f8e27c5974d18c668aeb2d7",
+      "bytes": 28544
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/model.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/model.mjs.txt",
+      "sha256": "1ee775097320d70699bfd1961f80a1bd2237ab60d1834bda9c16b9c2150bcd5c",
+      "bytes": 11530
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/planner.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/planner.mjs.txt",
+      "sha256": "745756d08c44c1bfa957d9e3066299b18d57a1de2eb443f19d15623ba4553196",
+      "bytes": 25624
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/posthog-query-builders.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/posthog-query-builders.mjs.txt",
+      "sha256": "c1041737138b29316773cd8ce8cb719015f95e2e2c1ecbfddc78cba8bcd1127a",
+      "bytes": 29220
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/posthog-read.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/posthog-read.mjs.txt",
+      "sha256": "6b8b163233760a48e7c3f748e1f61292f26799b5f36d930d41642b696ce434e2",
+      "bytes": 73419
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/runtime-contract.d.mts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/runtime-contract.d.mts.txt",
+      "sha256": "6cae5897af3e5d86799038727d45bfd118d4010427b0be2d98a09dae86a7e240",
+      "bytes": 9516
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/runtime-contract.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/runtime-contract.mjs.txt",
+      "sha256": "fefa9e9cce18e858c9f5f484aac4a17892775ce9397a3d3fa4983ee7935680c2",
+      "bytes": 31437
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/runtime.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/runtime.mjs.txt",
+      "sha256": "11028080d8eadf3a5e6973665dbaefa90f0eed535849f734b44faa975a8f034f",
+      "bytes": 24790
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/selector-observation.d.mts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/selector-observation.d.mts.txt",
+      "sha256": "3b32c6d612cf5d482744e13b133886dd8547cf6a6d3c2402cdfb33f1e993f21f",
+      "bytes": 1153
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/selector-observation.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/selector-observation.mjs.txt",
+      "sha256": "a346dce5e983778465bafa51fb5cc2f71f940bb070c6ccba15d2de162555fbd9",
+      "bytes": 15640
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/source.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/source.mjs.txt",
+      "sha256": "06f318ba5fb6f143e27e0dc926c32b4199fda819797968a5e69dbc306511e88a",
+      "bytes": 12480
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/telemetry-contract.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/telemetry-contract.mjs.txt",
+      "sha256": "dc13170814f3ece24cc9bdd5a37c4f25feb9175399ea17a935fe9a08416709fd",
+      "bytes": 5781
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/telemetry-policy.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/telemetry-policy.mjs.txt",
+      "sha256": "310543ccd5b5601ee41a9587180a4fa0e483c58ad5939d90ef20a8ce503f36ed",
+      "bytes": 13444
+    },
+    {
+      "group": "nuanu-app",
+      "sourcePath": "tools/nuanu-app-graph/telemetry.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-app/tools/nuanu-app-graph/telemetry.mjs.txt",
+      "sha256": "915ec2257cc348b901d268b7a0f1ee2eae339a3401ed50fb8df5069b74725853",
+      "bytes": 35584
+    },
+    {
+      "group": "nuanu-app-working-overlay",
+      "sourcePath": "tests/nuanu-app-graph/cli.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-app-qa-v1",
+      "sourceCommit": null,
+      "baseCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-app-working-overlay/tests/nuanu-app-graph/cli.test.mjs.txt",
+      "sha256": "e2b296d4b0a738fc771104be50baada81254a3180eb1260e1568f29d0b2797f3",
+      "bytes": 104768
+    },
+    {
+      "group": "nuanu-app-working-overlay",
+      "sourcePath": "tests/nuanu-app-graph/flow-outbox.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-app-qa-v1",
+      "sourceCommit": null,
+      "baseCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-app-working-overlay/tests/nuanu-app-graph/flow-outbox.test.mjs.txt",
+      "sha256": "852333f541707c5167f3b92795e198114883b4261188700c5b7996d81d1a9162",
+      "bytes": 247748
+    },
+    {
+      "group": "nuanu-app-working-overlay",
+      "sourcePath": "tests/nuanu-app-graph/runtime-contract.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-app-qa-v1",
+      "sourceCommit": null,
+      "baseCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-app-working-overlay/tests/nuanu-app-graph/runtime-contract.test.mjs.txt",
+      "sha256": "f9c464badd16ec2227ee8a1898b91f9605febcb351af13ffbaa6eb34d2754d47",
+      "bytes": 27809
+    },
+    {
+      "group": "nuanu-app-working-overlay",
+      "sourcePath": "tests/nuanu-app-graph/runtime.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-app-qa-v1",
+      "sourceCommit": null,
+      "baseCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-app-working-overlay/tests/nuanu-app-graph/runtime.test.mjs.txt",
+      "sha256": "8a2e123cd1a21214a3e97382416383f84f8b5138018721e44870dd011b78040c",
+      "bytes": 42929
+    },
+    {
+      "group": "nuanu-app-working-overlay",
+      "sourcePath": "tests/nuanu-app-graph/selector-observation.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-app-qa-v1",
+      "sourceCommit": null,
+      "baseCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-app-working-overlay/tests/nuanu-app-graph/selector-observation.test.mjs.txt",
+      "sha256": "c2b1300fd3d9c23bc80fcf5c84d175740d4b0c189dd3f006bfd2a32b9d0bd522",
+      "bytes": 20178
+    },
+    {
+      "group": "nuanu-app-working-overlay",
+      "sourcePath": "tools/nuanu-app-graph/cli.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-app-qa-v1",
+      "sourceCommit": null,
+      "baseCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-app-working-overlay/tools/nuanu-app-graph/cli.mjs.txt",
+      "sha256": "770f0a11a9bae2def5327142ee96921d067f706ef7261d2a8065fad9dcb7deb2",
+      "bytes": 47379
+    },
+    {
+      "group": "nuanu-app-working-overlay",
+      "sourcePath": "tools/nuanu-app-graph/flow-outbox.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-app-qa-v1",
+      "sourceCommit": null,
+      "baseCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-app-working-overlay/tools/nuanu-app-graph/flow-outbox.mjs.txt",
+      "sha256": "c2cb7a1ddd5b71d6017a75bf08785793548b9f73a1d10422aaaf77244a527392",
+      "bytes": 150983
+    },
+    {
+      "group": "nuanu-app-working-overlay",
+      "sourcePath": "tools/nuanu-app-graph/runtime-contract.d.mts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-app-qa-v1",
+      "sourceCommit": null,
+      "baseCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-app-working-overlay/tools/nuanu-app-graph/runtime-contract.d.mts.txt",
+      "sha256": "c799d07d9ed448a6466238241a1c6ea54568695659ffa18f7a8093d99af93e6c",
+      "bytes": 9766
+    },
+    {
+      "group": "nuanu-app-working-overlay",
+      "sourcePath": "tools/nuanu-app-graph/runtime-contract.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-app-qa-v1",
+      "sourceCommit": null,
+      "baseCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-app-working-overlay/tools/nuanu-app-graph/runtime-contract.mjs.txt",
+      "sha256": "31d043297a8d0ac1184d32fab19792e5b28e56826a1cf34bbb51c94c38ec588c",
+      "bytes": 33058
+    },
+    {
+      "group": "nuanu-app-working-overlay",
+      "sourcePath": "tools/nuanu-app-graph/runtime.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-app-qa-v1",
+      "sourceCommit": null,
+      "baseCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-app-working-overlay/tools/nuanu-app-graph/runtime.mjs.txt",
+      "sha256": "c378c1e527a0375daa90a9c1d5deb749e04cd4e5b8509a170d558248e0cc25ef",
+      "bytes": 37579
+    },
+    {
+      "group": "nuanu-app-working-overlay",
+      "sourcePath": "tests/nuanu-app-graph/semantic-settle.test.mjs",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-app-qa-v1",
+      "sourceCommit": null,
+      "baseCommit": "7be0e9b33a0f48c3fddb136e4f5cabb77a5704f2",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-app-working-overlay/tests/nuanu-app-graph/semantic-settle.test.mjs.txt",
+      "sha256": "dd1da97334d087b79774195fd5a212924fda7bbd4f0e508a848c790a32375153",
+      "bytes": 151934
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": ".claude/skills/qa-check/SKILL.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/.claude/skills/qa-check/SKILL.md.txt",
+      "sha256": "0a749f4ced0802d59dd3d3daa801719e7003e201c8f73ceb95d2744dd98046a4",
+      "bytes": 12290
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": ".github/workflows/e2e.yml",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/.github/workflows/e2e.yml.txt",
+      "sha256": "fe9d724a7470300053fb2b9c1bef8cd13560332f0a73ce5b6996fc37283972d7",
+      "bytes": 1321
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "CLAUDE.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/CLAUDE.md.txt",
+      "sha256": "98ce64788275678196464c6118b77c636fae72dce4863755c08c5d816ceb3376",
+      "bytes": 3850
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "LICENSE",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/LICENSE.txt",
+      "sha256": "db80358bea86ed171c8ea1ffe6d20e868d2e4062eefc543de85f6d0abf91d0aa",
+      "bytes": 1070
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "README.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/README.md.txt",
+      "sha256": "ffeff8fc8042687e5052205262241deef6df8f56428c2deb5bbe98c20fdb504d",
+      "bytes": 5444
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "docs/superpowers/plans/2026-07-26-nuanu-flow-deep-e2e-plan.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/docs/superpowers/plans/2026-07-26-nuanu-flow-deep-e2e-plan.md.txt",
+      "sha256": "f77664f1463f47996d18df02d1ddb82fdbdb62a31eef2622e78f74a953ad9162",
+      "bytes": 38749
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "docs/superpowers/plans/2026-07-26-nuanu-flow-public-e2e-plan.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/docs/superpowers/plans/2026-07-26-nuanu-flow-public-e2e-plan.md.txt",
+      "sha256": "8ea88202b4249a7e8d48622b2b7322b045f90511c21c5351eb1f12c6f1d7acc2",
+      "bytes": 27694
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "docs/superpowers/specs/2026-07-26-nuanu-flow-deep-e2e-design.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/docs/superpowers/specs/2026-07-26-nuanu-flow-deep-e2e-design.md.txt",
+      "sha256": "ce74651908c279335ed6575b5942786aaf2e49542f1e4e5b5f864be0374cd470",
+      "bytes": 17934
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "docs/superpowers/specs/2026-07-26-nuanu-flow-e2e-design.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/docs/superpowers/specs/2026-07-26-nuanu-flow-e2e-design.md.txt",
+      "sha256": "abb4080d529fedc8ede1447abccdf25ff015e9f53a9c31b96dbd3f998da1ed9d",
+      "bytes": 11866
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "package-lock.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/package-lock.json.txt",
+      "sha256": "01eea31bcb8e1655483606ff9bc68c0c32482fef0dfeafcccb98e087ca525d7c",
+      "bytes": 4786
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "package.json",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/package.json.txt",
+      "sha256": "f00244674f15c4271aadc4a10e59347ad8495eda40c7936665073d796248fe94",
+      "bytes": 539
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "playwright.config.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/playwright.config.ts.txt",
+      "sha256": "d0c0a2b92a100591618a0bf4de7a58b21ff0198ca076344f27f468b711220f40",
+      "bytes": 7356
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/accessibility.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/accessibility.spec.ts.txt",
+      "sha256": "481ae37679990872fc1f135155dae4086217aa866528a7d434b4e96c761a0003",
+      "bytes": 2707
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/api.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/api.spec.ts.txt",
+      "sha256": "332865cf785f7146b358fdf3ff92035cb61e776fb34399fe4f78f9e150651768",
+      "bytes": 1110
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/auth.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/auth.spec.ts.txt",
+      "sha256": "f7b0c3a5d0d861ccfd1b4343e0c797a2f0b6b3b8afdbee87a76bdbecb3a45cb6",
+      "bytes": 4735
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/accessibility-responsive.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/accessibility-responsive.spec.ts.txt",
+      "sha256": "94876c3720e2d4d7a2e80bfe96cd4c608913039ef613174f27dfa7f507398b67",
+      "bytes": 20610
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/api-contracts.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/api-contracts.spec.ts.txt",
+      "sha256": "bb45fd92da336c1111327336546d4beeaee07886116c167dfe3516b8af22bcac",
+      "bytes": 3945
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/artifacts-decisions.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/artifacts-decisions.spec.ts.txt",
+      "sha256": "d21b84499d1456223351eb09c89d5ca589816d4f83aca47e29b04e1c04abca36",
+      "bytes": 3443
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/cycles-modules.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/cycles-modules.spec.ts.txt",
+      "sha256": "8db59bf8e180bf45ac5e7fcb7c44d76c800c347ff495ad5c6efe1b5fb4b33896",
+      "bytes": 6037
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/marketplace-integrations.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/marketplace-integrations.spec.ts.txt",
+      "sha256": "ba583570f2ab04e7c63805726ce5690c701daf318b28b7f82bf4cf9aa9b4a1c1",
+      "bytes": 2850
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/mcp-parity.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/mcp-parity.spec.ts.txt",
+      "sha256": "849eadec5026c8ce5259134a3e81f5ec8bcd80f1575df0ae167d415d78072035",
+      "bytes": 2664
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/meetings-transcription.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/meetings-transcription.spec.ts.txt",
+      "sha256": "0bc3172474d92257a85c613373637fede2b353355b790641349152c67a84595e",
+      "bytes": 14621
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/processes.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/processes.spec.ts.txt",
+      "sha256": "1884c35c3925d8f8f56ca1fd3810be1ba0c2b9aed1647d78d24dce9269d246bd",
+      "bytes": 32901
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/project-lifecycle.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/project-lifecycle.spec.ts.txt",
+      "sha256": "5d302f518413d203fbb426d8053bb2a110088b38f8d6fe7e6c43c5c9580066ea",
+      "bytes": 3519
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/pulse-automations.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/pulse-automations.spec.ts.txt",
+      "sha256": "23b6b80c619c8fc018d50d470a7d00d72afa6bb435d51b67f10d76ec93eaaad1",
+      "bytes": 6625
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/teams-settings.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/teams-settings.spec.ts.txt",
+      "sha256": "eb89b2b9ee632cbf4e4000c545f06045be380ce004481880c2e7f5fb42c1c1cb",
+      "bytes": 6972
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/views-wiki.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/views-wiki.spec.ts.txt",
+      "sha256": "836314d8565f29d517cb8fd93da25a7ee912016dc24edbd5ccca13d044faca99",
+      "bytes": 4278
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/work-items.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/work-items.spec.ts.txt",
+      "sha256": "0267294f0553dad03720eaef4b35a5697332f1d42b8d0af202b0e9ce4346963b",
+      "bytes": 10754
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/authenticated/workspace.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/authenticated/workspace.spec.ts.txt",
+      "sha256": "a9cd28de90d16c1646b267b6619263d9114d81f30dc195a12843255543c43f5c",
+      "bytes": 12674
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/cross-cutting-safety.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/cross-cutting-safety.spec.ts.txt",
+      "sha256": "c9674f893b9c96eb3d2387384363e875f0537e6ec391ca7b96ca791ea8e4b445",
+      "bytes": 8825
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/cross-cutting.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/cross-cutting.ts.txt",
+      "sha256": "1c2bb23dce300f79f993078c6c76937bbc9643756cb9c1fa1297a257b1442d4a",
+      "bytes": 9520
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/fixtures/audio-fixture.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/fixtures/audio-fixture.ts.txt",
+      "sha256": "56e106bb253485461a6cf4ab98047c26558d1cd3989832ba3e54eafa899ca4f2",
+      "bytes": 17649
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/fixtures/authenticated.fixture.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/fixtures/authenticated.fixture.ts.txt",
+      "sha256": "81d99ac10d689c4e60b4ac9700857b022fe73c9a639223f27316a295a56905bb",
+      "bytes": 2270
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/fixtures/files/qa-e2e-note.txt",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/fixtures/files/qa-e2e-note.txt.txt",
+      "sha256": "27176b536cea0e8f10246e193f2e353ae5e79a50f6e0e96b2fdbeda4ad3708bd",
+      "bytes": 134
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/fixtures/mcp-client.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/fixtures/mcp-client.ts.txt",
+      "sha256": "d266b77ff045b4355b2d40c54d6f6f7c0e96afc5cc81f6791256d0c550427937",
+      "bytes": 53295
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/fixtures/sandbox-data.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/fixtures/sandbox-data.ts.txt",
+      "sha256": "2d959a842608cb6aabac8dad28adac2312c5b32c9d445c9f14d9c8182ac17ae2",
+      "bytes": 2750
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/knowledge-features-safety.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/knowledge-features-safety.spec.ts.txt",
+      "sha256": "ddf93876bb8769bd3141369c27a739511821d1b5d67faa84445e2ac2a0960fcf",
+      "bytes": 47454
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/legal.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/legal.spec.ts.txt",
+      "sha256": "e605791ce40ce4c520856aa876e41075f26cd382f1c25389da73cfc4d8996c03",
+      "bytes": 1208
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/mcp-client-safety.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/mcp-client-safety.spec.ts.txt",
+      "sha256": "67d1c9e48b301894b4eda1956f109b5ee2a50c8fcb8abf800b8a682416a70b00",
+      "bytes": 96925
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/meetings-safety.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/meetings-safety.spec.ts.txt",
+      "sha256": "015026bd3f11447ea9899e7e737b507f205b5f688f9185aa6ddd18481497847a",
+      "bytes": 61113
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/pages/auth.page.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/pages/auth.page.ts.txt",
+      "sha256": "e38b2f5fc79df5606c52d49de1c6374fa89b522f7944a5e6ed5abe206ee89a0f",
+      "bytes": 981
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/pages/knowledge-features.page.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/pages/knowledge-features.page.ts.txt",
+      "sha256": "cb3ba368eeeda7a49fdc7f673641c1f920b54fad4c79f3f4d2e13e1f0cb2f991",
+      "bytes": 61340
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/pages/meetings.page.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/pages/meetings.page.ts.txt",
+      "sha256": "100eaedb83b221c9e8dd37d95094b014b7de73978362c571dba441f9dff2f821",
+      "bytes": 43031
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/pages/processes.page.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/pages/processes.page.ts.txt",
+      "sha256": "2fcd7dd561159b1ed8f45c574077f58d88246aa9f881fe3fe4e75b4acf80b530",
+      "bytes": 85483
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/pages/project-features.page.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/pages/project-features.page.ts.txt",
+      "sha256": "f785f0940904bb8e47c7f9e7ae21bb81d688a814ac0b2f04579352b50b3a7578",
+      "bytes": 62650
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/pages/work-items.page.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/pages/work-items.page.ts.txt",
+      "sha256": "81454384ada15a02f063e51513b8e81d325a533d9880d0314b7c905522e8184d",
+      "bytes": 39282
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/pages/workspace-operations.page.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/pages/workspace-operations.page.ts.txt",
+      "sha256": "cbe71ae40fe5e386ea53ee47689c3e2916c9030b87fa1bf0b517cb5faf2bffd8",
+      "bytes": 20296
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/pages/workspace.page.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/pages/workspace.page.ts.txt",
+      "sha256": "ac550ea14bffab74a6ba543e3c62ab3bdba5449d3325cd662ad8184653b9eabd",
+      "bytes": 1740
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/performance.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/performance.spec.ts.txt",
+      "sha256": "a1080b542989bba8c51c886ce386423a7b2073a63691142a3ab16d4e7a7689d1",
+      "bytes": 7326
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/playwright-config-safety.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/playwright-config-safety.spec.ts.txt",
+      "sha256": "ac080a634d3e4faeb6f4e67ca5531e05e3562e04562b5ab2614292109083425e",
+      "bytes": 4355
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/processes-safety.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/processes-safety.spec.ts.txt",
+      "sha256": "fc2ffc374f1f79144d212122a825dfe4e88a958463c475e7fcb7306b8ef0809e",
+      "bytes": 95862
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/project-features-safety.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/project-features-safety.spec.ts.txt",
+      "sha256": "42d65546026cdeccf080443a525a48c4b6c6558750a8ed654a7af649508f5908",
+      "bytes": 42548
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/responsive.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/responsive.spec.ts.txt",
+      "sha256": "af8956ff16c52c675d610929cac85c7a18ab9943ee57a4bb42af09bd1b1320c6",
+      "bytes": 1197
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/route-observations.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/route-observations.spec.ts.txt",
+      "sha256": "26241b8855436c872d2041ce795b35d2ef16ddbac1ab9b01feb5aae06e55a2e0",
+      "bytes": 10810
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/route-observations.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/route-observations.ts.txt",
+      "sha256": "b99f00b7e05881bda031dd69138a6cf672d2e704150179c152da641f1504168f",
+      "bytes": 9025
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/routes.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/routes.ts.txt",
+      "sha256": "e7ccaf1bdc6b1e63c6d166da91a0f27d1e08e5bcb4acfc4fe22d1912cd094c02",
+      "bytes": 2778
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/routing.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/routing.spec.ts.txt",
+      "sha256": "4322352bf0dacd6f6ee97e0ab4199d985cff8ea646afb10ca74f5dbd9b3d4474",
+      "bytes": 809
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/sandbox-data.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/sandbox-data.spec.ts.txt",
+      "sha256": "4286cfcae8e7b059748c0469e9454e065c1b65819286b024495d8c6b1b5dd66c",
+      "bytes": 6417
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/smoke.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/smoke.spec.ts.txt",
+      "sha256": "e14cd8b3a263e949de487c5ac926d59f1f3947d56d5cafdafa4b291e37797bb3",
+      "bytes": 2952
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/work-items-safety.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/work-items-safety.spec.ts.txt",
+      "sha256": "f34c9a1835b8e6d888b67613dec1001755975b33a709185851c6d3fd1616a8af",
+      "bytes": 23521
+    },
+    {
+      "group": "nuanu-flow-product",
+      "sourcePath": "tests/nuanuflow/workspace-operations-safety.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "inactive-committed-source",
+      "archivePath": "nuanu-flow-product/tests/nuanuflow/workspace-operations-safety.spec.ts.txt",
+      "sha256": "b13719bbac7ebdb98d1a0948ef7502135d8efdbb8da739e9215ad94512f084c0",
+      "bytes": 23208
+    },
+    {
+      "group": "nuanu-flow-product-working-overlay",
+      "sourcePath": "docs/superpowers/plans/2026-07-26-nuanu-flow-deep-e2e-plan.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-flow-e2e",
+      "sourceCommit": null,
+      "baseCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-flow-product-working-overlay/docs/superpowers/plans/2026-07-26-nuanu-flow-deep-e2e-plan.md.txt",
+      "sha256": "595952f51e5eeaddd1f4859418c03f3246874b34f747d65870c601c440757130",
+      "bytes": 38003
+    },
+    {
+      "group": "nuanu-flow-product-working-overlay",
+      "sourcePath": "docs/superpowers/specs/2026-07-26-nuanu-flow-e2e-design.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-flow-e2e",
+      "sourceCommit": null,
+      "baseCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-flow-product-working-overlay/docs/superpowers/specs/2026-07-26-nuanu-flow-e2e-design.md.txt",
+      "sha256": "977b6466217d90df1bf926ddc2a6d6df4fa7b00a517c6d67ac863642f6d07288",
+      "bytes": 11925
+    },
+    {
+      "group": "nuanu-flow-product-working-overlay",
+      "sourcePath": "tests/nuanuflow/authenticated/meetings-transcription.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-flow-e2e",
+      "sourceCommit": null,
+      "baseCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-flow-product-working-overlay/tests/nuanuflow/authenticated/meetings-transcription.spec.ts.txt",
+      "sha256": "2b1948ad59ed1cc3293ccde4a0194ec65c7705e115616d49b8407411bbf442fa",
+      "bytes": 20675
+    },
+    {
+      "group": "nuanu-flow-product-working-overlay",
+      "sourcePath": "tests/nuanuflow/authenticated/views-wiki.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-flow-e2e",
+      "sourceCommit": null,
+      "baseCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-flow-product-working-overlay/tests/nuanuflow/authenticated/views-wiki.spec.ts.txt",
+      "sha256": "fcbad3f459386bac87e27090fdeb6519f953361b1844fd5c459cac25156c9829",
+      "bytes": 6460
+    },
+    {
+      "group": "nuanu-flow-product-working-overlay",
+      "sourcePath": "tests/nuanuflow/knowledge-features-safety.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-flow-e2e",
+      "sourceCommit": null,
+      "baseCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-flow-product-working-overlay/tests/nuanuflow/knowledge-features-safety.spec.ts.txt",
+      "sha256": "21907809fbd9c0949e680484d6d946ceca79246f4f5db10d6519e4f94e132f6b",
+      "bytes": 53650
+    },
+    {
+      "group": "nuanu-flow-product-working-overlay",
+      "sourcePath": "tests/nuanuflow/pages/knowledge-features.page.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-flow-e2e",
+      "sourceCommit": null,
+      "baseCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-flow-product-working-overlay/tests/nuanuflow/pages/knowledge-features.page.ts.txt",
+      "sha256": "192451aaa4885e25082603a81092c091064f19615af7dce8a7215298e40e6156",
+      "bytes": 65433
+    },
+    {
+      "group": "nuanu-flow-product-working-overlay",
+      "sourcePath": "tests/nuanuflow/performance.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/nuanu-flow-e2e",
+      "sourceCommit": null,
+      "baseCommit": "2d9ac2ae890d7f6090bbcdc2e4faa20d3d0a24f5",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "nuanu-flow-product-working-overlay/tests/nuanuflow/performance.spec.ts.txt",
+      "sha256": "49acd458d6ca6521a5a191f4b563950db5ae4c78e05658fcf151bd686b44f994",
+      "bytes": 7856
+    },
+    {
+      "group": "acceptance-boundary",
+      "sourcePath": "LICENSE",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "inactive-committed-source",
+      "archivePath": "acceptance-boundary/LICENSE.txt",
+      "sha256": "db80358bea86ed171c8ea1ffe6d20e868d2e4062eefc543de85f6d0abf91d0aa",
+      "bytes": 1070
+    },
+    {
+      "group": "acceptance-boundary",
+      "sourcePath": "README.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "inactive-committed-source",
+      "archivePath": "acceptance-boundary/README.md.txt",
+      "sha256": "6a3c225af90abf8f4a1c6cd8b1180b639168ac03d5e59db4979b3dcd0317fab0",
+      "bytes": 4917
+    },
+    {
+      "group": "acceptance-boundary",
+      "sourcePath": "docs/adr/0001-product-vs-acceptance-boundary.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "inactive-committed-source",
+      "archivePath": "acceptance-boundary/docs/adr/0001-product-vs-acceptance-boundary.md.txt",
+      "sha256": "1a9b85880ead10a2903550ed22ecd889ffaf85ca8390e3299bb3f657da983224",
+      "bytes": 3106
+    },
+    {
+      "group": "acceptance-boundary",
+      "sourcePath": "docs/superpowers/plans/2026-08-10-paydemo-native-assist-boundary.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "inactive-committed-source",
+      "archivePath": "acceptance-boundary/docs/superpowers/plans/2026-08-10-paydemo-native-assist-boundary.md.txt",
+      "sha256": "e4055874c652417e3f11002ce9a8d5d4cc6df643b9565260e78842b8c80ade45",
+      "bytes": 16353
+    },
+    {
+      "group": "acceptance-boundary",
+      "sourcePath": "docs/superpowers/specs/2026-08-07-freeland-nuanu-native-qa-control-plane-design.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "inactive-committed-source",
+      "archivePath": "acceptance-boundary/docs/superpowers/specs/2026-08-07-freeland-nuanu-native-qa-control-plane-design.md.txt",
+      "sha256": "e929d883640283dbdf28dac60ef0b9379d310bc4e6b36370ccdd03b4e5e14054",
+      "bytes": 36820
+    },
+    {
+      "group": "acceptance-boundary",
+      "sourcePath": "playwright.config.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "inactive-committed-source",
+      "archivePath": "acceptance-boundary/playwright.config.ts.txt",
+      "sha256": "9da8f64b96355138766c96ff88f0b3d193e1710cf5d85e79fee6dd41cb612c69",
+      "bytes": 3188
+    },
+    {
+      "group": "acceptance-boundary",
+      "sourcePath": "src/program/boundary.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "inactive-committed-source",
+      "archivePath": "acceptance-boundary/src/program/boundary.ts.txt",
+      "sha256": "0ad899852e87e9f593305a91f4b123db589c73aae8526004d98c117ecd13f3ad",
+      "bytes": 2303
+    },
+    {
+      "group": "acceptance-boundary",
+      "sourcePath": "tests/program/program-boundary.spec.ts",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA",
+      "sourceCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "inactive-committed-source",
+      "archivePath": "acceptance-boundary/tests/program/program-boundary.spec.ts.txt",
+      "sha256": "1dfc67d4e4a4d88e3e283cd59c9081f775c4db6aa70633f772c12126c83a0fa9",
+      "bytes": 1920
+    },
+    {
+      "group": "acceptance-boundary-working-overlay",
+      "sourcePath": "docs/superpowers/plans/2026-08-07-freeland-auto-routing-continuous-coverage.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program",
+      "sourceCommit": null,
+      "baseCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "acceptance-boundary-working-overlay/docs/superpowers/plans/2026-08-07-freeland-auto-routing-continuous-coverage.md.txt",
+      "sha256": "7914a901bc42cb743aa329e310b6e3d14c67460a39a18acf4d441d2753c23d08",
+      "bytes": 101217
+    },
+    {
+      "group": "acceptance-boundary-working-overlay",
+      "sourcePath": "docs/superpowers/plans/2026-08-07-freeland-computer-use-telegram.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program",
+      "sourceCommit": null,
+      "baseCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "acceptance-boundary-working-overlay/docs/superpowers/plans/2026-08-07-freeland-computer-use-telegram.md.txt",
+      "sha256": "415e2385f925b2bb662839f14ccc73fc94922c19caf8eecb97651f803c580b93",
+      "bytes": 109133
+    },
+    {
+      "group": "acceptance-boundary-working-overlay",
+      "sourcePath": "docs/superpowers/plans/2026-08-07-freeland-deterministic-runner-evidence.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program",
+      "sourceCommit": null,
+      "baseCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "acceptance-boundary-working-overlay/docs/superpowers/plans/2026-08-07-freeland-deterministic-runner-evidence.md.txt",
+      "sha256": "c3eb04ee4bfb6e75a91b79e0ed8f5d1e605d90a7eba384a188edb18b70c91a8f",
+      "bytes": 125738
+    },
+    {
+      "group": "acceptance-boundary-working-overlay",
+      "sourcePath": "docs/superpowers/plans/2026-08-07-freeland-nuanu-control-plane.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program",
+      "sourceCommit": null,
+      "baseCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "acceptance-boundary-working-overlay/docs/superpowers/plans/2026-08-07-freeland-nuanu-control-plane.md.txt",
+      "sha256": "adfe8dc1b2f546807654186bf1f5c033d41f088684073131a2d35acdd6deec0f",
+      "bytes": 58460
+    },
+    {
+      "group": "acceptance-boundary-working-overlay",
+      "sourcePath": "docs/superpowers/plans/2026-08-07-freeland-nuanu-native-execution-index.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program",
+      "sourceCommit": null,
+      "baseCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "acceptance-boundary-working-overlay/docs/superpowers/plans/2026-08-07-freeland-nuanu-native-execution-index.md.txt",
+      "sha256": "b15a76a7386164dfff98fa6f2ea1cd46ee4979988c0096e3d3b0dff0d43d8218",
+      "bytes": 18943
+    },
+    {
+      "group": "acceptance-boundary-working-overlay",
+      "sourcePath": "docs/superpowers/plans/2026-08-07-freeland-payment-automation.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program",
+      "sourceCommit": null,
+      "baseCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "acceptance-boundary-working-overlay/docs/superpowers/plans/2026-08-07-freeland-payment-automation.md.txt",
+      "sha256": "506824c7bd79594d0adec8fcbcea4f7cdb440faa5575625ebc5bb56e786400f3",
+      "bytes": 179316
+    },
+    {
+      "group": "acceptance-boundary-working-overlay",
+      "sourcePath": "docs/superpowers/plans/2026-08-07-freeland-release-certification.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program",
+      "sourceCommit": null,
+      "baseCommit": "35b33028fbb029e1775f0d285564ebb37061ed2e",
+      "status": "unreviewed-working-source-not-active",
+      "archivePath": "acceptance-boundary-working-overlay/docs/superpowers/plans/2026-08-07-freeland-release-certification.md.txt",
+      "sha256": "7e95a191bcc52f951b071877e13d4e1e3efce54d4beb44b50a47ea907a25fd6e",
+      "bytes": 107075
+    },
+    {
+      "group": "reconciliation-audit",
+      "sourcePath": "LEGACY-NUANU-AUDIT.md",
+      "sourceRepository": "/Users/danilsolomin/projectsnew/qa-agent/.local/full-reconciliation-20260911.0l1hJ4",
+      "sourceCommit": null,
+      "status": "dated-source-audit-not-product-qa",
+      "archivePath": "reconciliation-audit/LEGACY-NUANU-AUDIT.md.txt",
+      "sha256": "c1be12476fa7600de0356ab7e6daeefcc9543acbe9f2386c3d1974efcedcd076",
+      "bytes": 17972
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+import { scanSensitive, verifySnapshot, verifyViews } from "../src/repository.mjs";
+
+const root = process.cwd();
+const snapshot = await verifySnapshot(root);
+const views = await verifyViews(root);
+const sensitive = await scanSensitive(root);
+process.stdout.write(`${JSON.stringify({ ok: true, snapshot, views, sensitive })}\n`);

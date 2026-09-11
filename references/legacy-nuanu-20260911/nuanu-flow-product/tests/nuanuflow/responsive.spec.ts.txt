@@ -1,0 +1,35 @@
+import { expect, test, type Page } from '@playwright/test';
+import { AuthPage } from './pages/auth.page';
+
+const viewports = [
+  { width: 320, height: 800 },
+  { width: 375, height: 812 },
+  { width: 768, height: 1024 },
+  { width: 1024, height: 768 },
+  { width: 1440, height: 900 },
+];
+
+const expectNoHorizontalOverflow = async (page: Page, width: number) => {
+  const dimensions = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(
+    dimensions.scrollWidth,
+    `sign-in@${width}: scrollWidth=${dimensions.scrollWidth}, clientWidth=${dimensions.clientWidth}`,
+  ).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+};
+
+test.describe('Nuanu Flow responsive sign-in', () => {
+  for (const viewport of viewports) {
+    test(`sign-in controls fit at ${viewport.width}px`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      const auth = new AuthPage(page);
+      await auth.gotoSignIn();
+
+      await expect(auth.emailInput).toBeVisible();
+      await expect(auth.continueButton).toBeVisible();
+      await expectNoHorizontalOverflow(page, viewport.width);
+    });
+  }
+});

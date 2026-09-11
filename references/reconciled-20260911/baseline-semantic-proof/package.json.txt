@@ -1,0 +1,32 @@
+{
+  "name": "freelandqa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20 <21" },
+  "scripts": {
+    "baseline:regenerate": "tsx tests/coverage/generate-freeland-baseline-manifest.ts --write",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "tsx --test tests/**/*.test.ts",
+    "test:product-contracts": "node --test tests/product-contracts/*.test.mjs",
+    "test:list": "tsx tools/coverage/capture-playwright.ts --check",
+    "coverage:import-matrix": "tsx tools/coverage/import-matrix.ts --source coverage/sources/TEST-CASES-2026-07-07.md --review-at 2026-08-07T00:00:00Z --write",
+    "coverage:validate": "tsx tools/coverage/validate-registry.ts",
+    "coverage:validate:requirements": "tsx tools/coverage/validate-registry.ts --requirements-only",
+    "coverage:report": "tsx tools/coverage/render-report.ts",
+    "coverage:reconcile": "tsx tools/coverage/reconcile-qa.ts",
+    "patchset:verify": "tsx tools/patchsets/verify-patchset.ts",
+    "security:scan": "tsx tools/security/scan-repository.ts --history",
+    "verify:deterministic": "npm run typecheck && npm run test:unit && npm run coverage:validate && npm run test:list && npm run security:scan"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@types/node": "26.1.0",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "dotenv": "17.4.2",
+    "tsx": "4.22.4",
+    "typescript": "6.0.3",
+    "yaml": "2.9.0"
+  }
+}

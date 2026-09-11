@@ -1,0 +1,106 @@
+import { test, expect } from '../fixtures/authenticated.fixture';
+import { SANDBOX } from '../fixtures/sandbox-data';
+import {
+  type CreatedProject,
+  ProjectFeaturesPage,
+} from '../pages/project-features.page';
+
+const MUTATING_TEST_TIMEOUT_MS = 90_000;
+
+const projectIdentifier = (runId: string) =>
+  `Q${runId.replace(/[^a-f0-9]/gi, '').slice(-4).toUpperCase()}`;
+
+test.describe.configure({ mode: 'serial' });
+
+test.describe('Nuanu Flow owned project lifecycle', () => {
+  test('enforces required, length, and duplicate identifier rules without creating a project', async ({
+    page,
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const features = new ProjectFeaturesPage(page, assertSandbox);
+
+    expect(await features.rejectEmptyProject()).toBe(0);
+    await assertSandbox();
+
+    const overlong = await features.rejectOverlongProjectIdentifier(
+      ownedName('project identifier boundary'),
+      'QE1234',
+    );
+    expect(overlong.attemptedPosts).toBe(0);
+    expect(overlong.value).toBe('QE1234');
+    await assertSandbox();
+
+    expect(
+      await features.projectIdentifierValueAfterInput(
+        ownedName('project identifier normalization'),
+        'QE 1!2',
+      ),
+    ).toBe('QE12');
+
+    await features.rejectDuplicateProjectIdentifier(
+      ownedName('duplicate project identifier'),
+      'NFQAS',
+      (responseOwned) => {
+        if (responseOwned.kind !== 'project') {
+          throw new Error('Expected a response-owned project.');
+        }
+        cleanupLedger.register({
+          kind: 'project',
+          id: responseOwned.id,
+          name: responseOwned.name,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: () => features.cleanupOwnedProject(responseOwned),
+        });
+      },
+    );
+    await assertSandbox();
+  });
+
+  test('creates, edits, reloads, archives, cancels deletion, and exactly deletes its owned project', async ({
+    page,
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+    runId,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const features = new ProjectFeaturesPage(page, assertSandbox);
+    const initialName = ownedName('project lifecycle');
+    const updatedName = `${initialName} updated`;
+    const description = 'Synthetic QA project with no personal data.';
+    const updatedDescription = `${description} Updated safely.`;
+    let createdProject: CreatedProject | undefined;
+
+    const created = await features.createProject(
+      {
+        name: initialName,
+        identifier: projectIdentifier(runId),
+        description,
+      },
+      (responseOwned) => {
+        if (responseOwned.kind !== 'project') {
+          throw new Error('Expected a response-owned project.');
+        }
+        createdProject = responseOwned;
+        cleanupLedger.register({
+          kind: 'project',
+          id: responseOwned.id,
+          name: initialName,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: () => features.cleanupOwnedProject(responseOwned),
+        });
+      },
+    );
+    expect(createdProject).toEqual(created);
+    await assertSandbox();
+
+    await features.updateProject(created, updatedName, updatedDescription);
+    await features.assertProjectCopyUnavailable(created, updatedName);
+    await features.archiveOwnedProject(created, updatedName);
+    expect(await features.cancelOwnedProjectDelete(created, updatedName)).toBe(0);
+    await features.deleteOwnedProjectThroughUi(created, updatedName);
+  });
+});

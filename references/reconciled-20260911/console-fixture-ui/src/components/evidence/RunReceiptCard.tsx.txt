@@ -1,0 +1,96 @@
+import type { DiscoveryRunReceipt, EvidenceVerdict } from "../../lib/evidence-flow";
+import { DigestValue, EvidenceCard, Field } from "./EvidenceFields";
+
+const VERDICT_GLYPH: Record<EvidenceVerdict, string> = {
+  INCONCLUSIVE: "◐",
+  ENV_BLOCKED: "◌",
+  HARNESS_FAIL: "✗",
+};
+
+interface RunReceiptCardProps {
+  receipt: DiscoveryRunReceipt;
+  verdictNote: string;
+  /** Typed `false` so no caller can enable it from here. */
+  acceptRelease: { readonly enabled: false; readonly reason: string };
+  /** Set when the receipt failed its own contract and was refused. */
+  contractError: string | null;
+  onReset: () => void;
+}
+
+export function RunReceiptCard({ receipt, verdictNote, acceptRelease, contractError, onReset }: RunReceiptCardProps) {
+  const { observation, blocker } = receipt;
+  return (
+    <EvidenceCard
+      title="Terminal evidence"
+      contract="discovery-run-receipt.v1"
+      meta={<span className="ev-tag mono">{receipt.state}</span>}
+    >
+      <div className={`ev-verdict is-${receipt.verdict.toLowerCase()}`}>
+        <span className="ev-verdict-badge mono">
+          {VERDICT_GLYPH[receipt.verdict]} {receipt.verdict}
+        </span>
+        <p className="ev-verdict-note">{verdictNote}</p>
+      </div>
+
+      {contractError !== null && (
+        <p className="ev-contract-error mono" role="alert">
+          ✗ the receipt failed its own contract and was refused: {contractError}
+        </p>
+      )}
+
+      {observation !== null && (
+        <>
+          <span className="micro ev-section-label">Observation · metadata only</span>
+          <div className="ev-split">
+            <Field label="requested">{observation.requestedUrl}</Field>
+            <Field label="effective">{observation.effectiveUrl}</Field>
+            <Field label="status">{observation.status}</Field>
+            <Field label="redirects">{observation.redirects}</Field>
+            <Field label="body bytes">{observation.bodyBytes}</Field>
+            <Field label="captured">{observation.capturedAt}</Field>
+            <Field label="body digest" wrap><DigestValue value={observation.bodyDigest} /></Field>
+            <Field label="adapter" wrap><DigestValue value={observation.adapter} /></Field>
+          </div>
+          <div className="ev-headers">
+            {observation.headers.map((header) => (
+              <span key={header.name} className="ev-header mono">
+                <b>{header.name}</b>: {header.value}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+
+      {blocker !== null && (
+        <div className="ev-blocker" role="status">
+          <span className="ev-blocker-class mono">{blocker.class} blocker</span>
+          <span className="ev-blocker-code mono">{blocker.code}</span>
+          <p className="ev-blocker-detail">{blocker.detail}</p>
+        </div>
+      )}
+
+      <span className="micro ev-section-label">Trust line</span>
+      <div className="ev-split">
+        <Field label="run" wrap><DigestValue value={receipt.runId} /></Field>
+        <Field label="receipt" wrap><DigestValue value={receipt.receiptDigest} /></Field>
+        <Field label="plan" wrap><DigestValue value={receipt.planDigest} /></Field>
+        <Field label="baseline approval" wrap><DigestValue value={receipt.baselineApprovalDigest} /></Field>
+        <Field label="execution approval" wrap><DigestValue value={receipt.executionApprovalDigest} /></Field>
+        <Field label="evidence manifest" wrap>
+          <DigestValue value={receipt.evidenceManifestDigest} />
+        </Field>
+      </div>
+
+      <div className="ev-actions ev-actions--terminal">
+        <button type="button" className="pill-button" disabled title={acceptRelease.reason}>
+          Accept release
+        </button>
+        <span className="ev-action-note">✗ {acceptRelease.reason}</span>
+        <span className="ev-card-spacer" />
+        <button type="button" className="pill-button ev-reset" onClick={onReset}>
+          Reset fixture
+        </button>
+      </div>
+    </EvidenceCard>
+  );
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nuanu QA resolved context v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_key", "commit", "profile_digest", "environment_status"],
+  "properties": {
+    "schema_version": { "const": "nuanu.qa-resolved-context.v1" },
+    "project_key": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "profile_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "environment_status": { "enum": ["HEALTHY", "INFRA_FAILURE", "NOT_REQUIRED"] },
+    "base_url": { "type": "string", "format": "uri" }
+  }
+}

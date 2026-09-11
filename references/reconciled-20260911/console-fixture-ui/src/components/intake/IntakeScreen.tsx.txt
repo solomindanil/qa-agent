@@ -1,0 +1,568 @@
+import { useState, type CSSProperties, type FormEvent } from "react";
+import {
+  ENVIRONMENT_KINDS,
+  EXTRA_SOURCE_KINDS,
+  SURFACE_KINDS,
+  SURFACE_NAMES,
+  buildRecordedIntake,
+  isValidSlug,
+  slugify,
+  type AssuranceMode,
+  type EnvironmentKind,
+  type RecordedIntakeDraft,
+  type SourceKind,
+  type SurfaceKind,
+} from "../../lib/intake-build";
+import { RegistrationProgress } from "../registration/RegistrationProgress";
+import { EvidenceFlow } from "../evidence/EvidenceFlow";
+import { buildRegistrationProgress, type RegistrationBuildState } from "../../lib/registration-progress";
+
+// Mirrors the /api/cli/validate response contract (see lib/actions.ts).
+interface CliRunResult {
+  command: string;
+  exitCode: number;
+  ok: boolean;
+  code: string;
+  durationMs: number;
+  envelope: unknown;
+}
+
+interface InitOutcome {
+  lifecycleState: string;
+  nextAction: string;
+  workspaceDigest: string;
+  workspacePath: string;
+}
+
+type SubmitState =
+  | { status: "idle" }
+  | { status: "busy" }
+  | { status: "error"; message: string }
+  | { status: "done"; outcome: InitOutcome };
+
+interface EnvironmentRow {
+  id: number;
+  kind: EnvironmentKind;
+  name: string;
+}
+
+interface SourceRow {
+  id: number;
+  kind: Exclude<SourceKind, "user_brief">;
+  locator: string;
+}
+
+let rowSequence = 0;
+const nextRowId = () => {
+  rowSequence += 1;
+  return rowSequence;
+};
+
+const fieldStyle: CSSProperties = {
+  height: 44,
+  padding: "0 14px",
+  background: "var(--surface-deep)",
+  border: "1px solid var(--hair-strong)",
+  borderRadius: 8,
+  color: "var(--ink)",
+  fontSize: 13,
+  fontFamily: "inherit",
+  width: "100%",
+};
+const areaStyle: CSSProperties = { ...fieldStyle, height: "auto", minHeight: 120, padding: "12px 14px", resize: "vertical", lineHeight: 1.6 };
+const labelStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 8 };
+const panelStyle: CSSProperties = { padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 };
+const errorStyle: CSSProperties = { fontSize: 11, color: "var(--accent)", lineHeight: 1.8 };
+
+async function postInit(intakeDraft: RecordedIntakeDraft, workspacePath: string): Promise<CliRunResult> {
+  const response = await fetch("/api/cli/init", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ intakeDraft, workspacePath }),
+  });
+  const payload: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = payload !== null && typeof (payload as { error?: unknown }).error === "string"
+      ? (payload as { error: string }).error
+      : `HTTP ${response.status}`;
+    throw new Error(message);
+  }
+  return payload as CliRunResult;
+}
+
+function extractOutcome(result: CliRunResult, workspacePath: string): InitOutcome {
+  const data = (result.envelope as { data?: Record<string, unknown> } | null)?.data ?? {};
+  const read = (key: string) => (typeof data[key] === "string" ? (data[key] as string) : "—");
+  return {
+    lifecycleState: read("lifecycleState"),
+    nextAction: read("nextAction"),
+    workspaceDigest: read("workspaceDigest"),
+    workspacePath,
+  };
+}
+
+interface IntakeScreenProps {
+  /** Navigates the console to a freshly created workspace (App owns the source). */
+  onOpenWorkspace?: (workspaceDir: string) => void;
+}
+
+// The submit state is the only thing the console observed about the build —
+// the progress view derives every phase claim from it, nothing else.
+function toBuildState(submit: SubmitState): RegistrationBuildState {
+  switch (submit.status) {
+    case "idle":
+      return { kind: "idle" };
+    case "busy":
+      return { kind: "submitting" };
+    case "error":
+      return { kind: "failed", message: submit.message };
+    case "done":
+      return { kind: "settled", ...submit.outcome };
+  }
+}
+
+export function IntakeScreen({ onOpenWorkspace }: IntakeScreenProps) {
+  const [productName, setProductName] = useState("");
+  const [slugDraft, setSlugDraft] = useState<string | null>(null);
+  const [description, setDescription] = useState("");
+  const [assuranceMode, setAssuranceMode] = useState<AssuranceMode>("black_box");
+  const [surfaces, setSurfaces] = useState<SurfaceKind[]>(["web"]);
+  const [environments, setEnvironments] = useState<EnvironmentRow[]>([{ id: nextRowId(), kind: "local", name: "Local" }]);
+  const [sources, setSources] = useState<SourceRow[]>([]);
+  const [briefText, setBriefText] = useState("");
+  const [workspacePath, setWorkspacePath] = useState("");
+  const [secretRefsText, setSecretRefsText] = useState("");
+  const [attempted, setAttempted] = useState(false);
+  const secretRefNames = secretRefsText.split(/[\s,]+/).map((n) => n.trim()).filter(Boolean);
+  const invalidSecretRefs = secretRefNames.filter((n) => !/^[A-Z][A-Z0-9_]*$/.test(n));
+  const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
+
+  const slug = slugDraft ?? slugify(productName);
+  const slugInvalid = !isValidSlug(slug);
+
+  const problems: string[] = [];
+  if (productName.trim() === "") problems.push("product name is required");
+  if (slugInvalid) problems.push("slug must match ^[a-z][a-z0-9-]*$");
+  if (surfaces.length === 0) problems.push("select at least one surface");
+  if (environments.some((row) => row.name.trim() === "")) problems.push("every environment needs a name");
+  if (sources.some((row) => row.locator.trim() === "")) problems.push("every source needs a locator");
+  if (assuranceMode === "source_aware" && !sources.some((row) => row.kind === "repository")) {
+    problems.push("source_aware mode requires a repository source");
+  }
+  if (briefText.trim() === "") problems.push("brief is required");
+  if (!workspacePath.startsWith("/")) problems.push("workspace path must be absolute");
+
+  const toggleSurface = (kind: SurfaceKind) => {
+    setSurfaces((current) => (current.includes(kind) ? current.filter((entry) => entry !== kind) : [...current, kind]));
+  };
+
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAttempted(true);
+    if (problems.length > 0 || submit.status === "busy") return;
+    setSubmit({ status: "busy" });
+    try {
+      const intakeDraft = await buildRecordedIntake({
+        productName,
+        slug,
+        description,
+        assuranceMode,
+        surfaces,
+        environments: environments.map(({ kind, name }) => ({ kind, name })),
+        sources: sources.map(({ kind, locator }) => ({ kind, locator })),
+        briefText,
+        secretRefs: secretRefNames,
+      });
+      const result = await postInit(intakeDraft, workspacePath);
+      if (!result.ok || result.exitCode !== 0) {
+        setSubmit({ status: "error", message: `${result.code} · exit ${result.exitCode}` });
+        return;
+      }
+      setSubmit({ status: "done", outcome: extractOutcome(result, workspacePath) });
+    } catch (error) {
+      setSubmit({ status: "error", message: error instanceof Error ? error.message : String(error) });
+    }
+  };
+
+  const busy = submit.status === "busy";
+
+  return (
+    <>
+      <header className="screen-head">
+        <h1 className="screen-title screen-title--display">New workspace</h1>
+        <span className="chip">recorded-intake.v1</span>
+        <div className="head-spacer" />
+        <span className="mono" style={{ fontSize: 12, color: "var(--ink-40)" }}>qa-starter init · I0</span>
+      </header>
+      <div className="mono" style={{ padding: "0 32px 14px", fontSize: 12, color: "var(--ink-40)" }}>
+        step 1 of the journey · the primary intake path is the /qa-init agent interview — this form is the manual fallback · secrets never leave .qa-private
+      </div>
+      <div className="intake-body">
+      <form className="intake-form" onSubmit={onSubmit}>
+        <section className="panel" style={panelStyle}>
+          <span className="micro">Product</span>
+          <label style={labelStyle}>
+            <span className="micro">Product name</span>
+            <input
+              style={fieldStyle}
+              type="text"
+              value={productName}
+              onChange={(event) => setProductName(event.target.value)}
+              placeholder="Aurora Store"
+            />
+          </label>
+          <label style={labelStyle}>
+            <span className="micro">Slug</span>
+            <input
+              className="mono"
+              style={{ ...fieldStyle, fontSize: 12.5 }}
+              type="text"
+              value={slug}
+              onChange={(event) => setSlugDraft(event.target.value)}
+              placeholder="aurora-store"
+            />
+          </label>
+          {slugInvalid && slug !== "" && (
+            <div className="mono" style={errorStyle}>✗ slug must match ^[a-z][a-z0-9-]*$</div>
+          )}
+          <label style={labelStyle}>
+            <span className="micro">Description</span>
+            <input
+              style={fieldStyle}
+              type="text"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="What is this product?"
+            />
+          </label>
+        </section>
+
+        <section className="panel" style={panelStyle}>
+          <span className="micro">Assurance mode</span>
+          <div role="group" aria-label="Assurance mode" style={{ display: "flex", gap: 6 }}>
+            {(["black_box", "source_aware"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={`source-chip${assuranceMode === mode ? " is-on" : ""}`}
+                aria-pressed={assuranceMode === mode}
+                onClick={() => setAssuranceMode(mode)}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+          <span className="micro" style={{ paddingTop: 4 }}>Surfaces</span>
+          <div className="intake-surfaces">
+            {SURFACE_KINDS.map((kind) => (
+              <label
+                key={kind}
+                className="intake-surface"
+                style={{ color: surfaces.includes(kind) ? "var(--ink)" : "var(--ink-50)" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={surfaces.includes(kind)}
+                  onChange={() => toggleSurface(kind)}
+                  style={{ accentColor: "var(--warm)", width: 13, height: 13, margin: 0, flexShrink: 0 }}
+                />
+                <span className="mono" style={{ fontSize: 12, flexShrink: 0 }}>{kind}</span>
+                <span className="intake-surface-name">{SURFACE_NAMES[kind]}</span>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel" style={panelStyle}>
+          <div className="panel-head" style={{ paddingBottom: 0 }}>
+            <span className="micro">Environments</span>
+            <span className="mono" style={{ fontSize: 11, color: "var(--ink-40)" }}>{environments.length} declared</span>
+          </div>
+          {environments.map((row, index) => (
+            <div key={row.id} className="intake-row">
+              <label className="intake-kind" style={labelStyle}>
+                <span className="micro">Kind</span>
+                <select
+                  style={{ ...fieldStyle, appearance: "none" }}
+                  value={row.kind}
+                  onChange={(event) => {
+                    const kind = event.target.value as EnvironmentKind;
+                    setEnvironments((current) => current.map((entry) => (entry.id === row.id ? { ...entry, kind } : entry)));
+                  }}
+                >
+                  {ENVIRONMENT_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>{kind}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="intake-value" style={labelStyle}>
+                <span className="micro">Name</span>
+                <input
+                  style={fieldStyle}
+                  type="text"
+                  value={row.name}
+                  onChange={(event) => {
+                    const name = event.target.value;
+                    setEnvironments((current) => current.map((entry) => (entry.id === row.id ? { ...entry, name } : entry)));
+                  }}
+                  placeholder="Local"
+                />
+              </label>
+              {index > 0 && (
+                <button
+                  type="button"
+                  className="pill-button"
+                  style={{ height: 44, padding: "0 14px", fontSize: 12, alignSelf: "flex-end" }}
+                  onClick={() => setEnvironments((current) => current.filter((entry) => entry.id !== row.id))}
+                >
+                  remove
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            className="pill-button"
+            style={{ height: 36, padding: "0 16px", fontSize: 12, alignSelf: "flex-start" }}
+            onClick={() => setEnvironments((current) => [...current, { id: nextRowId(), kind: "local", name: "" }])}
+          >
+            add environment
+          </button>
+        </section>
+
+        <section className="panel" style={panelStyle}>
+          <div className="panel-head" style={{ paddingBottom: 0 }}>
+            <span className="micro">Sources</span>
+            <span className="mono" style={{ fontSize: 11, color: "var(--ink-40)" }}>brief is declared automatically</span>
+          </div>
+          {sources.map((row) => (
+            <div key={row.id} className="intake-row">
+              <label className="intake-kind" style={labelStyle}>
+                <span className="micro">Kind</span>
+                <select
+                  style={{ ...fieldStyle, appearance: "none" }}
+                  value={row.kind}
+                  onChange={(event) => {
+                    const kind = event.target.value as Exclude<SourceKind, "user_brief">;
+                    setSources((current) => current.map((entry) => (entry.id === row.id ? { ...entry, kind } : entry)));
+                  }}
+                >
+                  {EXTRA_SOURCE_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>{kind}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="intake-value" style={labelStyle}>
+                <span className="micro">Locator</span>
+                <input
+                  className="mono"
+                  style={{ ...fieldStyle, fontSize: 12.5 }}
+                  type="text"
+                  value={row.locator}
+                  onChange={(event) => {
+                    const locator = event.target.value;
+                    setSources((current) => current.map((entry) => (entry.id === row.id ? { ...entry, locator } : entry)));
+                  }}
+                  placeholder="https://github.com/org/repo"
+                />
+              </label>
+              <button
+                type="button"
+                className="pill-button"
+                style={{ height: 44, padding: "0 14px", fontSize: 12, alignSelf: "flex-end" }}
+                onClick={() => setSources((current) => current.filter((entry) => entry.id !== row.id))}
+              >
+                remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="pill-button"
+            style={{ height: 36, padding: "0 16px", fontSize: 12, alignSelf: "flex-start" }}
+            onClick={() => setSources((current) => [...current, { id: nextRowId(), kind: "url", locator: "" }])}
+          >
+            add source
+          </button>
+        </section>
+
+        <section className="panel" style={panelStyle}>
+          <label style={labelStyle}>
+            <span className="micro">Brief</span>
+            <textarea
+              style={areaStyle}
+              value={briefText}
+              onChange={(event) => setBriefText(event.target.value)}
+              placeholder="What should QA verify? Journeys, risks, constraints…"
+            />
+          </label>
+        </section>
+
+        <section className="panel" style={panelStyle}>
+          <label style={labelStyle}>
+            <span className="micro">Workspace path</span>
+            <input
+              className="mono"
+              style={{ ...fieldStyle, fontSize: 12.5 }}
+              type="text"
+              value={workspacePath}
+              onChange={(event) => setWorkspacePath(event.target.value)}
+              placeholder="/absolute/path/to/new-workspace"
+            />
+          </label>
+          <label style={labelStyle}>
+            <span className="micro">Secret refs (names only)</span>
+            <input
+              className="mono"
+              style={{ ...fieldStyle, fontSize: 12.5 }}
+              value={secretRefsText}
+              onChange={(event) => setSecretRefsText(event.target.value)}
+              placeholder="TEST_USER_EMAIL, TEST_USER_PASSWORD"
+            />
+          </label>
+          {invalidSecretRefs.length > 0 && (
+            <span className="mono" style={{ fontSize: 11, color: "var(--accent)" }}>✗ UPPER_SNAKE_CASE only: {invalidSecretRefs.join(", ")}</span>
+          )}
+          <div style={{ display: "flex", alignItems: "center", gap: 14, paddingTop: 2 }}>
+            <button className="pill-button" type="submit" disabled={busy}>
+              {busy ? "creating…" : "Create workspace"}
+            </button>
+            <span className="mono" style={{ fontSize: 11, color: "var(--ink-40)" }}>
+              runs qa-starter init · target path must not exist
+            </span>
+          </div>
+          {attempted && problems.length > 0 && (
+            <div role="alert">
+              {problems.map((problem) => (
+                <div key={problem} className="mono" style={errorStyle}>✗ {problem}</div>
+              ))}
+            </div>
+          )}
+          {/* The build's own outcome, errors included, is reported by the
+              progress panel — one place, one set of claims. */}
+        </section>
+      </form>
+      {/* Once a build exists, its progress leads the column — the intake draft
+          checklist has already done its job. */}
+      <div className={`intake-side${submit.status === "idle" ? "" : " is-building"}`}>
+        <IntakeDraftPanel
+          productName={productName}
+          secretRefNames={secretRefNames}
+          slug={slug}
+          description={description}
+          assuranceMode={assuranceMode}
+          surfaces={surfaces}
+          environments={environments}
+          sources={sources}
+          briefText={briefText}
+          workspacePath={workspacePath}
+        />
+        <RegistrationProgress view={buildRegistrationProgress(toBuildState(submit))} onOpenWorkspace={onOpenWorkspace} />
+      </div>
+      </div>
+      {/* Journey step 3: a registered workspace can be walked to first runtime
+          evidence. Keyed by the digest so a second build never inherits the
+          first one's approval, plan or run. */}
+      {submit.status === "done" && (
+        <EvidenceFlow key={submit.outcome.workspaceDigest} registration={submit.outcome} />
+      )}
+    </>
+  );
+}
+
+interface DraftPanelProps {
+  productName: string;
+  secretRefNames: string[];
+  slug: string;
+  description: string;
+  assuranceMode: AssuranceMode;
+  surfaces: SurfaceKind[];
+  environments: EnvironmentRow[];
+  sources: SourceRow[];
+  briefText: string;
+  workspacePath: string;
+}
+
+// The "what the agent would still ask" view: a live recorded-intake draft
+// with an explicit missing-data checklist — journey step 2 made visible.
+function IntakeDraftPanel(props: DraftPanelProps) {
+  const requirements: { label: string; ok: boolean; ask: string }[] = [
+    { label: "product name", ok: props.productName.trim().length > 0, ask: "what is the product called?" },
+    { label: "description", ok: props.description.trim().length > 0, ask: "one sentence: what does it do?" },
+    { label: "brief", ok: props.briefText.trim().length > 0, ask: "what is critical to verify?" },
+    { label: "surfaces", ok: props.surfaces.length > 0, ask: "which surfaces exist (web/api/…)?" },
+    { label: "environments", ok: props.environments.some((e) => e.name.trim().length > 0), ask: "where does it run?" },
+    {
+      label: "repository source",
+      ok: props.assuranceMode === "black_box" || props.sources.some((src) => src.kind === "repository" && src.locator.trim().length > 0),
+      ask: "source_aware needs a repository URL",
+    },
+    { label: "workspace path", ok: props.workspacePath.startsWith("/"), ask: "absolute path for the new workspace" },
+  ];
+  const done = requirements.filter((r) => r.ok).length;
+  const missing = requirements.filter((r) => !r.ok);
+
+  return (
+    <aside className="panel intake-aside">
+      <div className="panel-head">
+        <span className="micro">Recorded intake draft</span>
+        <span className="mono" style={{ fontSize: 12, color: done === requirements.length ? "var(--ink)" : "var(--ink-50)" }}>
+          {done}/{requirements.length}
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 2, paddingBottom: 12 }}>
+        {requirements.map((r) => (
+          <div key={r.label} style={{ flex: 1, height: 4, borderRadius: 2, background: r.ok ? "rgba(255,255,255,.85)" : "rgba(255,255,255,.12)" }} />
+        ))}
+      </div>
+      <div className="kv-row" style={{ borderTop: "none", paddingTop: 0 }}>
+        <span className="k">product</span>
+        <span className="mono" style={{ fontSize: 12, color: "var(--ink-70)" }}>{props.productName.trim() || "—"}</span>
+      </div>
+      <div className="kv-row">
+        <span className="k">slug</span>
+        <span className="mono" style={{ fontSize: 12, color: "var(--ink-70)" }}>{props.slug || "—"}</span>
+      </div>
+      <div className="kv-row">
+        <span className="k">assurance</span>
+        <span className="mono" style={{ fontSize: 12, color: "var(--ink-70)" }}>{props.assuranceMode}</span>
+      </div>
+      <div className="kv-row" style={{ alignItems: "flex-start" }}>
+        <span className="k">surfaces</span>
+        <span style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {props.surfaces.length === 0 ? <span className="mono" style={{ fontSize: 12, color: "var(--ink-40)" }}>—</span> :
+            props.surfaces.map((sf) => <span key={sf} className="chip" style={{ height: 20, fontSize: 10 }}>{sf}</span>)}
+        </span>
+      </div>
+      <div className="kv-row">
+        <span className="k">environments</span>
+        <span className="mono" style={{ fontSize: 12, color: "var(--ink-70)" }}>{props.environments.filter((e) => e.name.trim()).length}</span>
+      </div>
+      <div className="kv-row">
+        <span className="k">secret refs</span>
+        <span className="mono" style={{ fontSize: 12, color: "var(--ink-70)" }}>{props.secretRefNames.length} names · values stay local</span>
+      </div>
+      <div className="kv-row">
+        <span className="k">sources</span>
+        <span className="mono" style={{ fontSize: 12, color: "var(--ink-70)" }}>{props.sources.filter((src) => src.locator.trim()).length + (props.briefText.trim() ? 1 : 0)} (incl. user_brief)</span>
+      </div>
+
+      <span className="micro" style={{ padding: "14px 0 6px", borderTop: "1px solid var(--hair)", marginTop: 10 }}>
+        {missing.length === 0 ? "Ready to create" : "The agent would still ask"}
+      </span>
+      {missing.length === 0 ? (
+        <span style={{ fontSize: 12.5, color: "var(--ink-70)" }}>All required intake fields are present — create the workspace below.</span>
+      ) : (
+        missing.map((r) => (
+          <span key={r.label} style={{ display: "flex", gap: 8, padding: "4px 0", fontSize: 12.5, color: "var(--ink-50)" }}>
+            <span className="mono" style={{ color: "var(--ink-40)" }}>◌</span>
+            {r.ask}
+          </span>
+        ))
+      )}
+      <span className="mono" style={{ fontSize: 11, color: "var(--ink-40)", paddingTop: 14 }}>
+        secret values are never written here — names only
+      </span>
+    </aside>
+  );
+}

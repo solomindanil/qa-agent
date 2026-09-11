@@ -1,0 +1,104 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { basename, join } from "node:path";
+import test from "node:test";
+
+import { reconcileAuditedGapClosures } from "../src/audited-gap-reconciliation.mjs";
+import { validateProductCiRun, validateProductTestCatalog } from "../src/model.mjs";
+
+const root = new URL("..", import.meta.url).pathname;
+
+async function json(path) {
+  return JSON.parse(await readFile(join(root, path), "utf8"));
+}
+
+async function closures(inventory) {
+  const files = await Promise.all(inventory.closureArtifactOrder.map(async file => {
+    const candidateDirectories = await import("node:fs/promises").then(({ readdir }) => readdir(join(root, "proof/candidates"), { withFileTypes: true }));
+    for (const entry of candidateDirectories) {
+      if (!entry.isDirectory()) continue;
+      const path = join(root, "proof/candidates", entry.name, file);
+      try {
+        return { artifact: basename(path), ...JSON.parse(await readFile(path, "utf8")) };
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+    }
+    throw new Error(`CLOSURE_ARTIFACT_MISSING ${file}`);
+  }));
+  return files;
+}
+
+test("audited gap reconciliation only subtracts IDs in the 47-gap inventory", async () => {
+  const inventory = await json("contracts/audited-gap-inventory.v1.json");
+  const result = reconcileAuditedGapClosures({ inventory, closures: await closures(inventory) });
+
+  assert.equal(result.baselineGapCount, 47);
+  assert.deepEqual(result.remainingGapIds, []);
+  assert.equal(result.remainingGapIds.length, 0);
+  assert.deepEqual(result.steps.find(step => step.artifact === "coverage-closure.req-C20-A3-C2.json"), {
+    artifact: "coverage-closure.req-C20-A3-C2.json",
+    priorCandidateGapCount: 17,
+    candidateGapCount: 15,
+    subtractedGapIds: ["req:A3", "req:C2"],
+  });
+  assert.deepEqual(result.steps.at(-2), {
+    artifact: "coverage-closure.req-E9-G8-B4-B12-B20.json",
+    priorCandidateGapCount: 9,
+    candidateGapCount: 4,
+    subtractedGapIds: ["req:B12", "req:B20", "req:B4", "req:E9", "req:G8"],
+  });
+  assert.deepEqual(result.steps.at(-1), {
+    artifact: "coverage-closure.req-B14-D17-G7-payment-creation-idempotency.json",
+    priorCandidateGapCount: 4,
+    candidateGapCount: 0,
+    subtractedGapIds: ["invariant:payment-creation-idempotency", "req:B14", "req:D17", "req:G7"],
+  });
+});
+
+test("audited gap reconciliation rejects an assurance-node subtraction", () => {
+  const syntheticGaps = Array.from({ length: 45 }, (_, index) => `gap:${index}`);
+  const inventory = {
+    schemaVersion: 1,
+    auditedGapIds: ["req:A3", "req:C2", ...syntheticGaps],
+    closureArtifactOrder: ["closure.json"],
+    expectedRemainingGapIds: syntheticGaps,
+  };
+  assert.throws(() => reconcileAuditedGapClosures({
+    inventory,
+    closures: [{
+      artifact: "closure.json",
+      nodeIds: ["req:C20", "req:A3", "req:C2"],
+      priorCandidateGapCount: 47,
+      candidateGapCount: 44,
+    }],
+  }), /AUDITED_GAP_COUNT_MISMATCH/);
+});
+
+test("final audited closure is bound to the exact completed Product CI seal", async () => {
+  const candidateSha = "ce868e3217aa2dfbedc1a9bc5b7692ef4cb389f0";
+  const prefix = `proof/candidates/${candidateSha}`;
+  const catalog = validateProductTestCatalog(await json(`${prefix}/product-test-catalog.json`));
+  const run = validateProductCiRun({
+    catalog,
+    run: await json(`${prefix}/product-ci-run.json`),
+  });
+  const closure = await json(`${prefix}/coverage-closure.req-B14-D17-G7-payment-creation-idempotency.json`);
+
+  assert.equal(catalog.sourceSha, candidateSha);
+  assert.equal(run.state, "completed");
+  assert.deepEqual(run.counts, { selected: 255, passed: 255, failed: 0, skipped: 0, notRun: 0 });
+  assert.deepEqual(closure.productCi, {
+    catalogDigest: catalog.catalogDigest,
+    runDigest: run.runDigest,
+    observedAt: run.observedAt,
+    selected: run.counts.selected,
+    passed: run.counts.passed,
+    failed: run.counts.failed,
+    skipped: run.counts.skipped,
+    notRun: run.counts.notRun,
+  });
+  assert.equal(closure.candidateGapCount, 0);
+  assert.equal(closure.deploymentState, "not_deployed");
+  assert.equal(closure.productionGraphUpdated, false);
+});

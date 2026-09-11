@@ -1,0 +1,51 @@
+# Sati 3.0.1 (15) computer-only iPhone proxy matrix
+
+This ledger records the executed anonymous campaign. `PROXY` means evidence was
+collected from the TestFlight iOS-on-Mac build in a compact portrait-shaped
+window; it is not equivalent to an iPhone simulator or device.
+
+| ID | Case | Result | Boundary |
+| --- | --- | --- | --- |
+| IPX-001 | Identify exact candidate and bundle | PASS | TestFlight `3.0.1 (15)`, `com.satiuniversity.sati`. |
+| IPX-002 | Minimum usable portrait window | PASS PROXY | Approximately `516 x 893` outer pixels including title bar; exact React client points unavailable. |
+| IPX-003 | Cold normal launch without resize | FAIL | Black on every observed run; F-001. |
+| IPX-004 | Cold bundle-ID custom scheme | FAIL/PASS | Same Mac black-render defect; after resize, safe anonymous fallback. |
+| IPX-005 | Intro play, pause and skip | PASS PROXY | No crash or duplicate stream observed. |
+| IPX-006 | Female/male voice selection | PASS PROXY | Selection changes and persists in local core state. |
+| IPX-007 | Background switch during intro audio | PASS PROXY | Position advances and returns without duplicate audio; not iOS suspension. |
+| IPX-008 | Auth chooser scroll at compact height | PASS PROXY | Apple, Google and email actions become visible after scrolling. |
+| IPX-009 | Registration Unicode/emoji/long fields | PASS PROXY | No layout crash; password masked; no valid submit. |
+| IPX-010 | Clear controls and modal reopen | PASS FUNCTIONAL | Fields clear; login modal reopen starts empty. |
+| IPX-011 | Chooser keyboard traversal | FAIL PROXY | Six Tab presses produce no focused action; F-004. |
+| IPX-012 | Registration keyboard traversal | FAIL PROXY | Focus cycles through fields and skips submit; F-004. |
+| IPX-013 | Malformed login local validation | FAIL | Malformed email/one-character password reaches API; F-015. |
+| IPX-014 | Invalid-login enumeration wording | PASS | Generic error does not disclose account existence. |
+| IPX-015 | Password field after error/modal close | PASS UI | Password clears after error; all fields clear on modal reopen. |
+| IPX-016 | Password sentinel after process death | FAIL STORAGE | Complete failed sign-in body persists in CFNetwork cache; F-009. |
+| IPX-017 | Warm `exp+sati` unknown route | PASS NEGATIVE | No dev UI/crash/navigation; static release residue remains F-013. |
+| IPX-018 | Encoded path and duplicate query | PASS NEGATIVE | No crash or unintended route. |
+| IPX-019 | Ten repeated unknown-route launches | PASS | One process/window; no duplicated modal. |
+| IPX-020 | Device-family and orientation declarations | FAIL STATIC | iPad and landscape enabled; F-007. |
+| IPX-021 | Build identity alignment | FAIL STATIC | Signed 15 vs Expo 14; F-008. |
+| IPX-022 | OTA release channel | FAIL NETWORK/STATIC | HTTP 400, channel missing; F-002. |
+| IPX-023 | APNs/OneSignal environment alignment | FAIL STATIC | Production entitlement vs development config; F-012. |
+| IPX-024 | Share/acquisition iPhone route | FAIL NETWORK | Cielo branding and missing Apple listing; F-010. |
+| IPX-025 | Bundle/plist/signature inventory | PASS WITH FINDINGS | Structural integrity passes; F-006 icon collision remains. |
+| IPX-026 | Native permission localization | FAIL STATIC | English-only usage strings; F-005. |
+| IPX-027 | Privacy declaration vs embedded analytics | FAIL/GATE | Root-zero vs embedded PostHog; App Store/runtime readback blocked; F-011. |
+| IPX-028 | Legal-page production quality | FAIL NETWORK/STATIC | Vite/Lovable residue and page-hit tracker; F-014. |
+
+## Mandatory unexecuted device/account cases
+
+- Real iPhone cold/warm startup and safe areas.
+- Touch gestures, software keyboard, AutoFill, Dynamic Type and iPhone VoiceOver.
+- Positive email/provider authentication, password recovery, logout and delete.
+- Authenticated content, full media player, history, profile and community.
+- APNs delivery and notification service extension.
+- HealthKit/camera/microphone/photos permission flows.
+- StoreKit/RevenueCat trial, purchase, restore, promo and subscription management.
+- Real reset/referral/content callbacks and universal-link behavior.
+- App Store Connect availability, privacy labels and rollout configuration.
+
+No unexecuted case may be converted to PASS from static evidence or this Mac
+proxy.

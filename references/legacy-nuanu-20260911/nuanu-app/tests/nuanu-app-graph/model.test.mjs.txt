@@ -1,0 +1,245 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  GRAPH_SCHEMA_VERSION,
+  PRODUCT_ID,
+  canonicalize,
+  createGraph,
+  digestJson,
+  validateGraph,
+} from "../../tools/nuanu-app-graph/model.mjs";
+
+const NODE_KINDS = [
+  "source_file", "external_dependency", "api_contract", "capability", "route", "surface",
+  "role", "journey", "invariant", "risk", "automated_test", "manual_test", "platform",
+];
+
+function node(kind, suffix = "node", overrides = {}) {
+  return { id: `${PRODUCT_ID}:${kind}:${suffix}`, kind, provenance: "runtime", ...overrides };
+}
+
+function graphFixture(overrides = {}) {
+  return {
+    productId: PRODUCT_ID,
+    schemaVersion: GRAPH_SCHEMA_VERSION,
+    nodes: [node("route", "root"), node("capability", "sign-in"), node("surface", "home")],
+    edges: [{
+      source: `${PRODUCT_ID}:route:root`,
+      kind: "renders",
+      target: `${PRODUCT_ID}:surface:home`,
+    }],
+    unresolved: [],
+    ...overrides,
+  };
+}
+
+function errorCodes(graph) {
+  return validateGraph(graph).errors.map((error) => error.code);
+}
+
+function productNodeId(kind) {
+  return `${PRODUCT_ID}:${kind}:node`;
+}
+
+test("canonicalize sorts nested object keys and preserves array order", () => {
+  assert.deepEqual(
+    canonicalize({ z: { b: 2, a: 1 }, a: [{ z: 2, a: 1 }, "first"] }),
+    { a: [{ a: 1, z: 2 }, "first"], z: { a: 1, b: 2 } },
+  );
+});
+
+test("digestJson is identical for semantically reordered objects", () => {
+  assert.equal(
+    digestJson({ b: { y: 2, x: 1 }, a: ["preserved", 1] }),
+    digestJson({ a: ["preserved", 1], b: { x: 1, y: 2 } }),
+  );
+});
+
+test("validateGraph always returns a structured validation result", () => {
+  assert.deepEqual(validateGraph(graphFixture()), { ok: true, errors: [] });
+  const result = validateGraph(graphFixture({ productId: "wrong-product" }));
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.length > 0);
+  assert.ok(result.errors.every((error) =>
+    typeof error.code === "string" &&
+    typeof error.message === "string" &&
+    (error.path === undefined || typeof error.path === "string"),
+  ));
+});
+
+test("validateGraph rejects a foreign product namespace", () => {
+  const graph = graphFixture({
+    nodes: [node("route", "root", { id: "other-product:route:root" })], edges: [],
+  });
+  assert.deepEqual(errorCodes(graph), ["FOREIGN_PRODUCT_NAMESPACE"]);
+});
+
+test("validateGraph rejects embedded foreign namespaces in IDs and mapping paths", () => {
+  const embeddedId = graphFixture({
+    nodes: [node("route", "root", { id: `${PRODUCT_ID}:route:other-product:root` })], edges: [],
+  });
+  const mappingPath = graphFixture({
+    reviewedMappings: { routePath: "maps/other-product:route:root" },
+  });
+  const nestedMappingPath = graphFixture({
+    metadata: { sourcePath: "maps/other-product:route:root" },
+  });
+  assert.deepEqual(errorCodes(embeddedId), ["FOREIGN_PRODUCT_NAMESPACE"]);
+  assert.deepEqual(errorCodes(mappingPath), ["FOREIGN_PRODUCT_NAMESPACE"]);
+  assert.deepEqual(errorCodes(nestedMappingPath), ["FOREIGN_PRODUCT_NAMESPACE"]);
+});
+
+test("validateGraph rejects duplicate node IDs and dangling edges", () => {
+  const graph = graphFixture({
+    nodes: [node("route", "root"), node("capability", "sign-in"), node("route", "root")],
+    edges: [{
+      source: `${PRODUCT_ID}:route:root`, kind: "renders", target: `${PRODUCT_ID}:surface:missing`,
+    }],
+  });
+  assert.deepEqual(errorCodes(graph), ["DUPLICATE_NODE_ID", "DANGLING_EDGE"]);
+});
+
+test("validateGraph rejects duplicate edge triples and unsupported node or edge kinds", () => {
+  const graph = graphFixture({
+    nodes: [node("route", "root"), node("surface", "home"), node("not_a_kind", "bad")],
+    edges: [
+      { source: `${PRODUCT_ID}:route:root`, kind: "renders", target: `${PRODUCT_ID}:surface:home` },
+      { source: `${PRODUCT_ID}:route:root`, kind: "renders", target: `${PRODUCT_ID}:surface:home` },
+      { source: `${PRODUCT_ID}:route:root`, kind: "not_an_edge", target: `${PRODUCT_ID}:surface:home` },
+    ],
+  });
+  assert.deepEqual(errorCodes(graph), [
+    "INVALID_NODE_KIND", "DUPLICATE_EDGE_TRIPLE", "INVALID_EDGE_KIND",
+  ]);
+});
+
+test("validateGraph accepts every approved edge endpoint combination", () => {
+  const nodes = NODE_KINDS.map((kind) => node(kind));
+  const edge = (sourceKind, kind, targetKind) => ({
+    source: productNodeId(sourceKind), kind, target: productNodeId(targetKind),
+  });
+  const edges = [
+    ...["capability", "route", "surface", "api_contract"].map((target) => edge("source_file", "implements", target)),
+    edge("route", "renders", "surface"),
+    edge("surface", "exposes", "capability"),
+    ...["route", "surface", "capability"].map((target) => edge("journey", "traverses", target)),
+    ...["api_contract", "external_dependency"].map((target) => edge("capability", "calls", target)),
+    ...["role", "platform"].map((target) => edge("capability", "requires", target)),
+    ...["capability", "journey"].map((source) => edge(source, "guarded_by", "invariant")),
+    ...["capability", "journey"].map((source) => edge(source, "has_risk", "risk")),
+    ...["automated_test", "manual_test"].flatMap((source) => NODE_KINDS.map((target) => edge(source, "verifies", target))),
+    ...["route", "surface", "journey"].map((target) => edge("platform", "supports", target)),
+    ...NODE_KINDS.flatMap((source) => NODE_KINDS.map((target) => edge(source, "affects", target))),
+  ];
+  assert.deepEqual(validateGraph(graphFixture({ nodes, edges })), { ok: true, errors: [] });
+});
+
+test("validateGraph rejects invalid endpoint, provenance, and coverage disposition", () => {
+  const graph = graphFixture({
+    nodes: [node("route", "root", { provenance: "observed" }), node("surface", "home", { coverageDisposition: "UNKNOWN" })],
+    edges: [{ source: `${PRODUCT_ID}:route:root`, kind: "calls", target: `${PRODUCT_ID}:surface:home` }],
+  });
+  assert.deepEqual(errorCodes(graph), [
+    "INVALID_PROVENANCE", "INVALID_COVERAGE_DISPOSITION", "INVALID_EDGE_ENDPOINTS",
+  ]);
+});
+
+test("source-only nodes require an explicit non-live coverage disposition", () => {
+  const missingDisposition = graphFixture({
+    nodes: [node("capability", "unreleased", { provenance: "source" })], edges: [],
+  });
+  const validDispositions = graphFixture({
+    nodes: [
+      node("capability", "not-deployed", { provenance: "source", coverageDisposition: "NOT_DEPLOYED" }),
+      node("capability", "unverified", { provenance: "source", coverageDisposition: "UNVERIFIED" }),
+    ],
+    edges: [],
+  });
+  assert.deepEqual(errorCodes(missingDisposition), ["SOURCE_NODE_LIVE_COVERAGE"]);
+  assert.deepEqual(validateGraph(validDispositions), { ok: true, errors: [] });
+});
+
+test("source-only nodes cannot be runnable live coverage", () => {
+  const graph = graphFixture({
+    nodes: [node("capability", "unreleased", { provenance: "source", coverageDisposition: "AUTOMATED" })],
+    edges: [],
+  });
+  assert.deepEqual(errorCodes(graph), ["SOURCE_NODE_LIVE_COVERAGE"]);
+});
+
+test("createGraph sorts nodes and edges before digesting", () => {
+  const input = {
+    sourceLock: { commit: "abc" }, runtimeCatalog: { routes: ["/"] },
+    reviewedMappings: { routes: [`${PRODUCT_ID}:route:root`] }, testCatalog: { tests: ["root"] },
+    nodes: [node("capability", "sign-in"), node("surface", "home"), node("route", "root")],
+    edges: [
+      { source: `${PRODUCT_ID}:surface:home`, kind: "exposes", target: `${PRODUCT_ID}:capability:sign-in` },
+      { source: `${PRODUCT_ID}:route:root`, kind: "renders", target: `${PRODUCT_ID}:surface:home` },
+    ],
+  };
+  const graph = createGraph(input);
+  assert.deepEqual(graph.nodes.map((entry) => entry.id), [
+    `${PRODUCT_ID}:capability:sign-in`, `${PRODUCT_ID}:route:root`, `${PRODUCT_ID}:surface:home`,
+  ]);
+  assert.deepEqual(graph.edges.map(({ source, kind, target }) => [source, kind, target]), [
+    [`${PRODUCT_ID}:route:root`, "renders", `${PRODUCT_ID}:surface:home`],
+    [`${PRODUCT_ID}:surface:home`, "exposes", `${PRODUCT_ID}:capability:sign-in`],
+  ]);
+  assert.equal(graph.graphDigest, createGraph({ ...input, generatedAt: "later" }).graphDigest);
+});
+
+test("createGraph preserves unresolved and records all semantic input digests", () => {
+  const input = {
+    sourceLock: { source: { commit: "abc", observedAt: "2026-08-26T00:00:00Z" } },
+    runtimeCatalog: { runtime: { route: "/", timestamp: "2026-08-26T00:00:00Z" } },
+    runtimeContract: { contract: { digest: "accepted", observedAt: "2026-08-26T00:00:00Z" } },
+    selectorObservation: { selector: { digest: "observed", observedAt: "2026-08-26T00:00:00Z" } },
+    selectorCapturePlan: { capture: { digest: "reviewed", updatedAt: "2026-08-26T00:00:00Z" } },
+    selectorBindings: { bindings: { digest: "bound", updatedAt: "2026-08-26T00:00:00Z" } },
+    reviewedMappings: { mappings: [{ path: "src/app", generatedAt: "2026-08-26T00:00:00Z" }] },
+    testCatalog: { tests: [{ name: "root", updatedAt: "2026-08-26T00:00:00Z" }] },
+    unresolved: [{ id: "nuanu-app:risk:auth", reason: "needs review" }],
+  };
+  const laterTimestamps = {
+    sourceLock: { source: { commit: "abc", observedAt: "2026-08-27T00:00:00Z" } },
+    runtimeCatalog: { runtime: { route: "/", timestamp: "2026-08-27T00:00:00Z" } },
+    runtimeContract: { contract: { digest: "accepted", observedAt: "2026-08-27T00:00:00Z" } },
+    selectorObservation: { selector: { digest: "observed", observedAt: "2026-08-27T00:00:00Z" } },
+    selectorCapturePlan: { capture: { digest: "reviewed", updatedAt: "2026-08-27T00:00:00Z" } },
+    selectorBindings: { bindings: { digest: "bound", updatedAt: "2026-08-27T00:00:00Z" } },
+    reviewedMappings: { mappings: [{ path: "src/app", generatedAt: "2026-08-27T00:00:00Z" }] },
+    testCatalog: { tests: [{ name: "root", updatedAt: "2026-08-27T00:00:00Z" }] },
+    unresolved: input.unresolved,
+  };
+  const graph = createGraph(input);
+  const laterGraph = createGraph(laterTimestamps);
+  assert.deepEqual(graph.unresolved, input.unresolved);
+  assert.deepEqual(graph.inputDigests, {
+    sourceLock: digestJson({ source: { commit: "abc" } }),
+    runtimeCatalog: digestJson({ runtime: { route: "/" } }),
+    runtimeContract: digestJson({ contract: { digest: "accepted" } }),
+    selectorObservation: digestJson({ selector: { digest: "observed" } }),
+    selectorCapturePlan: digestJson({ capture: { digest: "reviewed" } }),
+    selectorBindings: digestJson({ bindings: { digest: "bound" } }),
+    reviewedMappings: digestJson({ mappings: [{ path: "src/app" }] }),
+    testCatalog: digestJson({ tests: [{ name: "root" }] }),
+  });
+  assert.deepEqual(laterGraph.inputDigests, graph.inputDigests);
+  assert.equal(laterGraph.graphDigest, graph.graphDigest);
+});
+
+test("createGraph throws structured validation errors", () => {
+  const invalidInput = { nodes: [node("route", "root", { provenance: "source" })], edges: [] };
+  assert.throws(
+    () => createGraph(invalidInput),
+    (error) => {
+      const expected = validateGraph({ ...graphFixture(invalidInput), ...invalidInput });
+      return error.code === "GRAPH_VALIDATION_FAILED" &&
+        error.validationResult.ok === false &&
+        Array.isArray(error.validationErrors) &&
+        error.validationErrors.some((entry) => entry.code === "SOURCE_NODE_LIVE_COVERAGE") &&
+        Array.isArray(expected.errors);
+    },
+  );
+});

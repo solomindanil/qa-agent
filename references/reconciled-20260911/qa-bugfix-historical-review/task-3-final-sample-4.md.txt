@@ -1,0 +1,43 @@
+# Task 3 — offline fix-prompt rehearsal
+
+## A — ORCH-14: prepare-only prompt
+
+**Chosen workflow/tracker:** use the registered Orchard product pack and its selected Nuanu Flow tracker: workspace `orchard`, project `ORCH`, via the official Flow integration. This request authorizes prompt preparation only: do not call the integration, change the product, or write/transition `ORCH-14`. `Ready for prod` is the pack's QA handoff and is not a developer-completion shortcut.
+
+**Resolved-target summary:** Product is Nuanu Flow; ticket is `ORCH-14`; observed buggy environment/candidate is staging, source `v7`. A fresh Telegram-created account without a user email cannot link its first user email because confirmation also requires access to the old synthetic inbox. The supplied screenshot and API response confirm the pre-fix reproduction. No link, credential, account identity, implementation state, or root cause is invented.
+
+### Acceptance criteria
+
+- [ ] With the original preconditions—a fresh Telegram-created account that has no user email—the user can enter and link their first user email without being asked to confirm through the inaccessible synthetic inbox.
+- [ ] The linking flow no longer blocks completion on access to the old synthetic email; record the actual confirmation steps and final observable account state.
+- [ ] Existing-email change/recovery behavior remains correct where its contract legitimately requires confirmation; do not silently weaken that protection for users who already have an accessible user email.
+- [ ] Review the existing QA regression's fixture and assertions against the supplied `ORCH-14` reproduction before treating it as evidence. An unexpected expected-failure PASS alone is not fix evidence, and assertions must not be weakened to obtain green.
+- [ ] Run the relevant focused checks and adjacent email-linking/account-origin checks; report exactly what ran, the results, and what remains unrun.
+- [ ] Return the exact implementation candidate and local implementation evidence to QA. `Ready for prod` requires fresh deployed original-scenario evidence plus an authorized QA transition/readback; local completion alone does not satisfy it.
+
+### Recommended workflow
+
+- In the intended Nuanu Flow product checkout, inspect the first-email-linking branch for Telegram-created accounts and compare it with the supplied staging `v7` screenshot/API evidence before editing.
+- Treat any suspected shared cause as a hypothesis until source and reproduction evidence establish it; keep the diff limited to `ORCH-14` and avoid unrelated refactoring.
+- Inspect the existing regression fixture and assertions, then make it exercise the original preconditions and observable confirmation behavior rather than a proxy signal.
+- Run applicable focused tests, typecheck/lint, and adjacent email-linking/recovery checks. Report changed scope, exact candidate, results, and unresolved checks.
+- Return implementation evidence to QA without changing tracker state. A separate authorized deployed verification must reproduce the original scenario before any `Ready for prod` transition.
+
+**Setup or human input requested:** none now. The supplied snapshot is sufficient to prepare the prompt, credentials are intentionally unnecessary, and the missing regression review is developer/QA inspection work rather than a human-input dependency. If implementation later exposes an unresolved business rule, report that specific decision gap instead of inventing it.
+
+## B — LYNX-7: deployed-fix verification decision
+
+**Present conclusion:** not verified; `LYNX-7` must not move to `Done`. “Expected to fail, but passed” is only an investigation signal because the test asserts merely that the page has a title. It neither submits a valid RU reset request nor observes the backend-rejection error branch, so there is no current original-scenario evidence.
+
+**Exact next action:** first inspect the test fixture/assertions and the available source/trace to identify the controlled backend-rejection path. Then, with the controlled test account, run the original scenario on the known current candidate: select RU, submit a valid reset request, cause or observe the backend rejection, and capture the exact rendered error language plus candidate/environment evidence. Only a fresh run that observes the correct RU behavior can support the pack-authorized QA transition to `Done`, followed by tracker readback.
+
+**Mutation decision:** no tracker mutation is justified now. Do not move the ticket to `Done`, comment as if the fix were verified, remove an expected-failure marker, or otherwise change the regression marker on the strength of this PASS. Review and repair the scenario coverage first; change the marker only when the corrected regression actually exercises the defect and the applicable evidence supports that change.
+
+## C — LYNX-8: implementation handoff / QA acceptance
+
+### Implementation handoff / QA acceptance
+
+- **Developer completion:** after confirming the required code changes and relevant local checks, the implementing agent may attach the implementation summary to `LYNX-8` and move it from `In Progress` to `QA queue`. Read back both the saved summary and persisted literal state. This is a developer-ready handoff awaiting deployed QA, not a fix-verification claim.
+- **Developer evidence to return:** changed scope; exact implementation candidate/commit; the implementation summary; tests/checks run with their results; the local regression result for the confirmed original defect; relevant adjacent checks; deployment status; and every unresolved, unrun, or environment-dependent check.
+- **QA acceptance:** `Done` requires fresh deployed verification of the original `LYNX-8` scenario under the LYNX pack and an authorized QA transition/readback. Because deployed verification has not occurred, the developer must not move the ticket to `Done` or describe it as QA verified.
+- **Authority boundary:** Linear project `LYNX` is selected. The current execution authority permits only the implementation-summary attachment and `In Progress` → `QA queue` transition for `LYNX-8` after checks; it does not inherit the earlier prepare-only restriction, and it does not grant `Done` authority.

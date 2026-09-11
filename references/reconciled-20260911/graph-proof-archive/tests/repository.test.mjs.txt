@@ -1,0 +1,291 @@
+import assert from "node:assert/strict";
+import { cp, mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+
+import { assertImmutableSnapshot, commitOwnedOutputs, withRebuildLock } from "../src/rebuild.mjs";
+import { EXPECTED, scanSensitive, validateRepository, verifySnapshot, verifyViews } from "../src/repository.mjs";
+
+const root = new URL("..", import.meta.url).pathname;
+
+test("canonical graph and current test plan retain fail-closed production scope", async () => {
+  const result = await validateRepository(root);
+  assert.equal(result.ok, true);
+  assert.equal(result.graphDigest, EXPECTED.graphDigest);
+  assert.equal(result.proofStatus, "fully_proven");
+  assert.deepEqual(result.impact, { changed: 535, unmapped: 0, semanticNodes: 56 });
+  assert.deepEqual(result.plan, EXPECTED.plan);
+  assert.deepEqual(result.productCi, { catalog: 103, passed: 103 });
+  assert.deepEqual(result.auditedGaps, {
+    remaining: [],
+  });
+});
+
+test("normative product map is pinned to the exact current production source", async () => {
+  assert.equal(
+    EXPECTED.productMapReferenceSha,
+    EXPECTED.sourceSha,
+    "PRODUCT-MAP must be revalidated against the exact production source SHA",
+  );
+});
+
+test("reviewed production flows retain their exact current source evidence", async () => {
+  const graph = JSON.parse(await readFile(join(root, "graph/current/graph.json"), "utf8"));
+  const locators = graph.sourceLocators.filter(locator =>
+    locator.ownerNodeId === "flow:referral.claim" || locator.ownerNodeId === "flow:wallet.withdraw",
+  );
+  const tokens = new Set(locators.map(locator => locator.rawToken));
+
+  assert.equal(tokens.has("apps/api/src/config.ts:458-461"), true);
+  assert.equal(tokens.has("apps/api/src/services/wallet-rail.ts:527-579"), true);
+  assert.equal(tokens.has("config.ts:431-434"), false);
+  assert.equal(tokens.has("wallet-rail.ts:409-461"), false);
+  assert.equal(locators.every(locator => locator.disposition === "resolved"), true);
+});
+
+test("Product CI catalog uses the exact deployed target attestation title", async () => {
+  const catalog = JSON.parse(await readFile(join(root, "graph/current/product-catalog.json"), "utf8"));
+  const selectors = new Set(catalog.tests.map(test => test.selector));
+  assert.equal(selectors.has("requires an independent deployed target attestation outside the selected file"), true);
+  assert.equal(selectors.has("requires independent deployed target attestation outside the selected file"), false);
+});
+
+test("contract corpus does not hardcode the historical deposit address as a current oracle", async () => {
+  const corpus = await Promise.all([
+    "contracts/COVERAGE-MAP.md",
+    "contracts/MANUAL-TEST-CASES.md",
+  ].map(path => readFile(join(root, path), "utf8")));
+  assert.equal(corpus.some(text => text.includes("TPy3bX6vZ1sjbmDKPVweT1m2WJefPTC6qP")), false);
+  assert.match(corpus[0], /Historical observation/);
+  assert.match(corpus[1], /Правило подстановки runtime-данных/);
+});
+
+test("sealed production snapshot matches the current canonical payloads", async () => {
+  assert.deepEqual(await verifySnapshot(root), {
+    ok: true,
+    snapshot: `graph/snapshots/${EXPECTED.sourceSha}/${EXPECTED.graphDigest.replace(":", "-")}`,
+    files: 10,
+  });
+});
+
+test("sealed snapshot rejects any attempt to reuse its identity with different bytes", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "freeland-graph-snapshot-"));
+  const relative = "graph/snapshots/a/source-digest";
+  const files = new Map([["current/graph.json", "old\n"]]);
+  const manifest = { graphDigest: "sha256:example", proofStatus: "fully_proven", schemaVersion: 2, sha256: {}, sourceSha: "a".repeat(40) };
+  try {
+    await mkdir(join(temporaryRoot, relative, "current"), { recursive: true });
+    await writeFile(join(temporaryRoot, relative, "current", "graph.json"), "old\n");
+    await writeFile(join(temporaryRoot, relative, "snapshot.json"), `${JSON.stringify(manifest)}\n`);
+    assert.equal(await assertImmutableSnapshot({ root: temporaryRoot, relative, files, manifest }), true);
+    await assert.rejects(
+      assertImmutableSnapshot({ root: temporaryRoot, relative, files: new Map([["current/graph.json", "new\n"]]), manifest }),
+      /SEALED_SNAPSHOT_CONFLICT/,
+    );
+    assert.equal(await readFile(join(temporaryRoot, relative, "current", "graph.json"), "utf8"), "old\n");
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("owned-output publication rolls back every promoted file after a late failure", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "freeland-graph-transaction-"));
+  try {
+    await mkdir(join(temporaryRoot, "graph", "current"), { recursive: true });
+    await writeFile(join(temporaryRoot, "graph", "current", "graph.json"), "old graph\n");
+    await writeFile(join(temporaryRoot, "graph", "current", "impact.json"), "old impact\n");
+    const outputs = new Map([
+      ["graph/current/graph.json", "new graph\n"],
+      ["graph/current/impact.json", "new impact\n"],
+      ["reports/new.md", "new report\n"],
+    ]);
+    await assert.rejects(commitOwnedOutputs({
+      root: temporaryRoot,
+      outputs,
+      beforePromote: async ({ index }) => { if (index === 2) throw new Error("late failure"); },
+    }), /late failure/);
+    assert.equal(await readFile(join(temporaryRoot, "graph", "current", "graph.json"), "utf8"), "old graph\n");
+    assert.equal(await readFile(join(temporaryRoot, "graph", "current", "impact.json"), "utf8"), "old impact\n");
+    await assert.rejects(readFile(join(temporaryRoot, "reports", "new.md")), /ENOENT/);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("owned-output and snapshot paths reject traversal, absolute, non-normalized and duplicate targets before staging", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "freeland-graph-path-safety-"));
+  try {
+    for (const path of ["../escape", "/absolute", "a/../../escape", "a//b", "a\\b", "a\0b", "."]) {
+      await assert.rejects(
+        commitOwnedOutputs({ root: temporaryRoot, outputs: [[path, "unsafe\n"]] }),
+        /OWNED_OUTPUT_PATH_INVALID/,
+      );
+    }
+    await assert.rejects(
+      commitOwnedOutputs({ root: temporaryRoot, outputs: [["safe.txt", "one\n"], ["safe.txt", "two\n"]] }),
+      /OWNED_OUTPUT_TARGET_DUPLICATE/,
+    );
+    await assert.rejects(
+      assertImmutableSnapshot({
+        root: temporaryRoot,
+        relative: "../snapshot",
+        files: new Map([["current/graph.json", "{}\n"]]),
+        manifest: {},
+      }),
+      /OWNED_OUTPUT_PATH_INVALID/,
+    );
+    await mkdir(join(temporaryRoot, "snapshot"), { recursive: true });
+    await assert.rejects(
+      assertImmutableSnapshot({
+        root: temporaryRoot,
+        relative: "snapshot",
+        files: [["snapshot.json", "shadow\n"]],
+        manifest: {},
+      }),
+      /OWNED_OUTPUT_TARGET_DUPLICATE/,
+    );
+    await rm(join(temporaryRoot, "snapshot"), { recursive: true, force: true });
+    assert.deepEqual((await readdir(temporaryRoot)).sort(), []);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("rollback attempts every restore and retains backups when one restore fails", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "freeland-graph-rollback-failure-"));
+  let retainedBackup;
+  try {
+    await mkdir(join(temporaryRoot, "owned"), { recursive: true });
+    for (const name of ["a.txt", "b.txt", "c.txt"]) {
+      await writeFile(join(temporaryRoot, "owned", name), `old ${name}\n`);
+    }
+    const outputs = [
+      ["owned/a.txt", "new a\n"],
+      ["owned/b.txt", "new b\n"],
+      ["owned/c.txt", "new c\n"],
+      ["owned/trigger.txt", "never installed\n"],
+    ];
+    let caught;
+    try {
+      await commitOwnedOutputs({
+        root: temporaryRoot,
+        outputs,
+        beforePromote: async ({ index }) => { if (index === 3) throw new Error("late publication failure"); },
+        beforeRestore: async ({ path }) => { if (path === "owned/b.txt") throw new Error("injected restore failure"); },
+      });
+    } catch (error) {
+      caught = error;
+    }
+    assert.ok(caught instanceof AggregateError);
+    assert.match(caught.message, /OWNED_OUTPUT_ROLLBACK_INCOMPLETE/);
+    retainedBackup = caught.backupRoot;
+    assert.equal(await readFile(join(temporaryRoot, "owned", "a.txt"), "utf8"), "old a.txt\n");
+    assert.equal(await readFile(join(temporaryRoot, "owned", "c.txt"), "utf8"), "old c.txt\n");
+    await assert.rejects(readFile(join(temporaryRoot, "owned", "b.txt")), /ENOENT/);
+    assert.equal(await readFile(join(retainedBackup, "owned", "b.txt"), "utf8"), "old b.txt\n");
+    assert.equal(caught.errors.length, 2);
+  } finally {
+    if (retainedBackup) await rm(retainedBackup, { recursive: true, force: true });
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("owned outputs and sealed snapshot reads reject symlinks under the repository root", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "freeland-graph-symlink-root-"));
+  const outsideRoot = await mkdtemp(join(tmpdir(), "freeland-graph-symlink-outside-"));
+  try {
+    await symlink(outsideRoot, join(temporaryRoot, "owned"));
+    await assert.rejects(
+      commitOwnedOutputs({ root: temporaryRoot, outputs: [["owned/escaped.txt", "must not escape\n"]] }),
+      /OWNED_OUTPUT_SYMLINK/,
+    );
+    await assert.rejects(readFile(join(outsideRoot, "escaped.txt")), /ENOENT/);
+
+    await mkdir(join(temporaryRoot, "snapshot", "current"), { recursive: true });
+    await writeFile(join(outsideRoot, "graph.json"), "{}\n");
+    await symlink(join(outsideRoot, "graph.json"), join(temporaryRoot, "snapshot", "current", "graph.json"));
+    await writeFile(join(temporaryRoot, "snapshot", "snapshot.json"), "{}\n");
+    await assert.rejects(
+      assertImmutableSnapshot({
+        root: temporaryRoot,
+        relative: "snapshot",
+        files: new Map([["current/graph.json", "{}\n"]]),
+        manifest: {},
+      }),
+      /SEALED_SNAPSHOT_SYMLINK|OWNED_OUTPUT_SYMLINK/,
+    );
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+    await rm(outsideRoot, { recursive: true, force: true });
+  }
+});
+
+test("immutable publication uses atomic no-replace and cannot overwrite first-writer bytes", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "freeland-graph-immutable-race-"));
+  try {
+    const path = "graph/snapshots/sha/digest/current/graph.json";
+    await commitOwnedOutputs({
+      root: temporaryRoot,
+      outputs: [[path, "first writer\n"]],
+      immutablePaths: new Set([path]),
+    });
+    await assert.rejects(
+      commitOwnedOutputs({
+        root: temporaryRoot,
+        outputs: [[path, "second writer\n"]],
+        immutablePaths: new Set([path]),
+      }),
+      /IMMUTABLE_OUTPUT_EXISTS|EEXIST/,
+    );
+    assert.equal(await readFile(join(temporaryRoot, path), "utf8"), "first writer\n");
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("repository rebuild lock excludes a concurrent writer for the complete operation", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "freeland-graph-lock-"));
+  try {
+    await withRebuildLock(temporaryRoot, async () => {
+      await assert.rejects(
+        withRebuildLock(temporaryRoot, async () => "second writer"),
+        /REBUILD_LOCK_HELD/,
+      );
+      assert.equal((await readdir(temporaryRoot)).includes(".freeland-rebuild.lock"), true);
+    });
+    assert.equal((await readdir(temporaryRoot)).includes(".freeland-rebuild.lock"), false);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("Obsidian is a deterministic projection of current JSON", async () => {
+  const result = await verifyViews(root);
+  assert.equal(result.ok, true);
+  assert.equal(result.files, 72);
+});
+
+test("Obsidian verification ignores only documented local workspace state", async () => {
+  const temporaryRoot = await mkdtemp(join(tmpdir(), "freeland-graph-obsidian-"));
+  try {
+    await mkdir(join(temporaryRoot, "graph", "current"), { recursive: true });
+    await cp(join(root, "graph", "current", "graph.json"), join(temporaryRoot, "graph", "current", "graph.json"));
+    await cp(join(root, "graph", "current", "impact.json"), join(temporaryRoot, "graph", "current", "impact.json"));
+    await cp(join(root, "graph", "current", "test-plan.json"), join(temporaryRoot, "graph", "current", "test-plan.json"));
+    await cp(join(root, "graph", "current", "production-reference.json"), join(temporaryRoot, "graph", "current", "production-reference.json"));
+    await cp(join(root, "obsidian"), join(temporaryRoot, "obsidian"), { recursive: true });
+    await writeFile(join(temporaryRoot, "obsidian", ".obsidian", "workspace.json"), "{}\n");
+    assert.equal((await verifyViews(temporaryRoot)).ok, true);
+    await writeFile(join(temporaryRoot, "obsidian", "unexpected.md"), "not generated\n");
+    await assert.rejects(verifyViews(temporaryRoot), /OBSIDIAN_FILE_SET_MISMATCH/);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("export contains no known credentials, personal handles, or local absolute paths", async () => {
+  const result = await scanSensitive(root);
+  assert.equal(result.ok, true);
+  assert.ok(result.files > 70);
+});

@@ -1,0 +1,728 @@
+import {
+  expect,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+} from '@playwright/test';
+import { QA_PREFIX, SANDBOX } from '../fixtures/sandbox-data';
+import { QA_ACCOUNT_ID } from '../routes';
+import {
+  captureExactFeaturePosts,
+  type ExactFeaturePostCapture,
+  isCanonicalEntityId,
+} from './project-features.page';
+
+export const WORKSPACE_OPERATIONS_SANDBOX_ID =
+  '8f081389-298d-4dc2-93d5-7cd80c5109da';
+export const WORKSPACE_OPERATIONS_SELF_LEAD_ID = QA_ACCOUNT_ID;
+
+export const WORKSPACE_OPERATION_PATHS = Object.freeze({
+  pulse:
+    `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/pulse/`,
+  automations:
+    `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/automations/`,
+  teams: `/${SANDBOX.workspaceSlug}/teams/`,
+  account: `/${SANDBOX.workspaceSlug}/settings/account/`,
+  preferences:
+    `/${SANDBOX.workspaceSlug}/settings/account/preferences/`,
+  notifications:
+    `/${SANDBOX.workspaceSlug}/settings/account/notifications/`,
+  workspaceSettings: `/${SANDBOX.workspaceSlug}/settings/`,
+  projectSettings:
+    `/${SANDBOX.workspaceSlug}/settings/projects/${SANDBOX.projectId}/`,
+  projectAutomationSettings:
+    `/${SANDBOX.workspaceSlug}/settings/projects/${SANDBOX.projectId}/automations/`,
+  marketplace: `/${SANDBOX.workspaceSlug}/marketplace/`,
+  integrations: `/${SANDBOX.workspaceSlug}/integrations/`,
+});
+
+export const PULSE_SUMMARY_SECTION_NAMES = Object.freeze([
+  'Previous Week Summary',
+  'Goals of This Week',
+  'Retrospective',
+]);
+
+export const PULSE_SUMMARY_TYPE_NAMES = Object.freeze([
+  'Meeting Review',
+  'Day Review',
+  'Week Review',
+  'Sprint Review',
+  'Project Health',
+  'Team Standup',
+  'Milestone',
+]);
+
+export const AUTOMATION_TRIGGER_NAMES = Object.freeze([
+  'Issue Created',
+  'Issue Updated',
+  'Issue State Changed',
+  'Issue Assignee Changed',
+  'Issue Priority Changed',
+  'Comment Added',
+  'Cycle Started',
+  'Cycle Ended',
+  'Webhook',
+]);
+
+export const AUTOMATION_ACTION_NAMES = Object.freeze([
+  'Agent Prompt',
+  'Create Issue',
+  'Webhook',
+]);
+
+export const INTEGRATION_CARD_NAMES = Object.freeze([
+  'Gmail',
+  'Outlook',
+  'Slack',
+  'Telegram',
+  'Discord',
+  'WhatsApp',
+  'Google Calendar',
+  'Google Drive',
+  'Google Sheets',
+  'Google Docs',
+  'Notion',
+  'GitHub',
+  'GitLab',
+  'Linear',
+  'Jira',
+  'Trello',
+  'HubSpot',
+  'Salesforce',
+  'Zoom',
+  'Stripe',
+  'Twilio',
+]);
+
+export class WorkspaceOperationsPage {
+  readonly addPulseButtons: Locator;
+  readonly addAutomationButtons: Locator;
+  readonly addTeamButtons: Locator;
+  readonly createPulseDialog: Locator;
+  readonly createAutomationSurface: Locator;
+  readonly createTeamDialog: Locator;
+  readonly pulseSummariesButton: Locator;
+  readonly pulseFeedButton: Locator;
+  readonly addFeedItemButton: Locator;
+  readonly automationEmptyHeading: Locator;
+  readonly teamsEmptyHeading: Locator;
+  readonly marketplaceSearch: Locator;
+  readonly integrationsHeading: Locator;
+
+  constructor(readonly page: Page) {
+    this.addPulseButtons = page.getByRole('button', {
+      name: 'Add Pulse',
+      exact: true,
+    });
+    this.addAutomationButtons = page.getByRole('button', {
+      name: 'Add Automation',
+      exact: true,
+    });
+    this.addTeamButtons = page.getByRole('button', {
+      name: 'Add team',
+      exact: true,
+    });
+    this.createPulseDialog = this.dialogWithHeading('Create Pulse');
+    this.createAutomationSurface = page
+      .getByRole('main')
+      .filter({
+        has: page.getByRole('checkbox', {
+          name: 'Enabled',
+          exact: true,
+        }),
+      })
+      .last();
+    this.createTeamDialog = this.dialogWithHeading('Create team');
+    this.pulseSummariesButton = page.getByRole('button', {
+      name: 'Summaries',
+      exact: true,
+    });
+    this.pulseFeedButton = page.getByRole('button', {
+      name: 'Feed',
+      exact: true,
+    });
+    this.addFeedItemButton = page.getByRole('button', {
+      name: 'Add feed item',
+      exact: true,
+    });
+    this.automationEmptyHeading = page.getByRole('heading', {
+      name: 'No automations yet',
+      exact: true,
+    });
+    this.teamsEmptyHeading = page.getByRole('heading', {
+      name: 'No teams yet',
+      exact: true,
+    });
+    this.marketplaceSearch = page.getByRole('textbox', {
+      name: 'Search listings…',
+      exact: true,
+    });
+    this.integrationsHeading = page.getByRole('heading', {
+      name: 'Integrations',
+      exact: true,
+    });
+  }
+
+  private dialogWithHeading(name: string): Locator {
+    return this.page.getByRole('dialog').filter({
+      has: this.page.getByRole('heading', { name, exact: true }),
+    });
+  }
+
+  private async gotoReady(path: string, ready: Locator): Promise<void> {
+    await this.page.goto(path, { waitUntil: 'domcontentloaded' });
+    await expect(ready).toBeVisible({ timeout: 15_000 });
+    expect(new URL(this.page.url()).pathname).toBe(path);
+  }
+
+  async gotoPulse(): Promise<void> {
+    await this.gotoReady(
+      WORKSPACE_OPERATION_PATHS.pulse,
+      this.addPulseButtons.first(),
+    );
+  }
+
+  async openPulseFeedItem(): Promise<Locator> {
+    await this.pulseFeedButton.click();
+    await expect(this.addFeedItemButton).toBeVisible();
+    await this.addFeedItemButton.click();
+    await expect(this.createPulseDialog).toBeVisible();
+    return this.createPulseDialog;
+  }
+
+  async gotoAutomations(): Promise<void> {
+    await this.gotoReady(
+      WORKSPACE_OPERATION_PATHS.automations,
+      this.automationEmptyHeading,
+    );
+  }
+
+  async openAutomationCreate(): Promise<Locator> {
+    await this.addAutomationButtons.first().click();
+    await expect(this.createAutomationSurface).toBeVisible();
+    return this.createAutomationSurface;
+  }
+
+  async gotoTeams(): Promise<void> {
+    await this.gotoReady(
+      WORKSPACE_OPERATION_PATHS.teams,
+      this.teamsEmptyHeading,
+    );
+  }
+
+  async openTeamCreate(): Promise<Locator> {
+    await this.addTeamButtons.first().click();
+    await expect(this.createTeamDialog).toBeVisible();
+    return this.createTeamDialog;
+  }
+
+  async gotoAccountSettings(): Promise<void> {
+    await this.gotoReady(
+      WORKSPACE_OPERATION_PATHS.account,
+      this.page.getByRole('heading', { name: 'Profile', exact: true }),
+    );
+  }
+
+  async gotoPreferences(): Promise<void> {
+    await this.gotoReady(
+      WORKSPACE_OPERATION_PATHS.preferences,
+      this.page.getByRole('heading', {
+        name: 'Preferences',
+        exact: true,
+      }),
+    );
+  }
+
+  async gotoNotifications(): Promise<void> {
+    await this.gotoReady(
+      WORKSPACE_OPERATION_PATHS.notifications,
+      this.page.getByRole('heading', {
+        name: 'Email notifications',
+        exact: true,
+      }),
+    );
+  }
+
+  async gotoWorkspaceSettings(): Promise<void> {
+    await this.gotoReady(
+      WORKSPACE_OPERATION_PATHS.workspaceSettings,
+      this.page.getByRole('heading', {
+        name: 'Workspace name',
+        exact: true,
+      }),
+    );
+  }
+
+  async gotoProjectSettings(): Promise<void> {
+    await this.gotoReady(
+      WORKSPACE_OPERATION_PATHS.projectSettings,
+      this.page.getByRole('button', {
+        name: 'Update project',
+        exact: true,
+      }),
+    );
+  }
+
+  async gotoProjectAutomationSettings(): Promise<void> {
+    await this.gotoReady(
+      WORKSPACE_OPERATION_PATHS.projectAutomationSettings,
+      this.page.getByText('Auto-archive closed work items', {
+        exact: true,
+      }),
+    );
+  }
+
+  async gotoMarketplace(): Promise<void> {
+    await this.gotoReady(
+      WORKSPACE_OPERATION_PATHS.marketplace,
+      this.page.getByRole('button', { name: 'Publish', exact: true }),
+    );
+  }
+
+  async gotoIntegrations(): Promise<void> {
+    await this.gotoReady(
+      WORKSPACE_OPERATION_PATHS.integrations,
+      this.integrationsHeading,
+    );
+  }
+
+  async cancelCreate(surface: Locator): Promise<void> {
+    await surface
+      .getByRole('button', { name: 'Cancel', exact: true })
+      .click();
+    await expect(surface).toBeHidden();
+  }
+}
+
+export type CreatedTeam = {
+  kind: 'team';
+  id: string;
+  name: string;
+  description: string;
+  workspaceId: string;
+  leadId: typeof WORKSPACE_OPERATIONS_SELF_LEAD_ID;
+};
+
+type JsonRecord = Record<string, unknown>;
+
+const isRecord = (value: unknown): value is JsonRecord =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const assertOwnedName = (name: string) => {
+  if (!name.startsWith(`${QA_PREFIX} `)) {
+    throw new Error(`Team name must begin with ${QA_PREFIX}.`);
+  }
+};
+
+export const extractWorkspaceOperationResponseIdentity = (body: unknown) => {
+  if (!isRecord(body)) return {};
+  const observedId =
+    typeof body.id === 'string' && body.id.length > 0 ? body.id : undefined;
+  return {
+    observedId,
+    exactId: isCanonicalEntityId(observedId) ? observedId : undefined,
+  };
+};
+
+export const parseCreatedTeam = (
+  body: unknown,
+  requestedName: string,
+): CreatedTeam => {
+  assertOwnedName(requestedName);
+  if (!isRecord(body)) {
+    throw new Error('Team create response was not an object.');
+  }
+  const {
+    id,
+    name,
+    description,
+    workspace,
+    lead_id: leadId,
+  } = body;
+  if (
+    !isCanonicalEntityId(id) ||
+    typeof name !== 'string' ||
+    typeof description !== 'string' ||
+    typeof workspace !== 'string'
+  ) {
+    throw new Error('Team create response omitted its exact ID contract.');
+  }
+  if (name !== requestedName) {
+    throw new Error('Team create response identity did not match the request.');
+  }
+  if (workspace !== WORKSPACE_OPERATIONS_SANDBOX_ID) {
+    throw new Error('Team create response crossed its exact workspace scope.');
+  }
+  if (leadId !== WORKSPACE_OPERATIONS_SELF_LEAD_ID) {
+    throw new Error(
+      'Team create response included a foreign membership or lead side effect.',
+    );
+  }
+  return {
+    kind: 'team',
+    id,
+    name,
+    description,
+    workspaceId: workspace,
+    leadId,
+  };
+};
+
+export const assertExactTeamCreatePayload = (
+  body: unknown,
+  expectedName: string,
+  expectedDescription: string,
+) => {
+  assertOwnedName(expectedName);
+  if (!isRecord(body)) {
+    throw new Error('Team create payload must be an exact JSON object.');
+  }
+  const keys = Object.keys(body);
+  if (
+    keys.length !== 4 ||
+    !keys.includes('name') ||
+    !keys.includes('description') ||
+    !keys.includes('logo_props') ||
+    !keys.includes('lead_id')
+  ) {
+    throw new Error('Team create payload did not match its exact schema.');
+  }
+  if (body.name !== expectedName) {
+    throw new Error('Team create payload was not exact owned data.');
+  }
+  if (body.description !== expectedDescription) {
+    throw new Error('Team create payload description was not exact.');
+  }
+  if (!isRecord(body.logo_props) || Object.keys(body.logo_props).length !== 0) {
+    throw new Error('Team create payload logo must be an empty object.');
+  }
+  if (body.lead_id !== WORKSPACE_OPERATIONS_SELF_LEAD_ID) {
+    throw new Error('Team create payload lead must be the sanctioned self.');
+  }
+  return body as {
+    name: string;
+    description: string;
+    logo_props: Record<string, never>;
+    lead_id: typeof WORKSPACE_OPERATIONS_SELF_LEAD_ID;
+  };
+};
+
+export const assertExactTeamCleanupTarget = (
+  body: unknown,
+  created: CreatedTeam,
+): JsonRecord => {
+  assertOwnedName(created.name);
+  if (
+    !isCanonicalEntityId(created.id) ||
+    created.workspaceId !== WORKSPACE_OPERATIONS_SANDBOX_ID ||
+    created.leadId !== WORKSPACE_OPERATIONS_SELF_LEAD_ID ||
+    !isRecord(body) ||
+    body.id !== created.id ||
+    body.name !== created.name ||
+    body.workspace !== created.workspaceId ||
+    body.lead_id !== WORKSPACE_OPERATIONS_SELF_LEAD_ID
+  ) {
+    throw new Error('Team cleanup target failed its exact ownership match.');
+  }
+  return body;
+};
+
+type RestoredSandboxSettingOptions<T> = {
+  next: T;
+  assertSandbox: () => Promise<void>;
+  read: () => Promise<T>;
+  mutate: (value: T) => Promise<void>;
+  verify: (expected: T) => Promise<void>;
+  registerRestoration: (restore: () => Promise<void>) => void;
+};
+
+export const runRestoredSandboxSetting = async <T>({
+  next,
+  assertSandbox,
+  read,
+  mutate,
+  verify,
+  registerRestoration,
+}: RestoredSandboxSettingOptions<T>): Promise<void> => {
+  const original = await read();
+  let restored = false;
+  const restore = async () => {
+    if (restored) return;
+    await assertSandbox();
+    await mutate(original);
+    await verify(original);
+    restored = true;
+  };
+  registerRestoration(restore);
+
+  let actionError: unknown;
+  try {
+    await assertSandbox();
+    await mutate(next);
+    await verify(next);
+  } catch (error) {
+    actionError = error;
+  }
+
+  let restorationError: unknown;
+  try {
+    await restore();
+  } catch (error) {
+    restorationError = error;
+  }
+
+  if (actionError !== undefined && restorationError !== undefined) {
+    throw new AggregateError(
+      [actionError, restorationError],
+      'Sandbox setting action and restoration both failed.',
+    );
+  }
+  if (actionError !== undefined) throw actionError;
+  if (restorationError !== undefined) throw restorationError;
+};
+
+type TeamCleanupOptions = {
+  page: Page;
+  requestContext: APIRequestContext;
+  assertSandbox: () => Promise<void>;
+  created: CreatedTeam[];
+  detailEndpoint: (id: string) => string;
+  collectionEndpoint: string;
+  uiPath: string;
+  onResolved?: (created: CreatedTeam) => void;
+};
+
+const responseRows = (body: unknown): JsonRecord[] => {
+  if (Array.isArray(body)) return body.filter(isRecord);
+  if (isRecord(body) && Array.isArray(body.results)) {
+    return body.results.filter(isRecord);
+  }
+  throw new Error('Team collection response was not a supported list.');
+};
+
+const cleanupResidualError = (
+  id: string,
+  error: unknown,
+) =>
+  new AggregateError(
+    [error],
+    `Team cleanup left exact residual ID: ${id}`,
+  );
+
+export const cleanupCapturedTeamBatch = async ({
+  page,
+  requestContext,
+  assertSandbox,
+  created,
+  detailEndpoint,
+  collectionEndpoint,
+  uiPath,
+  onResolved,
+}: TeamCleanupOptions): Promise<void> => {
+  const unique = new Map<string, CreatedTeam>();
+  for (const entity of created) {
+    assertOwnedName(entity.name);
+    if (
+      !isCanonicalEntityId(entity.id) ||
+      entity.workspaceId !== WORKSPACE_OPERATIONS_SANDBOX_ID ||
+      entity.leadId !== WORKSPACE_OPERATIONS_SELF_LEAD_ID
+    ) {
+      throw new Error('Team cleanup batch contained a non-exact identity.');
+    }
+    if (unique.has(entity.id)) {
+      throw new Error('Team cleanup batch contained a duplicate exact ID.');
+    }
+    unique.set(entity.id, entity);
+  }
+  if (unique.size === 0) return;
+
+  const errors: unknown[] = [];
+  const residualIds = new Set<string>();
+  const deleteTargets: Array<{ entity: CreatedTeam; endpoint: string }> = [];
+  const markResidual = (entity: CreatedTeam, error: unknown) => {
+    if (residualIds.has(entity.id)) return;
+    residualIds.add(entity.id);
+    errors.push(cleanupResidualError(entity.id, error));
+  };
+
+  for (const entity of unique.values()) {
+    try {
+      const endpoint = detailEndpoint(entity.id);
+      const detail = await requestContext.get(endpoint);
+      if (detail.status() === 404) {
+        onResolved?.(entity);
+        continue;
+      }
+      if (detail.status() !== 200) {
+        throw new Error(`Team ownership GET returned ${detail.status()}.`);
+      }
+      assertExactTeamCleanupTarget(await detail.json(), entity);
+      deleteTargets.push({ entity, endpoint });
+    } catch (error) {
+      markResidual(entity, error);
+    }
+  }
+
+  for (const { entity, endpoint } of [...deleteTargets].reverse()) {
+    try {
+      await assertSandbox();
+      const deleted = await requestContext.delete(endpoint);
+      if (deleted.status() !== 204) {
+        throw new Error(`Team exact-ID DELETE returned ${deleted.status()}.`);
+      }
+      onResolved?.(entity);
+    } catch (error) {
+      markResidual(entity, error);
+    }
+  }
+
+  try {
+    const collection = await requestContext.get(collectionEndpoint);
+    if (collection.status() !== 200) {
+      throw new Error(
+        `Team collection GET returned ${collection.status()}.`,
+      );
+    }
+    const rows = responseRows(await collection.json());
+    const names = new Set([...unique.values()].map(({ name }) => name));
+    for (const row of rows) {
+      if (typeof row.id === 'string' && unique.has(row.id)) {
+        const entity = unique.get(row.id)!;
+        markResidual(
+          entity,
+          new Error('Team remained in its collection after exact-ID cleanup.'),
+        );
+      } else if (typeof row.name === 'string' && names.has(row.name)) {
+        if (isCanonicalEntityId(row.id)) {
+          if (!residualIds.has(row.id)) {
+            residualIds.add(row.id);
+            errors.push(
+              new Error(
+                `Team collection retained an uncaptured same-name exact residual ID: ${row.id}`,
+              ),
+            );
+          }
+        } else {
+          errors.push(
+            new Error(
+              'Team collection retained a shared run-owned name without a canonical ID after exact-ID cleanup.',
+            ),
+          );
+        }
+      }
+    }
+  } catch (error) {
+    errors.push(error);
+  }
+
+  try {
+    await page.goto(uiPath, { waitUntil: 'domcontentloaded' });
+    for (const { id } of unique.values()) {
+      await expect(page.getByText(id, { exact: true })).toHaveCount(0);
+    }
+    for (const name of new Set(
+      [...unique.values()].map(({ name }) => name),
+    )) {
+      await expect(page.getByText(name, { exact: true })).toHaveCount(0);
+    }
+  } catch (error) {
+    errors.push(error);
+  }
+
+  if (errors.length > 0) {
+    const residualLabel =
+      residualIds.size > 0
+        ? `; residual IDs: ${[...residualIds].join(', ')}`
+        : '';
+    throw new AggregateError(
+      errors,
+      `Team exact-ID batch cleanup failed${residualLabel}`,
+    );
+  }
+};
+
+type CaptureWorkspaceTeamPostsOptions = {
+  page: Page;
+  endpoint: string;
+  requestedName: string;
+  action: () => Promise<unknown>;
+  register: (created: CreatedTeam) => unknown | Promise<unknown>;
+  recoverRegistrationFailure: (
+    created: CreatedTeam,
+  ) => unknown | Promise<unknown>;
+  recoverRejectedExactId: (
+    id: string,
+    requestedName: string,
+  ) => unknown | Promise<unknown>;
+  quietMs?: number;
+  maxAdmissionMs?: number;
+};
+
+export const captureWorkspaceTeamPosts = async ({
+  page,
+  endpoint,
+  requestedName,
+  action,
+  register,
+  recoverRegistrationFailure,
+  recoverRejectedExactId,
+  quietMs,
+  maxAdmissionMs,
+}: CaptureWorkspaceTeamPostsOptions): Promise<
+  ExactFeaturePostCapture<CreatedTeam>
+> => {
+  assertOwnedName(requestedName);
+  const recoveryErrors: unknown[] = [];
+  const recoveryResidualIds = new Set<string>();
+  const capture = await captureExactFeaturePosts<CreatedTeam>({
+    page,
+    endpoint,
+    action,
+    parse: (body) => parseCreatedTeam(body, requestedName),
+    extractResponseIdentity: extractWorkspaceOperationResponseIdentity,
+    register: async (created) => {
+      try {
+        await register(created);
+      } catch (registrationError) {
+        try {
+          await recoverRegistrationFailure(created);
+        } catch (recoveryError) {
+          const failure = new AggregateError(
+            [registrationError, recoveryError],
+            `Team registration and exact-ID recovery failed: ${created.id}`,
+          );
+          recoveryResidualIds.add(created.id);
+          recoveryErrors.push(failure);
+          throw failure;
+        }
+        throw registrationError;
+      }
+    },
+    ...(quietMs === undefined ? {} : { quietMs }),
+    ...(maxAdmissionMs === undefined ? {} : { maxAdmissionMs }),
+  });
+
+  for (const contractError of capture.contractErrors) {
+    if (contractError.exactId === undefined) continue;
+    try {
+      await recoverRejectedExactId(contractError.exactId, requestedName);
+    } catch (error) {
+      recoveryResidualIds.add(contractError.exactId);
+      recoveryErrors.push(
+        new AggregateError(
+          [error],
+          `Rejected Team response left exact residual ID: ${contractError.exactId}`,
+        ),
+      );
+    }
+  }
+  if (recoveryErrors.length > 0) {
+    throw new AggregateError(
+      recoveryErrors,
+      `Team response recovery was incomplete; residual IDs: ${[
+        ...recoveryResidualIds,
+      ].join(', ')}`,
+    );
+  }
+  return capture;
+};

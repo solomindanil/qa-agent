@@ -1,0 +1,676 @@
+const PRODUCT_ID = "nuanu-app";
+const NUANU_APP_PROJECT = /^nuanu-app(?:-(?:firefox|webkit|android-chrome|ios-webkit))?$/;
+const ANSI_ESCAPE = /\u001B\[[0-?]*[ -/]*[@-~]/g;
+const REASON_CODES = new Set([
+  "impact",
+  "always_run",
+  "runtime_drift",
+  "full_fallback",
+  "mobile_safety",
+  "telemetry_signal",
+]);
+const NON_RUNNABLE_DISPOSITIONS = new Set(["BLOCKED", "MANUAL", "NOT_DEPLOYED"]);
+const GLOB_MARKERS = /[*?\[\]{}]|[!+@?*]\(/;
+const TELEMETRY_DISPOSITIONS = new Set(["select", "observe_only", "suppressed", "blocked"]);
+const TELEMETRY_FIELDS = new Set([
+  "id",
+  "productId",
+  "catalogDigest",
+  "mappingId",
+  "metricId",
+  "disposition",
+  "kind",
+  "priority",
+  "targetNodeIds",
+]);
+const SHA256_HEX = /^[a-f0-9]{64}$/;
+const SIGNAL_ID = /^napp-telemetry-v1-[a-f0-9]{64}$/;
+const STABLE_MAPPING_ID = /^napp-telemetry-map-v1:[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+const METRIC_ID = /^[a-z0-9][a-z0-9._:-]*$/;
+const TELEMETRY_KINDS = new Set(["observed", "regression"]);
+const TELEMETRY_PRIORITIES = new Set(["informational", "elevated"]);
+const IMPACT_MODES = new Set(["source_diff", "runtime_only"]);
+const RUNTIME_ONLY_IMPACT_FIELDS = new Set([
+  "mode",
+  "changedFiles",
+  "affectedNodeIds",
+  "unmappedFiles",
+  "paths",
+  "sourceImpact",
+]);
+// V1 fails closed rather than silently truncating explainable impact enumeration.
+const MAX_QUEUED_PATH_STATES = 20_000;
+const MAX_PROCESSED_PATH_STATES = 20_000;
+const MAX_EMITTED_EXPLAINABLE_PATHS = 20_000;
+
+function plannerError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function compare(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function compareEntries(left, right) {
+  return compare(left.id, right.id);
+}
+
+function isObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isPlainJsonObject(value) {
+  return isObject(value) && Object.getPrototypeOf(value) === Object.prototype;
+}
+
+function normalizePlaywrightFile(value) {
+  if (typeof value !== "string") return null;
+  const file = value.trim();
+  const normalized = file.startsWith("nuanu-app/") ? `tests/${file}` : file;
+  if (
+    !normalized.startsWith("tests/nuanu-app/") ||
+    normalized.startsWith("/") ||
+    normalized.includes("\\") ||
+    GLOB_MARKERS.test(normalized)
+  ) return null;
+  const segments = normalized.split("/");
+  if (segments.some((segment) => !segment || segment === "." || segment === "..")) return null;
+  return normalized;
+}
+
+function validChangedFile(value) {
+  if (typeof value !== "string" || !value || value.startsWith("/") || value.includes("\\")) {
+    return false;
+  }
+  if (GLOB_MARKERS.test(value)) return false;
+  const segments = value.split("/");
+  return segments.every((segment) => segment && segment !== "." && segment !== "..");
+}
+
+function normalizedChangedFiles(changedFiles) {
+  if (!Array.isArray(changedFiles) || changedFiles.length === 0) {
+    throw plannerError("INVALID_CHANGED_FILES", "changedFiles must be a non-empty array of exact repository-relative paths");
+  }
+  if (!changedFiles.every(validChangedFile) || new Set(changedFiles).size !== changedFiles.length) {
+    throw plannerError("INVALID_CHANGED_FILES", "changedFiles must be unique exact repository-relative paths without globs");
+  }
+  return [...changedFiles].sort(compare);
+}
+
+function graphParts(graph) {
+  if (!isObject(graph) || !Array.isArray(graph.nodes) || !Array.isArray(graph.edges)) {
+    throw plannerError("INVALID_GRAPH", "graph must provide nodes and edges arrays");
+  }
+  const nodeById = new Map();
+  for (const node of graph.nodes) {
+    if (isObject(node) && typeof node.id === "string") nodeById.set(node.id, node);
+  }
+  return { nodeById, edges: graph.edges.filter(isObject) };
+}
+
+function pathKey(path) {
+  return [path.changedFile, path.nodeIds.join("\u0000"), path.edges.map((edge) =>
+    [edge.source, edge.kind, edge.target].join("\u0000")).join("\u0001")].join("\u0002");
+}
+
+function sortedUniquePaths(paths) {
+  const unique = new Map();
+  for (const path of paths) unique.set(pathKey(path), path);
+  return [...unique.values()].sort((left, right) => compare(pathKey(left), pathKey(right)));
+}
+
+function reverseVerifies(edges, targetId) {
+  return edges
+    .filter((edge) => edge.kind === "verifies" && edge.target === targetId)
+    .sort((left, right) => compare(left.source, right.source));
+}
+
+function isSourceOnlyUnverified(node) {
+  return node?.provenance === "source" && node.coverageDisposition === "UNVERIFIED";
+}
+
+function isLiveSelectableTarget(node) {
+  return Boolean(node) &&
+    node.kind !== "source_file" &&
+    !NON_RUNNABLE_DISPOSITIONS.has(node.coverageDisposition) &&
+    !isSourceOnlyUnverified(node);
+}
+
+function hasLiveVerifiesTarget(testNode, edges, nodeById) {
+  return edges.some((edge) =>
+    edge.kind === "verifies" &&
+    edge.source === testNode?.id &&
+    isLiveSelectableTarget(nodeById.get(edge.target)));
+}
+
+function isRunnableAutomated(node, runnableTestIds) {
+  return node?.kind === "automated_test" &&
+    node.execution === "automated" &&
+    node.safety === "read_only" &&
+    !NON_RUNNABLE_DISPOSITIONS.has(node.coverageDisposition) &&
+    !isSourceOnlyUnverified(node) &&
+    runnableTestIds.has(node.id);
+}
+
+function isTelemetryRunnableAutomated(node, runnableTestIds) {
+  return isRunnableAutomated(node, runnableTestIds) && node.coverageDisposition === "AUTOMATED";
+}
+
+function isSelectableManual(node) {
+  return (node?.kind === "manual_test" || node?.coverageDisposition === "MANUAL") &&
+    !isSourceOnlyUnverified(node) &&
+    !["BLOCKED", "NOT_DEPLOYED"].includes(node.coverageDisposition);
+}
+
+function reasonDetail(entry) {
+  if (entry.reason === "impact") return { code: "impact", path: entry.path };
+  if (entry.reason === "telemetry_signal") {
+    return {
+      code: "telemetry_signal",
+      signalId: entry.signalId,
+      mappingId: entry.mappingId,
+      catalogDigest: entry.catalogDigest,
+      graphPath: entry.graphPath,
+    };
+  }
+  return { code: entry.reason, policy: entry.policy };
+}
+
+function reasonKey(reason) {
+  return [
+    reason.code,
+    reason.mappingId ?? "",
+    reason.catalogDigest ?? "",
+    reason.targetNodeId ?? "",
+    reason.signalId ?? "",
+    reason.policy ?? "",
+    Array.isArray(reason.graphPath) ? reason.graphPath.join("\u0000") : "",
+    reason.path ? pathKey(reason.path) : "",
+  ].join("\u0000");
+}
+
+function sortedReasons(reasons) {
+  const unique = new Map();
+  for (const reason of reasons) unique.set(reasonKey(reason), reason);
+  return [...unique.values()].sort((left, right) => compare(reasonKey(left), reasonKey(right)));
+}
+
+function select(entries, entry, detail = reasonDetail(entry)) {
+  if (!REASON_CODES.has(entry.reason)) {
+    throw plannerError("INVALID_SELECTION_REASON", "Selected test reason must be a known planner reason");
+  }
+  const existing = entries.get(entry.id);
+  if (!existing) {
+    entries.set(entry.id, {
+      entry,
+      reasons: [detail],
+      forceReasons: detail.code === "telemetry_signal" || typeof detail.signalId === "string",
+    });
+    return;
+  }
+  existing.reasons = sortedReasons([...existing.reasons, detail]);
+  existing.forceReasons ||= detail.code === "telemetry_signal" || typeof detail.signalId === "string";
+}
+
+function policyEntry(id, reason) {
+  return { id, reason, policy: reason };
+}
+
+function selectedEntries(entries) {
+  return [...entries.values()]
+    .map(({ entry, reasons, forceReasons }) =>
+      forceReasons || reasons.length > 1 ? { ...entry, reasons: sortedReasons(reasons) } : entry)
+    .sort((left, right) => compareEntries(left, right));
+}
+
+function telemetryError(message) {
+  return plannerError("INVALID_TELEMETRY_SIGNAL", message);
+}
+
+function validateTelemetrySignals(telemetrySignals, nodeById) {
+  if (!Array.isArray(telemetrySignals)) {
+    throw telemetryError("telemetrySignals must be an array of reviewed aggregate selectors");
+  }
+  const mappingIds = new Set();
+  const signalIds = new Set();
+  const normalized = [];
+  for (const signal of telemetrySignals) {
+    if (!isObject(signal)) throw telemetryError("Telemetry selector must be an object");
+    const keys = Object.keys(signal);
+    if (keys.length !== TELEMETRY_FIELDS.size || keys.some((key) => !TELEMETRY_FIELDS.has(key))) {
+      throw telemetryError("Telemetry selector contains unknown or missing fields");
+    }
+    const {
+      id,
+      productId,
+      mappingId,
+      catalogDigest,
+      metricId,
+      targetNodeIds,
+      disposition,
+      kind,
+      priority,
+    } = signal;
+    if (typeof id !== "string" || !SIGNAL_ID.test(id) || signalIds.has(id)) {
+      throw telemetryError("Telemetry id must be a unique namespaced SHA-256 signal ID");
+    }
+    if (productId !== PRODUCT_ID) {
+      throw telemetryError("Telemetry productId must be nuanu-app");
+    }
+    if (typeof catalogDigest !== "string" || !SHA256_HEX.test(catalogDigest)) {
+      throw telemetryError("Telemetry catalogDigest must be a lowercase SHA-256 digest");
+    }
+    if (typeof metricId !== "string" || !METRIC_ID.test(metricId)) {
+      throw telemetryError("Telemetry metricId must be a stable logical metric ID");
+    }
+    if (!TELEMETRY_DISPOSITIONS.has(disposition)) {
+      throw telemetryError("Telemetry disposition is not supported");
+    }
+    if (!TELEMETRY_KINDS.has(kind) || !TELEMETRY_PRIORITIES.has(priority)) {
+      throw telemetryError("Telemetry kind or priority is not supported");
+    }
+    if (!Array.isArray(targetNodeIds)) {
+      throw telemetryError("Telemetry targetNodeIds must be an array");
+    }
+    const mapped = mappingId !== null;
+    if (mapped) {
+      if (typeof mappingId !== "string" || !STABLE_MAPPING_ID.test(mappingId) || mappingIds.has(mappingId)) {
+        throw telemetryError("Mapped telemetry signals require a unique namespaced mappingId");
+      }
+      if (targetNodeIds.length === 0 || new Set(targetNodeIds).size !== targetNodeIds.length) {
+        throw telemetryError("Mapped telemetry signals require non-empty unique targets");
+      }
+    } else if (targetNodeIds.length !== 0) {
+      throw telemetryError("Unmapped telemetry signals require an empty targetNodeIds array");
+    }
+    if (!mapped && disposition === "select" && !(kind === "regression" && priority === "elevated")) {
+      throw telemetryError("Only elevated unmapped regression telemetry may select the safe fallback");
+    }
+    if (mapped) {
+      if (targetNodeIds.some((targetNodeId) => typeof targetNodeId !== "string" || !targetNodeId.startsWith(`${PRODUCT_ID}:`))) {
+        throw telemetryError("Telemetry targets must use Nuanu App graph IDs");
+      }
+      if (targetNodeIds.some((targetNodeId, index) => index > 0 && compare(targetNodeIds[index - 1], targetNodeId) >= 0)) {
+        throw telemetryError("Telemetry targetNodeIds must be sorted");
+      }
+      for (const targetNodeId of targetNodeIds) {
+        const target = nodeById.get(targetNodeId);
+        if (!target) throw telemetryError("Telemetry target does not exist in the graph");
+        if (!isLiveSelectableTarget(target) && disposition === "select") {
+          throw telemetryError("Telemetry selection cannot target a non-live graph node");
+        }
+        if (target.kind === "source_file") {
+          throw telemetryError("Telemetry selectors cannot target source files");
+        }
+      }
+    }
+    signalIds.add(id);
+    if (mapped) mappingIds.add(mappingId);
+    const summary = {
+      id,
+      productId,
+      catalogDigest,
+      mappingId,
+      metricId,
+      disposition,
+      kind,
+      priority,
+      targetNodeIds: [...targetNodeIds],
+    };
+    if (!mapped && !(disposition === "select" && kind === "regression" && priority === "elevated")) {
+      summary.sourceImpact = "UNVERIFIED";
+    }
+    normalized.push(summary);
+  }
+  return normalized.sort((left, right) => compare(left.id, right.id));
+}
+
+function impactedPathsByTestId(paths) {
+  const result = new Map();
+  for (const path of paths) {
+    const testId = path.nodeIds.at(-1);
+    if (typeof testId !== "string") continue;
+    if (!result.has(testId)) result.set(testId, []);
+    result.get(testId).push(path);
+  }
+  for (const [testId, testPaths] of result) result.set(testId, sortedUniquePaths(testPaths));
+  return result;
+}
+
+function pathDisposition(path, nodeById) {
+  const pathNodes = path.nodeIds.slice(1, -1).map((nodeId) => nodeById.get(nodeId));
+  if (pathNodes.some((node) => node?.coverageDisposition === "BLOCKED")) return "BLOCKED";
+  if (pathNodes.some(isSourceOnlyUnverified)) return "UNVERIFIED";
+  if (pathNodes.some((node) => node?.coverageDisposition === "NOT_DEPLOYED")) return "NOT_DEPLOYED";
+  if (pathNodes.some((node) => !isLiveSelectableTarget(node))) return "UNAVAILABLE";
+  return null;
+}
+
+function ownDisposition(node) {
+  if (node?.coverageDisposition === "BLOCKED") return "BLOCKED";
+  if (node?.coverageDisposition === "UNVERIFIED") return "UNVERIFIED";
+  if (node?.coverageDisposition === "NOT_DEPLOYED") return "NOT_DEPLOYED";
+  return null;
+}
+
+function strongestPathDisposition(dispositions) {
+  if (dispositions.includes("BLOCKED")) return "BLOCKED";
+  if (dispositions.includes("UNVERIFIED")) return "UNVERIFIED";
+  if (dispositions.includes("NOT_DEPLOYED")) return "NOT_DEPLOYED";
+  return null;
+}
+
+function impactMode(impact) {
+  const mode = impact.mode === undefined ? "source_diff" : impact.mode;
+  if (!IMPACT_MODES.has(mode)) {
+    throw plannerError("INVALID_IMPACT_MODE", "impact.mode must be source_diff or runtime_only");
+  }
+  if (mode === "runtime_only") {
+    const keys = isPlainJsonObject(impact) ? Object.keys(impact) : [];
+    const hasExactFields =
+      keys.length === RUNTIME_ONLY_IMPACT_FIELDS.size &&
+      keys.every((key) => RUNTIME_ONLY_IMPACT_FIELDS.has(key)) &&
+      Object.getOwnPropertySymbols(impact).every((symbol) =>
+        !Object.prototype.propertyIsEnumerable.call(impact, symbol));
+    const hasEmptySourceArrays =
+      Array.isArray(impact.changedFiles) && impact.changedFiles.length === 0 &&
+      Array.isArray(impact.affectedNodeIds) && impact.affectedNodeIds.length === 0 &&
+      Array.isArray(impact.unmappedFiles) && impact.unmappedFiles.length === 0 &&
+      Array.isArray(impact.paths) && impact.paths.length === 0;
+    if (!hasExactFields || !hasEmptySourceArrays || impact.sourceImpact !== "UNVERIFIED") {
+      throw plannerError(
+        "INVALID_RUNTIME_ONLY_IMPACT",
+        "runtime_only impact must be an exact plain JSON object with empty source arrays and sourceImpact UNVERIFIED",
+      );
+    }
+  }
+  return mode;
+}
+
+/**
+ * Parse only Nuanu App Playwright list entries into the graph's stable test catalog IDs.
+ */
+export function parsePlaywrightList(output) {
+  if (typeof output !== "string") {
+    throw plannerError("INVALID_PLAYWRIGHT_LIST", "Playwright list output must be a string");
+  }
+
+  const catalog = [];
+  const seen = new Set();
+  for (const rawLine of output.replace(ANSI_ESCAPE, "").split(/\r?\n/)) {
+    const match = /^\s*\[([^\]]+)\]\s*›\s*(.+?):\d+:\d+\s*›\s*(.+?)\s*$/.exec(rawLine);
+    if (!match || !NUANU_APP_PROJECT.test(match[1])) continue;
+    const file = normalizePlaywrightFile(match[2]);
+    const title = match[3];
+    if (!file) {
+      throw plannerError("INVALID_PLAYWRIGHT_LIST", "Nuanu App test location must be canonical under tests/nuanu-app");
+    }
+    if (!title) continue;
+    const id = `${PRODUCT_ID}:auto:${file}#${title}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    catalog.push({ id, file, title, execution: "automated", safety: "read_only" });
+  }
+  return catalog;
+}
+
+/**
+ * Resolve exact changed files through implements and typed forward affects edges.
+ */
+export function planImpact({ graph, changedFiles } = {}) {
+  const files = normalizedChangedFiles(changedFiles);
+  const { nodeById, edges } = graphParts(graph);
+  const sourceFiles = [...nodeById.values()].filter((node) => node.kind === "source_file");
+  const paths = [];
+  const affectedNodeIds = new Set();
+  const unmappedFiles = [];
+  let queuedPathStates = 0;
+  let processedPathStates = 0;
+
+  function enqueue(queue, state) {
+    if (queuedPathStates >= MAX_QUEUED_PATH_STATES) {
+      throw plannerError("IMPACT_PATH_LIMIT_EXCEEDED", "Impact traversal exceeded the queued path-state limit");
+    }
+    queue.push(state);
+    queuedPathStates += 1;
+  }
+
+  function emitPath(path) {
+    if (paths.length >= MAX_EMITTED_EXPLAINABLE_PATHS) {
+      throw plannerError("IMPACT_PATH_LIMIT_EXCEEDED", "Impact traversal exceeded the emitted explainable-path limit");
+    }
+    paths.push(path);
+  }
+
+  for (const changedFile of files) {
+    const sourceNodes = sourceFiles.filter((node) => node.path === changedFile)
+      .sort((left, right) => compare(left.id, right.id));
+    const seeds = sourceNodes.flatMap((source) => edges
+      .filter((edge) => edge.kind === "implements" && edge.source === source.id && nodeById.has(edge.target))
+      .sort((left, right) => compare(left.target, right.target))
+      .map((edge) => ({ source, edge })));
+    if (seeds.length === 0) {
+      unmappedFiles.push(changedFile);
+      continue;
+    }
+
+    for (const { source, edge: implementationEdge } of seeds) {
+      const queue = [];
+      enqueue(queue, {
+        nodeId: implementationEdge.target,
+        nodeIds: [source.id, implementationEdge.target],
+        edges: [implementationEdge],
+      });
+      while (queue.length > 0) {
+        if (processedPathStates >= MAX_PROCESSED_PATH_STATES) {
+          throw plannerError("IMPACT_PATH_LIMIT_EXCEEDED", "Impact traversal exceeded the processed path-state limit");
+        }
+        const current = queue.shift();
+        processedPathStates += 1;
+        affectedNodeIds.add(current.nodeId);
+
+        for (const verifyEdge of reverseVerifies(edges, current.nodeId)) {
+          if (!nodeById.has(verifyEdge.source)) continue;
+          emitPath({
+            changedFile,
+            nodeIds: [...current.nodeIds, verifyEdge.source],
+            edges: [...current.edges, verifyEdge],
+          });
+        }
+
+        const nextEdges = edges
+          .filter((candidate) => candidate.kind === "affects" && candidate.source === current.nodeId && nodeById.has(candidate.target))
+          .sort((left, right) => compare(left.target, right.target));
+        for (const nextEdge of nextEdges) {
+          if (!current.nodeIds.includes(nextEdge.target)) {
+            enqueue(queue, {
+              nodeId: nextEdge.target,
+              nodeIds: [...current.nodeIds, nextEdge.target],
+              edges: [...current.edges, nextEdge],
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    changedFiles: files,
+    affectedNodeIds: [...affectedNodeIds].sort(compare),
+    unmappedFiles,
+    paths: sortedUniquePaths(paths),
+    sourceImpact: "UNVERIFIED",
+  };
+}
+
+/**
+ * Produce a fail-closed dry-run test plan from impact paths and graph dispositions.
+ */
+export function buildTestPlan({ graph, impact, runnableTestIds, telemetrySignals = [] } = {}) {
+  if (!(runnableTestIds instanceof Set)) {
+    throw plannerError("INVALID_RUNNABLE_TEST_IDS", "runnableTestIds must be a Set of discovered test IDs");
+  }
+  if (!isObject(impact)) {
+    throw plannerError("INVALID_IMPACT", "impact must be a planner impact result");
+  }
+  const selectedImpactMode = impactMode(impact);
+  if (!Array.isArray(impact.unmappedFiles) || !Array.isArray(impact.paths)) {
+    throw plannerError("INVALID_IMPACT", "impact must be a planner impact result");
+  }
+  const { nodeById, edges } = graphParts(graph);
+  const reviewedTelemetrySignals = validateTelemetrySignals(telemetrySignals, nodeById);
+  const nodes = [...nodeById.values()].sort((left, right) => compare(left.id, right.id));
+  const telemetryFallbackSignals = reviewedTelemetrySignals.filter((signal) =>
+    signal.mappingId === null &&
+    signal.disposition === "select" &&
+    signal.kind === "regression" &&
+    signal.priority === "elevated");
+  const sourceFallbackApplied = selectedImpactMode === "source_diff" && impact.unmappedFiles.length > 0;
+  const runtimeOnlyFallbackApplied = selectedImpactMode === "runtime_only";
+  const fallbackApplied = sourceFallbackApplied || runtimeOnlyFallbackApplied || telemetryFallbackSignals.length > 0;
+  const selectedAutomated = new Map();
+  const manual = new Map();
+  const blocked = new Map();
+  const notDeployed = new Map();
+  const unverified = new Map();
+  const impacted = impactedPathsByTestId(sortedUniquePaths(impact.paths));
+
+  function recordDisposition(id, disposition) {
+    if (!["BLOCKED", "UNVERIFIED", "NOT_DEPLOYED"].includes(disposition)) return;
+    blocked.delete(id);
+    unverified.delete(id);
+    notDeployed.delete(id);
+    if (disposition === "BLOCKED") {
+      blocked.set(id, { id, disposition });
+    } else if (disposition === "UNVERIFIED") {
+      unverified.set(id, { id, disposition });
+    } else if (disposition === "NOT_DEPLOYED") {
+      notDeployed.set(id, { id, disposition });
+    }
+  }
+
+  for (const [testId, testPaths] of impacted) {
+    const testNode = nodeById.get(testId);
+    if (!testNode) continue;
+    const livePaths = testPaths.filter((path) => pathDisposition(path, nodeById) === null);
+    if (livePaths.length > 0 && isSelectableManual(testNode)) {
+      for (const path of livePaths) select(manual, { id: testNode.id, reason: "impact", path });
+    } else if (livePaths.length > 0 && isRunnableAutomated(testNode, runnableTestIds)) {
+      for (const path of livePaths) select(selectedAutomated, { id: testNode.id, reason: "impact", path });
+    } else if (livePaths.length === 0) {
+      recordDisposition(
+        testNode.id,
+        ownDisposition(testNode) ?? strongestPathDisposition(testPaths.map((path) => pathDisposition(path, nodeById))),
+      );
+    } else {
+      recordDisposition(testNode.id, ownDisposition(testNode));
+    }
+  }
+
+  for (const node of nodes) {
+    if (node.coverageDisposition === "BLOCKED") {
+      recordDisposition(node.id, "BLOCKED");
+    } else if (node.coverageDisposition === "NOT_DEPLOYED") {
+      recordDisposition(node.id, "NOT_DEPLOYED");
+    } else if (node.kind !== "source_file" && isSourceOnlyUnverified(node)) {
+      recordDisposition(node.id, "UNVERIFIED");
+    }
+  }
+
+  for (const invariant of nodes.filter((node) => node.alwaysRun === true)) {
+    if (!isLiveSelectableTarget(invariant)) continue;
+    for (const verifyEdge of reverseVerifies(edges, invariant.id)) {
+      const testNode = nodeById.get(verifyEdge.source);
+      if (isRunnableAutomated(testNode, runnableTestIds)) {
+        select(selectedAutomated, policyEntry(testNode.id, "always_run"));
+      }
+    }
+  }
+
+  for (const runtimeNode of nodes.filter((node) =>
+    node.provenance === "runtime" && isLiveSelectableTarget(node))) {
+    for (const verifyEdge of reverseVerifies(edges, runtimeNode.id)) {
+      const testNode = nodeById.get(verifyEdge.source);
+      if (isRunnableAutomated(testNode, runnableTestIds)) {
+        select(selectedAutomated, policyEntry(testNode.id, "runtime_drift"));
+      }
+    }
+  }
+
+  if (fallbackApplied) {
+    for (const testNode of nodes) {
+      if (
+        (sourceFallbackApplied || runtimeOnlyFallbackApplied) &&
+        isRunnableAutomated(testNode, runnableTestIds) &&
+        hasLiveVerifiesTarget(testNode, edges, nodeById)
+      ) {
+        select(selectedAutomated, policyEntry(testNode.id, "full_fallback"));
+      }
+      for (const signal of telemetryFallbackSignals) {
+        if (
+          isRunnableAutomated(testNode, runnableTestIds) &&
+          hasLiveVerifiesTarget(testNode, edges, nodeById)
+        ) {
+          select(
+            selectedAutomated,
+            policyEntry(testNode.id, "full_fallback"),
+            { code: "full_fallback", signalId: signal.id, catalogDigest: signal.catalogDigest },
+          );
+        }
+      }
+      if (
+        isSelectableManual(testNode) &&
+        testNode.manualTier === "mobile_safety" &&
+        hasLiveVerifiesTarget(testNode, edges, nodeById)
+      ) {
+        select(manual, policyEntry(testNode.id, "mobile_safety"));
+      }
+    }
+  }
+
+  for (const signal of reviewedTelemetrySignals.filter((signal) =>
+    signal.mappingId !== null && signal.disposition === "select")) {
+    for (const targetNodeId of signal.targetNodeIds) {
+      if (!isLiveSelectableTarget(nodeById.get(targetNodeId))) continue;
+      for (const verifyEdge of reverseVerifies(edges, targetNodeId)) {
+        const testNode = nodeById.get(verifyEdge.source);
+        if (isTelemetryRunnableAutomated(testNode, runnableTestIds)) {
+          select(
+            selectedAutomated,
+            { id: testNode.id, reason: "telemetry_signal" },
+            {
+              code: "telemetry_signal",
+              signalId: signal.id,
+              mappingId: signal.mappingId,
+              catalogDigest: signal.catalogDigest,
+              graphPath: [testNode.id, targetNodeId],
+            },
+          );
+        }
+      }
+    }
+  }
+
+  const selectedTestIds = new Set([
+    ...selectedAutomated.keys(),
+    ...manual.keys(),
+  ]);
+  for (const selectedTestId of selectedTestIds) {
+    blocked.delete(selectedTestId);
+    unverified.delete(selectedTestId);
+    notDeployed.delete(selectedTestId);
+  }
+
+  const plan = {
+    selectedAutomated: selectedEntries(selectedAutomated),
+    manual: selectedEntries(manual),
+    blocked: [...blocked.values()].sort(compareEntries),
+    notDeployed: [...notDeployed.values()].sort(compareEntries),
+    unverified: [...unverified.values()].sort(compareEntries),
+    fallbackApplied,
+  };
+  if (reviewedTelemetrySignals.length > 0) plan.telemetrySignals = reviewedTelemetrySignals;
+  return plan;
+}

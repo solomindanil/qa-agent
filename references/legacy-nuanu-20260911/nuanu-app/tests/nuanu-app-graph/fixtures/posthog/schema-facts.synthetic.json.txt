@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "provider": "posthog",
+  "productId": "nuanu-app",
+  "targetHost": "app.nuanu.com",
+  "observation": {
+    "preflightId": "napp-posthog-preflight-11111111-1111-4111-8111-111111111111",
+    "observedAt": "2026-08-26T00:04:00.000Z",
+    "targetProjectResourceId": "424242",
+    "capabilityEvidenceDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "evidenceDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "hostScope": {
+    "status": "AVAILABLE",
+    "kind": "event_property",
+    "propertyIdentifier": "napp_test_host",
+    "operator": "exact",
+    "value": "app.nuanu.com"
+  },
+  "metrics": [
+    {
+      "metricId": "telemetry-freshness",
+      "status": "AVAILABLE",
+      "events": [{ "role": "population_event", "identifier": "napp_test_population_event" }],
+      "valuePropertyIdentifier": null,
+      "exactPopulationSemanticsEvidenceDigest": "0101010101010101010101010101010101010101010101010101010101010101"
+    },
+    {
+      "metricId": "route-health",
+      "status": "AVAILABLE",
+      "events": [
+        { "role": "route_attempt_population", "identifier": "napp_test_route_attempt" },
+        { "role": "route_success_population", "identifier": "napp_test_route_success" }
+      ],
+      "valuePropertyIdentifier": null,
+      "exactPopulationSemanticsEvidenceDigest": "0202020202020202020202020202020202020202020202020202020202020202"
+    },
+    {
+      "metricId": "funnel-discovery",
+      "status": "AVAILABLE",
+      "events": [
+        { "role": "discovery_surface_view", "identifier": "napp_test_discovery_surface_view" },
+        { "role": "place_detail_view_from_discovery", "identifier": "napp_test_place_detail_from_discovery" }
+      ],
+      "valuePropertyIdentifier": null,
+      "exactPopulationSemanticsEvidenceDigest": "0303030303030303030303030303030303030303030303030303030303030303"
+    },
+    {
+      "metricId": "funnel-search",
+      "status": "NOT_INSTRUMENTED",
+      "events": [],
+      "valuePropertyIdentifier": null,
+      "exactPopulationSemanticsEvidenceDigest": null
+    },
+    {
+      "metricId": "funnel-place-detail",
+      "status": "AVAILABLE",
+      "events": [
+        { "role": "place_detail_view", "identifier": "napp_test_place_detail_view" },
+        { "role": "place_detail_primary_action", "identifier": "napp_test_place_detail_primary_action" }
+      ],
+      "valuePropertyIdentifier": null,
+      "exactPopulationSemanticsEvidenceDigest": "0404040404040404040404040404040404040404040404040404040404040404"
+    },
+    {
+      "metricId": "js-exception-rate",
+      "status": "AVAILABLE",
+      "events": [
+        { "role": "eligible_session_population", "identifier": "napp_test_eligible_population" },
+        { "role": "exception_session_population", "identifier": "napp_test_exception_population" }
+      ],
+      "valuePropertyIdentifier": null,
+      "exactPopulationSemanticsEvidenceDigest": "0505050505050505050505050505050505050505050505050505050505050505"
+    },
+    {
+      "metricId": "web-vitals-lcp-p75",
+      "status": "AVAILABLE",
+      "events": [{ "role": "vital_measurement", "identifier": "napp_test_web_vital_lcp" }],
+      "valuePropertyIdentifier": "napp_test_web_vital_value",
+      "exactPopulationSemanticsEvidenceDigest": "0606060606060606060606060606060606060606060606060606060606060606"
+    },
+    {
+      "metricId": "web-vitals-cls-p75",
+      "status": "UNAVAILABLE",
+      "events": [{ "role": "vital_measurement", "identifier": "napp_test_web_vital_cls" }],
+      "valuePropertyIdentifier": "napp_test_web_vital_value",
+      "exactPopulationSemanticsEvidenceDigest": null
+    },
+    {
+      "metricId": "web-vitals-inp-p75",
+      "status": "NOT_INSTRUMENTED",
+      "events": [],
+      "valuePropertyIdentifier": null,
+      "exactPopulationSemanticsEvidenceDigest": null
+    }
+  ],
+  "breakdowns": [
+    { "dimension": "browser", "status": "AVAILABLE", "propertyIdentifier": "napp_test_browser" },
+    { "dimension": "os", "status": "AVAILABLE", "propertyIdentifier": "napp_test_os" },
+    { "dimension": "device", "status": "AVAILABLE", "propertyIdentifier": "napp_test_hardware_class" },
+    { "dimension": "pwa_mode", "status": "NOT_INSTRUMENTED", "propertyIdentifier": null },
+    { "dimension": "release", "status": "AVAILABLE", "propertyIdentifier": "napp_test_release" }
+  ],
+  "exceptionFingerprint": {
+    "status": "PROVEN_OPAQUE",
+    "propertyIdentifier": "napp_test_exception_fingerprint",
+    "officialSchemaEvidenceDigest": "0707070707070707070707070707070707070707070707070707070707070707"
+  },
+  "schemaFactsDigest": "23fef3fe265b7eace86708f180aa28b5c7399934a4af424e96f475572cc2ba9f"
+}

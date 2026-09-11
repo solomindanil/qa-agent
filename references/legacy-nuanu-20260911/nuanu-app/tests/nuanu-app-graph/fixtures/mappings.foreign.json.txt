@@ -1,0 +1,20 @@
+{
+  "productId": "nuanu-app",
+  "mappings": [
+    {
+      "sourcePath": "apps/other-product/src/app/page.tsx",
+      "nodeId": "other-product:route:home",
+      "automatedTestIds": ["other-product:automated-test:home-smoke"],
+      "edges": [
+        {
+          "source": "other-product:source_file:home-page",
+          "kind": "implements",
+          "target": "other-product:route:home"
+        }
+      ],
+      "provenance": "source",
+      "coverageDisposition": "NOT_DEPLOYED"
+    }
+  ],
+  "no_product_impact": []
+}

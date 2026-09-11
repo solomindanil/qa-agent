@@ -1,0 +1,377 @@
+import assert from "node:assert/strict";
+import { execFileSync, spawnSync } from "node:child_process";
+import { chmod, mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import test from "node:test";
+
+import { buildProductCiRun, buildProductTestCatalog, validateProductCiRun } from "../src/model.mjs";
+
+const sourceSha = "5b75d6bbc4a390434d660a95324510f1bff13148";
+const catalog = buildProductTestCatalog({
+  sourceSha,
+  tests: [{
+    file: "apps/api/tests/example.test.ts",
+    selector: "proves the contract",
+    bindings: [{ nodeId: "req:A1", coverage: "full" }],
+  }],
+});
+
+test("Product CI run is bound to a clean verified pnpm test:ci execution", () => {
+  const run = buildProductCiRun({
+    catalog,
+    state: "completed",
+    observedAt: "2026-08-29T00:00:00.000Z",
+    execution: { command: "pnpm test:ci", exitCode: 0, selectionVerified: true, sourceTreeClean: true },
+    rows: [{ id: catalog.tests[0].id, status: "passed" }],
+  });
+  assert.equal(validateProductCiRun({ run, catalog }).counts.passed, 1);
+});
+
+test("Product CI run rejects a green claim without verified selection or a clean exact tree", () => {
+  for (const execution of [
+    { command: "pnpm test:ci", exitCode: 1, selectionVerified: true, sourceTreeClean: true },
+    { command: "pnpm test:ci", exitCode: 0, selectionVerified: false, sourceTreeClean: true },
+    { command: "pnpm test:ci", exitCode: 0, selectionVerified: true, sourceTreeClean: false },
+    { command: "pnpm test", exitCode: 0, selectionVerified: true, sourceTreeClean: true },
+  ]) {
+    assert.throws(() => buildProductCiRun({
+      catalog,
+      state: "completed",
+      observedAt: "2026-08-29T00:00:00.000Z",
+      execution,
+      rows: [{ id: catalog.tests[0].id, status: "passed" }],
+    }));
+  }
+});
+
+test("Product CI run rejects skipped selected rows even when the command exit code is green", () => {
+  assert.throws(() => buildProductCiRun({
+    catalog,
+    state: "completed",
+    observedAt: "2026-08-29T00:00:00.000Z",
+    execution: { command: "pnpm test:ci", exitCode: 0, selectionVerified: true, sourceTreeClean: true },
+    rows: [{ id: catalog.tests[0].id, status: "skipped" }],
+  }), /all selected product CI tests must pass/);
+});
+
+test("Product CI sealer binds a dynamic catalog selector to an observed machine-reporter pass", async () => {
+  const fixture = await productCiFixture({ mode: "passed" });
+  const result = runSealer(fixture);
+  assert.equal(result.status, 0, result.stderr);
+  const run = JSON.parse(await readFile(fixture.outputPath, "utf8"));
+  assert.deepEqual(run.rows, [{ id: fixture.catalog.tests[0].id, status: "passed" }]);
+});
+
+test("Product CI sealer binds a Vitest catalog selector to the injected JSON reporter result", async () => {
+  const fixture = await productCiVitestFixture();
+  const result = runSealer(fixture);
+  assert.equal(result.status, 0, result.stderr);
+  const run = JSON.parse(await readFile(fixture.outputPath, "utf8"));
+  assert.deepEqual(run.rows, [{ id: fixture.catalog.tests[0].id, status: "passed" }]);
+});
+
+test("Product CI sealer ignores focused Vitest reports spawned inside an observed top-level suite", async () => {
+  const fixture = await productCiVitestFixture({ nestedFocusedRun: true });
+  const result = runSealer(fixture);
+  assert.equal(result.status, 0, result.stderr);
+  const run = JSON.parse(await readFile(fixture.outputPath, "utf8"));
+  assert.deepEqual(run.rows, [{ id: fixture.catalog.tests[0].id, status: "passed" }]);
+});
+
+test("Product CI sealer observes an exact production-release Node test file and selector", async () => {
+  const fixture = await productCiScriptFixture({
+    testFile: "scripts/prod/tests/deploy-release-readiness.test.mjs",
+    selector: "database-degraded API readiness cannot satisfy release completion",
+  });
+  const result = runSealer(fixture);
+  assert.equal(result.status, 0, result.stderr);
+  const run = JSON.parse(await readFile(fixture.outputPath, "utf8"));
+  assert.deepEqual(run.rows, [{ id: fixture.catalog.tests[0].id, status: "passed" }]);
+});
+
+test("Product CI sealer rejects a production-release test when committed test:ci omits that suite", async () => {
+  const fixture = await productCiScriptFixture({
+    testFile: "scripts/prod/tests/deploy-release-readiness.test.mjs",
+    selector: "database-degraded API readiness cannot satisfy release completion",
+    testCiIncludesProductionRelease: false,
+  });
+  const result = runSealer(fixture);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /PRODUCT_CI_PRODUCTION_RELEASE_NOT_SELECTED/);
+});
+
+test("Product CI sealer observes an exact nested Node parent selector used by the G16 contract", async () => {
+  const fixture = await productCiScriptFixture({
+    testFile: "scripts/prod/tests/deploy-release-readiness.test.mjs",
+    selector: "req:G16 full production release contract",
+    nestedSubtests: ["release-health clauses", "release-identity clauses"],
+  });
+  const result = runSealer(fixture);
+  assert.equal(result.status, 0, result.stderr);
+  const run = JSON.parse(await readFile(fixture.outputPath, "utf8"));
+  assert.deepEqual(run.rows, [{ id: fixture.catalog.tests[0].id, status: "passed" }]);
+});
+
+test("Product CI sealer rejects a production test omitted by the committed production-release command", async () => {
+  const fixture = await productCiScriptFixture({
+    testFile: "scripts/prod/tests/deploy-release-readiness.test.mjs",
+    selector: "req:G16 full production release contract",
+    productionReleaseIncludesTest: false,
+  });
+  const result = runSealer(fixture);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /PRODUCT_CI_TEST_NOT_OBSERVED/);
+});
+
+test("Product CI sealer preserves integration-test exclusion for production script paths", async () => {
+  const fixture = await productCiScriptFixture({
+    testFile: "scripts/prod/tests/deploy-release-readiness.integration.test.mjs",
+    selector: "excluded production integration proof",
+  });
+  const result = runSealer(fixture);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /PRODUCT_CI_TEST_EXCLUDED_BY_RUNNER scripts\/prod\/tests\/deploy-release-readiness\.integration\.test\.mjs/);
+});
+
+test("Product CI sealer allows exactly the two production-release infra tests", async () => {
+  for (const testFile of [
+    "scripts/infra/tests/joglo-production-candidate.test.mjs",
+    "scripts/infra/tests/joglo-active-cutover.test.mjs",
+  ]) {
+    const fixture = await productCiScriptFixture({ testFile, selector: `infra proof for ${testFile}` });
+    const result = runSealer(fixture);
+    assert.equal(result.status, 0, `${testFile}: ${result.stderr}`);
+  }
+});
+
+test("Product CI sealer rejects near-miss infra tests outside the exact production-release allowlist", async () => {
+  for (const testFile of [
+    "scripts/infra/tests/joglo-production-candidate-copy.test.mjs",
+    "scripts/infra/tests/joglo-active-cutover-extra.test.mjs",
+  ]) {
+    const fixture = await productCiScriptFixture({ testFile, selector: `near-miss infra proof for ${testFile}` });
+    const result = runSealer(fixture);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, new RegExp(`PRODUCT_CI_TEST_NOT_SELECTED ${testFile.replaceAll('.', '\\.')}`));
+  }
+});
+
+test("Product CI sealer rejects an unrelated script test outside production-release selection", async () => {
+  const fixture = await productCiScriptFixture({
+    testFile: "scripts/prod/unrelated.test.mjs",
+    selector: "unrelated script proof",
+  });
+  const result = runSealer(fixture);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /PRODUCT_CI_TEST_NOT_SELECTED scripts\/prod\/unrelated\.test\.mjs/);
+});
+
+test("Product CI sealer fails closed when a dynamic catalog selector is not observed", async () => {
+  const fixture = await productCiFixture({ mode: "absent" });
+  const result = runSealer(fixture);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /PRODUCT_CI_TEST_NOT_OBSERVED/);
+});
+
+test("Product CI sealer fails closed when an observed selected test is skipped", async () => {
+  const fixture = await productCiFixture({ mode: "skipped" });
+  const result = runSealer(fixture);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /PRODUCT_CI_TEST_NOT_PASSED/);
+});
+
+function runSealer(fixture) {
+  const env = { ...process.env, PATH: `${fixture.binDir}:${process.env.PATH}` };
+  delete env.NODE_TEST_CONTEXT;
+  return spawnSync(process.execPath, [
+    resolve("scripts/seal-product-ci-run.mjs"),
+    "--source-root", fixture.sourceRoot,
+    "--catalog", fixture.catalogPath,
+    "--output", fixture.outputPath,
+  ], {
+    cwd: resolve("."),
+    encoding: "utf8",
+    env,
+  });
+}
+
+async function productCiFixture({ mode }) {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "freeland-product-ci-proof-"));
+  const sourceRoot = join(fixtureRoot, "source");
+  const binDir = join(fixtureRoot, "bin");
+  const testDir = join(sourceRoot, "apps/web/tests");
+  await mkdir(testDir, { recursive: true });
+  await mkdir(binDir, { recursive: true });
+  const testFile = "apps/web/tests/dynamic.test.mjs";
+  const registration = mode === "skipped"
+    ? "test.skip(`handles ${value} case`, () => {});"
+    : "test(`handles ${value} case`, () => {});";
+  await writeFile(join(sourceRoot, testFile), [
+    "import test from 'node:test';",
+    "const selectorTemplate = 'handles %s case';",
+    "for (const value of ['one']) {",
+    `  ${registration}`,
+    "}",
+    "void selectorTemplate;",
+    "",
+  ].join("\n"));
+  execFileSync("git", ["init", "-q"], { cwd: sourceRoot });
+  execFileSync("git", ["config", "user.email", "qa@example.invalid"], { cwd: sourceRoot });
+  execFileSync("git", ["config", "user.name", "QA Fixture"], { cwd: sourceRoot });
+  execFileSync("git", ["add", testFile], { cwd: sourceRoot });
+  execFileSync("git", ["commit", "-qm", "fixture"], { cwd: sourceRoot });
+  const sourceSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: sourceRoot, encoding: "utf8" }).trim();
+  const fixtureCatalog = buildProductTestCatalog({
+    sourceSha,
+    tests: [{
+      file: testFile,
+      selector: "handles %s case",
+      bindings: [{ nodeId: "req:A1", coverage: "full" }],
+    }],
+  });
+  const catalogPath = join(fixtureRoot, "catalog.json");
+  const outputPath = join(fixtureRoot, "run.json");
+  await writeFile(catalogPath, `${JSON.stringify(fixtureCatalog)}\n`);
+  const pnpmPath = join(binDir, "pnpm");
+  const command = mode === "absent"
+    ? "exit 0"
+    : `exec node --test ${shellQuote(join(sourceRoot, testFile))}`;
+  await writeFile(pnpmPath, `#!/bin/sh\n[ \"$1\" = \"test:ci\" ] || exit 64\n${command}\n`);
+  await chmod(pnpmPath, 0o700);
+  return { sourceRoot, binDir, catalogPath, outputPath, catalog: fixtureCatalog };
+}
+
+async function productCiVitestFixture({ nestedFocusedRun = false } = {}) {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "freeland-product-ci-vitest-proof-"));
+  const sourceRoot = join(fixtureRoot, "source");
+  const binDir = join(fixtureRoot, "bin");
+  const testDir = join(sourceRoot, "apps/web/tests");
+  await mkdir(testDir, { recursive: true });
+  await mkdir(binDir, { recursive: true });
+  const testFile = "apps/web/tests/vitest.behavior.test.tsx";
+  await writeFile(join(sourceRoot, testFile), "test('vitest proof', () => {});\n");
+  execFileSync("git", ["init", "-q"], { cwd: sourceRoot });
+  execFileSync("git", ["config", "user.email", "qa@example.invalid"], { cwd: sourceRoot });
+  execFileSync("git", ["config", "user.name", "QA Fixture"], { cwd: sourceRoot });
+  execFileSync("git", ["add", testFile], { cwd: sourceRoot });
+  execFileSync("git", ["commit", "-qm", "fixture"], { cwd: sourceRoot });
+  const sourceSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: sourceRoot, encoding: "utf8" }).trim();
+  const fixtureCatalog = buildProductTestCatalog({
+    sourceSha,
+    tests: [{
+      file: testFile,
+      selector: "vitest proof",
+      bindings: [{ nodeId: "req:A1", coverage: "full" }],
+    }],
+  });
+  const catalogPath = join(fixtureRoot, "catalog.json");
+  const outputPath = join(fixtureRoot, "run.json");
+  await writeFile(catalogPath, `${JSON.stringify(fixtureCatalog)}\n`);
+  const fakeVitest = join(fixtureRoot, "vitest.mjs");
+  await writeFile(fakeVitest, [
+    "import { spawnSync } from 'node:child_process';",
+    "import { writeFileSync } from 'node:fs';",
+    "const output = process.argv.find(value => value.startsWith('--outputFile='))?.slice('--outputFile='.length);",
+    "if (process.argv.includes('nested-focused')) {",
+    `  if (output) writeFileSync(output, JSON.stringify({ testResults: [{ name: ${JSON.stringify(join(sourceRoot, testFile))}, assertionResults: [{ title: 'vitest proof', status: 'skipped' }] }] }));`,
+    "  process.exit(0);",
+    "}",
+    "if (!output || !process.argv.includes('--reporter=json')) process.exit(65);",
+    `writeFileSync(output, JSON.stringify({ testResults: [{ name: ${JSON.stringify(join(sourceRoot, testFile))}, assertionResults: [{ title: 'vitest proof', status: 'passed' }] }] }));`,
+    ...(nestedFocusedRun ? [
+      `const nested = spawnSync('node', [${JSON.stringify(fakeVitest)}, 'nested-focused'], { env: process.env, stdio: 'inherit' });`,
+      "if (nested.error) throw nested.error;",
+      "process.exit(nested.status ?? 1);",
+    ] : []),
+    "",
+  ].join("\n"));
+  const pnpmPath = join(binDir, "pnpm");
+  await writeFile(pnpmPath, `#!/bin/sh\n[ \"$1\" = \"test:ci\" ] || exit 64\nexec node ${shellQuote(fakeVitest)} run\n`);
+  await chmod(pnpmPath, 0o700);
+  return { sourceRoot, binDir, catalogPath, outputPath, catalog: fixtureCatalog };
+}
+
+async function productCiScriptFixture({
+  testFile,
+  selector,
+  nestedSubtests = [],
+  productionReleaseIncludesTest = true,
+  testCiIncludesProductionRelease = true,
+}) {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "freeland-product-ci-script-proof-"));
+  const sourceRoot = join(fixtureRoot, "source");
+  const binDir = join(fixtureRoot, "bin");
+  await mkdir(join(sourceRoot, testFile, ".."), { recursive: true });
+  await mkdir(binDir, { recursive: true });
+  const testSource = nestedSubtests.length === 0
+    ? [
+      "import test from 'node:test';",
+      `test(${JSON.stringify(selector)}, () => {});`,
+      "",
+    ]
+    : [
+      "import test from 'node:test';",
+      `test(${JSON.stringify(selector)}, async (context) => {`,
+      ...nestedSubtests.map(subtest => `  await context.test(${JSON.stringify(subtest)}, () => {});`),
+      "});",
+      "",
+    ];
+  await writeFile(join(sourceRoot, testFile), testSource.join("\n"));
+  const controlTestFile = "scripts/prod/tests/production-release-control.test.mjs";
+  await mkdir(join(sourceRoot, controlTestFile, ".."), { recursive: true });
+  await writeFile(join(sourceRoot, controlTestFile), [
+    "import test from 'node:test';",
+    "test('production release control', () => {});",
+    "",
+  ].join("\n"));
+  await writeFile(join(sourceRoot, "package.json"), `${JSON.stringify({
+    scripts: {
+      "test:ci": testCiIncludesProductionRelease
+        ? "pnpm test:production-release"
+        : "pnpm test:unit",
+      "test:production-release": productionReleaseIncludesTest
+        ? `node --test ${testFile}`
+        : `node --test ${controlTestFile}`,
+    },
+  }, null, 2)}\n`);
+  execFileSync("git", ["init", "-q"], { cwd: sourceRoot });
+  execFileSync("git", ["config", "user.email", "qa@example.invalid"], { cwd: sourceRoot });
+  execFileSync("git", ["config", "user.name", "QA Fixture"], { cwd: sourceRoot });
+  execFileSync("git", ["add", testFile, controlTestFile, "package.json"], { cwd: sourceRoot });
+  execFileSync("git", ["commit", "-qm", "fixture"], { cwd: sourceRoot });
+  const sourceSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: sourceRoot, encoding: "utf8" }).trim();
+  const fixtureCatalog = buildProductTestCatalog({
+    sourceSha,
+    tests: [{
+      file: testFile,
+      selector,
+      bindings: [{ nodeId: "req:G16", coverage: "full" }],
+    }],
+  });
+  const catalogPath = join(fixtureRoot, "catalog.json");
+  const outputPath = join(fixtureRoot, "run.json");
+  await writeFile(catalogPath, `${JSON.stringify(fixtureCatalog)}\n`);
+  const pnpmPath = join(binDir, "pnpm");
+  await writeFile(pnpmPath, [
+    "#!/usr/bin/env node",
+    "const { spawnSync } = require('node:child_process');",
+    "const { readFileSync } = require('node:fs');",
+    "const { resolve } = require('node:path');",
+    "const args = process.argv.slice(2);",
+    "const scriptName = args[0] === 'run' ? args[1] : args[0];",
+    "const packageJson = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));",
+    "const command = packageJson.scripts?.[scriptName];",
+    "if (typeof command !== 'string') process.exit(64);",
+    "const result = spawnSync(command, { cwd: process.cwd(), env: process.env, shell: true, stdio: 'inherit' });",
+    "if (result.error) throw result.error;",
+    "process.exit(result.status ?? 1);",
+    "",
+  ].join("\n"));
+  await chmod(pnpmPath, 0o700);
+  return { sourceRoot, binDir, catalogPath, outputPath, catalog: fixtureCatalog };
+}
+
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", `'\\''`)}'`;
+}

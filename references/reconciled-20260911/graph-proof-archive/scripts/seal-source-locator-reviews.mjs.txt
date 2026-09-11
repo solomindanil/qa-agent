@@ -1,0 +1,98 @@
+import { execFileSync } from "node:child_process";
+import { readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+
+import { parseCorpus } from "../src/model.mjs";
+import {
+  buildSourceLocatorReviewDocument,
+  digestFileBlob,
+  digestReviewedLines,
+  isCodeSourceLocator,
+  sourceLocatorReviewKey,
+  validateSourceLocatorReviews,
+} from "../src/proof.mjs";
+
+const sourceRoot = argument("--source-root");
+const decisionPaths = argumentsFor("--decisions");
+const outputPath = argument("--output");
+if (!sourceRoot || decisionPaths.length === 0) {
+  throw new TypeError("--source-root and at least one --decisions file are required");
+}
+const sourceSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: sourceRoot, encoding: "utf8" }).trim();
+const mappings = await repoJson("mappings/mappings.v1.json");
+const corpus = parseCorpus({
+  productMap: await readFile(new URL("../contracts/PRODUCT-MAP.md", import.meta.url), "utf8"),
+  coverageMap: await readFile(new URL("../contracts/COVERAGE-MAP.md", import.meta.url), "utf8"),
+  manualCases: await readFile(new URL("../contracts/MANUAL-TEST-CASES.md", import.meta.url), "utf8"),
+  baseline: await repoJson("contracts/baseline.manifest.json"),
+  aliases: mappings.aliases,
+});
+const locators = corpus.sourceLocators.filter(isCodeSourceLocator);
+const decisionByKey = new Map();
+for (const path of decisionPaths) {
+  const document = JSON.parse(await readFile(resolve(path), "utf8"));
+  for (const decision of document.approved ?? document.decisions ?? []) {
+    const key = sourceLocatorReviewKey(decision);
+    if (decisionByKey.has(key)) throw new TypeError(`SOURCE_DECISION_DUPLICATE ${key}`);
+    decisionByKey.set(key, decision);
+  }
+}
+
+const reviews = [];
+for (const locator of locators) {
+  const key = sourceLocatorReviewKey(locator);
+  const decision = decisionByKey.get(key);
+  if (!decision) throw new TypeError(`SOURCE_DECISION_MISSING ${key}`);
+  const lines = decision.correctedLines ?? lineInterval(locator.rawToken);
+  if (!lines) throw new TypeError(`SOURCE_DECISION_LINES_MISSING ${key}`);
+  const bytes = await readFile(resolve(sourceRoot, decision.path));
+  const text = bytes.toString("utf8");
+  reviews.push({
+    ownerNodeId: locator.ownerNodeId,
+    rawToken: locator.rawToken,
+    path: decision.path,
+    lines,
+    fileBlobOid: digestFileBlob(bytes),
+    contentSha256: digestReviewedLines(text, lines),
+    assertions: decision.assertions,
+    rationale: decision.rationale,
+  });
+}
+const document = buildSourceLocatorReviewDocument({ sourceSha, reviews });
+await validateSourceLocatorReviews({
+  document,
+  locators: corpus.sourceLocators,
+  sourceRoot,
+  sourceSha,
+  requireComplete: true,
+});
+const payload = `${JSON.stringify(document, null, 2)}\n`;
+if (!outputPath) process.stdout.write(payload);
+else {
+  const target = resolve(outputPath);
+  const temporary = resolve(dirname(target), `.${target.split("/").at(-1)}.tmp`);
+  await writeFile(temporary, payload, { mode: 0o600 });
+  await rename(temporary, target);
+}
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}
+
+function argumentsFor(name) {
+  const values = [];
+  for (let index = 0; index < process.argv.length; index += 1) {
+    if (process.argv[index] === name && process.argv[index + 1]) values.push(process.argv[index + 1]);
+  }
+  return values;
+}
+
+function lineInterval(rawToken) {
+  const match = String(rawToken).match(/:(\d+)(?:[-–](\d+))?$/);
+  return match ? [Number(match[1]), Number(match[2] ?? match[1])] : null;
+}
+
+async function repoJson(path) {
+  return JSON.parse(await readFile(new URL(`../${path}`, import.meta.url), "utf8"));
+}

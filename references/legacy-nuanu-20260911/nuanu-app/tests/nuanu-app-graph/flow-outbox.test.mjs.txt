@@ -1,0 +1,3641 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  open,
+  readFile,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
+import { dirname, join } from "node:path";
+import test from "node:test";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+
+import { createJsonIo } from "../../tools/nuanu-app-graph/io.mjs";
+import { digestJson } from "../../tools/nuanu-app-graph/model.mjs";
+import {
+  MAX_ACTION_AGE_MS,
+  MAX_ATTACHMENTS,
+  MAX_ATTACHMENT_BYTES,
+  MAX_CREATE_ACTION_JSON_BYTES,
+  MAX_DESCRIPTOR_STDIN_BYTES,
+  MAX_ENTRIES,
+  MAX_FILENAME_BYTES,
+  MAX_FINDING_VARIABLE_TEXT_BYTES,
+  MAX_GENERATED_DESCRIPTION_HTML_BYTES,
+  MAX_LEASE_MS,
+  MAX_LIST_ITEMS,
+  MAX_NODE_IDS,
+  MAX_OBSERVATION_STDIN_BYTES,
+  MAX_OUTBOX_BYTES,
+  MAX_ROUTE_OR_OBJECT_BYTES,
+  MAX_SYMPTOM_BYTES,
+  MAX_TEXT_BYTES,
+  MAX_TOTAL_ATTACHMENT_BYTES,
+  OUTBOX_LOCK_RELATIVE_PATH,
+  OUTBOX_RELATIVE_PATH,
+  OUTBOX_VERSION,
+  createFlowOutboxService,
+  fingerprintFinding,
+} from "../../tools/nuanu-app-graph/flow-outbox.mjs";
+
+const FIXTURE_DIRECTORY = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "fixtures",
+  "flow-outbox",
+);
+const NOW = "2026-08-26T00:00:00.000Z";
+const OWNER = "worker-0001";
+const SHA_A = `sha256:${"a".repeat(64)}`;
+const SHA_B = `sha256:${"b".repeat(64)}`;
+const SHA_C = `sha256:${"c".repeat(64)}`;
+const SUCCESS_OBSERVATION_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function instantFromNow(offsetMs) {
+  return new Date(Date.parse(NOW) + offsetMs).toISOString();
+}
+
+function clone(value) {
+  return structuredClone(value);
+}
+
+function shaFor(value) {
+  return `sha256:${createHash("sha256").update(String(value)).digest("hex")}`;
+}
+
+function escapeHtml(value) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function finding(overrides = {}) {
+  return {
+    schemaVersion: 1,
+    productId: "nuanu-app",
+    classification: "confirmed_product_defect",
+    symptom: "unknown app route returns http 200",
+    affectedObjectOrRoute: "/qa-napp-not-found-probe",
+    platform: "Desktop",
+    runtimeIdentity: SHA_A,
+    evidenceSignature: SHA_B,
+    environment: "https://app.nuanu.com/",
+    priority: "high",
+    preconditions: ["Fresh anonymous context."],
+    steps: ["Open the reviewed unknown-route probe."],
+    actual: "Unknown route returned HTTP 200.",
+    expected: "Unknown route returns HTTP 404 with Not Found UI.",
+    impact: "Invalid routes are reported as valid documents.",
+    evidenceSummary: "Sanitized response-status evidence.",
+    attachments: [],
+    graph: {
+      graphDigest: SHA_C,
+      nodeIds: ["nuanu-app:route:unknown"],
+    },
+    regression: {
+      status: "AUTOMATED",
+      testId: "NAPP-PUB-003",
+      design: "Assert the reviewed unknown route returns the Not Found response.",
+    },
+    deduplication: {
+      searchedAt: "2026-08-25T23:59:00.000Z",
+      result: "no_duplicate",
+      queryDigest: shaFor("dedup-query"),
+    },
+    confirmation: {
+      freshContext: true,
+      deterministicOracle: true,
+      telemetryOnly: false,
+    },
+    ...overrides,
+  };
+}
+
+function attachment(index, overrides = {}) {
+  return {
+    evidenceId: `evidence-${index}`,
+    fileName: `evidence-${index}.png`,
+    mediaType: "image/png",
+    sizeBytes: 1,
+    sha256: shaFor(`attachment-${index}`),
+    ...overrides,
+  };
+}
+
+function variableStrings(value) {
+  return [
+    value.symptom,
+    value.affectedObjectOrRoute,
+    ...value.preconditions,
+    ...value.steps,
+    value.actual,
+    value.expected,
+    value.impact,
+    value.evidenceSummary,
+    ...value.attachments.flatMap((item) => [item.evidenceId, item.fileName, item.mediaType]),
+    ...value.graph.nodeIds,
+    ...(value.regression.testId === null ? [] : [value.regression.testId]),
+    value.regression.design,
+    value.deduplication.searchedAt,
+  ];
+}
+
+function variableTextBytes(value) {
+  return variableStrings(value).reduce((total, item) => total + Buffer.byteLength(item), 0);
+}
+
+function repeatedPattern(bytes, pattern = "&<>'\"") {
+  return pattern.repeat(Math.ceil(bytes / pattern.length)).slice(0, bytes);
+}
+
+function findingAtAggregateBytes(target, pattern = "x") {
+  const value = finding({
+    symptom: "x",
+    affectedObjectOrRoute: "/x",
+    preconditions: ["x"],
+    steps: ["x"],
+    actual: "x",
+    expected: "x",
+    impact: "x",
+    evidenceSummary: "x",
+    graph: { graphDigest: SHA_C, nodeIds: ["nuanu-app:x"] },
+    regression: { status: "AUTOMATED", testId: "NAPP-X-1", design: "x" },
+  });
+  let remaining = target - variableTextBytes(value);
+  assert.ok(remaining >= 0);
+  for (const key of ["actual", "expected", "impact", "evidenceSummary"]) {
+    const add = Math.min(remaining, MAX_TEXT_BYTES - Buffer.byteLength(value[key]));
+    value[key] += repeatedPattern(add, pattern);
+    remaining -= add;
+  }
+  assert.equal(remaining, 0, "test fixture has enough bounded fields for aggregate bytes");
+  assert.equal(variableTextBytes(value), target);
+  return value;
+}
+
+function entryFor(index, overrides = {}) {
+  const canonicalFinding = finding({
+    evidenceSignature: shaFor(`evidence-${index}`),
+  });
+  return {
+    fingerprint: fingerprintFinding(canonicalFinding),
+    findingDigest: `sha256:${digestJson(canonicalFinding)}`,
+    finding: canonicalFinding,
+    state: "pending_sync",
+    attempts: 0,
+    createdAt: NOW,
+    updatedAt: NOW,
+    pendingAction: null,
+    mutationReceipt: null,
+    remote: null,
+    failure: null,
+    ...overrides,
+  };
+}
+
+function remoteIdentity(index = 1, overrides = {}) {
+  return {
+    id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+    identifier: `NAPP-${index}`,
+    url: `https://flow.nuanu.com/issues/NAPP-${index}`,
+    createdReadBackAt: NOW,
+    ...overrides,
+  };
+}
+
+function exactBatchDigest(entry) {
+  return `sha256:${digestJson({
+    version: 1,
+    productId: "nuanu-app",
+    workspaceSlug: "nuanu-app",
+    projectIdentifier: "NAPP",
+    entries: [{
+      fingerprint: entry.fingerprint,
+      findingDigest: entry.findingDigest,
+    }],
+  })}`;
+}
+
+function exactOutboxRevision(outbox) {
+  return `sha256:${digestJson(outbox)}`;
+}
+
+function expectedCreateDescriptionHtml(entry) {
+  const findingValue = entry.finding;
+  const list = (tag, items) => `<${tag}>${items
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join("")}</${tag}>`;
+  const regressionSummary = findingValue.regression.status === "AUTOMATED"
+    ? `AUTOMATED: ${findingValue.regression.testId}.`
+    : `MANUAL: ${findingValue.regression.reason}.`;
+  return [
+    "<section><h2>Environment</h2><p>https://app.nuanu.com/</p></section>",
+    `<section><h2>Preconditions</h2>${list("ul", findingValue.preconditions)}</section>`,
+    `<section><h2>Steps</h2>${list("ol", findingValue.steps)}</section>`,
+    `<section><h2>Actual</h2><p>${escapeHtml(findingValue.actual)}</p></section>`,
+    `<section><h2>Expected</h2><p>${escapeHtml(findingValue.expected)}</p></section>`,
+    `<section><h2>Impact</h2><p>${escapeHtml(findingValue.impact)}</p></section>`,
+    `<section><h2>Evidence</h2><p>${escapeHtml(findingValue.evidenceSummary.replace(/[.!?]+$/u, ""))}; ${findingValue.evidenceSignature}.</p></section>`,
+    `<section><h2>Graph</h2><p>${findingValue.graph.nodeIds.map(escapeHtml).join("; ")}; ${findingValue.graph.graphDigest}.</p></section>`,
+    `<section><h2>Regression</h2><p>${escapeHtml(regressionSummary)}</p></section>`,
+    "<section><h2>Deduplication</h2><p>Complete active and recently-closed search found no duplicate.</p></section>",
+    `<p>QA Fingerprint: ${entry.fingerprint}</p>`,
+  ].join("");
+}
+
+function expectedCreatePayload(entry) {
+  return {
+    project_identifier: "NAPP",
+    name: `[BUG][${entry.finding.platform}] ${entry.finding.symptom
+      .replace(/^./u, (character) => character.toUpperCase())
+      .replace(/\bhttp\b/giu, "HTTP")}`,
+    description_html: expectedCreateDescriptionHtml(entry),
+    state_name: "Bugs",
+    label_names: ["Bug", entry.finding.platform].sort(),
+    priority: entry.finding.priority,
+  };
+}
+
+function descriptorBinding(capturedAt = NOW) {
+  return {
+    catalogRevision: shaFor("catalog-revision"),
+    capturedAt,
+    workspaceSlug: "nuanu-app",
+    projectIdentifier: "NAPP",
+    attachmentEvidenceCapability: "BLOCKED_UNPROVEN_OUTPUT",
+    schemaDigests: {
+      search_issues: shaFor("search-schema"),
+      create_issue: shaFor("create-schema"),
+      get_issue: shaFor("get-schema"),
+      list_issue_attachments: shaFor("list-attachments-schema"),
+      upload_small_issue_attachment: shaFor("upload-attachment-schema"),
+      update_issue: shaFor("update-schema"),
+    },
+  };
+}
+
+function actionManifest(entry, {
+  kind = "search_issues",
+  issueId = remoteIdentity().id,
+  actionId,
+  batchDigest = exactBatchDigest(entry),
+  proposedAt = NOW,
+  descriptorCapturedAt,
+  name,
+  descriptionHtml,
+  previousOutbox = { version: 1, entries: [entry] },
+} = {}) {
+  const codeOwnedCreatePayload = expectedCreatePayload(entry);
+  const kindFields = {
+    search_issues: {
+      mutation: false,
+      arguments: {
+        workspaceSlug: "nuanu-app",
+        projectIdentifier: "NAPP",
+        fingerprint: entry.fingerprint,
+        scopes: ["active", "recently_closed"],
+        requireComplete: true,
+      },
+      expectedObservation: "search",
+    },
+    get_issue: {
+      mutation: false,
+      arguments: {
+        workspaceSlug: "nuanu-app",
+        projectIdentifier: "NAPP",
+        issueId,
+      },
+      expectedObservation: "issue",
+    },
+    create_issue: {
+      mutation: true,
+      arguments: {
+        project_identifier: "NAPP",
+        name: name ?? codeOwnedCreatePayload.name,
+        description_html: descriptionHtml ?? codeOwnedCreatePayload.description_html,
+        state_name: "Bugs",
+        label_names: ["Bug", entry.finding.platform].sort(),
+        priority: entry.finding.priority,
+      },
+      expectedObservation: "mutation_ack",
+    },
+  }[kind];
+  assert.ok(kindFields);
+  const semantic = {
+    version: 1,
+    productId: "nuanu-app",
+    fingerprint: entry.fingerprint,
+    findingDigest: entry.findingDigest,
+    batchDigest,
+    proposedAt,
+    expiresAt: new Date(Date.parse(proposedAt) + MAX_ACTION_AGE_MS).toISOString(),
+    kind,
+    mutation: kindFields.mutation,
+    descriptorBinding: descriptorBinding(descriptorCapturedAt ?? proposedAt),
+    arguments: kindFields.arguments,
+    expectedObservation: kindFields.expectedObservation,
+  };
+  const derivedActionId = `napp-flow-action-v1-${digestJson({
+    version: 1,
+    outboxRevision: exactOutboxRevision(previousOutbox),
+    action: semantic,
+  })}`;
+  const preceding = {
+    version: semantic.version,
+    productId: semantic.productId,
+    actionId: actionId ?? derivedActionId,
+    fingerprint: semantic.fingerprint,
+    findingDigest: semantic.findingDigest,
+    batchDigest: semantic.batchDigest,
+    proposedAt: semantic.proposedAt,
+    expiresAt: semantic.expiresAt,
+    kind: semantic.kind,
+    mutation: semantic.mutation,
+    descriptorBinding: semantic.descriptorBinding,
+    arguments: semantic.arguments,
+    expectedObservation: semantic.expectedObservation,
+  };
+  return { ...preceding, actionDigest: `sha256:${digestJson(preceding)}` };
+}
+
+function proposedAction(entry, overrides = {}) {
+  return {
+    manifest: actionManifest(entry, overrides),
+    lifecycle: "PROPOSED",
+    dispatchedAt: null,
+  };
+}
+
+function dispatchedAction(entry, { dispatchedAt = NOW, ...overrides } = {}) {
+  return {
+    manifest: actionManifest(entry, overrides),
+    lifecycle: "DISPATCHED",
+    dispatchedAt,
+  };
+}
+
+function createReceipt({
+  outcome = "ACKED",
+  remoteId = remoteIdentity().id,
+  candidateRemoteId,
+  observedAt = NOW,
+} = {}) {
+  const common = {
+    kind: "create_issue",
+    actionId: `napp-flow-action-v1-${"e".repeat(64)}`,
+    actionDigest: `sha256:${"f".repeat(64)}`,
+    outcome,
+  };
+  return outcome === "ACKED"
+    ? { ...common, remoteId, observedAt }
+    : {
+      ...common,
+      candidateRemoteId: candidateRemoteId ?? null,
+      observedAt,
+    };
+}
+
+async function fixture(t, { ioOptions = {}, lockFs, limits } = {}) {
+  const createdRoot = await mkdtemp(join(tmpdir(), "napp-flow-outbox-"));
+  const root = await realpath(createdRoot);
+  t.after(() => rm(createdRoot, { recursive: true, force: true }));
+  const io = createJsonIo({ privateRoot: root, ...ioOptions });
+  const outboxPath = join(root, OUTBOX_RELATIVE_PATH);
+  const lockPath = join(root, OUTBOX_LOCK_RELATIVE_PATH);
+  const service = createFlowOutboxService({ io, outboxPath, lockPath, lockFs, limits });
+  return { root, io, outboxPath, lockPath, service };
+}
+
+function transactionInput(operation, overrides = {}) {
+  return {
+    ownerId: OWNER,
+    now: () => new Date(NOW),
+    leaseMs: 30_000,
+    operation,
+    ...overrides,
+  };
+}
+
+async function enqueue(service, value, overrides = {}) {
+  return service.enqueueConfirmedFinding({
+    finding: value,
+    ownerId: OWNER,
+    now: () => new Date(NOW),
+    leaseMs: 30_000,
+    ...overrides,
+  });
+}
+
+async function assertFindingAccepted(t, value) {
+  const { service } = await fixture(t);
+  const persisted = await enqueue(service, value);
+  assert.equal(persisted.findingDigest, `sha256:${digestJson(value)}`);
+}
+
+async function assertFindingRejectedBeforePersistence(t, value, code = "INVALID_FLOW_FINDING") {
+  const { outboxPath, lockPath, service } = await fixture(t);
+  await assert.rejects(() => enqueue(service, value), { code });
+  await assert.rejects(() => stat(outboxPath), { code: "ENOENT" });
+  await assert.rejects(() => stat(lockPath), { code: "ENOENT" });
+}
+
+test("production constants and relative artifact names are exact", () => {
+  assert.equal(OUTBOX_VERSION, 1);
+  assert.equal(OUTBOX_RELATIVE_PATH, "flow-outbox.json");
+  assert.equal(OUTBOX_LOCK_RELATIVE_PATH, "flow-outbox.lock");
+  assert.deepEqual({
+    MAX_OUTBOX_BYTES,
+    MAX_ENTRIES,
+    MAX_TEXT_BYTES,
+    MAX_FINDING_VARIABLE_TEXT_BYTES,
+    MAX_SYMPTOM_BYTES,
+    MAX_ROUTE_OR_OBJECT_BYTES,
+    MAX_LIST_ITEMS,
+    MAX_NODE_IDS,
+    MAX_ATTACHMENTS,
+    MAX_ATTACHMENT_BYTES,
+    MAX_TOTAL_ATTACHMENT_BYTES,
+    MAX_FILENAME_BYTES,
+    MAX_LEASE_MS,
+    MAX_ACTION_AGE_MS,
+    MAX_GENERATED_DESCRIPTION_HTML_BYTES,
+    MAX_CREATE_ACTION_JSON_BYTES,
+    MAX_DESCRIPTOR_STDIN_BYTES,
+    MAX_OBSERVATION_STDIN_BYTES,
+  }, {
+    MAX_OUTBOX_BYTES: 4 * 1024 * 1024,
+    MAX_ENTRIES: 500,
+    MAX_TEXT_BYTES: 2_000,
+    MAX_FINDING_VARIABLE_TEXT_BYTES: 7 * 1024,
+    MAX_SYMPTOM_BYTES: 300,
+    MAX_ROUTE_OR_OBJECT_BYTES: 300,
+    MAX_LIST_ITEMS: 20,
+    MAX_NODE_IDS: 64,
+    MAX_ATTACHMENTS: 10,
+    MAX_ATTACHMENT_BYTES: 4 * 1024 * 1024,
+    MAX_TOTAL_ATTACHMENT_BYTES: 16 * 1024 * 1024,
+    MAX_FILENAME_BYTES: 120,
+    MAX_LEASE_MS: 5 * 60 * 1000,
+    MAX_ACTION_AGE_MS: 10 * 60 * 1000,
+    MAX_GENERATED_DESCRIPTION_HTML_BYTES: 48 * 1024,
+    MAX_CREATE_ACTION_JSON_BYTES: 56 * 1024,
+    MAX_DESCRIPTOR_STDIN_BYTES: 64 * 1024,
+    MAX_OBSERVATION_STDIN_BYTES: 96 * 1024,
+  });
+});
+
+test("fingerprint is stable when object keys are reordered", () => {
+  const input = {
+    productId: "nuanu-app",
+    symptom: "unknown app route returns http 200",
+    affectedObjectOrRoute: "/qa-napp-not-found-probe",
+    platform: "Desktop",
+    runtimeIdentity: SHA_A,
+    evidenceSignature: SHA_B,
+  };
+  const reordered = Object.fromEntries(Object.entries(input).reverse());
+  const expected = "napp-v1-fa70a0b62405675a8edc909311e7830e8933654766573ba2db21bad0c0ddd866";
+  assert.equal(fingerprintFinding(input), expected);
+  assert.equal(fingerprintFinding(reordered), expected);
+});
+
+test("fingerprint changes when runtime or evidence signature changes", () => {
+  const base = finding();
+  assert.notEqual(
+    fingerprintFinding(base),
+    fingerprintFinding({ ...base, runtimeIdentity: shaFor("runtime-2") }),
+  );
+  assert.notEqual(
+    fingerprintFinding(base),
+    fingerprintFinding({ ...base, evidenceSignature: shaFor("evidence-2") }),
+  );
+});
+
+test("fingerprint normalizes symptom whitespace Unicode and case", () => {
+  const base = finding();
+  const variant = {
+    ...base,
+    symptom: "  UNKNOWN\tAPP   ROUTE RETURNS HTTP 200  ".normalize("NFD"),
+  };
+  assert.equal(fingerprintFinding(base), fingerprintFinding(variant));
+});
+
+test("fingerprint rejects missing product route platform or evidence", () => {
+  for (const key of [
+    "productId",
+    "affectedObjectOrRoute",
+    "platform",
+    "runtimeIdentity",
+    "evidenceSignature",
+  ]) {
+    const value = finding();
+    delete value[key];
+    assert.throws(() => fingerprintFinding(value), { code: "INVALID_FLOW_FINDING" });
+  }
+  assert.throws(
+    () => fingerprintFinding({ ...finding(), affectedObjectOrRoute: "/route?token=secret" }),
+    { code: "PRIVACY_UNSAFE_FINDING" },
+  );
+  assert.throws(
+    () => fingerprintFinding({
+      productId: "nuanu-app",
+      symptom: "safe defect",
+      affectedObjectOrRoute: "/safe",
+      platform: "Desktop",
+      runtimeIdentity: SHA_A,
+      evidenceSignature: SHA_B,
+      unknown: "field",
+    }),
+    { code: "INVALID_FLOW_FINDING" },
+  );
+  assert.throws(
+    () => fingerprintFinding({ ...finding(), apiKey: "secret" }),
+    { code: "PRIVACY_UNSAFE_FINDING" },
+  );
+});
+
+test("protocol-relative finding routes reject fingerprint and enqueue before lease", async (t) => {
+  const value = finding({
+    affectedObjectOrRoute: "//evil.example/private",
+    evidenceSignature: shaFor("protocol-relative-route"),
+  });
+  assert.throws(() => fingerprintFinding(value), { code: "PRIVACY_UNSAFE_FINDING" });
+  await assertFindingRejectedBeforePersistence(t, value, "PRIVACY_UNSAFE_FINDING");
+});
+
+test("encoded finding-route delimiters and separators reject before lease", async (t) => {
+  for (const affectedObjectOrRoute of [
+    "/safe%3Ftoken%3Dprivate",
+    "/%2Fetc/passwd",
+    "/%252Fetc/passwd",
+    "/safe%23fragment",
+    "/%5Cetc%5Cpasswd",
+    "/%65tc/passwd",
+    "/safe%00control",
+    "/safe%2",
+    "/safe%GG",
+    "/places/Caf%c3%a9",
+    "/safe%252525252Fetc/passwd",
+    "/safe%EF%BC%83fragment",
+    "/%EF%BC%8E%EF%BC%8E/etc",
+    "/%EF%BC%BCetc",
+  ]) {
+    const value = finding({
+      affectedObjectOrRoute,
+      evidenceSignature: shaFor(`encoded-finding-route-${affectedObjectOrRoute}`),
+    });
+    assert.throws(
+      () => fingerprintFinding(value),
+      { code: "PRIVACY_UNSAFE_FINDING" },
+      affectedObjectOrRoute,
+    );
+    await assertFindingRejectedBeforePersistence(t, value, "PRIVACY_UNSAFE_FINDING");
+  }
+});
+
+test("safe literal prose percent and canonical UTF-8 path escapes remain reportable", async (t) => {
+  for (const [index, affectedObjectOrRoute] of [
+    "Map marker at 100% zoom",
+    "/places/Caf%C3%A9",
+  ].entries()) {
+    const value = finding({
+      affectedObjectOrRoute,
+      evidenceSignature: shaFor(`safe-percent-finding-${index}`),
+    });
+    assert.doesNotThrow(() => fingerprintFinding(value));
+    await assertFindingAccepted(t, value);
+  }
+});
+
+test("fingerprint rejects prototypes accessors symbols and non-enumerable fields without invoking accessors", () => {
+  const minimal = {
+    productId: "nuanu-app",
+    symptom: "safe defect",
+    affectedObjectOrRoute: "/safe",
+    platform: "Desktop",
+    runtimeIdentity: SHA_A,
+    evidenceSignature: SHA_B,
+  };
+  const customPrototype = Object.assign(Object.create({ inherited: true }), minimal);
+  assert.throws(() => fingerprintFinding(customPrototype), { code: "INVALID_FLOW_FINDING" });
+
+  let accessed = false;
+  const accessor = { ...minimal };
+  Object.defineProperty(accessor, "symptom", {
+    enumerable: true,
+    get() {
+      accessed = true;
+      return "safe defect";
+    },
+  });
+  assert.throws(() => fingerprintFinding(accessor), { code: "INVALID_FLOW_FINDING" });
+  assert.equal(accessed, false);
+
+  const symbolBearing = { ...minimal, [Symbol("secret")]: "unsafe" };
+  assert.throws(() => fingerprintFinding(symbolBearing), { code: "INVALID_FLOW_FINDING" });
+
+  const nonEnumerable = { ...minimal };
+  Object.defineProperty(nonEnumerable, "hidden", { value: "unsafe", enumerable: false });
+  assert.throws(() => fingerprintFinding(nonEnumerable), { code: "INVALID_FLOW_FINDING" });
+});
+
+test("fingerprint rejects root and nested proxies before any proxy trap executes", () => {
+  const trapCounts = {
+    get: 0,
+    getOwnPropertyDescriptor: 0,
+    getPrototypeOf: 0,
+    ownKeys: 0,
+  };
+  const proxied = (target) => new Proxy(target, {
+    get(...arguments_) {
+      trapCounts.get += 1;
+      return Reflect.get(...arguments_);
+    },
+    getOwnPropertyDescriptor(...arguments_) {
+      trapCounts.getOwnPropertyDescriptor += 1;
+      return Reflect.getOwnPropertyDescriptor(...arguments_);
+    },
+    getPrototypeOf(...arguments_) {
+      trapCounts.getPrototypeOf += 1;
+      return Reflect.getPrototypeOf(...arguments_);
+    },
+    ownKeys(...arguments_) {
+      trapCounts.ownKeys += 1;
+      return Reflect.ownKeys(...arguments_);
+    },
+  });
+
+  const minimal = {
+    productId: "nuanu-app",
+    symptom: "safe defect",
+    affectedObjectOrRoute: "/safe",
+    platform: "Desktop",
+    runtimeIdentity: SHA_A,
+    evidenceSignature: SHA_B,
+  };
+  assert.throws(() => fingerprintFinding(proxied(minimal)), { code: "INVALID_FLOW_FINDING" });
+  assert.deepEqual(trapCounts, {
+    get: 0,
+    getOwnPropertyDescriptor: 0,
+    getPrototypeOf: 0,
+    ownKeys: 0,
+  });
+
+  const nested = finding({ steps: proxied(["Open the reviewed route."]) });
+  assert.throws(() => fingerprintFinding(nested), { code: "INVALID_FLOW_FINDING" });
+  assert.deepEqual(trapCounts, {
+    get: 0,
+    getOwnPropertyDescriptor: 0,
+    getPrototypeOf: 0,
+    ownKeys: 0,
+  });
+});
+
+test("literal replacement characters remain reportable while malformed UTF-8 bytes fail closed", async (t) => {
+  const replacementFinding = finding({
+    symptom: "place name renders \uFFFD",
+    evidenceSignature: shaFor("replacement-character"),
+  });
+  assert.doesNotThrow(() => fingerprintFinding(replacementFinding));
+  await assertFindingAccepted(t, replacementFinding);
+
+  const normalizedSymptom = replacementFinding.symptom.toLowerCase();
+  const canonicalReplacementFinding = { ...replacementFinding, symptom: normalizedSymptom };
+  const persisted = {
+    fingerprint: fingerprintFinding(replacementFinding),
+    findingDigest: `sha256:${digestJson(canonicalReplacementFinding)}`,
+    finding: canonicalReplacementFinding,
+    state: "pending_sync",
+    attempts: 0,
+    createdAt: NOW,
+    updatedAt: NOW,
+    pendingAction: null,
+    mutationReceipt: null,
+    remote: null,
+    failure: null,
+  };
+  const { outboxPath, service } = await fixture(t);
+  const validBytes = Buffer.from(JSON.stringify({ version: 1, entries: [persisted] }), "utf8");
+  const replacementBytes = Buffer.from("\uFFFD", "utf8");
+  const replacementIndex = validBytes.indexOf(replacementBytes);
+  assert.ok(replacementIndex >= 0);
+  const malformedBytes = Buffer.concat([
+    validBytes.subarray(0, replacementIndex),
+    Buffer.from([0xff]),
+    validBytes.subarray(replacementIndex + replacementBytes.length),
+  ]);
+  await writeFile(outboxPath, malformedBytes, { mode: 0o600 });
+  await assert.rejects(() => service.readOutbox(), { code: "INVALID_JSON_ARTIFACT" });
+});
+
+test("fingerprint and enqueue reject normalized secrets opaque values paths URLs and IPv6 before lease", async (t) => {
+  const unsafeSymptoms = [
+    "password：supersecret",
+    "password%3Asupersecret",
+    "pass\u200Bword: supersecret",
+    "tok\u2060en=supersecret",
+    "safe\u202Etext",
+    "bad \uD800 text",
+    "bad \uDC00 text",
+    "opaque qwertyuiopasdfghjklzxcvbnm234567",
+    "opaque abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuv",
+    "file at /etc/passwd",
+    "endpoint ftp://example.invalid/file",
+    "See //evil.example/private",
+    "See%20%2F%2Fevil.example%2Fprivate",
+    "See www.example.test/private",
+    "See evil.example/private",
+    "See www.example.test",
+    "See ｗｗｗ．example．test/private",
+    "See xn--e1afmkfd.xn--p1ai/private",
+    "See пример.рф/private",
+    "See 例え.テスト/private",
+    "See //пример.рф/private",
+    "See //例え.テスト/private",
+    "See localhost/private",
+    "Contact qa@пример.рф",
+    "Contact 用户@例え.テスト",
+    "Call 0812-3456-7890",
+    "Call 081234567890",
+    "Call 020 7946 0958",
+    "phone: 081234567890",
+    "Call me at 081234567890",
+    "Phone number is 081234567890",
+    "Contact us at 081234567890",
+    "WhatsApp me 081234567890",
+    "See 1.2.3/private",
+    "See 127.0.0.999/private",
+    "resource urn:uuid:00000000-0000-4000-8000-000000000001",
+    "IPv6 2001:db8::1",
+    "TypeError: Cannot read properties of undefined",
+    "TypeError%3A Cannot read properties of undefined",
+    "HTML <!-- hidden -->",
+    "HTML <!DOCTYPE html>",
+    "HTML <?raw?>",
+    "HTML <![CDATA[raw]]>",
+    "HTML <!ENTITY raw>",
+    "HTML <% raw %>",
+    "| heading | value |\n| --- | --- |",
+    "Column A | Column B\n--- | ---",
+    "before\n---\nafter",
+    "Title\n===",
+    ">raw provider detail",
+    "    raw provider detail",
+    "     raw provider detail",
+    "        raw provider detail",
+    "\t\traw provider detail",
+    "[label][ref]",
+    "~~~raw",
+    "~~~ raw",
+    "~~~",
+    "#",
+    "###",
+  ];
+  for (const symptom of unsafeSymptoms) {
+    const minimal = {
+      productId: "nuanu-app",
+      symptom,
+      affectedObjectOrRoute: "/safe",
+      platform: "Desktop",
+      runtimeIdentity: SHA_A,
+      evidenceSignature: SHA_B,
+    };
+    assert.throws(
+      () => fingerprintFinding(minimal),
+      { code: "PRIVACY_UNSAFE_FINDING" },
+      symptom,
+    );
+    await assertFindingRejectedBeforePersistence(
+      t,
+      finding({ symptom }),
+      "PRIVACY_UNSAFE_FINDING",
+    );
+  }
+  assert.doesNotThrow(() => fingerprintFinding(finding({
+    symptom: "emoji 😀 remains well formed",
+    evidenceSignature: shaFor("valid-astral-text"),
+  })));
+  assert.doesNotThrow(() => fingerprintFinding(finding({
+    symptom: "regression covers checkout.spec.ts at 100% zoom",
+    evidenceSignature: shaFor("valid-file-prose"),
+  })));
+  assert.doesNotThrow(() => fingerprintFinding(finding({
+    symptom: "version 1.2.3 renders incorrectly",
+    evidenceSignature: shaFor("valid-version-prose"),
+  })));
+  assert.doesNotThrow(() => fingerprintFinding(finding({
+    symptom: "order 1234567890 remains pending",
+    evidenceSignature: shaFor("valid-order-id-prose"),
+  })));
+});
+
+test("persisted findings reject Unicode format controls before state is trusted", async (t) => {
+  const unsafeFinding = finding({
+    symptom: "pass\u200Bword: supersecret",
+    evidenceSignature: shaFor("persisted-format-control"),
+  });
+  const normalizedSymptom = unsafeFinding.symptom
+    .normalize("NFC")
+    .trim()
+    .replace(/\s+/gu, " ")
+    .toLowerCase();
+  const canonicalUnsafeFinding = { ...unsafeFinding, symptom: normalizedSymptom };
+  const fingerprint = `napp-v1-${createHash("sha256").update(JSON.stringify({
+    version: 1,
+    productId: "nuanu-app",
+    normalizedSymptom,
+    affectedObjectOrRoute: unsafeFinding.affectedObjectOrRoute,
+    platform: unsafeFinding.platform,
+    runtimeIdentity: unsafeFinding.runtimeIdentity,
+    evidenceSignature: unsafeFinding.evidenceSignature,
+  }), "utf8").digest("hex")}`;
+  const persisted = {
+    fingerprint,
+    findingDigest: `sha256:${digestJson(canonicalUnsafeFinding)}`,
+    finding: canonicalUnsafeFinding,
+    state: "pending_sync",
+    attempts: 0,
+    createdAt: NOW,
+    updatedAt: NOW,
+    pendingAction: null,
+    mutationReceipt: null,
+    remote: null,
+    failure: null,
+  };
+  const { io, outboxPath, service } = await fixture(t);
+  await io.writeJsonAtomic(outboxPath, { version: 1, entries: [persisted] });
+  await assert.rejects(() => service.readOutbox(), { code: "PRIVACY_UNSAFE_FINDING" });
+});
+
+test("bounded finding text fields reject Unicode whitespace-only values before lease", async (t) => {
+  for (const [name, overrides] of [
+    ["actual", { actual: " \u00a0 " }],
+    ["expected", { expected: "\t\n" }],
+    ["impact", { impact: "\u2003" }],
+    ["evidence summary", { evidenceSummary: " \r\n " }],
+    ["precondition item", { preconditions: ["\u00a0"] }],
+    ["step item", { steps: ["\u2002"] }],
+    ["regression design", {
+      regression: { status: "AUTOMATED", testId: "NAPP-PUB-003", design: " \u00a0 " },
+    }],
+  ]) {
+    const value = finding({
+      ...overrides,
+      evidenceSignature: shaFor(`whitespace-only-${name}`),
+    });
+    assert.throws(() => fingerprintFinding(value), { code: "INVALID_FLOW_FINDING" }, name);
+    await assertFindingRejectedBeforePersistence(t, value, "INVALID_FLOW_FINDING");
+  }
+});
+
+test("symptom route and text caps use UTF-8 limit minus one limit and limit plus one", async (t) => {
+  for (const bytes of [MAX_SYMPTOM_BYTES - 1, MAX_SYMPTOM_BYTES]) {
+    const value = finding({ symptom: "é".repeat(Math.floor(bytes / 2)) + (bytes % 2 ? "x" : "") });
+    assert.equal(Buffer.byteLength(value.symptom), bytes);
+    assert.doesNotThrow(() => fingerprintFinding(value));
+  }
+  assert.throws(
+    () => fingerprintFinding(finding({ symptom: `${"é".repeat(MAX_SYMPTOM_BYTES / 2)}x` })),
+    { code: "FLOW_FINDING_LIMIT_EXCEEDED" },
+  );
+
+  for (const bytes of [MAX_ROUTE_OR_OBJECT_BYTES - 1, MAX_ROUTE_OR_OBJECT_BYTES]) {
+    const route = `/${"r".repeat(bytes - 1)}`;
+    assert.equal(Buffer.byteLength(route), bytes);
+    assert.doesNotThrow(() => fingerprintFinding(finding({ affectedObjectOrRoute: route })));
+  }
+  assert.throws(
+    () => fingerprintFinding(finding({ affectedObjectOrRoute: `/${"r".repeat(MAX_ROUTE_OR_OBJECT_BYTES)}` })),
+    { code: "FLOW_FINDING_LIMIT_EXCEEDED" },
+  );
+
+  for (const bytes of [MAX_TEXT_BYTES - 1, MAX_TEXT_BYTES]) {
+    const value = finding({
+      actual: "é".repeat(Math.floor(bytes / 2)) + (bytes % 2 ? "x" : ""),
+      evidenceSignature: shaFor(`accepted-text-${bytes}`),
+    });
+    await assertFindingAccepted(t, value);
+  }
+  await assertFindingRejectedBeforePersistence(t, finding({
+    actual: `${"é".repeat(MAX_TEXT_BYTES / 2)}x`,
+  }), "FLOW_FINDING_LIMIT_EXCEEDED");
+});
+
+test("aggregate variable text cap rejects limit plus one before persistence", async (t) => {
+  await assertFindingAccepted(t, findingAtAggregateBytes(MAX_FINDING_VARIABLE_TEXT_BYTES - 1));
+  await assertFindingAccepted(t, findingAtAggregateBytes(MAX_FINDING_VARIABLE_TEXT_BYTES));
+  await assertFindingRejectedBeforePersistence(
+    t,
+    findingAtAggregateBytes(MAX_FINDING_VARIABLE_TEXT_BYTES + 1),
+    "FLOW_FINDING_LIMIT_EXCEEDED",
+  );
+});
+
+test("worst-case HTML escape characters at the aggregate cap are accepted", async (t) => {
+  const value = findingAtAggregateBytes(MAX_FINDING_VARIABLE_TEXT_BYTES, "&<>'\"");
+  await assertFindingAccepted(t, value);
+  const escapeHtml = (text) => text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;")
+    .replaceAll("'", "&#39;");
+  const description = `<section>${variableStrings(value).map(escapeHtml).join("</p><p>")}</section>`;
+  assert.ok(Buffer.byteLength(description) <= MAX_GENERATED_DESCRIPTION_HTML_BYTES);
+  assert.ok(Buffer.byteLength(JSON.stringify({
+    project_identifier: "NAPP",
+    name: "[BUG][Desktop] x",
+    description_html: description,
+    state_name: "Bugs",
+    label_names: ["Bug", "Desktop"],
+    priority: "high",
+  })) <= MAX_CREATE_ACTION_JSON_BYTES);
+});
+
+test("list node and attachment count caps cover limit minus one limit and plus one", async (t) => {
+  for (const count of [MAX_LIST_ITEMS - 1, MAX_LIST_ITEMS]) {
+    await assertFindingAccepted(t, finding({
+      preconditions: Array.from({ length: count }, (_, index) => `condition ${index}`),
+      evidenceSignature: shaFor(`list-${count}`),
+    }));
+  }
+  await assertFindingRejectedBeforePersistence(t, finding({
+    preconditions: Array.from({ length: MAX_LIST_ITEMS + 1 }, (_, index) => `condition ${index}`),
+  }), "FLOW_FINDING_LIMIT_EXCEEDED");
+
+  for (const count of [MAX_NODE_IDS - 1, MAX_NODE_IDS]) {
+    await assertFindingAccepted(t, finding({
+      graph: {
+        graphDigest: SHA_C,
+        nodeIds: Array.from({ length: count }, (_, index) => `nuanu-app:route:${index}`),
+      },
+      evidenceSignature: shaFor(`nodes-${count}`),
+    }));
+  }
+  await assertFindingRejectedBeforePersistence(t, finding({
+    graph: {
+      graphDigest: SHA_C,
+      nodeIds: Array.from({ length: MAX_NODE_IDS + 1 }, (_, index) => `nuanu-app:route:${index}`),
+    },
+  }), "FLOW_FINDING_LIMIT_EXCEEDED");
+
+  for (const count of [MAX_ATTACHMENTS - 1, MAX_ATTACHMENTS]) {
+    await assertFindingAccepted(t, finding({
+      attachments: Array.from({ length: count }, (_, index) => attachment(index)),
+      evidenceSignature: shaFor(`attachments-${count}`),
+    }));
+  }
+  await assertFindingRejectedBeforePersistence(t, finding({
+    attachments: Array.from({ length: MAX_ATTACHMENTS + 1 }, (_, index) => attachment(index)),
+  }), "FLOW_FINDING_LIMIT_EXCEEDED");
+});
+
+test("graph node IDs follow the canonical model prefix and accept reviewed path test IDs", async (t) => {
+  const reviewedNodeId = "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-001 removes query and fragment data from evidence URLs";
+  const accepted = finding({
+    graph: { graphDigest: SHA_C, nodeIds: [reviewedNodeId] },
+    evidenceSignature: shaFor("reviewed-graph-node-id"),
+  });
+  assert.doesNotThrow(() => fingerprintFinding(accepted));
+  await assertFindingAccepted(t, accepted);
+
+  for (const [nodeId, code] of [
+    ["nuanu-app:auto:https://example.invalid/private", "PRIVACY_UNSAFE_FINDING"],
+    ["nuanu-app:auto:token=private-value", "PRIVACY_UNSAFE_FINDING"],
+    ["nuanu-app:auto:safe\u202Etext", "PRIVACY_UNSAFE_FINDING"],
+    [`nuanu-app:${"x".repeat(MAX_TEXT_BYTES)}`, "FLOW_FINDING_LIMIT_EXCEEDED"],
+  ]) {
+    const value = finding({
+      graph: { graphDigest: SHA_C, nodeIds: [nodeId] },
+      evidenceSignature: shaFor(`rejected-graph-node-${code}-${nodeId.length}`),
+    });
+    assert.throws(() => fingerprintFinding(value), { code }, nodeId);
+    await assertFindingRejectedBeforePersistence(t, value, code);
+  }
+});
+
+test("attachment byte filename and total caps cover exact UTF-8 boundaries", async (t) => {
+  for (const sizeBytes of [MAX_ATTACHMENT_BYTES - 1, MAX_ATTACHMENT_BYTES]) {
+    await assertFindingAccepted(t, finding({
+      attachments: [attachment(sizeBytes, { sizeBytes })],
+      evidenceSignature: shaFor(`attachment-size-${sizeBytes}`),
+    }));
+  }
+  await assertFindingRejectedBeforePersistence(t, finding({
+    attachments: [attachment(0, { sizeBytes: MAX_ATTACHMENT_BYTES + 1 })],
+  }), "FLOW_FINDING_LIMIT_EXCEEDED");
+
+  for (const bytes of [MAX_FILENAME_BYTES - 1, MAX_FILENAME_BYTES]) {
+    const fileName = `${"a".repeat(bytes - 4)}.png`;
+    assert.equal(Buffer.byteLength(fileName), bytes);
+    await assertFindingAccepted(t, finding({
+      attachments: [attachment(bytes, { fileName })],
+      evidenceSignature: shaFor(`filename-${bytes}`),
+    }));
+  }
+  await assertFindingRejectedBeforePersistence(t, finding({
+    attachments: [attachment(0, { fileName: `${"a".repeat(MAX_FILENAME_BYTES - 3)}.png` })],
+  }), "FLOW_FINDING_LIMIT_EXCEEDED");
+
+  for (const total of [MAX_TOTAL_ATTACHMENT_BYTES - 1, MAX_TOTAL_ATTACHMENT_BYTES]) {
+    const sizes = [MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_BYTES,
+      total - 3 * MAX_ATTACHMENT_BYTES];
+    await assertFindingAccepted(t, finding({
+      attachments: sizes.map((sizeBytes, index) => attachment(index, { sizeBytes })),
+      evidenceSignature: shaFor(`total-${total}`),
+    }));
+  }
+  await assertFindingRejectedBeforePersistence(t, finding({
+    attachments: [
+      ...Array.from({ length: 4 }, (_, index) => attachment(index, { sizeBytes: MAX_ATTACHMENT_BYTES })),
+      attachment(4, { sizeBytes: 1 }),
+    ],
+  }), "FLOW_FINDING_LIMIT_EXCEEDED");
+});
+
+test("attachment pairs filenames and unique identities are closed", async (t) => {
+  for (const [mediaType, extension] of [
+    ["image/png", "png"],
+    ["image/jpeg", "jpg"],
+    ["image/jpeg", "jpeg"],
+    ["application/json", "json"],
+    ["text/plain", "txt"],
+  ]) {
+    await assertFindingAccepted(t, finding({
+      attachments: [attachment(0, { mediaType, fileName: `safe.${extension}` })],
+      evidenceSignature: shaFor(`${mediaType}-${extension}`),
+    }));
+  }
+  for (const file of [
+    attachment(0, { mediaType: "image/png", fileName: "safe.PNG" }),
+    attachment(0, { mediaType: "image/png", fileName: "safe.jpg" }),
+    attachment(0, { fileName: "safe.png.png" }),
+    attachment(0, { fileName: "../safe.png" }),
+    attachment(0, { fileName: ".safe.png" }),
+    attachment(0, { fileName: "safe/.png" }),
+    attachment(0, { fileName: "sаfe.png" }),
+  ]) {
+    await assertFindingRejectedBeforePersistence(t, finding({ attachments: [file] }));
+  }
+  await assertFindingRejectedBeforePersistence(t, finding({
+    attachments: [attachment(0), attachment(1, { evidenceId: "evidence-0" })],
+  }), "INVALID_FLOW_FINDING");
+  await assertFindingRejectedBeforePersistence(t, finding({
+    attachments: [attachment(0), attachment(1, { fileName: "evidence-0.png" })],
+  }), "INVALID_FLOW_FINDING");
+});
+
+test("telemetry-only unknown secret and privacy-unsafe findings never enter the outbox", async (t) => {
+  const unsafe = [
+    { ...finding(), apiKey: "secret" },
+    finding({ evidenceSummary: "Bearer abcdefghijklmnopqrstuvwxyz" }),
+    finding({ evidenceSummary: "Basic dXNlcjpwYXNzd29yZA==" }),
+    finding({ evidenceSummary: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature" }),
+    finding({ evidenceSummary: "Contact qa@example.test" }),
+    finding({ evidenceSummary: "Call +1 415 555 2671" }),
+    finding({ evidenceSummary: "Observed at 192.168.10.22" }),
+    finding({ evidenceSummary: "Coordinates -8.409518, 115.188919" }),
+    finding({ evidenceSummary: "See https://example.test/private" }),
+    finding({ evidenceSummary: "session=private-value" }),
+    finding({ evidenceSummary: "#private-fragment" }),
+    finding({ evidenceSummary: "password: private-value" }),
+    finding({ evidenceSummary: "phc_synthetic_not_a_real_key" }),
+    finding({ affectedObjectOrRoute: "/route?session=abc" }),
+    finding({ affectedObjectOrRoute: "/route#private" }),
+    finding({ evidenceSummary: "<script>alert(1)</script>" }),
+    finding({ evidenceSummary: "[raw payload](https://example.test)" }),
+    finding({ evidenceSummary: "Saved at /Users/person/private.json" }),
+    finding({ evidenceSummary: "response body: { secret: true }" }),
+    finding({ evidenceSummary: "PostHog row distinct_id=person-1" }),
+    finding({ evidenceSummary: "Error message: provider detail" }),
+    finding({ evidenceSummary: "Exception stack: at handler (app.js:1:1)" }),
+    finding({ evidenceSummary: "**raw provider detail**" }),
+    finding({ evidenceSummary: "*raw provider detail*" }),
+    finding({ evidenceSummary: "_raw provider detail_" }),
+    finding({ evidenceSummary: "~~raw provider detail~~" }),
+    finding({ evidenceSummary: "- raw provider detail" }),
+    finding({ evidenceSummary: "`raw provider detail`" }),
+    finding({
+      evidenceSummary: "qwertyuiopasdfghjklzxcvbnm234567qwertyuiopasdfghjklzxcvbnm234567",
+    }),
+    finding({
+      evidenceSummary: "qwertyuiopasdfghjklzxcvbnm234567qwertyuiopasdfghjklzxcvbnm====",
+    }),
+    finding({ confirmation: {
+      freshContext: true,
+      deterministicOracle: true,
+      telemetryOnly: true,
+    } }),
+  ];
+  for (const value of unsafe) {
+    await assertFindingRejectedBeforePersistence(t, value, "PRIVACY_UNSAFE_FINDING");
+  }
+});
+
+test("enqueue rejects sparse arrays and array extra keys before acquiring a lease", async (t) => {
+  const sparse = finding({ preconditions: new Array(1) });
+  await assertFindingRejectedBeforePersistence(t, sparse, "INVALID_FLOW_FINDING");
+  const withExtra = finding({ preconditions: ["safe"] });
+  withExtra.preconditions.extra = "unsafe";
+  await assertFindingRejectedBeforePersistence(t, withExtra, "INVALID_FLOW_FINDING");
+});
+
+test("factory surface is exact and missing state equals the committed empty fixture", async (t) => {
+  const { service } = await fixture(t);
+  assert.deepEqual(Object.keys(service).sort(), [
+    "enqueueConfirmedFinding",
+    "fingerprintFinding",
+    "readOutbox",
+    "recoverOutbox",
+    "withOutboxTransaction",
+  ]);
+  const expected = JSON.parse(await readFile(join(FIXTURE_DIRECTORY, "empty.json"), "utf8"));
+  assert.deepEqual(await service.readOutbox(), expected);
+});
+
+test("outbox byte cap accepts limit minus one and limit but rejects limit plus one", async (t) => {
+  const prefix = '{"version":1,"entries":[]}';
+  for (const bytes of [MAX_OUTBOX_BYTES - 1, MAX_OUTBOX_BYTES, MAX_OUTBOX_BYTES + 1]) {
+    const { outboxPath, service } = await fixture(t);
+    const padding = " ".repeat(bytes - Buffer.byteLength(prefix));
+    await writeFile(outboxPath, `${prefix}${padding}`, { mode: 0o600 });
+    if (bytes <= MAX_OUTBOX_BYTES) {
+      assert.deepEqual(await service.readOutbox(), { version: 1, entries: [] });
+    } else {
+      await assert.rejects(() => service.readOutbox(), { code: "JSON_ARTIFACT_TOO_LARGE" });
+    }
+  }
+});
+
+test("entry cap accepts limit minus one and limit but rejects limit plus one", async (t) => {
+  for (const count of [MAX_ENTRIES - 1, MAX_ENTRIES, MAX_ENTRIES + 1]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const state = {
+      version: 1,
+      entries: Array.from({ length: count }, (_, index) => entryFor(index)),
+    };
+    await io.writeJsonAtomic(outboxPath, state);
+    if (count <= MAX_ENTRIES) {
+      assert.equal((await service.readOutbox()).entries.length, count);
+    } else {
+      await assert.rejects(() => service.readOutbox(), { code: "OUTBOX_LIMIT_EXCEEDED" });
+    }
+  }
+});
+
+test("malformed existing JSON unknown version duplicates and invalid states fail closed", async (t) => {
+  {
+    const { outboxPath, service } = await fixture(t);
+    await writeFile(outboxPath, "{not-json\n", { mode: 0o600 });
+    await assert.rejects(() => service.readOutbox(), { code: "INVALID_JSON_ARTIFACT" });
+  }
+  const invalidStates = [
+    { version: 2, entries: [] },
+    { version: 1, entries: [entryFor(1), entryFor(1)] },
+    { version: 1, entries: [entryFor(1, { createdAt: "2026-08-26T00:00:00Z" })] },
+    { version: 1, entries: [entryFor(1, { state: "syncing" })] },
+    { version: 1, entries: [entryFor(1, {
+      state: "failed",
+      failure: {
+        code: "FLOW_EVIDENCE_UNSUPPORTED",
+        failedAt: NOW,
+        recoveryClass: "MANUAL",
+      },
+    })] },
+    { version: 1, entries: [{ ...entryFor(1), password: "unsafe" }] },
+  ];
+  for (const state of invalidStates) {
+    const { io, outboxPath, service } = await fixture(t);
+    await io.writeJsonAtomic(outboxPath, state);
+    await assert.rejects(() => service.readOutbox());
+  }
+});
+
+test("persisted remote URLs reject encoded delimiter separator and recursive escapes", async (t) => {
+  for (const [index, url] of [
+    "https://flow.nuanu.com/%2Fetc/passwd",
+    "https://flow.nuanu.com/%252Fetc/passwd",
+    "https://flow.nuanu.com/issues/%25253Ftoken%25253Dprivate",
+    "https://flow.nuanu.com/%23token",
+    "https://flow.nuanu.com/%2F%2Fevil.example/private",
+    "https://flow.nuanu.com/%5Cetc%5Cpasswd",
+    "https://flow.nuanu.com/%65tc/passwd",
+    "https://flow.nuanu.com/safe%00control",
+    "https://flow.nuanu.com/safe%2",
+    "https://flow.nuanu.com/safe%GG",
+    "https://flow.nuanu.com/places/Caf%c3%a9",
+    "https://flow.nuanu.com/safe%252525252Fetc/passwd",
+    "https://flow.nuanu.com/safe%EF%BC%83fragment",
+    "https://flow.nuanu.com/%EF%BC%8E%EF%BC%8E/etc",
+    "https://flow.nuanu.com/%EF%BC%BCetc",
+  ].entries()) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(230 + index);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "failed",
+        attempts: 1,
+        remote: { ...remoteIdentity(16 + index), url },
+        failure: {
+          code: "FLOW_EVIDENCE_UNSUPPORTED",
+          failedAt: NOW,
+          recoveryClass: "SCHEMA_BLOCKED",
+        },
+      }],
+    });
+    await assert.rejects(() => service.readOutbox(), { code: "INVALID_FLOW_OUTBOX" }, url);
+  }
+});
+
+test("persisted remote URLs accept a canonical safe UTF-8 path escape", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const base = entryFor(235);
+  const url = "https://flow.nuanu.com/issues/Caf%C3%A9";
+  await io.writeJsonAtomic(outboxPath, {
+    version: 1,
+    entries: [{
+      ...base,
+      state: "failed",
+      attempts: 1,
+      remote: { ...remoteIdentity(21), url },
+      failure: {
+        code: "FLOW_EVIDENCE_UNSUPPORTED",
+        failedAt: NOW,
+        recoveryClass: "SCHEMA_BLOCKED",
+      },
+    }],
+  });
+  assert.equal((await service.readOutbox()).entries[0].remote.url, url);
+});
+
+test("negative zero is rejected on read and commit before JSON can canonicalize it", async (t) => {
+  {
+    const { root } = await fixture(t);
+    const value = { version: 1, entries: [entryFor(110, { attempts: -0 })] };
+    const service = createFlowOutboxService({
+      io: {
+        async readJson() {
+          return value;
+        },
+        async writeJsonAtomic() {
+          assert.fail("invalid in-memory state must never write");
+        },
+        async preflightWrite() {},
+      },
+      outboxPath: join(root, OUTBOX_RELATIVE_PATH),
+      lockPath: join(root, OUTBOX_LOCK_RELATIVE_PATH),
+    });
+    await assert.rejects(() => service.readOutbox(), { code: "INVALID_FLOW_OUTBOX" });
+  }
+
+  {
+    const { outboxPath, service } = await fixture(t);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [entryFor(111, { attempts: -0 })],
+        }))),
+      { code: "INVALID_FLOW_OUTBOX" },
+    );
+    await assert.rejects(() => stat(outboxPath), { code: "ENOENT" });
+  }
+});
+
+test("persisted action recomputes the exact immutable one-entry batch digest", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const base = entryFor(1);
+  const valid = {
+    ...base,
+    state: "syncing",
+    pendingAction: proposedAction(base),
+  };
+  await io.writeJsonAtomic(outboxPath, { version: 1, entries: [valid] });
+  assert.equal((await service.readOutbox()).entries[0].pendingAction.manifest.batchDigest,
+    exactBatchDigest(base));
+
+  const forged = {
+    ...base,
+    state: "syncing",
+    pendingAction: proposedAction(base, { batchDigest: shaFor("unrelated-batch") }),
+  };
+  await io.writeJsonAtomic(outboxPath, { version: 1, entries: [forged] });
+  await assert.rejects(() => service.readOutbox(), { code: "INVALID_FLOW_OUTBOX" });
+});
+
+test("persisted action rejects dispatch at expiry and enforces descriptor-age boundaries", async (t) => {
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(112);
+    const expiresAt = "2026-08-26T00:10:00.000Z";
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, { dispatchedAt: expiresAt }),
+      }],
+    });
+    await assert.rejects(() => service.readOutbox(), { code: "INVALID_FLOW_OUTBOX" });
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(113);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, {
+          dispatchedAt: "2026-08-26T00:10:00.001Z",
+        }),
+      }],
+    });
+    await assert.rejects(() => service.readOutbox(), { code: "INVALID_FLOW_OUTBOX" });
+  }
+
+  for (const [capturedAt, accepted] of [
+    ["2026-08-25T23:50:00.000Z", true],
+    ["2026-08-25T23:49:59.999Z", false],
+    ["2026-08-26T00:00:00.001Z", false],
+  ]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(114 + Number(!accepted));
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: proposedAction(base, { descriptorCapturedAt: capturedAt }),
+      }],
+    });
+    if (accepted) {
+      assert.equal(
+        (await service.readOutbox()).entries[0].pendingAction.manifest.descriptorBinding.capturedAt,
+        capturedAt,
+      );
+    } else {
+      await assert.rejects(() => service.readOutbox(), { code: "INVALID_FLOW_OUTBOX" });
+    }
+  }
+});
+
+test("proposed action cannot be dispatched at its exact expiry", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const base = entryFor(118);
+  const pendingAction = proposedAction(base, { actionSeed: "expiry-boundary-dispatch" });
+  const beforeEntry = {
+    ...base,
+    state: "syncing",
+    attempts: 1,
+    pendingAction,
+  };
+  await io.writeJsonAtomic(outboxPath, { version: 1, entries: [beforeEntry] });
+  const before = await readFile(outboxPath);
+  await assert.rejects(
+    () => service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...current,
+          pendingAction: {
+            manifest: current.pendingAction.manifest,
+            lifecycle: "DISPATCHED",
+            dispatchedAt: current.pendingAction.manifest.expiresAt,
+          },
+        }],
+      });
+    })),
+    { code: "INVALID_OUTBOX_TRANSITION" },
+  );
+  assert.deepEqual(await readFile(outboxPath), before);
+});
+
+test("proposed action is stale only strictly after expiry", async (t) => {
+  const boundary = "2026-08-26T00:10:00.000Z";
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(116);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: proposedAction(base),
+      }],
+    });
+    const result = await service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          pendingAction: null,
+          failure: {
+            code: "FLOW_HOST_BLOCKED",
+            failedAt: boundary,
+            recoveryClass: "RETRY_SAFE_READ",
+          },
+        }],
+      }), { now: () => new Date(boundary) }));
+    assert.equal(result.entries[0].failure.code, "FLOW_HOST_BLOCKED");
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(117);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: proposedAction(base),
+      }],
+    });
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            state: "failed",
+            pendingAction: null,
+            failure: {
+              code: "FLOW_ACTION_STALE",
+              failedAt: boundary,
+              recoveryClass: "RETRY_SAFE_READ",
+            },
+          }],
+        }), { now: () => new Date(boundary) })),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+});
+
+test("generated create description accepts the exact locked payload for a reviewed route", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const base = entryFor(118);
+  const descriptionHtml = expectedCreateDescriptionHtml(base);
+  await io.writeJsonAtomic(outboxPath, {
+    version: 1,
+    entries: [{
+      ...base,
+      state: "syncing",
+      attempts: 1,
+      pendingAction: proposedAction(base, {
+        kind: "create_issue",
+        descriptionHtml,
+      }),
+    }],
+  });
+  assert.equal(
+    (await service.readOutbox()).entries[0].pendingAction.manifest.arguments.description_html,
+    descriptionHtml,
+  );
+});
+
+test("code-owned create action matches the literal locked Bugs payload fixture", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const canonicalFinding = finding();
+  const base = entryFor(127, {
+    fingerprint: "napp-v1-fa70a0b62405675a8edc909311e7830e8933654766573ba2db21bad0c0ddd866",
+    findingDigest: `sha256:${digestJson(canonicalFinding)}`,
+    finding: canonicalFinding,
+  });
+  assert.equal(fingerprintFinding(canonicalFinding), base.fingerprint);
+  const lockedPayload = {
+    project_identifier: "NAPP",
+    name: "[BUG][Desktop] Unknown app route returns HTTP 200",
+    description_html: "<section><h2>Environment</h2><p>https://app.nuanu.com/</p></section><section><h2>Preconditions</h2><ul><li>Fresh anonymous context.</li></ul></section><section><h2>Steps</h2><ol><li>Open the reviewed unknown-route probe.</li></ol></section><section><h2>Actual</h2><p>Unknown route returned HTTP 200.</p></section><section><h2>Expected</h2><p>Unknown route returns HTTP 404 with Not Found UI.</p></section><section><h2>Impact</h2><p>Invalid routes are reported as valid documents.</p></section><section><h2>Evidence</h2><p>Sanitized response-status evidence; sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.</p></section><section><h2>Graph</h2><p>nuanu-app:route:unknown; sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc.</p></section><section><h2>Regression</h2><p>AUTOMATED: NAPP-PUB-003.</p></section><section><h2>Deduplication</h2><p>Complete active and recently-closed search found no duplicate.</p></section><p>QA Fingerprint: napp-v1-fa70a0b62405675a8edc909311e7830e8933654766573ba2db21bad0c0ddd866</p>",
+    state_name: "Bugs",
+    label_names: ["Bug", "Desktop"],
+    priority: "high",
+  };
+  await io.writeJsonAtomic(outboxPath, {
+    version: 1,
+    entries: [{
+      ...base,
+      state: "syncing",
+      attempts: 1,
+      pendingAction: proposedAction(base, { kind: "create_issue" }),
+    }],
+  });
+  assert.deepEqual(
+    (await service.readOutbox()).entries[0].pendingAction.manifest.arguments,
+    lockedPayload,
+  );
+});
+
+test("generated route allowance cannot erase an unrelated sensitive path", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const routeFinding = finding({
+    affectedObjectOrRoute: "/",
+    evidenceSignature: shaFor("root-route-description-privacy"),
+  });
+  const base = entryFor(124, {
+    fingerprint: fingerprintFinding(routeFinding),
+    findingDigest: `sha256:${digestJson(routeFinding)}`,
+    finding: routeFinding,
+  });
+  const descriptionHtml = expectedCreateDescriptionHtml(base).replace(
+    `<p>QA Fingerprint: ${base.fingerprint}</p>`,
+    `<p>Unsafe path: /etc/passwd</p><p>QA Fingerprint: ${base.fingerprint}</p>`,
+  );
+  await io.writeJsonAtomic(outboxPath, {
+    version: 1,
+    entries: [{
+      ...base,
+      state: "syncing",
+      attempts: 1,
+      pendingAction: proposedAction(base, {
+        kind: "create_issue",
+        descriptionHtml,
+      }),
+    }],
+  });
+  await assert.rejects(() => service.readOutbox(), { code: "PRIVACY_UNSAFE_OUTBOX" });
+});
+
+test("create action rejects caller-authored safe title or description without changing bytes", async (t) => {
+  for (const field of ["name", "description_html"]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(field === "name" ? 125 : 126);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base),
+      }],
+    });
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) => {
+        const current = transaction.snapshot.entries[0];
+        const override = field === "name"
+          ? { name: "Reviewed alternate bug title" }
+          : {
+            descriptionHtml: `<section><h2>Environment</h2><p>https://app.nuanu.com/</p></section><p>QA Fingerprint: ${current.fingerprint}</p>`,
+          };
+        const action = proposedAction(current, { kind: "create_issue", ...override });
+        return transaction.commit({
+          version: 1,
+          entries: [{ ...current, pendingAction: action }],
+        });
+      })),
+      { code: "INVALID_FLOW_OUTBOX" },
+      field,
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+});
+
+test("standalone reads reject globally reused durable action identities without inventing predecessor revision", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const reusedActionId = `napp-flow-action-v1-${"7".repeat(64)}`;
+  const first = entryFor(119);
+  const second = entryFor(120);
+  await io.writeJsonAtomic(outboxPath, {
+    version: 1,
+    entries: [first, second].map((entry) => ({
+      ...entry,
+      state: "syncing",
+      attempts: 1,
+      pendingAction: proposedAction(entry, { actionId: reusedActionId }),
+    })),
+  });
+  await assert.rejects(() => service.readOutbox(), { code: "INVALID_FLOW_OUTBOX" });
+});
+
+test("new proposed actions derive actionId from every semantic field and predecessor revision", async (t) => {
+  for (const phase of ["initial", "successor"]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(121 + Number(phase === "successor"));
+    if (phase === "initial") {
+      await io.writeJsonAtomic(outboxPath, { version: 1, entries: [base] });
+    } else {
+      await io.writeJsonAtomic(outboxPath, {
+        version: 1,
+        entries: [{
+          ...base,
+          state: "syncing",
+          attempts: 1,
+          pendingAction: dispatchedAction(base),
+        }],
+      });
+    }
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) => {
+        const current = transaction.snapshot.entries[0];
+        return transaction.commit({
+          version: 1,
+          entries: [{
+            ...current,
+            state: "syncing",
+            attempts: phase === "initial" ? current.attempts + 1 : current.attempts,
+            pendingAction: proposedAction(current, {
+              kind: phase === "initial" ? "search_issues" : "create_issue",
+              actionId: `napp-flow-action-v1-${"9".repeat(64)}`,
+            }),
+          }],
+        });
+      })),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+      `${phase} action must bind the predecessor revision`,
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+});
+
+test("create reconciliation failed state requires an ambiguous null-candidate receipt", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const base = entryFor(123);
+  await io.writeJsonAtomic(outboxPath, {
+    version: 1,
+    entries: [{
+      ...base,
+      state: "failed",
+      attempts: 1,
+      mutationReceipt: createReceipt({
+        outcome: "AMBIGUOUS",
+        candidateRemoteId: remoteIdentity(12).id,
+      }),
+      failure: {
+        code: "REMOTE_CREATE_AMBIGUOUS",
+        failedAt: NOW,
+        recoveryClass: "CREATE_RECONCILIATION",
+      },
+    }],
+  });
+  await assert.rejects(() => service.readOutbox(), { code: "INVALID_OUTBOX_TRANSITION" });
+});
+
+test("syncing receipts select only their exact required safe read and remote binding", async (t) => {
+  const cases = [];
+  {
+    const base = entryFor(1);
+    const receipt = createReceipt();
+    cases.push({
+      name: "ACKED cannot search",
+      entry: {
+        ...base,
+        state: "syncing",
+        pendingAction: proposedAction(base),
+        mutationReceipt: receipt,
+      },
+    });
+    cases.push({
+      name: "ACKED cannot read another remote",
+      entry: {
+        ...base,
+        state: "syncing",
+        pendingAction: proposedAction(base, {
+          kind: "get_issue",
+          issueId: remoteIdentity(2).id,
+        }),
+        mutationReceipt: receipt,
+      },
+    });
+    cases.push({
+      name: "ACKED remote must match its proving read",
+      entry: {
+        ...base,
+        state: "syncing",
+        pendingAction: proposedAction(base, {
+          kind: "get_issue",
+          issueId: receipt.remoteId,
+        }),
+        mutationReceipt: receipt,
+        remote: remoteIdentity(2),
+      },
+    });
+  }
+  {
+    const base = entryFor(2);
+    const receipt = createReceipt({ outcome: "AMBIGUOUS" });
+    cases.push({
+      name: "AMBIGUOUS without candidate cannot get",
+      entry: {
+        ...base,
+        state: "syncing",
+        pendingAction: proposedAction(base, { kind: "get_issue" }),
+        mutationReceipt: receipt,
+      },
+    });
+    cases.push({
+      name: "AMBIGUOUS without candidate cannot retain a remote",
+      entry: {
+        ...base,
+        state: "syncing",
+        pendingAction: proposedAction(base),
+        mutationReceipt: receipt,
+        remote: remoteIdentity(2),
+      },
+    });
+  }
+  {
+    const base = entryFor(3);
+    const candidate = remoteIdentity(3).id;
+    const receipt = createReceipt({ outcome: "AMBIGUOUS", candidateRemoteId: candidate });
+    cases.push({
+      name: "AMBIGUOUS candidate cannot search",
+      entry: {
+        ...base,
+        state: "syncing",
+        pendingAction: proposedAction(base),
+        mutationReceipt: receipt,
+      },
+    });
+    cases.push({
+      name: "AMBIGUOUS candidate cannot read another remote",
+      entry: {
+        ...base,
+        state: "syncing",
+        pendingAction: proposedAction(base, {
+          kind: "get_issue",
+          issueId: remoteIdentity(4).id,
+        }),
+        mutationReceipt: receipt,
+      },
+    });
+  }
+  {
+    const base = entryFor(4);
+    cases.push({
+      name: "remote cannot appear without its receipt read",
+      entry: {
+        ...base,
+        state: "syncing",
+        pendingAction: proposedAction(base),
+        remote: remoteIdentity(4),
+      },
+    });
+  }
+
+  for (const invalid of cases) {
+    const { io, outboxPath, service } = await fixture(t);
+    await io.writeJsonAtomic(outboxPath, { version: 1, entries: [invalid.entry] });
+    await assert.rejects(
+      () => service.readOutbox(),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+      invalid.name,
+    );
+  }
+
+  for (const [index, { receipt, action, remote = null }] of [
+    {
+      receipt: createReceipt(),
+      action: { kind: "get_issue", issueId: remoteIdentity().id },
+      remote: remoteIdentity(),
+    },
+    {
+      receipt: createReceipt({ outcome: "AMBIGUOUS" }),
+      action: { kind: "search_issues" },
+    },
+    {
+      receipt: createReceipt({ outcome: "AMBIGUOUS", candidateRemoteId: remoteIdentity(3).id }),
+      action: { kind: "get_issue", issueId: remoteIdentity(3).id },
+      remote: remoteIdentity(3),
+    },
+  ].entries()) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(20 + index);
+    const valid = {
+      ...base,
+      state: "syncing",
+      pendingAction: proposedAction(base, action),
+      mutationReceipt: receipt,
+      remote,
+    };
+    await io.writeJsonAtomic(outboxPath, { version: 1, entries: [valid] });
+    assert.equal((await service.readOutbox()).entries[0].state, "syncing");
+  }
+});
+
+test("receipt provenance is created only from the exact dispatched create and then remains immutable", async (t) => {
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(40);
+    const createAction = dispatchedAction(base, {
+      kind: "create_issue",
+      actionSeed: "dispatched-create",
+    });
+    const before = {
+      ...base,
+      state: "syncing",
+      pendingAction: createAction,
+    };
+    await io.writeJsonAtomic(outboxPath, { version: 1, entries: [before] });
+    const receipt = {
+      ...createReceipt({ remoteId: remoteIdentity(4).id }),
+      actionId: createAction.manifest.actionId,
+      actionDigest: createAction.manifest.actionDigest,
+    };
+    await service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...current,
+          pendingAction: proposedAction(current, {
+            kind: "get_issue",
+            issueId: receipt.remoteId,
+            actionSeed: "safe-read-successor",
+          }),
+          mutationReceipt: receipt,
+        }],
+      });
+    }));
+    assert.deepEqual((await service.readOutbox()).entries[0].mutationReceipt, receipt);
+  }
+
+  for (const mismatch of ["actionId", "actionDigest"]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(mismatch === "actionId" ? 41 : 42);
+    const createAction = dispatchedAction(base, {
+      kind: "create_issue",
+      actionSeed: `create-${mismatch}`,
+    });
+    const before = { ...base, state: "syncing", pendingAction: createAction };
+    await io.writeJsonAtomic(outboxPath, { version: 1, entries: [before] });
+    const receipt = {
+      ...createReceipt(),
+      actionId: createAction.manifest.actionId,
+      actionDigest: createAction.manifest.actionDigest,
+      [mismatch]: mismatch === "actionId"
+        ? `napp-flow-action-v1-${"9".repeat(64)}`
+        : `sha256:${"9".repeat(64)}`,
+    };
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            pendingAction: proposedAction(base, {
+              kind: "get_issue",
+              issueId: receipt.remoteId,
+              actionSeed: `successor-${mismatch}`,
+            }),
+            mutationReceipt: receipt,
+          }],
+        }))),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+  }
+
+  {
+    const { service } = await fixture(t);
+    const pending = await enqueue(service, finding({ evidenceSignature: shaFor("pending-forgery") }));
+    const receipt = createReceipt();
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            state: "syncing",
+            pendingAction: proposedAction(pending, {
+              kind: "get_issue",
+              issueId: receipt.remoteId,
+            }),
+            mutationReceipt: receipt,
+          }],
+        }))),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(43);
+    const receipt = createReceipt();
+    const before = {
+      ...base,
+      state: "syncing",
+      pendingAction: proposedAction(base, {
+        kind: "get_issue",
+        issueId: receipt.remoteId,
+      }),
+      mutationReceipt: receipt,
+    };
+    await io.writeJsonAtomic(outboxPath, { version: 1, entries: [before] });
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            state: "failed",
+            pendingAction: null,
+            mutationReceipt: {
+              ...transaction.snapshot.entries[0].mutationReceipt,
+              actionDigest: shaFor("rewritten-receipt"),
+            },
+            failure: {
+              code: "FLOW_READ_FAILED",
+              failedAt: NOW,
+              recoveryClass: "RETRY_SAFE_READ",
+            },
+          }],
+        }))),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+  }
+});
+
+test("new create receipts are not pre-dispatch and only ACK success is bounded to 24 hours", async (t) => {
+  for (const [outcome, offsetMs, accepted] of [
+    ["ACKED", -1, false],
+    ["ACKED", SUCCESS_OBSERVATION_WINDOW_MS, true],
+    ["ACKED", SUCCESS_OBSERVATION_WINDOW_MS + 1, false],
+    ["AMBIGUOUS", -1, false],
+    ["AMBIGUOUS", SUCCESS_OBSERVATION_WINDOW_MS + 1, true],
+  ]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(150 + Math.abs(offsetMs % 17) + Number(outcome === "AMBIGUOUS"));
+    const createAction = dispatchedAction(base, { kind: "create_issue" });
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{ ...base, state: "syncing", attempts: 1, pendingAction: createAction }],
+    });
+    const observedAt = instantFromNow(offsetMs);
+    const receipt = {
+      ...createReceipt({ outcome, observedAt }),
+      actionId: createAction.manifest.actionId,
+      actionDigest: createAction.manifest.actionDigest,
+    };
+    const before = await readFile(outboxPath);
+    const operation = () => service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [outcome === "ACKED"
+          ? {
+            ...current,
+            pendingAction: proposedAction(current, {
+              kind: "get_issue",
+              issueId: receipt.remoteId,
+              proposedAt: observedAt,
+            }),
+            mutationReceipt: receipt,
+          }
+          : {
+            ...current,
+            state: "failed",
+            pendingAction: null,
+            mutationReceipt: receipt,
+            failure: {
+              code: "REMOTE_CREATE_AMBIGUOUS",
+              failedAt: observedAt,
+              recoveryClass: "CREATE_RECONCILIATION",
+            },
+          }],
+      });
+    }, { now: () => new Date(observedAt) }));
+    if (accepted) {
+      assert.equal((await operation()).entries[0].mutationReceipt.observedAt, observedAt);
+    } else {
+      await assert.rejects(operation, { code: "INVALID_OUTBOX_TRANSITION" });
+      assert.deepEqual(await readFile(outboxPath), before);
+    }
+  }
+});
+
+test("successful search successors are not pre-dispatch and are accepted through exactly 24 hours", async (t) => {
+  for (const [offsetMs, accepted] of [
+    [-1, false],
+    [SUCCESS_OBSERVATION_WINDOW_MS, true],
+    [SUCCESS_OBSERVATION_WINDOW_MS + 1, false],
+  ]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(170 + Number(offsetMs > 0));
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base),
+      }],
+    });
+    const proposedAt = instantFromNow(offsetMs);
+    const before = await readFile(outboxPath);
+    const operation = () => service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...current,
+          pendingAction: proposedAction(current, {
+            kind: "create_issue",
+            proposedAt,
+          }),
+        }],
+      });
+    }, { now: () => new Date(proposedAt) }));
+    if (accepted) {
+      assert.equal((await operation()).entries[0].pendingAction.manifest.proposedAt, proposedAt);
+    } else {
+      await assert.rejects(operation, { code: "INVALID_OUTBOX_TRANSITION" });
+      assert.deepEqual(await readFile(outboxPath), before);
+    }
+  }
+});
+
+test("proving remote read-back times bind dispatch and the inclusive 24-hour window", async (t) => {
+  for (const withReceipt of [false, true]) {
+    for (const [remoteOffsetMs, failureOffsetMs, accepted] of [
+      [-1, 0, false],
+      [SUCCESS_OBSERVATION_WINDOW_MS, SUCCESS_OBSERVATION_WINDOW_MS, true],
+      [SUCCESS_OBSERVATION_WINDOW_MS + 1, 0, false],
+    ]) {
+      const { io, outboxPath, service } = await fixture(t);
+      const base = entryFor(180 + Number(withReceipt) * 10 + Number(remoteOffsetMs > 0));
+      const remote = remoteIdentity(13, {
+        createdReadBackAt: instantFromNow(remoteOffsetMs),
+      });
+      const receipt = withReceipt ? createReceipt({ remoteId: remote.id }) : null;
+      await io.writeJsonAtomic(outboxPath, {
+        version: 1,
+        entries: [{
+          ...base,
+          state: "syncing",
+          attempts: 1,
+          pendingAction: dispatchedAction(base, {
+            kind: "get_issue",
+            issueId: remote.id,
+          }),
+          mutationReceipt: receipt,
+        }],
+      });
+      const before = await readFile(outboxPath);
+      const failedAt = instantFromNow(failureOffsetMs);
+      const operation = () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            state: "failed",
+            pendingAction: null,
+            mutationReceipt: null,
+            remote,
+            failure: {
+              code: "FLOW_EVIDENCE_UNSUPPORTED",
+              failedAt,
+              recoveryClass: "SCHEMA_BLOCKED",
+            },
+          }],
+        }), { now: () => new Date(failedAt) }));
+      if (accepted) {
+        assert.equal((await operation()).entries[0].remote.createdReadBackAt, remote.createdReadBackAt);
+      } else {
+        await assert.rejects(operation, { code: "INVALID_OUTBOX_TRANSITION" });
+        assert.deepEqual(await readFile(outboxPath), before);
+      }
+    }
+  }
+});
+
+test("success-derived dispatched failures are bounded but read and delivery failures are not", async (t) => {
+  for (const [kind, failure, receiptOutcome, accepted] of [
+    ["search_issues", { code: "FLOW_SEARCH_INCOMPLETE", recoveryClass: "RETRY_SAFE_READ" }, null, false],
+    ["search_issues", { code: "FLOW_READ_FAILED", recoveryClass: "RETRY_SAFE_READ" }, null, true],
+    ["create_issue", { code: "FLOW_DESCRIPTOR_STALE", recoveryClass: "RETRY_SAFE_READ" }, "ACKED", false],
+    ["create_issue", { code: "REMOTE_CREATE_AMBIGUOUS", recoveryClass: "CREATE_RECONCILIATION" }, "AMBIGUOUS", true],
+  ]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(200 + Number(kind === "create_issue") + Number(accepted));
+    const action = dispatchedAction(base, { kind });
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{ ...base, state: "syncing", attempts: 1, pendingAction: action }],
+    });
+    const failedAt = instantFromNow(SUCCESS_OBSERVATION_WINDOW_MS + 1);
+    const receipt = receiptOutcome === null
+      ? null
+      : {
+        ...createReceipt({ outcome: receiptOutcome, observedAt: failedAt }),
+        actionId: action.manifest.actionId,
+        actionDigest: action.manifest.actionDigest,
+      };
+    const before = await readFile(outboxPath);
+    const operation = () => service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          pendingAction: null,
+          mutationReceipt: receipt,
+          failure: { ...failure, failedAt },
+        }],
+      }), { now: () => new Date(failedAt) }));
+    if (accepted) {
+      assert.equal((await operation()).entries[0].failure.code, failure.code);
+    } else {
+      await assert.rejects(operation, { code: "INVALID_OUTBOX_TRANSITION" });
+      assert.deepEqual(await readFile(outboxPath), before);
+    }
+  }
+});
+
+test("single-observation timestamps stay equal and ACK successors cannot predate acknowledgement", async (t) => {
+  const firstObservedAt = instantFromNow(60 * 60 * 1000);
+  const laterObservedAt = instantFromNow(2 * 60 * 60 * 1000);
+
+  for (const outcome of ["ACKED", "AMBIGUOUS"]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(outcome === "ACKED" ? 220 : 221);
+    const createAction = dispatchedAction(base, { kind: "create_issue" });
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{ ...base, state: "syncing", attempts: 1, pendingAction: createAction }],
+    });
+    const receipt = {
+      ...createReceipt({ outcome, observedAt: firstObservedAt }),
+      actionId: createAction.manifest.actionId,
+      actionDigest: createAction.manifest.actionDigest,
+    };
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            state: "failed",
+            pendingAction: null,
+            mutationReceipt: receipt,
+            failure: outcome === "ACKED"
+              ? {
+                code: "FLOW_DESCRIPTOR_STALE",
+                failedAt: laterObservedAt,
+                recoveryClass: "RETRY_SAFE_READ",
+              }
+              : {
+                code: "REMOTE_CREATE_AMBIGUOUS",
+                failedAt: laterObservedAt,
+                recoveryClass: "CREATE_RECONCILIATION",
+              },
+          }],
+        }), { now: () => new Date(laterObservedAt) })),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+      `${outcome} receipt and its failure derive from one observation`,
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(222);
+    const createAction = dispatchedAction(base, { kind: "create_issue" });
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{ ...base, state: "syncing", attempts: 1, pendingAction: createAction }],
+    });
+    const receipt = {
+      ...createReceipt({ observedAt: firstObservedAt }),
+      actionId: createAction.manifest.actionId,
+      actionDigest: createAction.manifest.actionDigest,
+    };
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) => {
+        const current = transaction.snapshot.entries[0];
+        return transaction.commit({
+          version: 1,
+          entries: [{
+            ...current,
+            pendingAction: proposedAction(current, {
+              kind: "get_issue",
+              issueId: receipt.remoteId,
+              proposedAt: NOW,
+            }),
+            mutationReceipt: receipt,
+          }],
+        });
+      })),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(223);
+    const remote = remoteIdentity(15, { createdReadBackAt: firstObservedAt });
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, { kind: "get_issue", issueId: remote.id }),
+      }],
+    });
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            state: "failed",
+            pendingAction: null,
+            remote,
+            failure: {
+              code: "FLOW_EVIDENCE_UNSUPPORTED",
+              failedAt: laterObservedAt,
+              recoveryClass: "SCHEMA_BLOCKED",
+            },
+          }],
+        }), { now: () => new Date(laterObservedAt) })),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+});
+
+test("pending entry cannot bypass deduplication with a direct create action", async (t) => {
+  const { outboxPath, service } = await fixture(t);
+  await enqueue(service, finding({ evidenceSignature: shaFor("pending-direct-create") }));
+  const before = await readFile(outboxPath);
+  await assert.rejects(
+    () => service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...current,
+          state: "syncing",
+          attempts: current.attempts + 1,
+          pendingAction: proposedAction(current, {
+            kind: "create_issue",
+            actionSeed: "dedupe-bypass-create",
+          }),
+        }],
+      });
+    })),
+    { code: "INVALID_OUTBOX_TRANSITION" },
+  );
+  assert.deepEqual(await readFile(outboxPath), before);
+});
+
+test("action lifecycle rejects dispatched initial actions manifest swaps and dispatched successors", async (t) => {
+  for (const kind of ["search_issues", "create_issue"]) {
+    const { outboxPath, service } = await fixture(t);
+    await enqueue(service, finding({ evidenceSignature: shaFor(`pending-dispatched-${kind}`) }));
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) => {
+        const current = transaction.snapshot.entries[0];
+        return transaction.commit({
+          version: 1,
+          entries: [{
+            ...current,
+            state: "syncing",
+            attempts: current.attempts + 1,
+            pendingAction: dispatchedAction(current, {
+              kind,
+              actionSeed: `immediately-dispatched-${kind}`,
+            }),
+          }],
+        });
+      })),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+      `pending cannot enter syncing with a DISPATCHED ${kind}`,
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+
+  for (const lifecycle of ["PROPOSED", "DISPATCHED"]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(lifecycle === "PROPOSED" ? 60 : 61);
+    const beforeEntry = {
+      ...base,
+      state: "syncing",
+      attempts: 1,
+      pendingAction: lifecycle === "PROPOSED"
+        ? proposedAction(base, { actionSeed: "original-proposed-search" })
+        : dispatchedAction(base, { actionSeed: "original-dispatched-search" }),
+    };
+    await io.writeJsonAtomic(outboxPath, { version: 1, entries: [beforeEntry] });
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) => {
+        const current = transaction.snapshot.entries[0];
+        return transaction.commit({
+          version: 1,
+          entries: [{
+            ...current,
+            pendingAction: dispatchedAction(current, {
+              kind: "create_issue",
+              actionSeed: `swapped-${lifecycle.toLowerCase()}-create`,
+            }),
+          }],
+        });
+      })),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+      lifecycle === "PROPOSED"
+        ? "dispatch cannot swap the proposed manifest"
+        : "a dispatched action cannot install an immediately dispatched successor",
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+});
+
+test("action lifecycle accepts exact proposal dispatch successor and receipt recovery paths", async (t) => {
+  {
+    const { service } = await fixture(t);
+    await enqueue(service, finding({ evidenceSignature: shaFor("valid-action-lifecycle") }));
+    const proposed = await service.withOutboxTransaction(transactionInput((transaction) => {
+      const pending = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...pending,
+          state: "syncing",
+          attempts: pending.attempts + 1,
+          pendingAction: proposedAction(pending, { actionSeed: "initial-search" }),
+        }],
+      });
+    }));
+    assert.equal(proposed.entries[0].pendingAction.manifest.kind, "search_issues");
+    assert.equal(proposed.entries[0].pendingAction.lifecycle, "PROPOSED");
+
+    const dispatched = await service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...current,
+          pendingAction: {
+            manifest: current.pendingAction.manifest,
+            lifecycle: "DISPATCHED",
+            dispatchedAt: NOW,
+          },
+        }],
+      });
+    }));
+    assert.deepEqual(
+      dispatched.entries[0].pendingAction.manifest,
+      proposed.entries[0].pendingAction.manifest,
+    );
+    assert.equal(dispatched.entries[0].pendingAction.lifecycle, "DISPATCHED");
+
+    const successor = await service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...current,
+          pendingAction: proposedAction(current, {
+            kind: "create_issue",
+            actionSeed: "create-successor",
+          }),
+        }],
+      });
+    }));
+    assert.equal(successor.entries[0].pendingAction.manifest.kind, "create_issue");
+    assert.equal(successor.entries[0].pendingAction.lifecycle, "PROPOSED");
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(63);
+    const receipt = createReceipt();
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "failed",
+        attempts: 1,
+        mutationReceipt: receipt,
+        failure: {
+          code: "FLOW_READ_FAILED",
+          failedAt: NOW,
+          recoveryClass: "RETRY_SAFE_READ",
+        },
+      }],
+    });
+    const resumed = await service.withOutboxTransaction(transactionInput((transaction) => {
+      const failed = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...failed,
+          state: "syncing",
+          attempts: failed.attempts + 1,
+          pendingAction: proposedAction(failed, {
+            kind: "get_issue",
+            issueId: receipt.remoteId,
+            actionSeed: "receipt-recovery-read",
+          }),
+          failure: null,
+        }],
+      });
+    }));
+    assert.equal(resumed.entries[0].pendingAction.lifecycle, "PROPOSED");
+    assert.equal(resumed.entries[0].pendingAction.manifest.arguments.issueId, receipt.remoteId);
+  }
+});
+
+test("dispatched action kinds reject unsafe successors and create failures without a receipt", async (t) => {
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(70);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, {
+          kind: "get_issue",
+          issueId: remoteIdentity(7).id,
+          actionSeed: "terminal-get",
+        }),
+      }],
+    });
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) => {
+        const current = transaction.snapshot.entries[0];
+        return transaction.commit({
+          version: 1,
+          entries: [{
+            ...current,
+            pendingAction: proposedAction(current, {
+              kind: "create_issue",
+              actionSeed: "create-after-get",
+            }),
+          }],
+        });
+      })),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+
+  for (const successorKind of ["create_issue", "search_issues"]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(successorKind === "create_issue" ? 71 : 72);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, {
+          kind: "create_issue",
+          actionSeed: `dispatched-create-${successorKind}`,
+        }),
+      }],
+    });
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) => {
+        const current = transaction.snapshot.entries[0];
+        return transaction.commit({
+          version: 1,
+          entries: [{
+            ...current,
+            pendingAction: proposedAction(current, {
+              kind: successorKind,
+              actionSeed: `receipt-free-${successorKind}`,
+            }),
+          }],
+        });
+      })),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(73);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, {
+          kind: "create_issue",
+          actionSeed: "create-before-read-failure",
+        }),
+      }],
+    });
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            state: "failed",
+            pendingAction: null,
+            failure: {
+              code: "FLOW_READ_FAILED",
+              failedAt: NOW,
+              recoveryClass: "RETRY_SAFE_READ",
+            },
+          }],
+        }))),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+});
+
+test("ambiguous create delivery must fail before proposing reconciliation search", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const base = entryFor(74);
+  const createAction = dispatchedAction(base, {
+    kind: "create_issue",
+    actionSeed: "ambiguous-create-direct-search",
+  });
+  await io.writeJsonAtomic(outboxPath, {
+    version: 1,
+    entries: [{ ...base, state: "syncing", attempts: 1, pendingAction: createAction }],
+  });
+  const before = await readFile(outboxPath);
+  const receipt = {
+    ...createReceipt({ outcome: "AMBIGUOUS" }),
+    actionId: createAction.manifest.actionId,
+    actionDigest: createAction.manifest.actionDigest,
+  };
+  await assert.rejects(
+    () => service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...current,
+          pendingAction: proposedAction(current, {
+            actionSeed: "premature-reconciliation-search",
+          }),
+          mutationReceipt: receipt,
+        }],
+      });
+    })),
+    { code: "INVALID_OUTBOX_TRANSITION" },
+  );
+  assert.deepEqual(await readFile(outboxPath), before);
+});
+
+test("dispatched action kinds accept only their exact safe successors", async (t) => {
+  for (const [index, successorKind] of ["create_issue", "get_issue"].entries()) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(80 + index);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, {
+          actionSeed: `ordinary-search-${successorKind}`,
+        }),
+      }],
+    });
+    const result = await service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...current,
+          pendingAction: proposedAction(current, {
+            kind: successorKind,
+            issueId: remoteIdentity(8 + index).id,
+            actionSeed: `ordinary-${successorKind}-successor`,
+          }),
+        }],
+      });
+    }));
+    assert.equal(result.entries[0].pendingAction.manifest.kind, successorKind);
+  }
+
+  {
+    const outcome = "ACKED";
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(outcome === "ACKED" ? 82 : 83);
+    const createAction = dispatchedAction(base, {
+      kind: "create_issue",
+      actionSeed: `create-${outcome.toLowerCase()}`,
+    });
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{ ...base, state: "syncing", attempts: 1, pendingAction: createAction }],
+    });
+    const receipt = {
+      ...createReceipt({ outcome }),
+      actionId: createAction.manifest.actionId,
+      actionDigest: createAction.manifest.actionDigest,
+    };
+    const successorKind = "get_issue";
+    const result = await service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...current,
+          pendingAction: proposedAction(current, {
+            kind: successorKind,
+            issueId: receipt.remoteId,
+            actionSeed: `${outcome.toLowerCase()}-safe-successor`,
+          }),
+          mutationReceipt: receipt,
+        }],
+      });
+    }));
+    assert.equal(result.entries[0].mutationReceipt.outcome, outcome);
+    assert.equal(result.entries[0].pendingAction.manifest.kind, successorKind);
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(83);
+    const createAction = dispatchedAction(base, {
+      kind: "create_issue",
+      actionSeed: "ambiguous-create-failure",
+    });
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{ ...base, state: "syncing", attempts: 1, pendingAction: createAction }],
+    });
+    const receipt = {
+      ...createReceipt({ outcome: "AMBIGUOUS" }),
+      actionId: createAction.manifest.actionId,
+      actionDigest: createAction.manifest.actionDigest,
+    };
+    const failed = await service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          pendingAction: null,
+          mutationReceipt: receipt,
+          failure: {
+            code: "REMOTE_CREATE_AMBIGUOUS",
+            failedAt: NOW,
+            recoveryClass: "CREATE_RECONCILIATION",
+          },
+        }],
+      })));
+    assert.equal(failed.entries[0].state, "failed");
+    const recovering = await service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...current,
+          state: "syncing",
+          attempts: current.attempts + 1,
+          pendingAction: proposedAction(current, {
+            actionSeed: "ambiguous-reconciliation-search",
+          }),
+          failure: null,
+        }],
+      });
+    }));
+    assert.equal(recovering.entries[0].state, "syncing");
+    assert.equal(recovering.entries[0].pendingAction.manifest.kind, "search_issues");
+    assert.equal(recovering.entries[0].mutationReceipt.outcome, "AMBIGUOUS");
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(84);
+    const receipt = createReceipt({ outcome: "AMBIGUOUS" });
+    const candidate = remoteIdentity(8).id;
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, { actionSeed: "ambiguous-recovery-search" }),
+        mutationReceipt: receipt,
+      }],
+    });
+    const result = await service.withOutboxTransaction(transactionInput((transaction) => {
+      const current = transaction.snapshot.entries[0];
+      return transaction.commit({
+        version: 1,
+        entries: [{
+          ...current,
+          pendingAction: proposedAction(current, {
+            kind: "get_issue",
+            issueId: candidate,
+            actionSeed: "candidate-proving-read",
+          }),
+          mutationReceipt: { ...receipt, candidateRemoteId: candidate },
+        }],
+      });
+    }));
+    assert.equal(result.entries[0].mutationReceipt.candidateRemoteId, candidate);
+    assert.equal(result.entries[0].pendingAction.manifest.kind, "get_issue");
+  }
+});
+
+test("failure transitions are closed by predecessor lifecycle action kind and failed-state immutability", async (t) => {
+  for (const [index, failure] of [
+    { code: "FLOW_READ_FAILED", recoveryClass: "RETRY_SAFE_READ" },
+    { code: "FLOW_SEARCH_INCOMPLETE", recoveryClass: "RETRY_SAFE_READ" },
+    { code: "FLOW_RECONCILIATION_REQUIRED", recoveryClass: "MANUAL" },
+    { code: "FLOW_ACTION_STALE", recoveryClass: "RETRY_SAFE_READ" },
+  ].entries()) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(90 + index);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: proposedAction(base, { actionSeed: `proposed-invalid-${failure.code}` }),
+      }],
+    });
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            state: "failed",
+            pendingAction: null,
+            failure: { ...failure, failedAt: NOW },
+          }],
+        }))),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+
+  for (const [index, failure] of [
+    { code: "FLOW_SEARCH_INCOMPLETE", recoveryClass: "RETRY_SAFE_READ" },
+    { code: "FLOW_ACTION_STALE", recoveryClass: "RETRY_SAFE_READ" },
+    { code: "FLOW_DESCRIPTOR_STALE", recoveryClass: "RETRY_SAFE_READ" },
+  ].entries()) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(93 + index);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, {
+          kind: "get_issue",
+          issueId: remoteIdentity(9).id,
+          actionSeed: `get-invalid-${failure.code}`,
+        }),
+      }],
+    });
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            state: "failed",
+            pendingAction: null,
+            failure: { ...failure, failedAt: NOW },
+          }],
+        }))),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(96);
+    const failed = {
+      ...base,
+      state: "failed",
+      attempts: 1,
+      failure: {
+        code: "FLOW_READ_FAILED",
+        failedAt: NOW,
+        recoveryClass: "RETRY_SAFE_READ",
+      },
+    };
+    await io.writeJsonAtomic(outboxPath, { version: 1, entries: [failed] });
+    const before = await readFile(outboxPath);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            failure: {
+              code: "FLOW_DESCRIPTOR_STALE",
+              failedAt: NOW,
+              recoveryClass: "RETRY_SAFE_READ",
+            },
+          }],
+        }))),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+    assert.deepEqual(await readFile(outboxPath), before);
+  }
+});
+
+test("failure transitions accept only the exact valid lifecycle and action dispositions", async (t) => {
+  for (const [index, code] of [
+    "FLOW_HOST_BLOCKED",
+    "FLOW_DESCRIPTOR_STALE",
+    "FLOW_MUTATION_BLOCKED",
+  ].entries()) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(120 + index);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: proposedAction(base, { actionSeed: `pre-dispatch-${code}` }),
+      }],
+    });
+    const result = await service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          pendingAction: null,
+          failure: { code, failedAt: NOW, recoveryClass: "RETRY_SAFE_READ" },
+        }],
+      })));
+    assert.equal(result.entries[0].failure.code, code);
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(123);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: proposedAction(base, { actionSeed: "proposal-to-expire" }),
+      }],
+    });
+    const expiredAt = "2026-08-26T00:10:00.001Z";
+    const result = await service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          updatedAt: transaction.acquiredAt,
+          pendingAction: null,
+          failure: {
+            code: "FLOW_ACTION_STALE",
+            failedAt: transaction.acquiredAt,
+            recoveryClass: "RETRY_SAFE_READ",
+          },
+        }],
+      }), {
+      now: () => new Date(expiredAt),
+    }));
+    assert.equal(result.entries[0].failure.failedAt, expiredAt);
+  }
+
+  for (const [index, failure] of [
+    { code: "FLOW_READ_FAILED", recoveryClass: "RETRY_SAFE_READ" },
+    { code: "FLOW_SEARCH_INCOMPLETE", recoveryClass: "RETRY_SAFE_READ" },
+    { code: "FLOW_DESCRIPTOR_STALE", recoveryClass: "RETRY_SAFE_READ" },
+    { code: "FLOW_FINGERPRINT_AMBIGUOUS", recoveryClass: "MANUAL" },
+  ].entries()) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(124 + index);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, { actionSeed: `search-${failure.code}` }),
+      }],
+    });
+    const result = await service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          pendingAction: null,
+          failure: { ...failure, failedAt: NOW },
+        }],
+      })));
+    assert.equal(result.entries[0].failure.code, failure.code);
+  }
+
+  for (const [index, failure] of [
+    { code: "FLOW_READ_FAILED", recoveryClass: "RETRY_SAFE_READ" },
+    { code: "FLOW_READBACK_MISMATCH", recoveryClass: "MANUAL" },
+  ].entries()) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(129 + index);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, {
+          kind: "get_issue",
+          issueId: remoteIdentity(10).id,
+          actionSeed: `get-${failure.code}`,
+        }),
+      }],
+    });
+    const result = await service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          pendingAction: null,
+          failure: { ...failure, failedAt: NOW },
+        }],
+      })));
+    assert.equal(result.entries[0].failure.code, failure.code);
+  }
+
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(131);
+    const createAction = dispatchedAction(base, {
+      kind: "create_issue",
+      actionSeed: "acked-without-successor-binding",
+    });
+    const receipt = {
+      ...createReceipt(),
+      actionId: createAction.manifest.actionId,
+      actionDigest: createAction.manifest.actionDigest,
+    };
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{ ...base, state: "syncing", attempts: 1, pendingAction: createAction }],
+    });
+    const result = await service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          pendingAction: null,
+          mutationReceipt: receipt,
+          failure: {
+            code: "FLOW_DESCRIPTOR_STALE",
+            failedAt: NOW,
+            recoveryClass: "RETRY_SAFE_READ",
+          },
+        }],
+      })));
+    assert.equal(result.entries[0].mutationReceipt.outcome, "ACKED");
+  }
+});
+
+test("search failure dispositions bind ordinary and ambiguous receipt evidence exactly", async (t) => {
+  const transition = async ({
+    index,
+    receipt = null,
+    nextReceipt = receipt,
+    code,
+    recoveryClass,
+    accepted,
+  }) => {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(index);
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base),
+        mutationReceipt: receipt,
+      }],
+    });
+    const before = await readFile(outboxPath);
+    const operation = () => service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          pendingAction: null,
+          mutationReceipt: nextReceipt,
+          failure: { code, failedAt: NOW, recoveryClass },
+        }],
+      })));
+    if (accepted) {
+      const result = await operation();
+      assert.equal(result.entries[0].failure.code, code);
+      assert.deepEqual(result.entries[0].mutationReceipt, nextReceipt);
+    } else {
+      await assert.rejects(operation, { code: "INVALID_OUTBOX_TRANSITION" });
+      assert.deepEqual(await readFile(outboxPath), before);
+    }
+  };
+
+  await transition({
+    index: 210,
+    code: "FLOW_RECONCILIATION_REQUIRED",
+    recoveryClass: "MANUAL",
+    accepted: false,
+  });
+
+  const ambiguous = createReceipt({ outcome: "AMBIGUOUS" });
+  await transition({
+    index: 211,
+    receipt: ambiguous,
+    code: "FLOW_RECONCILIATION_REQUIRED",
+    recoveryClass: "MANUAL",
+    accepted: true,
+  });
+  await transition({
+    index: 212,
+    receipt: ambiguous,
+    code: "FLOW_DESCRIPTOR_STALE",
+    recoveryClass: "RETRY_SAFE_READ",
+    accepted: false,
+  });
+
+  const promoted = {
+    ...ambiguous,
+    candidateRemoteId: remoteIdentity(14).id,
+  };
+  await transition({
+    index: 213,
+    receipt: ambiguous,
+    nextReceipt: promoted,
+    code: "FLOW_DESCRIPTOR_STALE",
+    recoveryClass: "RETRY_SAFE_READ",
+    accepted: true,
+  });
+  await transition({
+    index: 214,
+    receipt: ambiguous,
+    nextReceipt: promoted,
+    code: "FLOW_READ_FAILED",
+    recoveryClass: "RETRY_SAFE_READ",
+    accepted: false,
+  });
+});
+
+test("receipt proving read cannot clear on a read failure", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const base = entryFor(97);
+  const remote = remoteIdentity(9);
+  const receipt = createReceipt({ remoteId: remote.id });
+  await io.writeJsonAtomic(outboxPath, {
+    version: 1,
+    entries: [{
+      ...base,
+      state: "syncing",
+      attempts: 1,
+      pendingAction: dispatchedAction(base, {
+        kind: "get_issue",
+        issueId: remote.id,
+        actionSeed: "failed-proving-read",
+      }),
+      mutationReceipt: receipt,
+    }],
+  });
+  const before = await readFile(outboxPath);
+  await assert.rejects(
+    () => service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          pendingAction: null,
+          mutationReceipt: null,
+          remote,
+          failure: {
+            code: "FLOW_READ_FAILED",
+            failedAt: NOW,
+            recoveryClass: "RETRY_SAFE_READ",
+          },
+        }],
+      }))),
+    { code: "INVALID_OUTBOX_TRANSITION" },
+  );
+  assert.deepEqual(await readFile(outboxPath), before);
+});
+
+test("read failure and mismatch retain their receipt and never introduce a remote", async (t) => {
+  for (const [index, failure] of [
+    { code: "FLOW_READ_FAILED", recoveryClass: "RETRY_SAFE_READ" },
+    { code: "FLOW_READBACK_MISMATCH", recoveryClass: "RETRY_SAFE_READ" },
+  ].entries()) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(140 + index);
+    const remote = remoteIdentity(11);
+    const receipt = createReceipt({ remoteId: remote.id });
+    await io.writeJsonAtomic(outboxPath, {
+      version: 1,
+      entries: [{
+        ...base,
+        state: "syncing",
+        attempts: 1,
+        pendingAction: dispatchedAction(base, {
+          kind: "get_issue",
+          issueId: remote.id,
+          actionSeed: `retained-receipt-${failure.code}`,
+        }),
+        mutationReceipt: receipt,
+      }],
+    });
+    const result = await service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          pendingAction: null,
+          failure: { ...failure, failedAt: NOW },
+        }],
+      })));
+    assert.deepEqual(result.entries[0].mutationReceipt, receipt);
+    assert.equal(result.entries[0].remote, null);
+  }
+});
+
+test("receipt-free duplicate proving read can persist its exact matching remote", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const base = entryFor(62);
+  const remote = remoteIdentity(6);
+  await io.writeJsonAtomic(outboxPath, {
+    version: 1,
+    entries: [{
+      ...base,
+      state: "syncing",
+      attempts: 1,
+      pendingAction: dispatchedAction(base, {
+        kind: "get_issue",
+        issueId: remote.id,
+        actionSeed: "duplicate-proving-read",
+      }),
+    }],
+  });
+  await service.withOutboxTransaction(transactionInput((transaction) =>
+    transaction.commit({
+      version: 1,
+      entries: [{
+        ...transaction.snapshot.entries[0],
+        state: "failed",
+        pendingAction: null,
+        remote,
+        failure: {
+          code: "FLOW_EVIDENCE_UNSUPPORTED",
+          failedAt: NOW,
+          recoveryClass: "SCHEMA_BLOCKED",
+        },
+      }],
+    })));
+  assert.deepEqual((await service.readOutbox()).entries[0].remote, remote);
+});
+
+test("receipt clears only with the exact dispatched proving read and matching remote", async (t) => {
+  {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(50);
+    const receipt = createReceipt({ remoteId: remoteIdentity(5).id });
+    const before = {
+      ...base,
+      state: "syncing",
+      pendingAction: dispatchedAction(base, {
+        kind: "get_issue",
+        issueId: receipt.remoteId,
+        actionSeed: "proving-read",
+      }),
+      mutationReceipt: receipt,
+    };
+    await io.writeJsonAtomic(outboxPath, { version: 1, entries: [before] });
+    await service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({
+        version: 1,
+        entries: [{
+          ...transaction.snapshot.entries[0],
+          state: "failed",
+          pendingAction: null,
+          mutationReceipt: null,
+          remote: remoteIdentity(5),
+          failure: {
+            code: "FLOW_EVIDENCE_UNSUPPORTED",
+            failedAt: NOW,
+            recoveryClass: "SCHEMA_BLOCKED",
+          },
+        }],
+      })));
+    const persisted = (await service.readOutbox()).entries[0];
+    assert.equal(persisted.mutationReceipt, null);
+    assert.deepEqual(persisted.remote, remoteIdentity(5));
+  }
+
+  for (const dispatched of [false, true]) {
+    const { io, outboxPath, service } = await fixture(t);
+    const base = entryFor(dispatched ? 51 : 52);
+    const receipt = createReceipt();
+    const before = {
+      ...base,
+      state: "syncing",
+      pendingAction: dispatched
+        ? dispatchedAction(base, { kind: "get_issue", issueId: receipt.remoteId })
+        : proposedAction(base, { kind: "get_issue", issueId: receipt.remoteId }),
+      mutationReceipt: receipt,
+    };
+    await io.writeJsonAtomic(outboxPath, { version: 1, entries: [before] });
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit({
+          version: 1,
+          entries: [{
+            ...transaction.snapshot.entries[0],
+            state: "failed",
+            pendingAction: null,
+            mutationReceipt: null,
+            remote: dispatched ? remoteIdentity(2) : null,
+            failure: {
+              code: "FLOW_READ_FAILED",
+              failedAt: NOW,
+              recoveryClass: "RETRY_SAFE_READ",
+            },
+          }],
+        }))),
+      { code: "INVALID_OUTBOX_TRANSITION" },
+    );
+  }
+});
+
+test("same fingerprint with different full finding digest is a conflict", async (t) => {
+  const { outboxPath, service } = await fixture(t);
+  const original = finding();
+  await enqueue(service, original);
+  const before = await readFile(outboxPath);
+  await assert.rejects(
+    () => enqueue(service, { ...original, priority: "urgent" }),
+    { code: "OUTBOX_FINGERPRINT_CONFLICT" },
+  );
+  assert.deepEqual(await readFile(outboxPath), before);
+});
+
+test("transaction acquires the lease before snapshot read", async (t) => {
+  const events = [];
+  const createdRoot = await mkdtemp(join(tmpdir(), "napp-flow-order-"));
+  const root = await realpath(createdRoot);
+  t.after(() => rm(createdRoot, { recursive: true, force: true }));
+  const baseIo = createJsonIo({ privateRoot: root });
+  const io = {
+    ...baseIo,
+    async readJson(path) {
+      events.push("outbox-read");
+      return baseIo.readJson(path);
+    },
+    async writeJsonAtomic(path, value) {
+      events.push("outbox-write");
+      return baseIo.writeJsonAtomic(path, value);
+    },
+  };
+  const lockFs = {
+    async open(...args) {
+      events.push("lock-open");
+      return open(...args);
+    },
+    lstat,
+    unlink,
+  };
+  const service = createFlowOutboxService({
+    io,
+    outboxPath: join(root, OUTBOX_RELATIVE_PATH),
+    lockPath: join(root, OUTBOX_LOCK_RELATIVE_PATH),
+    lockFs,
+  });
+  await service.withOutboxTransaction(transactionInput(async (transaction) => {
+    assert.deepEqual(transaction.snapshot, { version: 1, entries: [] });
+    assert.match(transaction.snapshotDigest, /^sha256:[0-9a-f]{64}$/);
+    await transaction.commit(transaction.snapshot);
+  }));
+  assert.ok(events.indexOf("lock-open") < events.indexOf("outbox-read"));
+  assert.ok(events.indexOf("lock-open") < events.indexOf("outbox-write"));
+});
+
+test("lease cap covers limit minus one limit and limit plus one", async (t) => {
+  const { service } = await fixture(t);
+  for (const leaseMs of [MAX_LEASE_MS - 1, MAX_LEASE_MS]) {
+    await service.withOutboxTransaction(transactionInput(() => {}, { leaseMs }));
+  }
+  await assert.rejects(
+    () => service.withOutboxTransaction(transactionInput(() => {}, { leaseMs: MAX_LEASE_MS + 1 })),
+    { code: "INVALID_OUTBOX_LEASE" },
+  );
+});
+
+test("transaction shape lock record mode assertOwned and renew are exact", async (t) => {
+  const { lockPath, service } = await fixture(t);
+  await service.withOutboxTransaction(transactionInput(async (transaction) => {
+    assert.deepEqual(Object.keys(transaction), [
+      "ownerId",
+      "acquiredAt",
+      "expiresAt",
+      "assertOwned",
+      "renew",
+      "snapshot",
+      "snapshotDigest",
+      "commit",
+    ]);
+    assert.equal(Object.isFrozen(transaction), true);
+    assert.equal((await lstat(lockPath)).mode & 0o777, 0o600);
+    assert.deepEqual(JSON.parse(await readFile(lockPath, "utf8")), {
+      ownerId: OWNER,
+      acquiredAt: NOW,
+      expiresAt: "2026-08-26T00:00:30.000Z",
+    });
+    assert.equal(await transaction.assertOwned({ now: new Date(NOW) }), true);
+    assert.equal(await transaction.renew({
+      now: new Date("2026-08-26T00:00:10.000Z"),
+      leaseMs: 30_000,
+    }), "2026-08-26T00:00:40.000Z");
+    assert.equal(transaction.expiresAt, "2026-08-26T00:00:40.000Z");
+    assert.deepEqual(JSON.parse(await readFile(lockPath, "utf8")), {
+      ownerId: OWNER,
+      acquiredAt: NOW,
+      expiresAt: "2026-08-26T00:00:40.000Z",
+    });
+  }));
+});
+
+test("failed lease-record write removes only its acquired lock and never writes the outbox", async (t) => {
+  const createdRoot = await mkdtemp(join(tmpdir(), "napp-flow-lock-fail-"));
+  const root = await realpath(createdRoot);
+  t.after(() => rm(createdRoot, { recursive: true, force: true }));
+  const outboxPath = join(root, OUTBOX_RELATIVE_PATH);
+  const lockPath = join(root, OUTBOX_LOCK_RELATIVE_PATH);
+  const lockFs = {
+    async open(path, flags, mode) {
+      const handle = await open(path, flags, mode);
+      if (flags !== "wx") return handle;
+      return {
+        stat: (...args) => handle.stat(...args),
+        truncate: (...args) => handle.truncate(...args),
+        async write() {
+          const error = new Error("synthetic lock write failure");
+          error.code = "EIO";
+          throw error;
+        },
+        sync: (...args) => handle.sync(...args),
+        close: (...args) => handle.close(...args),
+      };
+    },
+    lstat,
+    unlink,
+  };
+  const service = createFlowOutboxService({
+    io: createJsonIo({ privateRoot: root }),
+    outboxPath,
+    lockPath,
+    lockFs,
+  });
+  await assert.rejects(
+    () => service.withOutboxTransaction(transactionInput(() => {})),
+    { code: "OUTBOX_LOCK_FAILED" },
+  );
+  await assert.rejects(() => stat(lockPath), { code: "ENOENT" });
+  await assert.rejects(() => stat(outboxPath), { code: "ENOENT" });
+});
+
+test("write rejects forged cross-service expired released and reused transactions", async (t) => {
+  const first = await fixture(t);
+  const second = await fixture(t);
+
+  await first.service.withOutboxTransaction(transactionInput(async (transaction) => {
+    await assert.rejects(
+      () => Reflect.apply(transaction.commit, {}, [transaction.snapshot]),
+      { code: "OUTBOX_TRANSACTION_FORGED" },
+    );
+    await second.service.withOutboxTransaction(transactionInput(async (foreignTransaction) => {
+      await assert.rejects(
+        () => Reflect.apply(transaction.commit, foreignTransaction, [transaction.snapshot]),
+        { code: "OUTBOX_TRANSACTION_FORGED" },
+      );
+    }));
+  }));
+
+  let released;
+  await first.service.withOutboxTransaction(transactionInput((transaction) => {
+    released = transaction;
+  }));
+  await assert.rejects(
+    () => released.commit(released.snapshot),
+    { code: "OUTBOX_TRANSACTION_RELEASED" },
+  );
+
+  let current = Date.parse(NOW);
+  await assert.rejects(
+    () => first.service.withOutboxTransaction(transactionInput(async (transaction) => {
+      current += 1_000;
+      await transaction.commit(transaction.snapshot);
+    }, {
+      now: () => new Date(current),
+      leaseMs: 1_000,
+    })),
+    { code: "OUTBOX_LEASE_EXPIRED" },
+  );
+
+  await first.service.withOutboxTransaction(transactionInput(async (transaction) => {
+    await transaction.commit(transaction.snapshot);
+    await assert.rejects(
+      () => transaction.commit(transaction.snapshot),
+      { code: "OUTBOX_TRANSACTION_REUSED" },
+    );
+  }));
+});
+
+test("transaction rejects a stale snapshot digest before replacement", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  await assert.rejects(
+    () => service.withOutboxTransaction(transactionInput(async (transaction) => {
+      await io.writeJsonAtomic(outboxPath, { version: 1, entries: [entryFor(1)] });
+      await transaction.commit(transaction.snapshot);
+    })),
+    { code: "OUTBOX_SNAPSHOT_STALE" },
+  );
+  assert.equal((await service.readOutbox()).entries.length, 1);
+});
+
+test("commit rejects symbol-bearing and array-extra outbox values without writing", async (t) => {
+  for (const nextOutbox of [
+    Object.assign({ version: 1, entries: [] }, { [Symbol("hidden")]: "unsafe" }),
+    (() => {
+      const entries = [];
+      entries.extra = "unsafe";
+      return { version: 1, entries };
+    })(),
+  ]) {
+    const { outboxPath, service } = await fixture(t);
+    await assert.rejects(
+      () => service.withOutboxTransaction(transactionInput((transaction) =>
+        transaction.commit(nextOutbox))),
+      { code: "INVALID_FLOW_OUTBOX" },
+    );
+    await assert.rejects(() => stat(outboxPath), { code: "ENOENT" });
+  }
+});
+
+test("safe read recovery preserves a known remote in pending_sync", async (t) => {
+  const { io, outboxPath, service } = await fixture(t);
+  const initial = await enqueue(service, finding());
+  const remote = remoteIdentity();
+  const current = (await service.readOutbox()).entries[0];
+  assert.equal(current.fingerprint, initial.fingerprint);
+  await io.writeJsonAtomic(outboxPath, {
+    version: 1,
+    entries: [{
+      ...current,
+      state: "failed",
+      remote,
+      failure: {
+        code: "FLOW_READ_FAILED",
+        failedAt: NOW,
+        recoveryClass: "RETRY_SAFE_READ",
+      },
+    }],
+  });
+  const recovered = await service.recoverOutbox({
+    fingerprint: initial.fingerprint,
+    ownerId: OWNER,
+    now: () => new Date(NOW),
+    leaseMs: 30_000,
+  });
+  assert.equal(recovered.state, "pending_sync");
+  assert.deepEqual(recovered.remote, remote);
+  assert.equal(recovered.failure, null);
+
+  const resumed = await service.withOutboxTransaction(transactionInput((transaction) => {
+    const pending = transaction.snapshot.entries[0];
+    const syncing = {
+      ...pending,
+      state: "syncing",
+      attempts: pending.attempts + 1,
+      pendingAction: proposedAction(pending, {
+        kind: "get_issue",
+        issueId: remote.id,
+        actionSeed: "known-remote-safe-read",
+      }),
+    };
+    return transaction.commit({ version: 1, entries: [syncing] });
+  }));
+  assert.equal(resumed.entries[0].state, "syncing");
+  assert.deepEqual(resumed.entries[0].remote, remote);
+  assert.equal(resumed.entries[0].pendingAction.manifest.kind, "get_issue");
+});
+
+test("transaction rejects a replaced lock inode and never unlinks the replacement", async (t) => {
+  const { lockPath, service } = await fixture(t);
+  const displacedPath = `${lockPath}.displaced`;
+  await assert.rejects(
+    () => service.withOutboxTransaction(transactionInput(async (transaction) => {
+      await rename(lockPath, displacedPath);
+      await writeFile(lockPath, `${JSON.stringify({
+        ownerId: "other-worker",
+        acquiredAt: NOW,
+        expiresAt: "2026-08-26T00:01:00.000Z",
+      })}\n`, { mode: 0o600 });
+      await transaction.commit(transaction.snapshot);
+    })),
+    { code: "OUTBOX_LOCK_REPLACED" },
+  );
+  assert.equal(JSON.parse(await readFile(lockPath, "utf8")).ownerId, "other-worker");
+});
+
+test("enqueue durably replaces state at 0600 and leaves no transaction residue", async (t) => {
+  const { root, outboxPath, lockPath, service } = await fixture(t);
+  const persisted = await enqueue(service, finding());
+  assert.equal(persisted.state, "pending_sync");
+  assert.equal((await lstat(outboxPath)).mode & 0o777, 0o600);
+  assert.deepEqual((await service.readOutbox()).entries, [persisted]);
+  await assert.rejects(() => stat(lockPath), { code: "ENOENT" });
+  assert.deepEqual(
+    (await readdir(root)).filter((name) => name.includes(".tmp") || name.includes(".rollback")),
+    [],
+  );
+});
+
+test("previous outbox survives an injected atomic rename failure", async (t) => {
+  const base = await fixture(t);
+  await enqueue(base.service, finding());
+  const before = await readFile(base.outboxPath);
+  const failingIo = createJsonIo({
+    privateRoot: base.root,
+    operations: {
+      async rename() {
+        const error = new Error("synthetic rename failure");
+        error.code = "EIO";
+        throw error;
+      },
+    },
+  });
+  const failingService = createFlowOutboxService({
+    io: failingIo,
+    outboxPath: base.outboxPath,
+    lockPath: base.lockPath,
+  });
+  await assert.rejects(
+    () => enqueue(failingService, finding({ evidenceSignature: shaFor("new-finding") })),
+    { code: "ATOMIC_WRITE_FAILED" },
+  );
+  assert.deepEqual(await readFile(base.outboxPath), before);
+  assert.deepEqual(
+    (await readdir(base.root)).filter((name) => name.includes(".tmp") || name.includes(".rollback")),
+    [],
+  );
+});
+
+test("transaction validation rejects unknown output before any outbox write", async (t) => {
+  const { outboxPath, service } = await fixture(t);
+  await assert.rejects(
+    () => service.withOutboxTransaction(transactionInput((transaction) =>
+      transaction.commit({ version: 1, entries: [], rawProviderBody: "unsafe" }))),
+    { code: "PRIVACY_UNSAFE_OUTBOX" },
+  );
+  await assert.rejects(() => stat(outboxPath), { code: "ENOENT" });
+});

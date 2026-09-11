@@ -1,0 +1,1981 @@
+import { expect, type APIRequestContext, type Page } from '@playwright/test';
+import { QA_PREFIX, SANDBOX } from '../fixtures/sandbox-data';
+import {
+  captureExactFeaturePosts,
+  isCanonicalEntityId,
+  waitForExactResponse,
+} from './project-features.page';
+import type { CreatedWorkItem } from './work-items.page';
+
+export type CreatedSavedView = {
+  kind: 'saved-view';
+  id: string;
+  name: string;
+  projectId: string;
+  stateId: string;
+};
+
+export type ProvisionalWikiPage = {
+  kind: 'wiki-provisional';
+  id: string;
+  name: '';
+  projectIds: string[];
+};
+
+export type CreatedWikiPage = {
+  kind: 'wiki';
+  id: string;
+  name: string;
+  projectIds: string[];
+};
+
+export type ArtifactScope = 'private' | 'project';
+
+export type CreatedArtifact = {
+  kind: 'artifact';
+  id: string;
+  name: string;
+  workspaceId: string;
+  scope: ArtifactScope;
+  projectId?: string;
+};
+
+export type ResponseOwnedKnowledge =
+  | CreatedSavedView
+  | CreatedWikiPage
+  | CreatedArtifact;
+
+export type ResponseOwnedCleanupEntry<T extends { id: string }> = {
+  requestOrdinal: number;
+  created: T;
+};
+
+export const orderResponseOwnedCleanupBatch = <T extends { id: string }>(
+  entries: Array<ResponseOwnedCleanupEntry<T>>,
+): T[] => {
+  const latestById = new Map<string, ResponseOwnedCleanupEntry<T>>();
+  for (const entry of entries) {
+    if (
+      !Number.isInteger(entry.requestOrdinal) ||
+      entry.requestOrdinal < 0 ||
+      !isCanonicalEntityId(entry.created.id)
+    ) {
+      throw new Error('Cleanup ordering requires an exact request ordinal and ID.');
+    }
+    const current = latestById.get(entry.created.id);
+    if (!current || current.requestOrdinal < entry.requestOrdinal) {
+      latestById.set(entry.created.id, entry);
+    }
+  }
+  return [...latestById.values()]
+    .sort((left, right) => left.requestOrdinal - right.requestOrdinal)
+    .map(({ created }) => created);
+};
+
+type JsonRecord = Record<string, unknown>;
+
+export const SANDBOX_WORKSPACE_ID =
+  '8f081389-298d-4dc2-93d5-7cd80c5109da';
+
+const isRecord = (value: unknown): value is JsonRecord =>
+  typeof value === 'object' && value !== null;
+
+const assertOwnedName = (name: string) => {
+  if (!name.startsWith(`${QA_PREFIX} `)) {
+    throw new Error(`Knowledge names must start with ${QA_PREFIX}.`);
+  }
+};
+
+const exactSandboxProjectIds = (value: unknown): value is string[] =>
+  Array.isArray(value) &&
+  value.length === 1 &&
+  value[0] === SANDBOX.projectId;
+
+const exactProjectLink = (value: unknown) =>
+  isRecord(value) &&
+  value.entity_type === 'project' &&
+  value.entity_id === SANDBOX.projectId &&
+  value.relation === 'about';
+
+const hasAnyProjectLink = (links: unknown[]) =>
+  links.some((link) => isRecord(link) && link.entity_type === 'project');
+
+export const parseCreatedSavedView = (
+  body: unknown,
+  requestedName: string,
+  requestedStateId: string,
+): CreatedSavedView => {
+  assertOwnedName(requestedName);
+  if (!isCanonicalEntityId(requestedStateId)) {
+    throw new Error('Saved-view state filter must be a canonical exact ID.');
+  }
+  if (!isRecord(body)) {
+    throw new Error('Saved-view create response was not an object.');
+  }
+  const { id, name, project } = body;
+  if (!isCanonicalEntityId(id) || typeof name !== 'string') {
+    throw new Error('Saved-view create response omitted its exact ID contract.');
+  }
+  if (name !== requestedName || project !== SANDBOX.projectId) {
+    throw new Error('Saved-view create response crossed its exact project scope.');
+  }
+  const richFilters = body.rich_filters;
+  const clauses = isRecord(richFilters) ? richFilters.and : undefined;
+  if (
+    body.access !== 1 ||
+    !Array.isArray(clauses) ||
+    clauses.length !== 2 ||
+    !clauses.some(
+      (clause) => isRecord(clause) && clause.priority__in === 'urgent',
+    ) ||
+    !clauses.some(
+      (clause) =>
+        isRecord(clause) &&
+        clause.state_id__in === requestedStateId,
+    )
+  ) {
+    throw new Error('Saved-view create response omitted its deterministic filters.');
+  }
+  return {
+    kind: 'saved-view',
+    id,
+    name,
+    projectId: SANDBOX.projectId,
+    stateId: requestedStateId,
+  };
+};
+
+export const parseProvisionalWikiPage = (
+  body: unknown,
+): ProvisionalWikiPage => {
+  if (!isRecord(body)) {
+    throw new Error('Wiki create response was not an object.');
+  }
+  const { id, name, project_ids: projectIds } = body;
+  if (!isCanonicalEntityId(id) || name !== '') {
+    throw new Error('Wiki create response omitted its provisional exact ID contract.');
+  }
+  if (!exactSandboxProjectIds(projectIds)) {
+    throw new Error('Wiki create response crossed its exact project scope.');
+  }
+  return {
+    kind: 'wiki-provisional',
+    id,
+    name: '',
+    projectIds: [...projectIds],
+  };
+};
+
+export const parseNamedWikiPage = (
+  body: unknown,
+  provisional: ProvisionalWikiPage,
+  requestedName: string,
+): CreatedWikiPage => {
+  assertOwnedName(requestedName);
+  if (!isRecord(body)) {
+    throw new Error('Wiki title response was not an object.');
+  }
+  if (body.id !== provisional.id || body.name !== requestedName) {
+    throw new Error('Wiki title response did not match its provisional identity.');
+  }
+  return {
+    kind: 'wiki',
+    id: provisional.id,
+    name: requestedName,
+    projectIds: [...provisional.projectIds],
+  };
+};
+
+const artifactResponseRecords = (body: JsonRecord) => {
+  const records: JsonRecord[] = [body];
+  if (isRecord(body.artifact)) records.push(body.artifact);
+  if (isRecord(body.data)) {
+    records.push(body.data);
+    if (isRecord(body.data.artifact)) records.push(body.data.artifact);
+  }
+  return records;
+};
+
+const artifactResponseIdCandidates = (body: JsonRecord) => {
+  const artifact = isRecord(body.artifact) ? body.artifact : undefined;
+  const data = isRecord(body.data) ? body.data : undefined;
+  const dataArtifact = data && isRecord(data.artifact) ? data.artifact : undefined;
+  const semanticCandidates: unknown[] = [
+    body.artifact_id,
+    typeof body.artifact === 'string' ? body.artifact : undefined,
+    artifact?.artifact_id,
+    artifact?.id,
+    data?.artifact_id,
+    typeof data?.artifact === 'string' ? data.artifact : undefined,
+    dataArtifact?.artifact_id,
+    dataArtifact?.id,
+  ];
+  const semanticIds = semanticCandidates.filter(
+    (value): value is string => typeof value === 'string' && value.length > 0,
+  );
+  if (semanticIds.length > 0) return semanticIds;
+  const fallbackCandidates = [body.id, data?.id].filter(
+    (value): value is string => typeof value === 'string' && value.length > 0,
+  );
+  return fallbackCandidates;
+};
+
+export const extractArtifactResponseIdentity = (body: unknown) => {
+  if (!isRecord(body)) return {};
+  const [observedId] = artifactResponseIdCandidates(body);
+  const exactId = isCanonicalEntityId(observedId) ? observedId : undefined;
+  return { observedId, exactId };
+};
+
+const assertOptionalArtifactReservationFields = (
+  records: JsonRecord[],
+  requestedName: string,
+  expectedScope: ArtifactScope,
+) => {
+  for (const record of records) {
+    if (record.name !== undefined && record.name !== requestedName) {
+      throw new Error('Artifact reservation crossed its exact requested name.');
+    }
+    if (
+      record.workspace !== undefined &&
+      record.workspace !== SANDBOX_WORKSPACE_ID
+    ) {
+      throw new Error('Artifact reservation crossed its exact workspace UUID.');
+    }
+    if (record.scope !== undefined && record.scope !== expectedScope) {
+      throw new Error('Artifact reservation crossed its exact requested scope.');
+    }
+    if (
+      record.project_id !== undefined &&
+      (expectedScope !== 'project' || record.project_id !== SANDBOX.projectId)
+    ) {
+      throw new Error('Artifact reservation crossed its exact project scope.');
+    }
+    if (record.links !== undefined) {
+      if (!Array.isArray(record.links)) {
+        throw new Error('Artifact reservation links were not an array.');
+      }
+      const projectLinks = record.links.filter(
+        (link) => isRecord(link) && link.entity_type === 'project',
+      );
+      if (
+        (expectedScope === 'private' && projectLinks.length > 0) ||
+        (expectedScope === 'project' &&
+          (projectLinks.length !== 1 || !exactProjectLink(projectLinks[0])))
+      ) {
+        throw new Error('Artifact reservation crossed its exact project scope.');
+      }
+    }
+  }
+};
+
+export const parseArtifactReservation = (
+  body: unknown,
+  requestedName: string,
+  expectedScope: ArtifactScope,
+): CreatedArtifact => {
+  assertOwnedName(requestedName);
+  if (!isRecord(body)) {
+    throw new Error('Artifact reservation response was not an object.');
+  }
+  const candidates = artifactResponseIdCandidates(body);
+  const uniqueCandidates = [...new Set(candidates)];
+  const { exactId } = extractArtifactResponseIdentity(body);
+  if (!exactId || uniqueCandidates.length !== 1) {
+    throw new Error('Artifact reservation omitted one exact canonical artifact ID.');
+  }
+  assertOptionalArtifactReservationFields(
+    artifactResponseRecords(body),
+    requestedName,
+    expectedScope,
+  );
+  return {
+    kind: 'artifact',
+    id: exactId,
+    name: requestedName,
+    workspaceId: SANDBOX_WORKSPACE_ID,
+    scope: expectedScope,
+    ...(expectedScope === 'project' ? { projectId: SANDBOX.projectId } : {}),
+  };
+};
+
+export const parseCreatedArtifact = (
+  body: unknown,
+  requestedName: string,
+  expectedScope: ArtifactScope,
+): CreatedArtifact => {
+  assertOwnedName(requestedName);
+  if (!isRecord(body)) {
+    throw new Error('Artifact detail response was not an object.');
+  }
+  const {
+    id,
+    name,
+    workspace,
+    scope,
+    kind,
+    status,
+    links: rawLinks,
+  } = body;
+  if (
+    !isCanonicalEntityId(id) ||
+    typeof name !== 'string'
+  ) {
+    throw new Error('Artifact detail response omitted its exact ID contract.');
+  }
+  if (
+    name !== requestedName ||
+    workspace !== SANDBOX_WORKSPACE_ID ||
+    scope !== expectedScope ||
+    kind !== 'document' ||
+    status !== 'stored' ||
+    !Array.isArray(rawLinks)
+  ) {
+    throw new Error(
+      workspace !== SANDBOX_WORKSPACE_ID
+        ? 'Artifact detail response crossed its exact workspace UUID.'
+        : 'Artifact detail response did not match the requested identity.',
+    );
+  }
+
+  const projectLinks = rawLinks.filter(
+    (link) => isRecord(link) && link.entity_type === 'project',
+  );
+  if (expectedScope === 'private') {
+    if (hasAnyProjectLink(rawLinks)) {
+      throw new Error('Private artifact response contained a cross-scope project link.');
+    }
+    return {
+      kind: 'artifact',
+      id,
+      name,
+      workspaceId: SANDBOX_WORKSPACE_ID,
+      scope: expectedScope,
+    };
+  }
+
+  if (projectLinks.length !== 1 || !exactProjectLink(projectLinks[0])) {
+    throw new Error('Project artifact response crossed its exact project scope.');
+  }
+  return {
+    kind: 'artifact',
+    id,
+    name,
+    workspaceId: SANDBOX_WORKSPACE_ID,
+    scope: expectedScope,
+    projectId: SANDBOX.projectId,
+  };
+};
+
+export const assertExactArtifactCleanupTarget = (
+  body: unknown,
+  owned: CreatedArtifact,
+) => {
+  assertOwnedName(owned.name);
+  const ownedScopeIsExact =
+    (owned.scope === 'private' && owned.projectId === undefined) ||
+    (owned.scope === 'project' && owned.projectId === SANDBOX.projectId);
+  if (
+    !isCanonicalEntityId(owned.id) ||
+    owned.workspaceId !== SANDBOX_WORKSPACE_ID ||
+    !ownedScopeIsExact ||
+    !isRecord(body) ||
+    body.id !== owned.id ||
+    body.name !== owned.name ||
+    body.workspace !== SANDBOX_WORKSPACE_ID ||
+    body.scope !== owned.scope ||
+    !Array.isArray(body.links)
+  ) {
+    throw new Error(
+      'Refusing artifact cleanup without an exact minimal ownership match.',
+    );
+  }
+  if (
+    (owned.scope === 'private' && body.links.length !== 0) ||
+    (owned.scope === 'project' &&
+      (body.links.length !== 1 || !exactProjectLink(body.links[0])))
+  ) {
+    throw new Error(
+      'Refusing artifact cleanup without an exact project-link match.',
+    );
+  }
+  return body;
+};
+
+export type RecoveryInspection = {
+  status: number;
+  body?: unknown;
+};
+
+type ReconcileSavedViewExactIdOptions = {
+  id: string;
+  requestedName: string;
+  requestedStateId: string;
+  inspect: (id: string) => Promise<RecoveryInspection>;
+  cleanup: (created: CreatedSavedView) => Promise<unknown>;
+};
+
+export const assertExactSavedViewRecoveryTarget = (
+  body: unknown,
+  id: string,
+  requestedName: string,
+  requestedStateId: string,
+): CreatedSavedView => {
+  assertOwnedName(requestedName);
+  if (
+    !isCanonicalEntityId(id) ||
+    !isCanonicalEntityId(requestedStateId) ||
+    !isRecord(body) ||
+    body.id !== id ||
+    body.name !== requestedName ||
+    body.project !== SANDBOX.projectId
+  ) {
+    throw new Error(
+      'Refusing saved-view recovery without an exact minimal ownership match.',
+    );
+  }
+  return {
+    kind: 'saved-view',
+    id,
+    name: requestedName,
+    projectId: SANDBOX.projectId,
+    stateId: requestedStateId,
+  };
+};
+
+const residualRecoveryError = (
+  kind: string,
+  id: string,
+  error: unknown,
+) =>
+  new AggregateError(
+    [error],
+    `${kind} exact-ID recovery refused or failed; residual ID: ${id}`,
+  );
+
+export const reconcileRejectedSavedViewExactId = async ({
+  id,
+  requestedName,
+  requestedStateId,
+  inspect,
+  cleanup,
+}: ReconcileSavedViewExactIdOptions) => {
+  if (!isCanonicalEntityId(id)) {
+    throw new Error(`Saved-view recovery received a non-canonical ID: ${id}`);
+  }
+  let inspection: RecoveryInspection;
+  try {
+    inspection = await inspect(id);
+  } catch (error) {
+    throw residualRecoveryError('Saved-view', id, error);
+  }
+  if (inspection.status === 404) return;
+  if (inspection.status !== 200) {
+    throw residualRecoveryError(
+      'Saved-view',
+      id,
+      new Error(`Ownership GET returned ${inspection.status}.`),
+    );
+  }
+  let created: CreatedSavedView;
+  try {
+    created = assertExactSavedViewRecoveryTarget(
+      inspection.body,
+      id,
+      requestedName,
+      requestedStateId,
+    );
+  } catch (error) {
+    throw residualRecoveryError('Saved-view', id, error);
+  }
+  try {
+    await cleanup(created);
+  } catch (error) {
+    throw residualRecoveryError('Saved-view', id, error);
+  }
+};
+
+type ReconcileWikiExactIdOptions = {
+  id: string;
+  requestedName: string;
+  inspect: (id: string) => Promise<RecoveryInspection>;
+  cleanup: (
+    provisional: ProvisionalWikiPage,
+    requestedName: string,
+  ) => Promise<unknown>;
+};
+
+export const reconcileRejectedWikiExactId = async ({
+  id,
+  requestedName,
+  inspect,
+  cleanup,
+}: ReconcileWikiExactIdOptions) => {
+  assertOwnedName(requestedName);
+  if (!isCanonicalEntityId(id)) {
+    throw new Error(`Wiki recovery received a non-canonical ID: ${id}`);
+  }
+  const provisional: ProvisionalWikiPage = {
+    kind: 'wiki-provisional',
+    id,
+    name: '',
+    projectIds: [SANDBOX.projectId],
+  };
+  let inspection: RecoveryInspection;
+  try {
+    inspection = await inspect(id);
+  } catch (error) {
+    throw residualRecoveryError('Wiki', id, error);
+  }
+  if (inspection.status === 404) return;
+  if (inspection.status !== 200) {
+    throw residualRecoveryError(
+      'Wiki',
+      id,
+      new Error(`Ownership GET returned ${inspection.status}.`),
+    );
+  }
+  try {
+    assertExactProvisionalWikiCleanupTarget(
+      inspection.body,
+      provisional,
+      requestedName,
+    );
+  } catch (error) {
+    throw residualRecoveryError('Wiki', id, error);
+  }
+  try {
+    await cleanup(provisional, requestedName);
+  } catch (error) {
+    throw residualRecoveryError('Wiki', id, error);
+  }
+};
+
+export const assertExactProvisionalWikiCleanupTarget = (
+  body: unknown,
+  provisional: ProvisionalWikiPage,
+  requestedName: string,
+) => {
+  assertOwnedName(requestedName);
+  if (
+    !isRecord(body) ||
+    body.id !== provisional.id ||
+    (body.name !== '' && body.name !== requestedName) ||
+    !exactSandboxProjectIds(body.project_ids) ||
+    !exactSandboxProjectIds(provisional.projectIds)
+  ) {
+    throw new Error(
+      'Refusing Wiki cleanup without an exact provisional ownership match.',
+    );
+  }
+  return body;
+};
+
+export const assertExactKnowledgeCleanupTarget = (
+  body: unknown,
+  owned: ResponseOwnedKnowledge,
+) => {
+  assertOwnedName(owned.name);
+  if (
+    !isRecord(body) ||
+    body.id !== owned.id ||
+    body.name !== owned.name
+  ) {
+    throw new Error(
+      'Refusing knowledge cleanup without an exact ownership match.',
+    );
+  }
+
+  if (
+    owned.kind === 'saved-view' &&
+    body.project !== owned.projectId
+  ) {
+    throw new Error(
+      'Refusing knowledge cleanup without an exact ownership match.',
+    );
+  }
+  if (
+    owned.kind === 'wiki' &&
+    (!exactSandboxProjectIds(body.project_ids) ||
+      !exactSandboxProjectIds(owned.projectIds))
+  ) {
+    throw new Error(
+      'Refusing knowledge cleanup without an exact ownership match.',
+    );
+  }
+  if (owned.kind === 'artifact') {
+    assertExactArtifactCleanupTarget(body, owned);
+  }
+  return body;
+};
+
+export type SyntheticArtifactPayload = {
+  name: string;
+  mimeType: string;
+  buffer: Buffer;
+};
+
+export const assertArtifactUploadPayload = (
+  payload: SyntheticArtifactPayload,
+  requestedName: string,
+) => {
+  assertOwnedName(requestedName);
+  if (
+    payload.name !== requestedName ||
+    payload.name.includes('/') ||
+    payload.name.includes('\\')
+  ) {
+    throw new Error('Artifact payload basename must equal its exact owned name.');
+  }
+  if (payload.mimeType !== 'text/plain' || payload.buffer.length === 0) {
+    throw new Error('Artifact payload must be a non-empty synthetic text file.');
+  }
+};
+
+export const runSandboxMutation = async <T>(
+  assertSandbox: () => Promise<void>,
+  action: () => Promise<T>,
+): Promise<T> => {
+  await assertSandbox();
+  return action();
+};
+
+export const waitForArtifactAdmission = (
+  waitForExactAdmission: () => Promise<void>,
+  actionError: unknown,
+) => (actionError === undefined ? waitForExactAdmission() : undefined);
+
+type ProvisionalWikiRecoveryEntry = {
+  provisional: ProvisionalWikiPage;
+  cleanup: () => Promise<unknown>;
+};
+
+export type ProvisionalWikiResidual = {
+  kind: 'wiki-provisional';
+  id: string;
+};
+
+export class ProvisionalWikiRecoveryLedger {
+  readonly #entries = new Map<string, ProvisionalWikiRecoveryEntry>();
+
+  get size() {
+    return this.#entries.size;
+  }
+
+  register(
+    provisional: ProvisionalWikiPage,
+    cleanup: () => Promise<unknown>,
+  ) {
+    if (
+      provisional.name !== '' ||
+      !isCanonicalEntityId(provisional.id) ||
+      !exactSandboxProjectIds(provisional.projectIds) ||
+      this.#entries.has(provisional.id)
+    ) {
+      throw new Error('Invalid provisional Wiki recovery registration.');
+    }
+    this.#entries.set(provisional.id, { provisional, cleanup });
+  }
+
+  promote(provisional: ProvisionalWikiPage, named: CreatedWikiPage) {
+    const entry = this.#entries.get(provisional.id);
+    if (
+      !entry ||
+      named.id !== provisional.id ||
+      !named.name.startsWith(`${QA_PREFIX} `) ||
+      !exactSandboxProjectIds(named.projectIds)
+    ) {
+      throw new Error('Cannot promote an unregistered provisional Wiki identity.');
+    }
+    this.#entries.delete(provisional.id);
+  }
+
+  async cleanupAll(): Promise<ProvisionalWikiResidual[]> {
+    const residuals: ProvisionalWikiResidual[] = [];
+    for (const [id, entry] of [...this.#entries.entries()].reverse()) {
+      try {
+        await entry.cleanup();
+        this.#entries.delete(id);
+      } catch {
+        residuals.push({ kind: 'wiki-provisional', id });
+      }
+    }
+    return residuals;
+  }
+}
+
+type CleanupWikiAfterFailedSaveOptions = {
+  promoted: boolean;
+  named?: CreatedWikiPage;
+  provisionalRecovery: ProvisionalWikiRecoveryLedger;
+  cleanupNamed: (created: CreatedWikiPage) => Promise<unknown>;
+};
+
+export const cleanupWikiAfterFailedSave = async ({
+  promoted,
+  named,
+  provisionalRecovery,
+  cleanupNamed,
+}: CleanupWikiAfterFailedSaveOptions): Promise<ProvisionalWikiResidual[]> => {
+  const cleanupErrors: unknown[] = [];
+  if (promoted) {
+    if (!named) {
+      cleanupErrors.push(
+        new Error('Promoted Wiki recovery omitted its exact named identity.'),
+      );
+    } else {
+      try {
+        await cleanupNamed(named);
+      } catch (error) {
+        cleanupErrors.push(
+          residualRecoveryError('Wiki', named.id, error),
+        );
+      }
+    }
+  }
+  const residuals = await provisionalRecovery.cleanupAll();
+  for (const { id } of residuals) {
+    cleanupErrors.push(
+      new Error(`Wiki provisional recovery left residual ID: ${id}`),
+    );
+  }
+  aggregateErrors('Wiki save failure recovery was incomplete.', cleanupErrors);
+  return residuals;
+};
+
+type KnowledgeRegistration<T extends ResponseOwnedKnowledge> = (
+  created: T,
+) => unknown | Promise<unknown>;
+
+type ArtifactUploadInput = {
+  name: string;
+  scope: ArtifactScope;
+  payload: SyntheticArtifactPayload;
+};
+
+type OwnedKnowledgeRecord = {
+  created: ResponseOwnedKnowledge;
+  deleted: boolean;
+};
+
+const PROJECT_PATH =
+  `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}`;
+const API_ROOT = `/be/api/workspaces/${SANDBOX.workspaceSlug}`;
+const PROJECT_API_ROOT = `${API_ROOT}/projects/${SANDBOX.projectId}`;
+const VIEWS_PATH = `${PROJECT_PATH}/views/`;
+const WIKI_PATH = `${PROJECT_PATH}/pages/`;
+const WORKSPACE_ARTIFACTS_PATH = `/${SANDBOX.workspaceSlug}/artifacts/`;
+const PROJECT_ARTIFACTS_PATH = `${PROJECT_PATH}/artifacts/`;
+const DECISIONS_PATH = `/${SANDBOX.workspaceSlug}/decisions/`;
+const VIEWS_API_PATH = `${PROJECT_API_ROOT}/views/`;
+const ISSUES_API_PATH = `${PROJECT_API_ROOT}/issues/`;
+const WIKI_API_PATH = `${PROJECT_API_ROOT}/pages/`;
+const ARTIFACTS_API_PATH = `${API_ROOT}/artifacts/`;
+const DECISIONS_API_PATH = `${API_ROOT}/decisions/`;
+
+const responseRows = (body: unknown): JsonRecord[] => {
+  if (Array.isArray(body)) return body.filter(isRecord);
+  if (!isRecord(body)) return [];
+  for (const key of ['results', 'views', 'pages', 'artifacts']) {
+    const value = body[key];
+    if (Array.isArray(value)) return value.filter(isRecord);
+  }
+  return [];
+};
+
+const responseWorkItems = (body: unknown) => {
+  const items = new Map<string, JsonRecord>();
+  const visit = (value: unknown) => {
+    if (Array.isArray(value)) {
+      for (const entry of value) visit(entry);
+      return;
+    }
+    if (!isRecord(value)) return;
+    if (
+      isCanonicalEntityId(value.id) &&
+      typeof value.name === 'string' &&
+      value.project_id === SANDBOX.projectId &&
+      typeof value.sequence_id === 'number'
+    ) {
+      items.set(value.id, value);
+    }
+    for (const nested of Object.values(value)) visit(nested);
+  };
+  visit(body);
+  return [...items.values()];
+};
+
+const queryTokens = (url: URL) => {
+  const tokens = new Set<string>();
+  const visit = (value: unknown) => {
+    if (typeof value === 'string') {
+      tokens.add(value);
+      for (const token of value.split(/[\s,\[\]{}":]+/).filter(Boolean)) {
+        tokens.add(token);
+      }
+      try {
+        visit(JSON.parse(value));
+      } catch {
+        // Non-JSON query values are already represented by exact tokens above.
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) visit(entry);
+      return;
+    }
+    if (isRecord(value)) {
+      for (const [key, nested] of Object.entries(value)) {
+        tokens.add(key);
+        visit(nested);
+      }
+    }
+  };
+  for (const [key, value] of url.searchParams) {
+    tokens.add(key);
+    visit(value);
+  }
+  return tokens;
+};
+
+const aggregateErrors = (message: string, errors: unknown[]) => {
+  if (errors.length === 0) return;
+  if (errors.length === 1) throw errors[0];
+  throw new AggregateError(errors, message);
+};
+
+type CleanupResponse = {
+  status: () => number;
+  json: () => Promise<unknown>;
+};
+
+export type KnowledgeCleanupRequestContext = {
+  get: (url: string) => Promise<CleanupResponse>;
+  delete: (url: string) => Promise<{ status: () => number }>;
+};
+
+type ArtifactEmergencyCleanupOptions = {
+  page: Page;
+  requestContext: KnowledgeCleanupRequestContext;
+  assertSandbox: () => Promise<void>;
+  created: CreatedArtifact;
+  detailEndpoint: string;
+  collectionEndpoint: string;
+  uiPath: string;
+  onResolved?: (created: CreatedArtifact) => void;
+};
+
+type ArtifactBatchCleanupOptions = Omit<
+  ArtifactEmergencyCleanupOptions,
+  'created' | 'detailEndpoint'
+> & {
+  created: CreatedArtifact[];
+  detailEndpoint: (id: string) => string;
+};
+
+type ExactBatchIdentity = {
+  id: string;
+  name: string;
+};
+
+type ExactBatchCleanupOptions<T extends ExactBatchIdentity> = {
+  page: Page;
+  requestContext: KnowledgeCleanupRequestContext;
+  assertSandbox: () => Promise<void>;
+  created: T[];
+  detailEndpoint: (id: string) => string;
+  collectionEndpoint: string;
+  uiPath: string;
+  kind: string;
+  assertIdentity: (created: T) => void;
+  assertTarget: (body: unknown, created: T) => void;
+  alreadyResolvedIds?: ReadonlySet<string>;
+  onResolved?: (created: T) => void;
+};
+
+const assertExactOwnedArtifactIdentity = (created: CreatedArtifact) => {
+  assertOwnedName(created.name);
+  if (
+    !isCanonicalEntityId(created.id) ||
+    created.workspaceId !== SANDBOX_WORKSPACE_ID ||
+    (created.scope === 'private' && created.projectId !== undefined) ||
+    (created.scope === 'project' && created.projectId !== SANDBOX.projectId)
+  ) {
+    throw new Error('Artifact cleanup identity was not exact and run-owned.');
+  }
+};
+
+const throwBatchCleanupErrors = (
+  kind: string,
+  errors: unknown[],
+  residualIds: Set<string>,
+) => {
+  if (errors.length === 0) return;
+  const ids = [...residualIds];
+  if (ids.length === 0) {
+    aggregateErrors(`${kind} batch cleanup was incomplete.`, errors);
+    return;
+  }
+  const residualLabel =
+    ids.length === 1
+      ? `residual ID: ${ids[0]}`
+      : `residual IDs: ${ids.join(', ')}`;
+  throw new AggregateError(
+    errors,
+    `${kind} exact-ID batch cleanup refused or failed; ${residualLabel}`,
+  );
+};
+
+const cleanupCapturedExactBatch = async <T extends ExactBatchIdentity>({
+  page,
+  requestContext,
+  assertSandbox,
+  created,
+  detailEndpoint,
+  collectionEndpoint,
+  uiPath,
+  kind,
+  assertIdentity,
+  assertTarget,
+  alreadyResolvedIds,
+  onResolved,
+}: ExactBatchCleanupOptions<T>) => {
+  if (created.length === 0) return;
+  const unique = new Map<string, T>();
+  for (const entity of created) {
+    assertIdentity(entity);
+    if (unique.has(entity.id)) {
+      throw new Error(`${kind} batch contained a duplicate exact response ID.`);
+    }
+    unique.set(entity.id, entity);
+  }
+
+  const errors: unknown[] = [];
+  const residualIds = new Set<string>();
+  const deleteTargets: Array<{ entity: T; endpoint: string }> = [];
+  const recordResidual = (entity: T, error: unknown) => {
+    residualIds.add(entity.id);
+    errors.push(residualRecoveryError(kind, entity.id, error));
+  };
+  const markResolved = (entity: T) => {
+    try {
+      onResolved?.(entity);
+    } catch (error) {
+      errors.push(error);
+    }
+  };
+
+  for (const entity of unique.values()) {
+    if (alreadyResolvedIds?.has(entity.id)) continue;
+    try {
+      const endpoint = detailEndpoint(entity.id);
+      const inspection = await requestContext.get(endpoint);
+      if (inspection.status() === 404) {
+        markResolved(entity);
+        continue;
+      }
+      if (inspection.status() !== 200) {
+        throw new Error(`Ownership GET returned ${inspection.status()}.`);
+      }
+      assertTarget(await inspection.json(), entity);
+      deleteTargets.push({ entity, endpoint });
+    } catch (error) {
+      recordResidual(entity, error);
+    }
+  }
+
+  for (const { entity, endpoint } of [...deleteTargets].reverse()) {
+    try {
+      await assertSandbox();
+      const deleted = await requestContext.delete(endpoint);
+      if (deleted.status() !== 204) {
+        throw new Error(`Exact-ID DELETE returned ${deleted.status()}.`);
+      }
+      markResolved(entity);
+    } catch (error) {
+      recordResidual(entity, error);
+    }
+  }
+
+  let rows: JsonRecord[] | undefined;
+  try {
+    const collection = await requestContext.get(collectionEndpoint);
+    if (collection.status() !== 200) {
+      throw new Error(`${kind} collection GET returned ${collection.status()}.`);
+    }
+    rows = responseRows(await collection.json());
+  } catch (error) {
+    errors.push(error);
+  }
+
+  const names = new Set([...unique.values()].map(({ name }) => name));
+  if (rows) {
+    for (const row of rows) {
+      if (typeof row.id !== 'string' || !unique.has(row.id)) continue;
+      const entity = unique.get(row.id)!;
+      if (!residualIds.has(entity.id)) {
+        recordResidual(
+          entity,
+          new Error(`${kind} remained in its exact collection after cleanup.`),
+        );
+      }
+    }
+    if (
+      rows.some(
+        (row) =>
+          typeof row.name === 'string' &&
+          names.has(row.name) &&
+          !(typeof row.id === 'string' && unique.has(row.id)),
+      )
+    ) {
+      errors.push(
+        new Error(
+          `${kind} collection retained a shared current-run name after all exact-ID deletes.`,
+        ),
+      );
+    }
+  }
+
+  let uiLoaded = false;
+  try {
+    await page.goto(uiPath, { waitUntil: 'domcontentloaded' });
+    uiLoaded = true;
+  } catch (error) {
+    errors.push(error);
+  }
+  if (uiLoaded) {
+    for (const { id } of unique.values()) {
+      try {
+        await expect(page.getByText(id, { exact: true })).toHaveCount(0);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    for (const name of names) {
+      try {
+        await expect(page.getByText(name, { exact: true })).toHaveCount(0);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+  }
+
+  throwBatchCleanupErrors(kind, errors, residualIds);
+};
+
+export const cleanupCapturedArtifactBatch = (
+  options: ArtifactBatchCleanupOptions,
+) =>
+  cleanupCapturedExactBatch({
+    ...options,
+    kind: 'Artifact',
+    assertIdentity: assertExactOwnedArtifactIdentity,
+    assertTarget: assertExactArtifactCleanupTarget,
+  });
+
+export const cleanupArtifactEmergency = async ({
+  page,
+  requestContext,
+  assertSandbox,
+  created,
+  detailEndpoint,
+  collectionEndpoint,
+  uiPath,
+  onResolved,
+}: ArtifactEmergencyCleanupOptions) =>
+  cleanupCapturedArtifactBatch({
+    page,
+    requestContext,
+    assertSandbox,
+    created: [created],
+    detailEndpoint: (id) => {
+      if (id !== created.id) {
+        throw new Error('Artifact emergency cleanup crossed its exact ID.');
+      }
+      return detailEndpoint;
+    },
+    collectionEndpoint,
+    uiPath,
+    onResolved,
+  });
+
+type SavedViewBatchCleanupOptions = {
+  page: Page;
+  requestContext: KnowledgeCleanupRequestContext;
+  assertSandbox: () => Promise<void>;
+  created: CreatedSavedView[];
+  detailEndpoint: (id: string) => string;
+  collectionEndpoint: string;
+  uiPath: string;
+  alreadyResolvedIds?: ReadonlySet<string>;
+  onResolved?: (created: CreatedSavedView) => void;
+};
+
+export const cleanupCapturedSavedViewBatch = async ({
+  page,
+  requestContext,
+  assertSandbox,
+  created,
+  detailEndpoint,
+  collectionEndpoint,
+  uiPath,
+  alreadyResolvedIds,
+  onResolved,
+}: SavedViewBatchCleanupOptions) =>
+  cleanupCapturedExactBatch({
+    page,
+    requestContext,
+    assertSandbox,
+    created,
+    detailEndpoint,
+    collectionEndpoint,
+    uiPath,
+    alreadyResolvedIds,
+    kind: 'Saved-view',
+    assertIdentity: (view) => {
+      assertOwnedName(view.name);
+      if (
+        !isCanonicalEntityId(view.id) ||
+        !isCanonicalEntityId(view.stateId) ||
+        view.projectId !== SANDBOX.projectId
+      ) {
+        throw new Error(
+          'Saved-view batch contained a non-exact response identity.',
+        );
+      }
+    },
+    assertTarget: (body, view) => {
+      assertExactSavedViewRecoveryTarget(
+        body,
+        view.id,
+        view.name,
+        view.stateId,
+      );
+    },
+    onResolved,
+  });
+
+export class KnowledgeFeaturesPage {
+  readonly #owned = new Map<string, OwnedKnowledgeRecord>();
+  readonly #provisionalWiki = new ProvisionalWikiRecoveryLedger();
+
+  constructor(
+    readonly page: Page,
+    readonly assertSandbox: () => Promise<void>,
+    readonly requestContext: APIRequestContext = page.request,
+  ) {}
+
+  async createSavedView(
+    name: string,
+    stateId: string,
+    register: KnowledgeRegistration<CreatedSavedView>,
+  ): Promise<CreatedSavedView> {
+    assertOwnedName(name);
+    if (!isCanonicalEntityId(stateId)) {
+      throw new Error('Saved-view state filter must be a canonical exact ID.');
+    }
+    await this.gotoViews();
+    const endpoint = this.absolute(VIEWS_API_PATH);
+    const payload = {
+      name,
+      description: 'Synthetic QA saved view with no private data.',
+      access: 1,
+      rich_filters: {
+        and: [
+          { priority__in: 'urgent' },
+          { state_id__in: stateId },
+        ],
+      },
+    };
+    const capture = await captureExactFeaturePosts<CreatedSavedView>({
+      page: this.page,
+      endpoint,
+      parse: (body) => parseCreatedSavedView(body, name, stateId),
+      register: async (created) => {
+        this.registerOwned(created);
+        await register(created);
+      },
+      action: () =>
+        runSandboxMutation(this.assertSandbox, () =>
+          this.page.evaluate(
+            async ({ requestUrl, requestBody }) => {
+              const response = await fetch(requestUrl, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(requestBody),
+              });
+              if (!response.ok) {
+                throw new Error(`Saved-view create failed with ${response.status}.`);
+              }
+            },
+            { requestUrl: endpoint, requestBody: payload },
+          ),
+        ),
+    });
+
+    const recoveryErrors: unknown[] = [];
+    const responseOwnedForCleanup: Array<
+      ResponseOwnedCleanupEntry<CreatedSavedView>
+    > = [
+      ...capture.createdEntries,
+      ...capture.registrationErrors.map(({ requestOrdinal, created }) => ({
+        requestOrdinal,
+        created,
+      })),
+    ];
+    for (const failure of capture.contractErrors) {
+      if (!failure.exactId) continue;
+      responseOwnedForCleanup.push({
+        requestOrdinal: failure.requestOrdinal,
+        created: {
+          kind: 'saved-view',
+          id: failure.exactId,
+          name,
+          projectId: SANDBOX.projectId,
+          stateId,
+        },
+      });
+      try {
+        await this.recoverSavedView(
+          failure.exactId,
+          name,
+          stateId,
+          () => {},
+        );
+      } catch (error) {
+        recoveryErrors.push(error);
+      }
+    }
+    const contractFailures: unknown[] = [
+      ...capture.contractErrors.map(({ error }) => error),
+      ...capture.registrationErrors.map(({ error }) => error),
+      ...capture.non201.map(({ status }) =>
+        new Error(`Saved-view create returned ${status}.`),
+      ),
+      ...capture.failedAttempts.map(() =>
+        new Error('Saved-view create request failed before a response.'),
+      ),
+      ...recoveryErrors,
+    ];
+    if (capture.actionError !== undefined) contractFailures.push(capture.actionError);
+    if (
+      capture.attemptCount !== 1 ||
+      capture.responseCount !== 1 ||
+      capture.created.length !== 1
+    ) {
+      contractFailures.push(new Error('Saved-view create did not produce one exact response-owned entity.'));
+    }
+    if (contractFailures.length > 0) {
+      try {
+        await this.cleanupCapturedSavedViews(
+          orderResponseOwnedCleanupBatch(responseOwnedForCleanup),
+        );
+      } catch (error) {
+        contractFailures.push(error);
+      }
+    }
+    aggregateErrors('Saved-view create failed after guarded recovery.', contractFailures);
+    const created = capture.created[0];
+    if (!created) throw new Error('Saved-view create omitted its response-owned result.');
+    return created;
+  }
+
+  async assertSavedViewReloaded(created: CreatedSavedView) {
+    this.assertRegistered(created);
+    await this.page.goto(`${VIEWS_PATH}${created.id}/`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(this.page.getByText(created.name, { exact: true })).toHaveCount(1, {
+      timeout: 15_000,
+    });
+    await this.page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(this.page.getByText(created.name, { exact: true })).toHaveCount(1, {
+      timeout: 15_000,
+    });
+  }
+
+  async assertSavedViewMembership(
+    created: CreatedSavedView,
+    item: CreatedWorkItem,
+    expected: boolean,
+  ) {
+    this.assertRegistered(created);
+    if (
+      item.projectId !== SANDBOX.projectId ||
+      !isCanonicalEntityId(item.id) ||
+      !item.name.startsWith(`${QA_PREFIX} `) ||
+      !Number.isInteger(item.sequenceId) ||
+      item.sequenceId < 1
+    ) {
+      throw new Error('Saved-view membership fixture lacks an exact owned identity.');
+    }
+    const filteredResponse = this.page.waitForResponse(
+      (response) => {
+        if (response.request().method() !== 'GET') return false;
+        const url = new URL(response.url());
+        const tokens = queryTokens(url);
+        return (
+          url.pathname === ISSUES_API_PATH &&
+          (tokens.has(created.id) ||
+            (tokens.has('urgent') && tokens.has(created.stateId)))
+        );
+      },
+      { timeout: 15_000 },
+    );
+    await this.page.goto(`${VIEWS_PATH}${created.id}/`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(this.page.getByText(created.name, { exact: true })).toHaveCount(1, {
+      timeout: 15_000,
+    });
+    const response = await filteredResponse;
+    expect(response.status()).toBe(200);
+    const responseBody: unknown = await response.json();
+    const exactMembershipSet = responseWorkItems(responseBody)
+      .map((candidate) => ({
+        id: candidate.id,
+        name: candidate.name,
+        projectId: candidate.project_id,
+        sequenceId: candidate.sequence_id,
+      }))
+      .sort((left, right) => String(left.id).localeCompare(String(right.id)));
+    expect(exactMembershipSet).toEqual(
+      expected
+        ? [
+            {
+              id: item.id,
+              name: item.name,
+              projectId: item.projectId,
+              sequenceId: item.sequenceId,
+            },
+          ]
+        : [],
+    );
+    if (isRecord(responseBody) && responseBody.total_count !== undefined) {
+      expect(responseBody.total_count).toBe(expected ? 1 : 0);
+    }
+    const exactRoute =
+      `/${SANDBOX.workspaceSlug}/browse/NFQAS-${item.sequenceId}/`;
+    const exactRouteWithoutTrailingSlash = exactRoute.slice(0, -1);
+    const member = this.page
+      .locator(
+        `a[href="${exactRoute}"], a[href="${exactRouteWithoutTrailingSlash}"]`,
+      )
+      .filter({ hasText: item.name });
+    await expect(member).toHaveCount(expected ? 1 : 0, { timeout: 15_000 });
+    if (expected) {
+      const href = await member.getAttribute('href');
+      expect(href).not.toBeNull();
+      expect(
+        new URL(href ?? '', this.page.url()).pathname.replace(/\/?$/, '/'),
+      ).toBe(exactRoute);
+      await expect(member).toContainText(item.name);
+    }
+  }
+
+  async createWikiPage(
+    name: string,
+    body: string,
+    register: KnowledgeRegistration<CreatedWikiPage>,
+  ): Promise<CreatedWikiPage> {
+    assertOwnedName(name);
+    await this.gotoWiki();
+    const create = this.page
+      .getByRole('button', { name: 'Create your first Page', exact: true })
+      .or(this.page.getByRole('button', { name: 'Add context', exact: true }));
+    await expect(create).toHaveCount(1);
+    const endpoint = this.absolute(WIKI_API_PATH);
+    const provisionalCapture = await captureExactFeaturePosts<ProvisionalWikiPage>({
+      page: this.page,
+      endpoint,
+      parse: parseProvisionalWikiPage,
+      register: (provisional) => {
+        this.#provisionalWiki.register(provisional, () =>
+          this.cleanupProvisionalWiki(provisional, name),
+        );
+      },
+      action: () => runSandboxMutation(this.assertSandbox, () => create.click()),
+    });
+    const provisional = provisionalCapture.created[0];
+    const provisionalRecoveryErrors: unknown[] = [];
+    const rejectedIds = new Set<string>();
+    for (const failure of provisionalCapture.contractErrors) {
+      if (!failure.exactId || rejectedIds.has(failure.exactId)) continue;
+      rejectedIds.add(failure.exactId);
+      try {
+        await this.recoverRejectedWiki(failure.exactId, name);
+      } catch (error) {
+        provisionalRecoveryErrors.push(error);
+      }
+    }
+    for (const failure of provisionalCapture.registrationErrors) {
+      if (rejectedIds.has(failure.created.id)) continue;
+      rejectedIds.add(failure.created.id);
+      try {
+        await this.recoverRejectedWiki(failure.created.id, name);
+      } catch (error) {
+        provisionalRecoveryErrors.push(error);
+      }
+    }
+    const invalidProvisionalCapture =
+      !provisional ||
+      provisionalCapture.attemptCount !== 1 ||
+      provisionalCapture.responseCount !== 1 ||
+      provisionalCapture.contractErrors.length > 0 ||
+      provisionalCapture.registrationErrors.length > 0 ||
+      provisionalCapture.non201.length > 0 ||
+      provisionalCapture.failedAttempts.length > 0 ||
+      provisionalCapture.actionError !== undefined;
+    if (invalidProvisionalCapture) {
+      const residuals = await this.#provisionalWiki.cleanupAll();
+      const failures: unknown[] = [
+        ...provisionalCapture.contractErrors.map(({ error }) => error),
+        ...provisionalCapture.registrationErrors.map(({ error }) => error),
+        ...provisionalCapture.non201.map(
+          ({ status }) => new Error(`Wiki create returned ${status}.`),
+        ),
+        ...provisionalCapture.failedAttempts.map(
+          ({ url }) => new Error(`Wiki create request failed: ${url}`),
+        ),
+        ...provisionalRecoveryErrors,
+      ];
+      if (provisionalCapture.actionError !== undefined) {
+        failures.push(provisionalCapture.actionError);
+      }
+      if (
+        provisionalCapture.attemptCount !== 1 ||
+        provisionalCapture.responseCount !== 1 ||
+        provisionalCapture.created.length !== 1
+      ) {
+        failures.push(
+          new Error('Wiki create did not produce one exact response-owned entity.'),
+        );
+      }
+      if (residuals.length > 0) {
+        failures.push(
+          new Error(
+            `Residual provisional Wiki IDs: ${residuals
+              .map(({ id }) => id)
+              .join(', ')}`,
+          ),
+        );
+      }
+      aggregateErrors('Wiki provisional create failed after guarded recovery.', failures);
+      throw new Error('Wiki provisional create failed without an explicit cause.');
+    }
+
+    let named: CreatedWikiPage | undefined;
+    let promoted = false;
+    try {
+      const detailEndpoint = this.absolute(`${WIKI_API_PATH}${provisional.id}/`);
+      const titleResponse = waitForExactResponse(
+        this.page,
+        'PATCH',
+        detailEndpoint,
+        { timeout: 15_000 },
+      );
+      const title = this.page.getByRole('textbox', { name: 'Untitled', exact: true });
+      await expect(title).toHaveAttribute('maxlength', '255');
+      await this.assertSandbox();
+      await title.fill(name);
+      const titleSaved = await titleResponse;
+      expect(titleSaved.status()).toBe(200);
+      const created = parseNamedWikiPage(
+        await titleSaved.json(),
+        provisional,
+        name,
+      );
+      named = created;
+      this.registerOwned(created);
+      await register(created);
+      this.#provisionalWiki.promote(provisional, created);
+      promoted = true;
+
+      const editor = this.page.locator('main [contenteditable="true"]');
+      await expect(editor).toHaveCount(1);
+      const descriptionEndpoint = this.absolute(
+        `${WIKI_API_PATH}${created.id}/description/`,
+      );
+      const bodyResponse = waitForExactResponse(
+        this.page,
+        'PATCH',
+        descriptionEndpoint,
+        { timeout: 15_000 },
+      );
+      await this.assertSandbox();
+      await editor.fill(body);
+      expect((await bodyResponse).status()).toBe(200);
+      await editor.selectText();
+      const bold = this.page.locator('button:has(svg.lucide-bold)');
+      await expect(bold).toHaveCount(1);
+      const formattedResponse = waitForExactResponse(
+        this.page,
+        'PATCH',
+        descriptionEndpoint,
+        { timeout: 15_000 },
+      );
+      await this.assertSandbox();
+      await bold.click();
+      expect((await formattedResponse).status()).toBe(200);
+      return created;
+    } catch (error) {
+      const failures: unknown[] = [error];
+      try {
+        await cleanupWikiAfterFailedSave({
+          promoted,
+          named,
+          provisionalRecovery: this.#provisionalWiki,
+          cleanupNamed: (created) => this.cleanupOwnedWiki(created),
+        });
+      } catch (cleanupError) {
+        failures.push(cleanupError);
+      }
+      aggregateErrors('Wiki title/body save failed after guarded recovery.', failures);
+      throw new Error('Wiki title/body save failed without an explicit cause.');
+    }
+  }
+
+  async assertWikiReloaded(created: CreatedWikiPage, body: string) {
+    this.assertRegistered(created);
+    await this.page.reload({ waitUntil: 'domcontentloaded' });
+    const title = this.page.getByRole('textbox', { name: 'Untitled', exact: true });
+    await expect(title).toHaveValue(created.name, { timeout: 15_000 });
+    const editor = this.page.locator('main [contenteditable="true"]');
+    const paragraphs = body
+      .split(/\n\s*\n/)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean);
+    expect(paragraphs.length).toBeGreaterThanOrEqual(2);
+    for (const paragraph of paragraphs) {
+      await expect(editor.getByText(paragraph, { exact: true })).toHaveCount(1);
+    }
+    const strong = editor.locator('strong');
+    expect(await strong.count()).toBeGreaterThan(0);
+    for (const paragraph of paragraphs) {
+      await expect(strong.filter({ hasText: paragraph })).toHaveCount(1);
+    }
+  }
+
+  async uploadArtifact(
+    input: ArtifactUploadInput,
+    register: KnowledgeRegistration<CreatedArtifact>,
+  ): Promise<CreatedArtifact> {
+    assertArtifactUploadPayload(input.payload, input.name);
+    if (input.scope === 'private') await this.gotoWorkspaceArtifacts();
+    else await this.gotoProjectArtifacts();
+    const endpoint = this.absolute(ARTIFACTS_API_PATH);
+    const upload = this.page.getByRole('button', { name: 'Upload', exact: true });
+    await expect(upload).toHaveCount(1);
+
+    const capture = await captureExactFeaturePosts<CreatedArtifact>({
+      page: this.page,
+      endpoint,
+      extractResponseIdentity: extractArtifactResponseIdentity,
+      parse: (body) =>
+        parseArtifactReservation(body, input.name, input.scope),
+      register: async (reserved) => {
+        this.registerOwned(reserved);
+        await register(reserved);
+      },
+      waitBeforeAdmissionClose: waitForArtifactAdmission,
+      action: async () => {
+        const chooserPromise = this.page.waitForEvent('filechooser');
+        await upload.click();
+        const chooser = await chooserPromise;
+        expect(chooser.isMultiple()).toBe(false);
+        await runSandboxMutation(this.assertSandbox, () =>
+          chooser.setFiles(input.payload),
+        );
+      },
+    });
+
+    const responseOwnedForCleanup: Array<
+      ResponseOwnedCleanupEntry<CreatedArtifact>
+    > = [
+      ...capture.createdEntries,
+      ...capture.registrationErrors.map(({ requestOrdinal, created }) => ({
+        requestOrdinal,
+        created,
+      })),
+    ];
+    for (const failure of capture.contractErrors) {
+      if (!failure.exactId) continue;
+      responseOwnedForCleanup.push({
+        requestOrdinal: failure.requestOrdinal,
+        created: {
+          kind: 'artifact',
+          id: failure.exactId,
+          name: input.name,
+          workspaceId: SANDBOX_WORKSPACE_ID,
+          scope: input.scope,
+          ...(input.scope === 'project'
+            ? { projectId: SANDBOX.projectId }
+            : {}),
+        },
+      });
+    }
+
+    const failures: unknown[] = [
+      ...capture.contractErrors.map(({ error }) => error),
+      ...capture.registrationErrors.map(({ error }) => error),
+      ...capture.non201.map(
+        ({ status }) => new Error(`Artifact reservation returned ${status}.`),
+      ),
+      ...capture.failedAttempts.map(
+        ({ url }) => new Error(`Artifact reservation request failed: ${url}`),
+      ),
+    ];
+    if (capture.actionError !== undefined) failures.push(capture.actionError);
+    if (
+      capture.attemptCount !== 1 ||
+      capture.responseCount !== 1 ||
+      capture.created.length !== 1
+    ) {
+      failures.push(
+        new Error('Artifact upload did not produce one exact POST-201 reservation.'),
+      );
+    }
+
+    if (failures.length > 0) {
+      try {
+        await this.cleanupCapturedArtifacts(
+          orderResponseOwnedCleanupBatch(responseOwnedForCleanup),
+        );
+      } catch (error) {
+        failures.push(error);
+      }
+      aggregateErrors('Artifact upload failed after guarded recovery.', failures);
+      throw new Error('Artifact upload failed without an explicit cause.');
+    }
+
+    const reserved = capture.created[0];
+    if (!reserved) {
+      throw new Error('Artifact upload omitted its response-owned reservation.');
+    }
+    try {
+      return await this.awaitStoredArtifact(reserved);
+    } catch (error) {
+      const failuresAfterReservation: unknown[] = [error];
+      try {
+        await this.cleanupCapturedArtifact(reserved);
+      } catch (cleanupError) {
+        failuresAfterReservation.push(cleanupError);
+      }
+      aggregateErrors(
+        'Artifact detail validation failed after guarded recovery.',
+        failuresAfterReservation,
+      );
+      throw new Error('Artifact detail validation failed without an explicit cause.');
+    }
+  }
+
+  async assertWorkspaceArtifactIsolation(created: CreatedArtifact) {
+    this.assertRegistered(created);
+    if (created.scope !== 'private') throw new Error('Expected a private workspace artifact.');
+    await this.gotoProjectArtifacts();
+    await expect(this.page.getByText(created.name, { exact: true })).toHaveCount(0);
+    await this.gotoWorkspaceArtifacts();
+    await expect(this.page.getByText(created.name, { exact: true })).toHaveCount(1);
+  }
+
+  async assertProjectArtifactIsolation(created: CreatedArtifact) {
+    this.assertRegistered(created);
+    if (created.scope !== 'project' || created.projectId !== SANDBOX.projectId) {
+      throw new Error('Expected the exact sandbox project artifact.');
+    }
+    await this.gotoProjectArtifacts();
+    await expect(this.page.getByText(created.name, { exact: true })).toHaveCount(1);
+    await this.gotoWorkspaceArtifacts();
+    await expect(this.page.getByText(created.name, { exact: true })).toHaveCount(1);
+    const scope = this.page.getByRole('button', { name: 'Scope', exact: true });
+    await expect(scope).toHaveCount(1);
+    await scope.click();
+    const workspaceOnly = this.page.getByRole('menuitem', {
+      name: 'workspace',
+      exact: true,
+    });
+    await expect(workspaceOnly).toHaveCount(1);
+    await workspaceOnly.click();
+    await expect(this.page.getByText(created.name, { exact: true })).toHaveCount(0);
+    await expect(
+      this.page.getByText('No artifacts match these filters', { exact: true }),
+    ).toBeVisible();
+  }
+
+  async assertDecisionInventory() {
+    await this.page.goto(DECISIONS_PATH, { waitUntil: 'domcontentloaded' });
+    await expect(this.page.getByText('Decisions', { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+    const response = await this.requestContext.get(this.absolute(DECISIONS_API_PATH));
+    expect(response.status()).toBe(200);
+    expect(await response.json()).toEqual([]);
+    for (const name of ['Assigned to me', 'All', 'Resolved']) {
+      await expect(this.page.getByRole('button', { name, exact: true })).toHaveCount(1);
+    }
+    const all = this.page.getByRole('button', { name: 'All', exact: true });
+    await all.click();
+    await expect(all).toHaveAttribute('data-state', 'active');
+    const resolved = this.page.getByRole('button', {
+      name: 'Resolved',
+      exact: true,
+    });
+    await resolved.click();
+    await expect(resolved).toHaveAttribute('data-state', 'active');
+    await expect(this.page.getByText('No decisions here', { exact: true })).toBeVisible();
+    await expect(
+      this.page.getByText('Select a decision to review', { exact: true }),
+    ).toBeVisible();
+  }
+
+  async cleanupOwnedSavedView(created: CreatedSavedView) {
+    this.assertRegistered(created);
+    await this.cleanupCapturedSavedViews([created]);
+  }
+
+  async cleanupOwnedArtifact(created: CreatedArtifact) {
+    this.assertRegistered(created);
+    await this.cleanupCapturedArtifacts([created]);
+  }
+
+  async cleanupOwnedWiki(created: CreatedWikiPage) {
+    this.assertRegistered(created);
+    await this.cleanupWikiIdentity(
+      { kind: 'wiki-provisional', id: created.id, name: '', projectIds: created.projectIds },
+      created.name,
+    );
+    this.#owned.get(created.id)!.deleted = true;
+  }
+
+  private async cleanupProvisionalWiki(
+    provisional: ProvisionalWikiPage,
+    requestedName: string,
+  ) {
+    await this.cleanupWikiIdentity(provisional, requestedName);
+  }
+
+  private async cleanupWikiIdentity(
+    provisional: ProvisionalWikiPage,
+    requestedName: string,
+  ) {
+    const endpoint = this.absolute(`${WIKI_API_PATH}${provisional.id}/`);
+    let inspection = await this.requestContext.get(endpoint);
+    if (inspection.status() === 404) return;
+    expect(inspection.status()).toBe(200);
+    let body: unknown = await inspection.json();
+    assertExactProvisionalWikiCleanupTarget(body, provisional, requestedName);
+    if (!isRecord(body) || !body.archived_at) {
+      await this.page.goto(`${WIKI_PATH}${provisional.id}/`, {
+        waitUntil: 'domcontentloaded',
+      });
+      const menu = this.page.locator(
+        'main main button:not([aria-label]):has(svg.lucide-ellipsis)',
+      );
+      await expect(menu).toHaveCount(1);
+      await menu.click();
+      const archive = this.page.getByRole('menuitem', { name: 'Archive', exact: true });
+      await expect(archive).toHaveCount(1);
+      await this.assertSandbox();
+      await archive.click();
+      await expect.poll(async () => {
+        inspection = await this.requestContext.get(endpoint);
+        if (inspection.status() !== 200) return false;
+        body = await inspection.json();
+        assertExactProvisionalWikiCleanupTarget(body, provisional, requestedName);
+        return isRecord(body) && Boolean(body.archived_at);
+      }).toBe(true);
+    }
+    await this.assertSandbox();
+    const deleted = await this.requestContext.delete(endpoint);
+    expect(deleted.status()).toBe(204);
+    expect((await this.requestContext.get(endpoint)).status()).toBe(404);
+    await this.gotoWiki();
+    await expect(this.page.getByText(requestedName, { exact: true })).toHaveCount(0);
+  }
+
+  private async cleanupCapturedSavedViews(created: CreatedSavedView[]) {
+    const unique = [...new Map(created.map((view) => [view.id, view])).values()];
+    const alreadyResolvedIds = new Set(
+      unique
+        .filter((view) => {
+          const record = this.#owned.get(view.id);
+          return (
+            record?.deleted === true &&
+            record.created.kind === 'saved-view' &&
+            record.created.name === view.name &&
+            record.created.projectId === view.projectId &&
+            record.created.stateId === view.stateId
+          );
+        })
+        .map(({ id }) => id),
+    );
+    await cleanupCapturedSavedViewBatch({
+      page: this.page,
+      requestContext: this.requestContext,
+      assertSandbox: this.assertSandbox,
+      created: unique,
+      detailEndpoint: (id) => this.absolute(`${VIEWS_API_PATH}${id}/`),
+      collectionEndpoint: this.absolute(VIEWS_API_PATH),
+      uiPath: VIEWS_PATH,
+      alreadyResolvedIds,
+      onResolved: ({ id }) => {
+        const record = this.#owned.get(id);
+        if (record?.created.kind === 'saved-view') record.deleted = true;
+      },
+    });
+  }
+
+  private async cleanupCapturedArtifacts(created: CreatedArtifact[]) {
+    const unique = [
+      ...new Map(created.map((artifact) => [artifact.id, artifact])).values(),
+    ];
+    if (unique.length === 0) return;
+    const scope = unique[0]!.scope;
+    if (unique.some((artifact) => artifact.scope !== scope)) {
+      throw new Error('Artifact cleanup batch crossed its exact requested scope.');
+    }
+    const collectionPath =
+      scope === 'project'
+        ? `${ARTIFACTS_API_PATH}?entity_type=project&entity_id=${SANDBOX.projectId}`
+        : ARTIFACTS_API_PATH;
+    const uiPath =
+      scope === 'project' ? PROJECT_ARTIFACTS_PATH : WORKSPACE_ARTIFACTS_PATH;
+    await cleanupCapturedArtifactBatch({
+      page: this.page,
+      requestContext: this.requestContext,
+      assertSandbox: this.assertSandbox,
+      created: unique,
+      detailEndpoint: (id) => this.absolute(`${ARTIFACTS_API_PATH}${id}/`),
+      collectionEndpoint: this.absolute(collectionPath),
+      uiPath,
+      onResolved: ({ id }) => {
+        const record = this.#owned.get(id);
+        if (record?.created.kind === 'artifact') record.deleted = true;
+      },
+    });
+  }
+
+  private async recoverSavedView(
+    id: string,
+    name: string,
+    stateId: string,
+    cleanup: KnowledgeRegistration<CreatedSavedView> = async (created) => {
+      this.registerOwned(created);
+      await this.cleanupOwnedSavedView(created);
+    },
+  ) {
+    await reconcileRejectedSavedViewExactId({
+      id,
+      requestedName: name,
+      requestedStateId: stateId,
+      inspect: async () => {
+        const response = await this.requestContext.get(
+          this.absolute(`${VIEWS_API_PATH}${id}/`),
+        );
+        return {
+          status: response.status(),
+          ...(response.status() === 200 ? { body: await response.json() } : {}),
+        };
+      },
+      cleanup: async (created) => cleanup(created),
+    });
+  }
+
+  private async recoverRejectedWiki(id: string, name: string) {
+    await reconcileRejectedWikiExactId({
+      id,
+      requestedName: name,
+      inspect: async () => {
+        const response = await this.requestContext.get(
+          this.absolute(`${WIKI_API_PATH}${id}/`),
+        );
+        return {
+          status: response.status(),
+          ...(response.status() === 200 ? { body: await response.json() } : {}),
+        };
+      },
+      cleanup: (provisional, requestedName) =>
+        this.cleanupWikiIdentity(provisional, requestedName),
+    });
+  }
+
+  private async awaitStoredArtifact(
+    reserved: CreatedArtifact,
+  ): Promise<CreatedArtifact> {
+    let stored: CreatedArtifact | undefined;
+    await expect
+      .poll(
+        async () => {
+          const response = await this.requestContext.get(
+            this.absolute(`${ARTIFACTS_API_PATH}${reserved.id}/`),
+          );
+          if (response.status() !== 200) return response.status();
+          const parsed = parseCreatedArtifact(
+            await response.json(),
+            reserved.name,
+            reserved.scope,
+          );
+          if (
+            parsed.id !== reserved.id ||
+            parsed.workspaceId !== reserved.workspaceId ||
+            parsed.projectId !== reserved.projectId
+          ) {
+            throw new Error('Artifact detail crossed its exact reservation identity.');
+          }
+          stored = parsed;
+          return 200;
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(200);
+    if (!stored) {
+      throw new Error(
+        `Artifact detail never confirmed stored identity for ${reserved.id}.`,
+      );
+    }
+    return stored;
+  }
+
+  private async cleanupCapturedArtifact(reserved: CreatedArtifact) {
+    await this.cleanupCapturedArtifacts([reserved]);
+  }
+
+  private registerOwned(created: ResponseOwnedKnowledge) {
+    if (this.#owned.has(created.id)) {
+      throw new Error('Knowledge entity was already registered by exact response ID.');
+    }
+    this.#owned.set(created.id, { created, deleted: false });
+  }
+
+  private assertRegistered(created: ResponseOwnedKnowledge) {
+    const record = this.#owned.get(created.id);
+    if (!record || record.created.kind !== created.kind) {
+      throw new Error('Knowledge entity is absent from the exact response ledger.');
+    }
+  }
+
+  private async gotoViews() {
+    await this.page.goto(VIEWS_PATH, { waitUntil: 'domcontentloaded' });
+    await expect(this.page.getByText('Views', { exact: true })).toBeVisible({ timeout: 15_000 });
+  }
+
+  private async gotoWiki() {
+    await this.page.goto(WIKI_PATH, { waitUntil: 'domcontentloaded' });
+    await expect(this.page.getByText('Context', { exact: true })).toBeVisible({ timeout: 15_000 });
+  }
+
+  private async gotoWorkspaceArtifacts() {
+    await this.page.goto(WORKSPACE_ARTIFACTS_PATH, { waitUntil: 'domcontentloaded' });
+    await expect(this.page.getByRole('button', { name: 'Upload', exact: true })).toBeVisible({ timeout: 15_000 });
+  }
+
+  private async gotoProjectArtifacts() {
+    await this.page.goto(PROJECT_ARTIFACTS_PATH, { waitUntil: 'domcontentloaded' });
+    await expect(this.page.getByRole('button', { name: 'Upload', exact: true })).toBeVisible({ timeout: 15_000 });
+  }
+
+  private absolute(path: string) {
+    return new URL(path, this.page.url()).href;
+  }
+}

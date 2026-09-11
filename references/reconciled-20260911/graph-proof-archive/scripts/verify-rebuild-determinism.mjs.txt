@@ -1,0 +1,54 @@
+import { createHash } from "node:crypto";
+import { readdir, readFile } from "node:fs/promises";
+import { join, relative } from "node:path";
+
+import { canonicalJson } from "../src/model.mjs";
+import { rebuildRepository } from "../src/rebuild.mjs";
+
+const sourceRoot = argument("--source-root");
+if (!sourceRoot) throw new TypeError("--source-root is required");
+const root = new URL("..", import.meta.url).pathname;
+const before = await managedDigests(root);
+const result = await rebuildRepository({ root, sourceRoot });
+const after = await managedDigests(root);
+if (canonicalJson(before) !== canonicalJson(after)) {
+  const changed = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+    .filter(path => before[path] !== after[path]);
+  throw new TypeError(`REBUILD_NOT_DETERMINISTIC ${changed.join(",")}`);
+}
+process.stdout.write(`${JSON.stringify({ ok: true, graphDigest: result.graphDigest, files: Object.keys(after).length })}\n`);
+
+async function managedDigests(root) {
+  const graph = JSON.parse(await readFile(join(root, "graph/current/graph.json"), "utf8"));
+  const snapshot = `graph/snapshots/${graph.generatedFrom.sourceSha}/${graph.semanticDigest.replace(":", "-")}`;
+  const roots = [
+    "graph/current",
+    snapshot,
+    "obsidian",
+    "proof/coverage-ownership.v1.json",
+    "reports/2026-08-29-fully-proven-audit.md",
+  ];
+  const files = [];
+  for (const path of roots) files.push(...await walk(join(root, path)));
+  return Object.fromEntries(await Promise.all(files.sort().map(async path => [
+    relative(root, path).replaceAll("\\", "/"),
+    createHash("sha256").update(await readFile(path)).digest("hex"),
+  ])));
+}
+
+async function walk(path) {
+  const entries = await readdir(path, { withFileTypes: true }).catch(() => null);
+  if (!entries) return [path];
+  const files = [];
+  for (const entry of entries) {
+    const child = join(path, entry.name);
+    if (entry.isDirectory()) files.push(...await walk(child));
+    else if (entry.isFile()) files.push(child);
+  }
+  return files;
+}
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}

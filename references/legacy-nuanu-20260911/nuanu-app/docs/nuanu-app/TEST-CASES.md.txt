@@ -1,0 +1,115 @@
+# Nuanu App foundation test cases
+
+This registry contains exactly the nine tests currently discoverable in the
+foundation. Their graph disposition is `AUTOMATED`; a run result is assigned
+only when a named campaign executes them. Nothing in this file is an evergreen
+`PASS`.
+
+## NAPP-CONTRACT-001
+
+- Title: `NAPP-CONTRACT-001 synthetic runtime contract drives unique exact role-name discovery locators without network`
+- File: `tests/nuanu-app/offline/runtime-contract.spec.ts`
+- Full graph ID: `nuanu-app:auto:tests/nuanu-app/offline/runtime-contract.spec.ts#NAPP-CONTRACT-001 synthetic runtime contract drives unique exact role-name discovery locators without network`
+- Graph disposition: `AUTOMATED`
+- Oracle: an injected synthetic reviewed contract resolves exact accessible
+  role/name locators with count one; duplicate and unavailable selectors stay
+  `UNVERIFIED` instead of selecting an ordinal fallback.
+- Safety: uses `page.setContent` plus a request canary and performs no product
+  navigation.
+
+## NAPP-PUB-001
+
+- Title: `NAPP-PUB-001 homepage returns HTML and renders an application shell`
+- File: `tests/nuanu-app/public/smoke.spec.ts`
+- Full graph ID: `nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-001 homepage returns HTML and renders an application shell`
+- Graph disposition: `AUTOMATED`
+- Oracle: root navigation stays on the approved URL, returns a response below
+  HTTP 400, and renders the unique reviewed application-shell selector.
+- Safety: installs the mutation guard before navigation and attaches the
+  bounded browser observation in `finally`.
+
+## NAPP-PUB-002
+
+- Title: `NAPP-PUB-002 reviewed discovery controls map marker and place card are reachable`
+- File: `tests/nuanu-app/public/smoke.spec.ts`
+- Full graph ID: `nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-002 reviewed discovery controls map marker and place card are reachable`
+- Graph disposition: `AUTOMATED`
+- Oracle: only a fresh, fully attested reviewed runtime contract may supply the
+  eight exact accessible role/name selectors; every locator must have count
+  one and be visible/reachable. Missing, stale, ambiguous, or unavailable
+  evidence is explicitly `BLOCKED` or `UNVERIFIED`, never an inferred pass.
+- Safety: installs the mutation guard before navigation and attaches bounded
+  observation plus mutation-ledger evidence in `finally`.
+
+## NAPP-SAFE-001
+
+- Title: `NAPP-SAFE-001 blocks non-idempotent requests before network dispatch`
+- File: `tests/nuanu-app/public/safety-contract.spec.ts`
+- Full graph ID: `nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-SAFE-001 blocks non-idempotent requests before network dispatch`
+- Graph disposition: `AUTOMATED`
+- Oracle: a synthetic `POST` rejects and the retained blocked-request record
+  contains only its method and sanitized URL.
+
+## NAPP-EVID-001
+
+- Title: `NAPP-EVID-001 removes query and fragment data from evidence URLs`
+- File: `tests/nuanu-app/public/safety-contract.spec.ts`
+- Full graph ID: `nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-001 removes query and fragment data from evidence URLs`
+- Graph disposition: `AUTOMATED`
+- Oracle: URL sanitization returns origin plus pathname and removes query and
+  fragment data.
+
+## NAPP-SAFE-002
+
+- Title: `NAPP-SAFE-002 disables artifacts for the Nuanu App runtime project`
+- File: `tests/nuanu-app/public/safety-contract.spec.ts`
+- Full graph ID: `nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-SAFE-002 disables artifacts for the Nuanu App runtime project`
+- Graph disposition: `AUTOMATED`
+- Oracle: Playwright project settings expose trace, screenshot, and video as
+  `off`.
+
+## NAPP-EVID-002
+
+- Title: `NAPP-EVID-002 records bounded non-sensitive console markers and attaches no raw text`
+- File: `tests/nuanu-app/public/safety-contract.spec.ts`
+- Full graph ID: `nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-002 records bounded non-sensitive console markers and attaches no raw text`
+- Graph disposition: `AUTOMATED`
+- Oracle: at most 25 console-error markers are retained; the structured
+  attachment contains neither emitted raw text nor query data.
+
+## NAPP-EVID-003
+
+- Title: `NAPP-EVID-003 records at most 25 sanitized failed request URLs`
+- File: `tests/nuanu-app/public/safety-contract.spec.ts`
+- Full graph ID: `nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-003 records at most 25 sanitized failed request URLs`
+- Graph disposition: `AUTOMATED`
+- Oracle: failed-request evidence is capped at 25 entries and every retained
+  URL excludes query and fragment data.
+
+## NAPP-EVID-004
+
+- Title: `NAPP-EVID-004 records only first-party HTTP 500-599 responses and caps them`
+- File: `tests/nuanu-app/public/safety-contract.spec.ts`
+- Full graph ID: `nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-004 records only first-party HTTP 500-599 responses and caps them`
+- Graph disposition: `AUTOMATED`
+- Oracle: at most 25 sanitized first-party HTTP 500–599 response URLs are
+  retained; third-party responses and statuses outside that range are
+  excluded.
+
+## Discovery and execution
+
+Discovery is the authority for whether these cases are currently automated:
+
+```bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app
+```
+
+Execute the default project with:
+
+```bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npm run test:nuanu-app
+```
+
+The optional `NUANU_APP_AUTH_STORAGE_STATE` is not consumed by these nine
+cases. Physical iPhone and Android acceptance remains `MANUAL`; native
+mobile applications remain `OUT_OF_SCOPE` for V1.

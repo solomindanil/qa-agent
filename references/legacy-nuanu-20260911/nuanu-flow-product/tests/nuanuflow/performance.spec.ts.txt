@@ -1,0 +1,209 @@
+import { expect, test, type Request, type Response } from '@playwright/test';
+import {
+  redactUrlQuery,
+  validatePerformanceMetrics,
+  type PerformanceMetrics,
+} from './cross-cutting';
+import { AuthPage } from './pages/auth.page';
+
+const SEMANTIC_READY_CEILING_MS = 15_000;
+const CRITICAL_RESOURCE_TYPES = new Set([
+  'document',
+  'fetch',
+  'script',
+  'stylesheet',
+  'xhr',
+]);
+
+type BrowserPerformanceState = {
+  layoutShiftSupported: boolean;
+  cumulativeLayoutShift: number | null;
+  largestContentfulPaintSupported: boolean;
+  largestContentfulPaintMs: number | null;
+  longTaskSupported: boolean;
+  longTaskCount: number | null;
+  longTaskTotalDurationMs: number | null;
+  longTaskMaxDurationMs: number | null;
+  observers: PerformanceObserver[];
+};
+
+test('observes finite sign-in performance without inventing an SLA', async ({
+  page,
+  baseURL,
+}, testInfo) => {
+  expect(baseURL, 'nuanuflow project must define baseURL').toBeTruthy();
+  const origin = new URL(baseURL!).origin;
+  const failedCriticalPaths: string[] = [];
+  const onRequestFailed = (request: Request) => {
+    const url = new URL(request.url());
+    if (
+      url.origin === origin &&
+      CRITICAL_RESOURCE_TYPES.has(request.resourceType())
+    ) {
+      failedCriticalPaths.push(redactUrlQuery(url.toString()));
+    }
+  };
+  const onResponse = (response: Response) => {
+    const request = response.request();
+    const url = new URL(response.url());
+    const expectedAnonymousProbe =
+      url.pathname === '/be/api/users/me/' && response.status() === 401;
+    if (
+      url.origin === origin &&
+      response.status() >= 400 &&
+      !expectedAnonymousProbe &&
+      CRITICAL_RESOURCE_TYPES.has(request.resourceType())
+    ) {
+      failedCriticalPaths.push(redactUrlQuery(url.toString()));
+    }
+  };
+  page.on('requestfailed', onRequestFailed);
+  page.on('response', onResponse);
+
+  await page.addInitScript(() => {
+    const supported = new Set(PerformanceObserver.supportedEntryTypes ?? []);
+    const state: BrowserPerformanceState = {
+      layoutShiftSupported: supported.has('layout-shift'),
+      cumulativeLayoutShift: supported.has('layout-shift') ? 0 : null,
+      largestContentfulPaintSupported: supported.has(
+        'largest-contentful-paint',
+      ),
+      largestContentfulPaintMs: null,
+      longTaskSupported: supported.has('longtask'),
+      longTaskCount: supported.has('longtask') ? 0 : null,
+      longTaskTotalDurationMs: supported.has('longtask') ? 0 : null,
+      longTaskMaxDurationMs: supported.has('longtask') ? 0 : null,
+      observers: [],
+    };
+    const target = window as typeof window & {
+      __nuanuQaPerformance?: BrowserPerformanceState;
+    };
+    target.__nuanuQaPerformance = state;
+
+    if (state.layoutShiftSupported) {
+      const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const shift = entry as PerformanceEntry & {
+            hadRecentInput?: boolean;
+            value?: number;
+          };
+          if (!shift.hadRecentInput && typeof shift.value === 'number') {
+            state.cumulativeLayoutShift! += shift.value;
+          }
+        }
+      });
+      observer.observe({ type: 'layout-shift', buffered: true });
+      state.observers.push(observer);
+    }
+    if (state.largestContentfulPaintSupported) {
+      const observer = new PerformanceObserver((list) => {
+        const entries = list.getEntries();
+        const latest = entries[entries.length - 1];
+        if (latest) state.largestContentfulPaintMs = latest.startTime;
+      });
+      observer.observe({ type: 'largest-contentful-paint', buffered: true });
+      state.observers.push(observer);
+    }
+    if (state.longTaskSupported) {
+      const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          state.longTaskCount! += 1;
+          state.longTaskTotalDurationMs! += entry.duration;
+          state.longTaskMaxDurationMs = Math.max(
+            state.longTaskMaxDurationMs!,
+            entry.duration,
+          );
+        }
+      });
+      observer.observe({ type: 'longtask', buffered: true });
+      state.observers.push(observer);
+    }
+  });
+
+  const startedAt = Date.now();
+  try {
+    const auth = new AuthPage(page);
+    await auth.gotoSignIn();
+    const semanticReadyDurationMs = Date.now() - startedAt;
+
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const target = window as typeof window & {
+              __nuanuQaPerformance?: BrowserPerformanceState;
+            };
+            const state = target.__nuanuQaPerformance;
+            return Boolean(
+              state &&
+                (!state.largestContentfulPaintSupported ||
+                  state.largestContentfulPaintMs !== null),
+            );
+          }),
+        { timeout: 5_000 },
+      )
+      .toBe(true);
+
+    const browserMetrics = await page.evaluate(() => {
+      const target = window as typeof window & {
+        __nuanuQaPerformance?: BrowserPerformanceState;
+      };
+      const state = target.__nuanuQaPerformance;
+      if (!state) throw new Error('Performance instrumentation was not installed.');
+      const navigation = performance.getEntriesByType(
+        'navigation',
+      )[0] as PerformanceNavigationTiming | undefined;
+      if (!navigation) throw new Error('Navigation timing entry is unavailable.');
+      const resources = performance
+        .getEntriesByType('resource')
+        .filter((entry) => new URL(entry.name).origin === location.origin) as PerformanceResourceTiming[];
+      state.observers.forEach((observer) => observer.disconnect());
+      return {
+        navigationDurationMs: navigation.duration,
+        firstPartyResourceCount: resources.length,
+        firstPartyTransferBytes: resources.reduce(
+          (total, entry) => total + entry.transferSize,
+          0,
+        ),
+        firstPartyEncodedBytes: resources.reduce(
+          (total, entry) => total + entry.encodedBodySize,
+          0,
+        ),
+        layoutShiftSupported: state.layoutShiftSupported,
+        cumulativeLayoutShift: state.cumulativeLayoutShift,
+        largestContentfulPaintSupported:
+          state.largestContentfulPaintSupported,
+        largestContentfulPaintMs: state.largestContentfulPaintMs,
+        longTaskSupported: state.longTaskSupported,
+        longTaskCount: state.longTaskCount,
+        longTaskTotalDurationMs: state.longTaskTotalDurationMs,
+        longTaskMaxDurationMs: state.longTaskMaxDurationMs,
+      };
+    });
+    const metrics: PerformanceMetrics = {
+      ...browserMetrics,
+      semanticReadyDurationMs,
+      failedCriticalFirstPartyResources: failedCriticalPaths.length,
+    };
+
+    testInfo.annotations.push({
+      type: 'observational performance sample',
+      description: JSON.stringify({
+        ...metrics,
+        engine: testInfo.project.name,
+        viewport: page.viewportSize(),
+        semanticReady: 'textbox[name=Email]',
+        failedCriticalPaths,
+      }),
+    });
+
+    expect(semanticReadyDurationMs).toBeLessThanOrEqual(
+      SEMANTIC_READY_CEILING_MS,
+    );
+    expect(validatePerformanceMetrics(metrics)).toEqual([]);
+    expect(failedCriticalPaths).toEqual([]);
+  } finally {
+    page.off('requestfailed', onRequestFailed);
+    page.off('response', onResponse);
+  }
+});

@@ -1,0 +1,26 @@
+import { expect, test as setup } from '@playwright/test';
+import { requireProjectAuthFile } from '../../../packages/playwright-support/src/environment.js';
+import {
+  loginViaUi,
+} from './helpers.js';
+
+
+
+// Logs in once per run and saves the session (cookies + localStorage, including
+// the Supabase token and the forced RU language). Authenticated specs reuse it
+// via storageState instead of logging in through the UI in every test.
+setup('authenticate', async ({ page, baseURL }, testInfo) => {
+  const authFile = requireProjectAuthFile(
+    testInfo.project.metadata,
+    testInfo.project.name,
+  );
+  await loginViaUi(page, baseURL);
+  // Confirm the authenticated shell rendered. The logout control exists on every
+  // authenticated route, unlike store-specific buttons whose copy and load time
+  // vary per environment and account state.
+  await expect(page.getByRole('button', { name: /выйти/i }).first()).toBeVisible({
+    timeout: 20_000,
+  });
+
+  await page.context().storageState({ path: authFile });
+});

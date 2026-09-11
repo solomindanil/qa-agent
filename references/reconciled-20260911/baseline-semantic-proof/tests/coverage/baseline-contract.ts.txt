@@ -1,0 +1,834 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import ts from 'typescript';
+
+export type FileCountMap = Readonly<Record<string, number>>;
+
+export interface BaselineManifest {
+  schemaVersion: 1;
+  sourceSnapshot: { algorithm: 'sha256'; sha256: string };
+  sourceIdentity: { algorithm: 'sha256'; files: Readonly<Record<string, string>> };
+  target: { algorithm: 'sha256'; files: Readonly<Record<string, string>> };
+  discovery: { files: FileCountMap; total: 164; fileCount: 24 };
+  transformations: Readonly<Record<string, number>>;
+  proofInventory: {
+    total: number;
+    categories: FileCountMap;
+    files: FileCountMap;
+  };
+  targetAst: Readonly<Record<string, number>>;
+  transformationProof: { files: Readonly<Record<string, TransformationRecord>> };
+}
+
+export type EditCategory =
+  | 'insert-project-auth-file-declaration'
+  | 'insert-project-auth-file-import'
+  | 'insert-project-credential-import'
+  | 'insert-project-test-info-parameter'
+  | 'local-import-module-specifier'
+  | 'remove-auth-credential-declaration'
+  | 'remove-auth-credential-skip'
+  | 'remove-auth-file-import-specifier'
+  | 'remove-auth-file-only-import'
+  | 'remove-auth-file-reexport'
+  | 'remove-global-auth-storage-state'
+  | 'remove-helper-credential-import-specifier'
+  | 'remove-non-null-credential-assertion'
+  | 'remove-production-credential-declaration'
+  | 'remove-production-credential-skip'
+  | 'remove-retired-export'
+  | 'remove-staging-connectivity-preflight'
+  | 'remove-staging-credential-skip'
+  | 'remove-staging-helper-import-specifier'
+  | 'remove-staging-preflight-documentation'
+  | 'remove-suite-base-url-skip'
+  | 'replace-resolve-creds-argument'
+  | 'rewrite-helper-credential-documentation'
+  | 'rewrite-local-import-documentation'
+  | 'rewrite-storage-state-auth-path';
+
+export interface EditDescriptor {
+  category: EditCategory;
+  sourceByteStart: number;
+  sourceByteEnd: number;
+  sourceLine: number;
+  sourceColumn: number;
+  sourceSliceSha256: string;
+  replacement: string;
+  replacementSha256: string;
+  expectedNodeKind: string;
+}
+
+export interface TransformationRecord {
+  file: string;
+  sourceSha256: string;
+  targetSha256: string;
+  edits: readonly EditDescriptor[];
+}
+
+interface ReporterSpec {
+  file?: string;
+  tests?: Array<{ projectName?: string }>;
+}
+
+interface ReporterSuite {
+  file?: string;
+  specs?: ReporterSpec[];
+  suites?: ReporterSuite[];
+}
+
+interface ReporterJson {
+  suites?: ReporterSuite[];
+  errors?: unknown[];
+}
+
+export function assertManifestIsRepositoryOwned(manifestPath: string, repoRoot: string): void {
+  assert.ok(!path.isAbsolute(manifestPath), 'baseline manifest path must be repository-relative');
+  const resolved = path.resolve(repoRoot, manifestPath);
+  const relative = path.relative(repoRoot, resolved);
+  assert.ok(relative !== '' && !relative.startsWith(`..${path.sep}`) && relative !== '..', 'baseline manifest must be repository-relative');
+}
+
+export function sha256File(filePath: string): string {
+  return createHash('sha256').update(readFileSync(filePath)).digest('hex');
+}
+
+export function assertSnapshotHashes(snapshot: Readonly<Record<string, string>>, records: Readonly<Record<string, TransformationRecord>>): void {
+  assert.deepEqual(Object.keys(snapshot).sort(), Object.keys(records).sort(), 'snapshot file set mismatch');
+  for (const [relative, source] of Object.entries(snapshot)) {
+    assert.equal(createHash('sha256').update(source).digest('hex'), records[relative]?.sourceSha256, `snapshot SHA-256 mismatch: ${relative}`);
+  }
+}
+
+function byteToCharacterOffset(text: string, byteOffset: number): number {
+  let bytes = 0;
+  for (let index = 0; index <= text.length; index += 1) {
+    if (bytes === byteOffset) return index;
+    if (index === text.length) break;
+    bytes += Buffer.byteLength(text[index]);
+  }
+  throw new Error(`descriptor location is not a UTF-8 boundary: ${byteOffset}`);
+}
+
+function descriptorNodeKind(text: string, start: number, end: number): string {
+  let first = start;
+  let last = end;
+  while (first < last && /\s/.test(text[first])) first += 1;
+  while (last > first && /\s/.test(text[last - 1])) last -= 1;
+  if (first === last) return 'Trivia';
+  const source = ts.createSourceFile('snapshot.ts', text, ts.ScriptTarget.ESNext, true);
+  let smallest: ts.Node | undefined;
+  const visit = (node: ts.Node): void => {
+    if (node.pos <= first && node.end >= last) {
+      if (!smallest || node.end - node.pos < smallest.end - smallest.pos) smallest = node;
+      ts.forEachChild(node, visit);
+    }
+  };
+  visit(source);
+  return smallest ? ts.SyntaxKind[smallest.kind] : 'Trivia';
+}
+
+const editCategories: ReadonlySet<string> = new Set<EditCategory>([
+  'insert-project-auth-file-declaration',
+  'insert-project-auth-file-import',
+  'insert-project-credential-import',
+  'insert-project-test-info-parameter',
+  'local-import-module-specifier',
+  'remove-auth-credential-declaration',
+  'remove-auth-credential-skip',
+  'remove-auth-file-import-specifier',
+  'remove-auth-file-only-import',
+  'remove-auth-file-reexport',
+  'remove-global-auth-storage-state',
+  'remove-helper-credential-import-specifier',
+  'remove-non-null-credential-assertion',
+  'remove-production-credential-declaration',
+  'remove-production-credential-skip',
+  'remove-retired-export',
+  'remove-staging-connectivity-preflight',
+  'remove-staging-credential-skip',
+  'remove-staging-helper-import-specifier',
+  'remove-staging-preflight-documentation',
+  'remove-suite-base-url-skip',
+  'replace-resolve-creds-argument',
+  'rewrite-helper-credential-documentation',
+  'rewrite-local-import-documentation',
+  'rewrite-storage-state-auth-path',
+]);
+
+interface RawSemanticEdit {
+  category: EditCategory;
+  start: number;
+  end: number;
+  replacement: string;
+}
+
+const stagingPreflightComment =
+  '  // Staging is reachable only through the mesh — fail fast with a clear\n' +
+  '  // message instead of letting every spec die on 30s navigation timeouts.\n';
+
+const retiredExportHashes: Readonly<Record<string, string>> = {
+  FREELAND_AUTH_FILE: '3c50bb882ba8c2c9530a4cfd7ebdae30758f2998207ee201702d4dd46f04447a',
+  resolveCreds: '98599e3b3f75f4f943d6a76a134bf8b293ecf1abc6c9c9e5631d9f1c81971f09',
+  PAYMENT_PROVIDERS: 'e22e10e5538927916ee69009a9630289fdb4e7dd715e64e9d67f4e8f4e3ded23',
+  PURCHASABLE_PRODUCTS: 'a3076df2b992d57969d616961854afa27abd0fe18ac553e93c424b44f4c1950b',
+  PurchasableProduct: '41367bdc342d0d08ee2b9000c80dbcadd2a0716638d6d17380a7951266653e35',
+  purchaseGate: 'a121bc5766caf130df058f22494c3347bd591e2f341dc971db45d49ff45d119e',
+};
+
+const retiredDocumentationHashes: Readonly<Record<string, string>> = {
+  FREELAND_AUTH_FILE: '6d898410cb6fcf3fbe674665299bf2762dc2a160c69bbc259da8137fc5b34a55',
+  resolveCreds: '2ced60d1699b1c6e4161d0816e316952cdde8e3a44543d81020156af2b6d6477',
+  PAYMENT_PROVIDERS: '9b768dce08e0264266fe8415c17e851cc428073443329c3ebf1466efcf7aa255',
+  PURCHASABLE_PRODUCTS: 'c72248aeba23632c425c7e0576298522a11851c8168871fae0269eb51669f14f',
+  purchaseGate: 'cf264ec983819489454d7bb1fb69ac9a2900ebfef5b6996655720af86b7f8c6c',
+};
+
+const retiredFullSpanHashes: Readonly<Record<string, string>> = {
+  FREELAND_AUTH_FILE: '2c51bb88beb1d6133a020d5ae7ed0496d88c239f63a56ab34fb874a523e0c30a',
+  resolveCreds: 'f272b6a7e8229ce7895efdab74a2a65aad7ec238b6274f1f74291aa9c211787a',
+  PAYMENT_PROVIDERS: 'f73155fd6d43dafa218a2cef7567113234598d4c2f2a0beea8a7105ff82a6028',
+  PURCHASABLE_PRODUCTS: '78c72768655a016c8c46d065ea8fc212ded93f1c7a5188e5afc5c6d9512df746',
+  PurchasableProduct: '5f7f881be88057b38ac5fe6b23bcabf82e3bbfada4ca3d59e16f0f67196dc4c9',
+  purchaseGate: 'ab43aff43fbbd536c90848ef0fb7af2afcd00ec3cdaa6a1fb69c138fce880d2d',
+};
+
+function lineStart(text: string, offset: number): number {
+  return text.lastIndexOf('\n', offset - 1) + 1;
+}
+
+function afterLineTerminator(text: string, offset: number): number {
+  if (text.slice(offset, offset + 2) === '\r\n') return offset + 2;
+  return text[offset] === '\n' ? offset + 1 : offset;
+}
+
+function statementSpan(text: string, source: ts.SourceFile, node: ts.Node, consumeBlankLine = false): { start: number; end: number } {
+  const start = lineStart(text, node.getStart(source));
+  assert.match(text.slice(start, node.getStart(source)), /^\s*$/, 'semantic statement must start at its exact line indentation');
+  let end = afterLineTerminator(text, node.end);
+  assert.ok(end > node.end, 'semantic statement must end at its exact line terminator');
+  if (consumeBlankLine) {
+    const next = afterLineTerminator(text, end);
+    assert.ok(next > end, 'semantic statement must be followed by exactly one blank separator');
+    end = next;
+  }
+  return { start, end };
+}
+
+function byteOffset(text: string, characterOffset: number): number {
+  return Buffer.byteLength(text.slice(0, characterOffset));
+}
+
+function descriptorFromRaw(source: string, sourceFile: ts.SourceFile, edit: RawSemanticEdit): EditDescriptor {
+  const location = sourceFile.getLineAndCharacterOfPosition(edit.start);
+  const slice = source.slice(edit.start, edit.end);
+  return {
+    category: edit.category,
+    sourceByteStart: byteOffset(source, edit.start),
+    sourceByteEnd: byteOffset(source, edit.end),
+    sourceLine: location.line + 1,
+    sourceColumn: location.character + 1,
+    sourceSliceSha256: createHash('sha256').update(slice).digest('hex'),
+    replacement: edit.replacement,
+    replacementSha256: createHash('sha256').update(edit.replacement).digest('hex'),
+    expectedNodeKind: descriptorNodeKind(source, edit.start, edit.end),
+  };
+}
+
+function declarationName(statement: ts.Statement, source: ts.SourceFile): string | undefined {
+  if (ts.isVariableStatement(statement) && statement.declarationList.declarations.length === 1) {
+    return statement.declarationList.declarations[0]?.name.getText(source);
+  }
+  return ts.isTypeAliasDeclaration(statement) ? statement.name.text : undefined;
+}
+
+function applyEditDescriptors(source: string, descriptors: readonly EditDescriptor[]): string {
+  const edits = descriptors.map((edit) => ({
+    start: byteToCharacterOffset(source, edit.sourceByteStart),
+    end: byteToCharacterOffset(source, edit.sourceByteEnd),
+    replacement: edit.replacement,
+  }));
+  let reconstructed = source;
+  for (const edit of [...edits].reverse()) {
+    reconstructed = `${reconstructed.slice(0, edit.start)}${edit.replacement}${reconstructed.slice(edit.end)}`;
+  }
+  return reconstructed;
+}
+
+function semanticEditDescriptors(file: string, source: string): readonly EditDescriptor[] {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.ESNext, true);
+  const parsed = sourceFile as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] };
+  assert.deepEqual(parsed.parseDiagnostics, [], `source snapshot has TypeScript parse errors: ${file}`);
+  const raw: RawSemanticEdit[] = [];
+  const add = (category: EditCategory, start: number, end: number, replacement = ''): void => {
+    assert.ok(start >= 0 && end >= start && end <= source.length, `invalid semantic edit boundary: ${file}:${category}`);
+    raw.push({ category, start, end, replacement });
+  };
+  const addStatement = (category: EditCategory, node: ts.Node, consumeBlankLine = false): void => {
+    const span = statementSpan(source, sourceFile, node, consumeBlankLine);
+    add(category, span.start, span.end);
+  };
+
+  const imports = sourceFile.statements.filter(ts.isImportDeclaration);
+  const wholeRemovedImports = new Set<ts.ImportDeclaration>();
+  for (const declaration of imports) {
+    if (!ts.isStringLiteral(declaration.moduleSpecifier)) continue;
+    const named = declaration.importClause?.namedBindings;
+    if (named && ts.isNamedImports(named)) {
+      const removals = named.elements.filter((element) => {
+        const imported = element.propertyName?.text ?? element.name.text;
+        return (
+          imported === 'FREELAND_AUTH_FILE' ||
+          (imported === 'resolveCreds' && (file === 'auth-flows.spec.ts' || file === 'auth.setup.ts')) ||
+          (imported === 'isStaging' && file === 'auth.setup.ts')
+        );
+      });
+      if (removals.length === named.elements.length && removals.length === 1) {
+        assert.equal(removals[0]?.name.text, 'FREELAND_AUTH_FILE', 'only the auth-file-only import may be removed as a declaration');
+        addStatement('remove-auth-file-only-import', declaration);
+        wholeRemovedImports.add(declaration);
+      } else {
+        for (const element of removals) {
+          const index = named.elements.indexOf(element);
+          const imported = element.propertyName?.text ?? element.name.text;
+          const category: EditCategory =
+            imported === 'FREELAND_AUTH_FILE'
+              ? 'remove-auth-file-import-specifier'
+              : imported === 'resolveCreds'
+                ? 'remove-helper-credential-import-specifier'
+                : 'remove-staging-helper-import-specifier';
+          if (index < named.elements.length - 1) {
+            const next: ts.ImportSpecifier | undefined = named.elements[index + 1];
+            assert.ok(next);
+            add(category, element.getStart(sourceFile), next.getStart(sourceFile));
+          } else {
+            const previous: ts.ImportSpecifier | undefined = named.elements[index - 1];
+            assert.ok(previous, 'a removable trailing import specifier must have a retained predecessor');
+            assert.ok(!removals.includes(previous), 'trailing removable import specifiers may not consume another removed specifier separator');
+            add(category, previous.end, element.end);
+          }
+        }
+      }
+    }
+    if (
+      !wholeRemovedImports.has(declaration) &&
+      declaration.moduleSpecifier.text.startsWith('.') &&
+      !declaration.moduleSpecifier.text.endsWith('.js')
+    ) {
+      const start = declaration.moduleSpecifier.getStart(sourceFile);
+      const quote = source[start];
+      assert.ok(quote === "'" || quote === '"', 'local import module specifier must use a quoted StringLiteral token');
+      add(
+        'local-import-module-specifier',
+        start,
+        declaration.moduleSpecifier.end,
+        `${quote}${declaration.moduleSpecifier.text}.js${quote}`,
+      );
+    }
+  }
+
+  if (file === 'helpers.ts') {
+    const playwrightImport = imports.find(
+      (declaration) => ts.isStringLiteral(declaration.moduleSpecifier) && declaration.moduleSpecifier.text === '@playwright/test',
+    );
+    assert.ok(playwrightImport, 'helpers.ts must retain its pinned Playwright import');
+    const importBoundary = afterLineTerminator(source, playwrightImport.end);
+    assert.ok(importBoundary > playwrightImport.end, 'helpers credential import boundary must be an ImportDeclaration line terminator');
+    add(
+      'insert-project-credential-import',
+      importBoundary,
+      importBoundary,
+      "import { resolveCreds } from '../../../packages/playwright-support/src/environment.js';\n",
+    );
+
+    const oldDocumentation =
+      '// Single source of truth for credential selection, auth-file path, hydration\n' +
+      '// waits, console-error collection, and staging/payment gates.\n';
+    const documentationStart = source.indexOf(oldDocumentation);
+    assert.ok(documentationStart >= 0, 'helpers.ts must contain the pinned credential-ownership documentation');
+    add(
+      'rewrite-helper-credential-documentation',
+      documentationStart,
+      documentationStart + oldDocumentation.length,
+      '// Single source of truth for hydration waits, console-error collection, and\n' +
+        '// staging/payment gates.\n',
+    );
+
+    for (const statement of sourceFile.statements) {
+      const name = declarationName(statement, sourceFile);
+      if (!name || !(name in retiredExportHashes)) continue;
+      const statementText = source.slice(statement.getStart(sourceFile), statement.end);
+      assert.equal(
+        createHash('sha256').update(statementText).digest('hex'),
+        retiredExportHashes[name],
+        `retired export shape mismatch: ${name}`,
+      );
+      const jsDoc = (statement as ts.Statement & { jsDoc?: readonly ts.JSDoc[] }).jsDoc;
+      const expectedDocumentationHash = retiredDocumentationHashes[name];
+      if (expectedDocumentationHash) {
+        assert.equal(jsDoc?.length, 1, `retired export must have exactly one attached JSDoc: ${name}`);
+        const documentation = jsDoc?.[0];
+        assert.ok(documentation);
+        const documentationText = source.slice(documentation.pos, documentation.end);
+        assert.equal(
+          createHash('sha256').update(documentationText).digest('hex'),
+          expectedDocumentationHash,
+          `retired export documentation shape mismatch: ${name}`,
+        );
+        const documentationEnd = afterLineTerminator(source, documentation.end);
+        assert.equal(documentationEnd, statement.getStart(sourceFile), `retired export documentation must be immediately adjacent: ${name}`);
+      } else {
+        assert.equal(jsDoc?.length ?? 0, 0, `retired export must not acquire unpinned documentation: ${name}`);
+      }
+      const fullSpan = source.slice(statement.getFullStart(), statement.end);
+      assert.equal(
+        createHash('sha256').update(fullSpan).digest('hex'),
+        retiredFullSpanHashes[name],
+        `retired export fullStart/JSDoc/trivia span mismatch: ${name}`,
+      );
+      add('remove-retired-export', statement.getFullStart(), statement.end);
+    }
+
+    const visitHelper = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === 'fill' &&
+        node.arguments.length === 1
+      ) {
+        const argument = node.arguments[0];
+        if (argument && ts.isNonNullExpression(argument) && ts.isIdentifier(argument.expression)) {
+          assert.ok(argument.expression.text === 'email' || argument.expression.text === 'password', 'only credential fill assertions may be removed');
+          assert.equal(source.slice(argument.expression.end, argument.end), '!', 'non-null edit must be the exact exclamation token');
+          add('remove-non-null-credential-assertion', argument.expression.end, argument.end);
+        }
+      }
+      ts.forEachChild(node, visitHelper);
+    };
+    visitHelper(sourceFile);
+  }
+
+  if (file === 'fixtures.ts') {
+    const oldDocumentation = "// Usage: import { expect, test } from './fixtures';";
+    const start = source.indexOf(oldDocumentation);
+    assert.ok(start >= 0, 'fixtures.ts must contain the pinned local-import documentation');
+    add(
+      'rewrite-local-import-documentation',
+      start,
+      start + oldDocumentation.length,
+      "// Usage: import { expect, test } from './fixtures.js';",
+    );
+  }
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isVariableStatement(statement) || statement.declarationList.declarations.length !== 1) continue;
+    const declaration = statement.declarationList.declarations[0];
+    if (!declaration || !ts.isIdentifier(declaration.name)) continue;
+    if (declaration.name.text !== 'TEST_EMAIL' && declaration.name.text !== 'TEST_PASSWORD') continue;
+    assert.ok(
+      file === 'app.spec.ts' || file === 'responsive.spec.ts',
+      `production credential declarations are not permitted in ${file}`,
+    );
+    assert.equal(
+      declaration.initializer?.getText(sourceFile),
+      `process.env.FREELAND_${declaration.name.text}`,
+      `production credential declaration shape mismatch: ${file}:${declaration.name.text}`,
+    );
+    addStatement('remove-production-credential-declaration', statement, declaration.name.text === 'TEST_PASSWORD');
+  }
+
+  if (file === 'auth-flows.spec.ts') {
+    const helpersImport = imports.find(
+      (declaration) => ts.isStringLiteral(declaration.moduleSpecifier) && declaration.moduleSpecifier.text === './helpers',
+    );
+    assert.ok(helpersImport, 'auth-flows.spec.ts must contain its pinned helpers import');
+    const boundary = afterLineTerminator(source, helpersImport.end);
+    add(
+      'insert-project-credential-import',
+      boundary,
+      boundary,
+      "import { resolveCreds } from '../../../packages/playwright-support/src/environment.js';\n",
+    );
+  }
+
+  if (file === 'auth.setup.ts') {
+    const playwrightImport = imports.find(
+      (declaration) => ts.isStringLiteral(declaration.moduleSpecifier) && declaration.moduleSpecifier.text === '@playwright/test',
+    );
+    assert.ok(playwrightImport, 'auth.setup.ts must contain its pinned Playwright import');
+    const importBoundary = afterLineTerminator(source, playwrightImport.end);
+    add(
+      'insert-project-auth-file-import',
+      importBoundary,
+      importBoundary,
+      "import { requireProjectAuthFile } from '../../../packages/playwright-support/src/environment.js';\n",
+    );
+
+    const reexport = sourceFile.statements.find(
+      (statement): statement is ts.ExportDeclaration =>
+        ts.isExportDeclaration(statement) && statement.exportClause?.getText(sourceFile) === '{ FREELAND_AUTH_FILE }',
+    );
+    assert.ok(reexport, 'auth.setup.ts must contain the pinned auth-file re-export');
+    add(
+      'remove-auth-file-reexport',
+      reexport.getStart(sourceFile),
+      reexport.end,
+    );
+
+    let setupArrow: ts.ArrowFunction | undefined;
+    const findSetup = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        node.expression.getText(sourceFile) === 'setup' &&
+        node.arguments[0]?.getText(sourceFile) === "'authenticate'" &&
+        node.arguments[1] &&
+        ts.isArrowFunction(node.arguments[1])
+      ) {
+        setupArrow = node.arguments[1];
+      }
+      ts.forEachChild(node, findSetup);
+    };
+    findSetup(sourceFile);
+    assert.ok(setupArrow && ts.isBlock(setupArrow.body), 'auth.setup.ts must contain the pinned authenticate arrow function');
+    assert.equal(setupArrow.parameters.length, 1, 'auth setup callback must have one project-fixture parameter before migration');
+    const fixtureParameter = setupArrow.parameters[0];
+    assert.ok(fixtureParameter && ts.isObjectBindingPattern(fixtureParameter.name), 'auth setup fixture parameter must be an ObjectBindingPattern');
+    assert.equal(fixtureParameter.name.getText(sourceFile), '{ page, baseURL }', 'auth setup fixture binding shape mismatch');
+    assert.equal(source[fixtureParameter.name.end], ')', 'testInfo insertion must sit at the exact callback parameter-list boundary');
+    add('insert-project-test-info-parameter', fixtureParameter.name.end, fixtureParameter.name.end, ', testInfo');
+
+    const bodyStatements = setupArrow.body.statements;
+    const credentialDeclaration = bodyStatements.find(
+      (statement) => ts.isVariableStatement(statement) && statement.getText(sourceFile) === 'const { email, password } = resolveCreds(baseURL);',
+    );
+    assert.ok(credentialDeclaration, 'auth setup credential declaration shape mismatch');
+    addStatement('remove-auth-credential-declaration', credentialDeclaration);
+
+    const credentialSkip = bodyStatements.find(
+      (statement) =>
+        ts.isExpressionStatement(statement) &&
+        statement.expression.getText(sourceFile) ===
+          "setup.skip(!email || !password, 'test credentials are not set for this target')",
+    );
+    assert.ok(credentialSkip, 'auth setup credential skip shape mismatch');
+    const skipSpan = statementSpan(source, sourceFile, credentialSkip, true);
+    assert.equal(
+      source.slice(skipSpan.end, skipSpan.end + stagingPreflightComment.length),
+      stagingPreflightComment,
+      'auth setup skip must retain the pinned staging-preflight comment after exactly two separators',
+    );
+    add('remove-auth-credential-skip', skipSpan.start, skipSpan.end);
+
+    const preflight = bodyStatements.find(
+      (statement): statement is ts.IfStatement =>
+        ts.isIfStatement(statement) && statement.expression.getText(sourceFile) === 'isStaging(baseURL)',
+    );
+    assert.ok(preflight, 'auth setup must contain the pinned staging connectivity IfStatement');
+    const preflightStart = lineStart(source, preflight.getStart(sourceFile));
+    assert.equal(
+      source.slice(preflightStart - stagingPreflightComment.length, preflightStart),
+      stagingPreflightComment,
+      'pinned staging-preflight comment must be immediately adjacent to its IfStatement',
+    );
+    add(
+      'remove-staging-preflight-documentation',
+      preflightStart - stagingPreflightComment.length,
+      preflightStart,
+    );
+    addStatement('remove-staging-connectivity-preflight', preflight, true);
+
+    const login = bodyStatements.find(
+      (statement) => ts.isExpressionStatement(statement) && statement.expression.getText(sourceFile) === 'await loginViaUi(page, baseURL)',
+    );
+    assert.ok(login, 'auth setup login statement shape mismatch');
+    const loginBoundary = lineStart(source, login.getStart(sourceFile));
+    assert.equal(loginBoundary, statementSpan(source, sourceFile, preflight, true).end, 'auth-file declaration insertion must follow the exact removed preflight boundary');
+    add(
+      'insert-project-auth-file-declaration',
+      loginBoundary,
+      loginBoundary,
+      '  const authFile = requireProjectAuthFile(\n    testInfo.project.metadata,\n    testInfo.project.name,\n  );\n',
+    );
+
+    let storagePathIdentifier: ts.Identifier | undefined;
+    const findStoragePath = (node: ts.Node): void => {
+      if (
+        ts.isPropertyAssignment(node) &&
+        node.name.getText(sourceFile) === 'path' &&
+        ts.isIdentifier(node.initializer) &&
+        node.initializer.text === 'FREELAND_AUTH_FILE' &&
+        ts.isObjectLiteralExpression(node.parent) &&
+        ts.isCallExpression(node.parent.parent) &&
+        node.parent.parent.expression.getText(sourceFile).endsWith('.storageState')
+      ) {
+        storagePathIdentifier = node.initializer;
+      }
+      ts.forEachChild(node, findStoragePath);
+    };
+    findStoragePath(setupArrow.body);
+    assert.ok(storagePathIdentifier, 'auth setup storageState path shape mismatch');
+    add(
+      'rewrite-storage-state-auth-path',
+      storagePathIdentifier.getStart(sourceFile),
+      storagePathIdentifier.end,
+      'authFile',
+    );
+  }
+
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node)) {
+      const expression = node.expression.getText(sourceFile);
+      const statement = ts.isExpressionStatement(node.parent) ? node.parent : undefined;
+      if (expression === 'test.skip' && statement) {
+        const condition = node.arguments[0]?.getText(sourceFile);
+        if (condition === '!process.env.FREELAND_BASE_URL') {
+          assert.equal(node.arguments.length, 2, 'base-URL skip must have exactly two arguments');
+          assert.equal(
+            node.arguments[1]?.getText(sourceFile),
+            "'FREELAND_BASE_URL is not set'",
+            'base-URL skip message shape mismatch',
+          );
+          addStatement('remove-suite-base-url-skip', statement);
+        } else if (
+          condition === '!process.env.FREELAND_BASE_URL || !TEST_EMAIL || !TEST_PASSWORD' ||
+          condition ===
+            '!process.env.FREELAND_BASE_URL || !process.env.FREELAND_TEST_EMAIL || !process.env.FREELAND_TEST_PASSWORD'
+        ) {
+          if (condition === '!process.env.FREELAND_BASE_URL || !TEST_EMAIL || !TEST_PASSWORD') {
+            assert.ok(
+              file === 'app.spec.ts' || file === 'responsive.spec.ts',
+              `identifier-based production credential skip is not permitted in ${file}`,
+            );
+          } else {
+            assert.equal(file, 'freeman.spec.ts', `environment-based production credential skip is not permitted in ${file}`);
+          }
+          assert.equal(node.arguments.length, 2, 'production credential skip must have exactly two arguments');
+          assert.equal(
+            node.arguments[1]?.getText(sourceFile),
+            "'FREELAND_BASE_URL / FREELAND_TEST_EMAIL / FREELAND_TEST_PASSWORD are not set'",
+            'production credential skip message shape mismatch',
+          );
+          addStatement('remove-production-credential-skip', statement);
+        } else if (condition === '!email || !password') {
+          assert.equal(file, 'auth-flows.spec.ts', `staging credential skip is not permitted in ${file}`);
+          assert.equal(node.arguments.length, 2, 'staging credential skip must have exactly two arguments');
+          assert.equal(
+            node.arguments[1]?.getText(sourceFile),
+            "'staging test credentials are not set'",
+            'staging credential skip message shape mismatch',
+          );
+          addStatement('remove-staging-credential-skip', statement);
+        }
+      }
+      if (
+        expression === 'test.use' &&
+        statement &&
+        node.arguments[0]?.getText(sourceFile) === '{ storageState: FREELAND_AUTH_FILE }'
+      ) {
+        addStatement('remove-global-auth-storage-state', statement);
+      }
+      if (
+        expression === 'resolveCreds' &&
+        (file === 'auth-flows.spec.ts' || file === 'helpers.ts') &&
+        node.arguments.length === 1 &&
+        node.arguments[0]?.getText(sourceFile) === 'baseURL'
+      ) {
+        const argument = node.arguments[0];
+        assert.ok(argument && ts.isIdentifier(argument), 'resolveCreds migration must replace the exact baseURL Identifier');
+        add('replace-resolve-creds-argument', argument.getStart(sourceFile), argument.end, 'process.env');
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  raw.sort((left, right) => left.start - right.start || left.end - right.end || left.category.localeCompare(right.category));
+  let previousEnd = -1;
+  for (const edit of raw) {
+    assert.ok(edit.start >= previousEnd, `semantic edit overlap: ${file}:${edit.category}`);
+    previousEnd = edit.end;
+  }
+  return raw.map((edit) => descriptorFromRaw(source, sourceFile, edit));
+}
+
+export function createSemanticTransformationRecord(file: string, source: string, target: string): TransformationRecord {
+  const edits = semanticEditDescriptors(file, source);
+  assert.equal(applyEditDescriptors(source, edits), target, `semantic operation set does not reconstruct target: ${file}`);
+  return {
+    file,
+    sourceSha256: createHash('sha256').update(source).digest('hex'),
+    targetSha256: createHash('sha256').update(target).digest('hex'),
+    edits,
+  };
+}
+
+function assertSemanticDescriptor(
+  file: string,
+  edit: EditDescriptor,
+  expected: EditDescriptor | undefined,
+  index: number,
+): void {
+  assert.ok(editCategories.has(edit.category), `unknown descriptor category: ${edit.category}`);
+  assert.ok(expected, `category/span mismatch: unexpected descriptor ${file}#${index}`);
+  assert.equal(edit.category, expected.category, `category/span mismatch: ${file}#${index}`);
+  assert.equal(edit.sourceByteStart, expected.sourceByteStart, `category/span mismatch: ${file}#${index}`);
+  assert.equal(edit.sourceByteEnd, expected.sourceByteEnd, `category/span mismatch: ${file}#${index}`);
+  assert.equal(edit.replacement, expected.replacement, `category replacement mismatch: ${file}#${index}`);
+}
+
+export function assertReconstructedTarget(source: string, target: string, record: TransformationRecord): void {
+  assert.equal(createHash('sha256').update(source).digest('hex'), record.sourceSha256, 'source snapshot SHA-256 mismatch');
+  assert.equal(createHash('sha256').update(target).digest('hex'), record.targetSha256, 'target SHA-256 mismatch');
+  const semanticDescriptors = semanticEditDescriptors(record.file, source);
+  let previousEnd = -1;
+  const validated = record.edits.map((edit, index) => {
+    assert.ok(editCategories.has(edit.category), `unknown descriptor category: ${edit.category}`);
+    assert.ok(edit.sourceByteStart >= previousEnd, 'descriptor overlap or order drift');
+    assert.ok(edit.sourceByteEnd >= edit.sourceByteStart, 'descriptor location has a negative span');
+    previousEnd = edit.sourceByteEnd;
+    const start = byteToCharacterOffset(source, edit.sourceByteStart);
+    const end = byteToCharacterOffset(source, edit.sourceByteEnd);
+    const slice = source.slice(start, end);
+    assert.equal(createHash('sha256').update(slice).digest('hex'), edit.sourceSliceSha256, 'descriptor location/source slice mismatch');
+    const location = ts.createSourceFile('snapshot.ts', source, ts.ScriptTarget.ESNext, true).getLineAndCharacterOfPosition(start);
+    assert.equal(location.line + 1, edit.sourceLine, 'descriptor location line mismatch');
+    assert.equal(location.character + 1, edit.sourceColumn, 'descriptor location column mismatch');
+    assert.equal(createHash('sha256').update(edit.replacement).digest('hex'), edit.replacementSha256, 'descriptor replacement hash mismatch');
+    assertSemanticDescriptor(record.file, edit, semanticDescriptors[index], index);
+    assert.equal(descriptorNodeKind(source, start, end), edit.expectedNodeKind, 'descriptor node-kind mismatch');
+    return { start, end, replacement: edit.replacement };
+  });
+  assert.equal(
+    validated.length,
+    semanticDescriptors.length,
+    `semantic descriptor inventory mismatch: ${record.file}`,
+  );
+  let reconstructed = source;
+  for (const edit of [...validated].reverse()) reconstructed = `${reconstructed.slice(0, edit.start)}${edit.replacement}${reconstructed.slice(edit.end)}`;
+  assert.equal(reconstructed, target, 'target reconstruction mismatch');
+}
+
+export function assertBaselineProofContract(
+  manifest: BaselineManifest,
+  snapshot: Readonly<Record<string, string>>,
+  snapshotFileSha256: string,
+): void {
+  assert.equal(
+    manifest.sourceSnapshot.sha256,
+    snapshotFileSha256,
+    'source snapshot file hash cross-link mismatch',
+  );
+  const proofFiles = manifest.transformationProof.files;
+  const files = Object.keys(proofFiles).sort();
+  assert.deepEqual(files, Object.keys(snapshot).sort(), 'proof/snapshot file set mismatch');
+  assert.deepEqual(files, Object.keys(manifest.sourceIdentity.files).sort(), 'proof/source identity file set mismatch');
+  assert.deepEqual(files, Object.keys(manifest.target.files).sort(), 'proof/target identity file set mismatch');
+
+  const categories: Record<string, number> = {};
+  const fileCounts: Record<string, number> = {};
+  let total = 0;
+  for (const file of files) {
+    const record = proofFiles[file];
+    assert.ok(record, `missing proof record: ${file}`);
+    assert.equal(record.file, file, `proof record file cross-link mismatch: ${file}`);
+    const sourceHash = createHash('sha256').update(snapshot[file] ?? '').digest('hex');
+    assert.equal(record.sourceSha256, manifest.sourceIdentity.files[file], `proof source hash cross-link mismatch: ${file}`);
+    assert.equal(record.sourceSha256, sourceHash, `proof source/snapshot content mismatch: ${file}`);
+    assert.equal(record.targetSha256, manifest.target.files[file], `proof target hash cross-link mismatch: ${file}`);
+    fileCounts[file] = record.edits.length;
+    total += record.edits.length;
+    for (const edit of record.edits) categories[edit.category] = (categories[edit.category] ?? 0) + 1;
+  }
+  assert.equal(total, manifest.proofInventory.total, 'proof descriptor total mismatch');
+  assert.deepEqual(categories, manifest.proofInventory.categories, 'proof descriptor category inventory mismatch');
+  assert.deepEqual(fileCounts, manifest.proofInventory.files, 'proof descriptor file inventory mismatch');
+}
+
+export function assertTargetHashes(
+  hashes: Readonly<Record<string, string>>,
+  targetRoot: string,
+  hashFile: (filePath: string) => string = sha256File,
+): void {
+  for (const [relative, expected] of Object.entries(hashes)) {
+    const filePath = path.join(targetRoot, relative);
+    assert.ok(existsSync(filePath), `canonical target is missing: ${relative}`);
+    assert.equal(hashFile(filePath), expected, `canonical SHA-256 mismatch: ${relative}`);
+  }
+}
+
+function walkSuites(suites: ReporterSuite[], visit: (spec: ReporterSpec, inheritedFile?: string) => void, inheritedFile?: string): void {
+  for (const suite of suites) {
+    const file = suite.file ?? inheritedFile;
+    for (const spec of suite.specs ?? []) visit(spec, file);
+    walkSuites(suite.suites ?? [], visit, file);
+  }
+}
+
+export function assertDiscoveryInventory(report: ReporterJson, expected: FileCountMap): FileCountMap {
+  assert.deepEqual(report.errors ?? [], [], 'discovery reporter returned errors');
+  const actual: Record<string, number> = {};
+  walkSuites(report.suites ?? [], (spec, inheritedFile) => {
+    const reporterFile = spec.file ?? inheritedFile;
+    assert.ok(reporterFile, 'discovery spec is missing its source file');
+    const relative = reporterFile.replace(/^tests\/playwright\/freeland\//, '');
+    const matchingProjects = (spec.tests ?? []).filter(
+      (entry) => entry.projectName === 'freeland-staging' || entry.projectName === 'freeland-staging-setup',
+    );
+    actual[relative] = (actual[relative] ?? 0) + matchingProjects.length;
+  });
+  assert.deepEqual(actual, expected, 'discovery inventory mismatch');
+  return actual;
+}
+
+export function runDiscoveryJson(repoRoot: string): ReporterJson {
+  const cli = path.join(repoRoot, 'node_modules/@playwright/test/cli.js');
+  const result = spawnSync(
+    process.execPath,
+    [cli, 'test', '--project=freeland-staging', '--list', '--reporter=json'],
+    {
+      cwd: repoRoot,
+      env: { ...process.env, FREELAND_DISCOVERY: '1' },
+      encoding: 'utf8',
+    },
+  );
+  assert.equal(result.status, 0, `discovery command failed: ${result.stderr}`);
+  return JSON.parse(result.stdout) as ReporterJson;
+}
+
+export function targetAstCounts(root: string, files: readonly string[]): Record<string, number> {
+  const counts: Record<string, number> = {
+    baseUrlSkipCalls: 0,
+    localStorageStateUses: 0,
+    authFileIdentifiers: 0,
+    paymentDryRunGateExports: 0,
+    requireProjectAuthFileCalls: 0,
+    localJsImports: 0,
+    testFailCalls: 0,
+  };
+  for (const relative of files) {
+    const source = ts.createSourceFile(relative, readFileSync(path.join(root, relative), 'utf8'), ts.ScriptTarget.ESNext, true);
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node) && node.text === 'FREELAND_AUTH_FILE') counts.authFileIdentifiers += 1;
+      if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text.startsWith('./') && node.moduleSpecifier.text.endsWith('.js')) counts.localJsImports += 1;
+      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === 'paymentDryRunGate') counts.paymentDryRunGateExports += 1;
+      if (ts.isCallExpression(node)) {
+        const text = node.expression.getText(source);
+        if (text === 'test.skip' && node.arguments[0]?.getText(source).includes('process.env.FREELAND_BASE_URL')) counts.baseUrlSkipCalls += 1;
+        if (text === 'test.use' && node.arguments[0]?.getText(source).includes('storageState')) counts.localStorageStateUses += 1;
+        if (text === 'test.fail') counts.testFailCalls += 1;
+        if (text === 'requireProjectAuthFile') counts.requireProjectAuthFileCalls += 1;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  return counts;
+}
+
+export function assertTargetAstContract(targetRoot: string, manifest: BaselineManifest): void {
+  const actual = targetAstCounts(targetRoot, Object.keys(manifest.target.files));
+  assert.deepEqual(actual, manifest.targetAst, 'narrow target AST contract mismatch');
+}

@@ -1,0 +1,165 @@
+import { readdir, readFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { relative, resolve } from "node:path";
+
+import { validateProductTestCatalog } from "./model.mjs";
+
+const OBSERVED_STATUSES = new Set(["passed", "failed", "skipped"]);
+
+export async function readProductCiMachineReports({ reportDirectory, sourceRoot }) {
+  const observations = [];
+  const names = (await readdir(reportDirectory)).sort(compareText);
+  for (const name of names) {
+    const payload = await readFile(resolve(reportDirectory, name), "utf8");
+    if (name.startsWith("vitest.")) {
+      observations.push(...parseVitestJsonReport({ payload, sourceRoot }));
+    } else if (name.startsWith("node-test.")) {
+      observations.push(...parseNodeTestJsonLines({ payload, sourceRoot }));
+    }
+  }
+  return observations;
+}
+
+export function parseVitestJsonReport({ payload, sourceRoot }) {
+  let report;
+  try {
+    report = JSON.parse(payload);
+  } catch {
+    throw new TypeError("PRODUCT_CI_VITEST_REPORT_INVALID_JSON");
+  }
+  if (!Array.isArray(report?.testResults)) throw new TypeError("PRODUCT_CI_VITEST_REPORT_INVALID");
+  const observations = [];
+  for (const result of report.testResults) {
+    const file = sourceRelativePath(result?.name, sourceRoot);
+    if (!Array.isArray(result?.assertionResults)) throw new TypeError("PRODUCT_CI_VITEST_ASSERTIONS_INVALID");
+    for (const assertion of result.assertionResults) {
+      const selector = String(assertion?.title ?? "");
+      if (!selector) throw new TypeError("PRODUCT_CI_VITEST_SELECTOR_MISSING");
+      observations.push({
+        runner: "vitest-json",
+        file,
+        selector,
+        status: normalizeVitestStatus(assertion.status),
+      });
+    }
+  }
+  return observations;
+}
+
+export function parseNodeTestJsonLines({ payload, sourceRoot }) {
+  const observations = [];
+  for (const [index, line] of payload.split(/\r?\n/).entries()) {
+    if (!line.trim()) continue;
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      throw new TypeError(`PRODUCT_CI_NODE_REPORT_INVALID_JSON_LINE ${index + 1}`);
+    }
+    if (event?.type !== "test:pass" && event?.type !== "test:fail") {
+      throw new TypeError(`PRODUCT_CI_NODE_REPORT_EVENT_INVALID ${index + 1}`);
+    }
+    const selector = String(event.data?.name ?? "");
+    if (!selector) throw new TypeError(`PRODUCT_CI_NODE_REPORT_SELECTOR_MISSING ${index + 1}`);
+    observations.push({
+      runner: "node-test-jsonl",
+      file: sourceRelativePath(event.data?.file, sourceRoot),
+      selector,
+      status: event.type === "test:fail"
+        ? "failed"
+        : event.data?.skip || event.data?.todo
+          ? "skipped"
+          : "passed",
+    });
+  }
+  return observations;
+}
+
+export function buildObservedProductCiRows({ catalog, observations }) {
+  const validatedCatalog = validateProductTestCatalog(catalog);
+  if (!Array.isArray(observations)) throw new TypeError("PRODUCT_CI_OBSERVATIONS_INVALID");
+  const byFile = new Map();
+  for (const test of validatedCatalog.tests) {
+    const entries = byFile.get(test.file) ?? [];
+    entries.push({ test, matches: [] });
+    byFile.set(test.file, entries);
+  }
+
+  for (const observation of observations) {
+    validateObservation(observation);
+    const candidates = (byFile.get(observation.file) ?? [])
+      .filter(entry => selectorMatches(entry.test.selector, observation.selector));
+    if (candidates.length > 1) {
+      throw new TypeError(`PRODUCT_CI_REPORT_AMBIGUOUS_SELECTOR ${observation.file}#${observation.selector}`);
+    }
+    if (candidates.length === 1) candidates[0].matches.push(observation);
+  }
+
+  const rows = [];
+  for (const test of validatedCatalog.tests) {
+    const entry = byFile.get(test.file).find(candidate => candidate.test.id === test.id);
+    rows.push({ id: test.id, status: aggregateStatus(entry.matches) });
+  }
+  return rows;
+}
+
+export function assertEverySelectedProductTestPassed(rows) {
+  for (const row of rows) {
+    if (row.status === "not_run") throw new TypeError(`PRODUCT_CI_TEST_NOT_OBSERVED ${row.id}`);
+    if (row.status !== "passed") throw new TypeError(`PRODUCT_CI_TEST_NOT_PASSED ${row.id} ${row.status}`);
+  }
+}
+
+function aggregateStatus(observations) {
+  if (observations.length === 0) return "not_run";
+  if (observations.some(observation => observation.status === "failed")) return "failed";
+  if (observations.some(observation => observation.status === "skipped")) return "skipped";
+  return "passed";
+}
+
+function selectorMatches(catalogSelector, observedSelector) {
+  if (!catalogSelector.includes("%s")) return catalogSelector === observedSelector;
+  const pattern = catalogSelector
+    .split("%s")
+    .map(escapeRegExp)
+    .join("(.+?)");
+  return new RegExp(`^${pattern}$`, "u").test(observedSelector);
+}
+
+function normalizeVitestStatus(status) {
+  if (status === "passed") return "passed";
+  if (status === "failed") return "failed";
+  if (status === "pending" || status === "skipped" || status === "todo") return "skipped";
+  throw new TypeError(`PRODUCT_CI_VITEST_STATUS_INVALID ${String(status)}`);
+}
+
+function sourceRelativePath(value, sourceRoot) {
+  if (typeof value !== "string" || !value) throw new TypeError("PRODUCT_CI_REPORT_FILE_MISSING");
+  const root = realpathSync(resolve(sourceRoot));
+  const absolute = realpathSync(resolve(value));
+  const path = relative(root, absolute).replaceAll("\\", "/");
+  if (!path || path === ".." || path.startsWith("../")) {
+    throw new TypeError(`PRODUCT_CI_REPORT_FILE_OUTSIDE_SOURCE ${value}`);
+  }
+  return path;
+}
+
+function validateObservation(observation) {
+  if (!observation || typeof observation !== "object" || Array.isArray(observation)) {
+    throw new TypeError("PRODUCT_CI_OBSERVATION_INVALID");
+  }
+  if (!new Set(["vitest-json", "node-test-jsonl"]).has(observation.runner)) {
+    throw new TypeError("PRODUCT_CI_OBSERVATION_RUNNER_INVALID");
+  }
+  if (typeof observation.file !== "string" || !observation.file) throw new TypeError("PRODUCT_CI_OBSERVATION_FILE_INVALID");
+  if (typeof observation.selector !== "string" || !observation.selector) throw new TypeError("PRODUCT_CI_OBSERVATION_SELECTOR_INVALID");
+  if (!OBSERVED_STATUSES.has(observation.status)) throw new TypeError("PRODUCT_CI_OBSERVATION_STATUS_INVALID");
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function compareText(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}

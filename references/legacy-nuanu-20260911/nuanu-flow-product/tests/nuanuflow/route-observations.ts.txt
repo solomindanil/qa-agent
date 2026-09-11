@@ -1,0 +1,302 @@
+import { createHash } from 'node:crypto';
+import { SANDBOX } from './fixtures/sandbox-data';
+
+export type HttpObservation = {
+  status: number;
+  url: string;
+};
+
+export type ConsoleObservation = {
+  message: string;
+  source: string;
+  line?: number;
+  column?: number;
+};
+
+export type RouteObservations = {
+  knownHttp: string[];
+  unexpectedHttp: string[];
+  knownConsole: string[];
+  unexpectedConsole: string[];
+};
+
+type KnownHttpObservation = {
+  routePaths: readonly string[];
+  status: number;
+  path: string;
+  search?: string;
+  maxOccurrences: number;
+};
+
+type KnownConsoleObservation = {
+  routePath: string;
+  message: string;
+  sourceOrigin: string;
+  sourcePath: string;
+  maxOccurrences: number;
+};
+
+const workspacePath = (suffix = '') => `/${SANDBOX.workspaceSlug}${suffix}`;
+const projectPath = (suffix = '') =>
+  workspacePath(`/projects/${SANDBOX.projectId}${suffix}`);
+const projectRoutePaths = [
+  projectPath('/issues/'),
+  projectPath('/cycles/'),
+  projectPath('/modules/'),
+  projectPath('/views/'),
+  projectPath('/pages/'),
+  projectPath('/pulse/'),
+  projectPath('/automations/'),
+  projectPath('/artifacts/'),
+];
+
+const knownHttpObservations: readonly KnownHttpObservation[] = [
+  {
+    routePaths: projectRoutePaths,
+    status: 404,
+    path: `/be/api/projects/${SANDBOX.projectId}/intake-state/`,
+    maxOccurrences: 1,
+  },
+  {
+    routePaths: [projectPath('/views/')],
+    status: 500,
+    path: '/be/api/views/',
+    maxOccurrences: 1,
+  },
+  {
+    routePaths: [projectPath('/modules/')],
+    status: 500,
+    path: '/be/api/modules/',
+    maxOccurrences: 1,
+  },
+  {
+    routePaths: [workspacePath('/teams/')],
+    status: 500,
+    path: '/be/api/teams/',
+    maxOccurrences: 1,
+  },
+  {
+    routePaths: [workspacePath('/process/')],
+    status: 500,
+    path: '/be/api/process-templates/',
+    maxOccurrences: 1,
+  },
+  {
+    routePaths: [workspacePath('/drafts/')],
+    status: 500,
+    path: '/be/api/objectives/',
+    maxOccurrences: 1,
+  },
+  {
+    routePaths: [workspacePath('/')],
+    status: 500,
+    path: '/be/api/user-favorites/',
+    search: '?all=true',
+    maxOccurrences: 1,
+  },
+  {
+    routePaths: [workspacePath('/')],
+    status: 500,
+    path: '/be/api/agent-employees/',
+    maxOccurrences: 1,
+  },
+  {
+    routePaths: [workspacePath('/')],
+    status: 504,
+    path: '/be/api/agent-employees/',
+    maxOccurrences: 1,
+  },
+];
+
+// These are exact checked fixtures, not a claim that the full live console
+// messages were retained. A live message with any suffix change is unexpected.
+export const KNOWN_REACT_418_MESSAGE =
+  'Minified React error #418; visit https://react.dev/errors/418';
+export const KNOWN_REACT_423_MESSAGE =
+  'Minified React error #423; visit https://react.dev/errors/423';
+export const KNOWN_REACT_CHUNK_SOURCE_PATH =
+  '/assets/chunk-UIGDSWPH-wOqOnBQH.js';
+export const KNOWN_REACT_INDEX_SOURCE_PATH = '/assets/index-BaDO3mXB.js';
+
+const knownConsoleObservations: readonly KnownConsoleObservation[] = [
+  {
+    routePath: workspacePath('/'),
+    message: KNOWN_REACT_418_MESSAGE,
+    sourceOrigin: 'https://flow.nuanu.com',
+    sourcePath: KNOWN_REACT_CHUNK_SOURCE_PATH,
+    maxOccurrences: 1,
+  },
+  {
+    routePath: workspacePath('/'),
+    message: KNOWN_REACT_418_MESSAGE,
+    sourceOrigin: 'https://flow.nuanu.com',
+    sourcePath: KNOWN_REACT_INDEX_SOURCE_PATH,
+    maxOccurrences: 3,
+  },
+  {
+    routePath: workspacePath('/'),
+    message: KNOWN_REACT_423_MESSAGE,
+    sourceOrigin: 'https://flow.nuanu.com',
+    sourcePath: KNOWN_REACT_INDEX_SOURCE_PATH,
+    maxOccurrences: 1,
+  },
+];
+
+const knownConsoleKey = (known: KnownConsoleObservation) =>
+  `${known.routePath}|${known.message}|${known.sourceOrigin}${known.sourcePath}`;
+
+export const redactConsoleText = (value: string): string =>
+  value
+    .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/gu, '<redacted-email>')
+    .replace(/bearer\s+[a-z0-9._-]+/giu, 'Bearer <redacted>')
+    .replace(/https?:\/\/[^\s)]+/gu, (rawUrl) => {
+      try {
+        const url = new URL(rawUrl);
+        for (const key of [...url.searchParams.keys()]) {
+          url.searchParams.set(key, '<redacted>');
+        }
+        return url.toString();
+      } catch {
+        return '<redacted-url>';
+      }
+    });
+
+const parsedConsoleSource = (observation: ConsoleObservation): URL | null => {
+  if (observation.source.length === 0) return null;
+  try {
+    return new URL(observation.source);
+  } catch {
+    return null;
+  }
+};
+
+const isTrustedHydrationSource = (source: URL | null): source is URL =>
+  source?.origin === 'https://flow.nuanu.com' &&
+  source.username === '' &&
+  source.password === '' &&
+  [KNOWN_REACT_CHUNK_SOURCE_PATH, KNOWN_REACT_INDEX_SOURCE_PATH].includes(
+    source.pathname,
+  ) &&
+  source.search === '' &&
+  source.hash === '';
+
+const safeConsoleSource = (observation: ConsoleObservation): string => {
+  if (observation.source.length === 0) return '<no-source>';
+  const source = parsedConsoleSource(observation);
+  if (isTrustedHydrationSource(source)) return `${source.origin}${source.pathname}`;
+  return `<redacted-untrusted-source sha256:${createHash('sha256')
+    .update(observation.source)
+    .digest('hex')
+    .slice(0, 16)}>`;
+};
+
+export const safeConsoleEvidence = (
+  observation: ConsoleObservation,
+  routePath: string,
+) => {
+  const source = parsedConsoleSource(observation);
+  const trustedHydrationFixture =
+    routePath === workspacePath('/') &&
+    [KNOWN_REACT_418_MESSAGE, KNOWN_REACT_423_MESSAGE].some((prefix) =>
+      observation.message.startsWith(prefix),
+    ) &&
+    isTrustedHydrationSource(source);
+  return {
+    digest: createHash('sha256')
+      .update(redactConsoleText(observation.message))
+      .digest('hex')
+      .slice(0, 16),
+    text: trustedHydrationFixture
+      ? redactConsoleText(observation.message)
+      : '<redacted-non-hydration-console>',
+    source: safeConsoleSource(observation),
+    line: observation.line ?? null,
+    column: observation.column ?? null,
+  };
+};
+
+const formatConsoleObservation = (
+  observation: ConsoleObservation,
+  routePath: string,
+): string => {
+  const evidence = safeConsoleEvidence(observation, routePath);
+  return `console-error sha256:${evidence.digest} source=${evidence.source}:${evidence.line ?? '?'}:${evidence.column ?? '?'}`;
+};
+
+const formatHttpObservation = (observation: HttpObservation): string => {
+  const url = new URL(observation.url);
+  const query = [...url.searchParams.keys()]
+    .sort()
+    .map((key) => `${key}=<redacted>`)
+    .join('&');
+  return `${observation.status} ${url.pathname}${query ? `?${query}` : ''}`;
+};
+
+const knownKey = (known: KnownHttpObservation) =>
+  `${known.status} ${known.path}${known.search ?? ''}`;
+
+export const partitionRouteObservations = (
+  routePath: string,
+  httpObservations: readonly HttpObservation[],
+  consoleErrors: readonly ConsoleObservation[],
+): RouteObservations => {
+  const knownHttp: string[] = [];
+  const unexpectedHttp: string[] = [];
+  const knownConsole: string[] = [];
+  const unexpectedConsole: string[] = [];
+  const httpBudget = new Map(
+    knownHttpObservations.map((known) => [knownKey(known), known.maxOccurrences]),
+  );
+  const consoleBudget = new Map(
+    knownConsoleObservations.map((known) => [
+      knownConsoleKey(known),
+      known.maxOccurrences,
+    ]),
+  );
+
+  for (const observation of httpObservations) {
+    const url = new URL(observation.url);
+    const known = knownHttpObservations.find(
+      (candidate) =>
+        url.origin === 'https://flow.nuanu.com' &&
+        candidate.status === observation.status &&
+        candidate.path === url.pathname &&
+        (candidate.search ?? '') === url.search &&
+        candidate.routePaths.includes(routePath),
+    );
+    const key = known && knownKey(known);
+    const remaining = key === undefined ? undefined : httpBudget.get(key);
+
+    if (known && remaining !== undefined && remaining > 0) {
+      httpBudget.set(key!, remaining - 1);
+      knownHttp.push(formatHttpObservation(observation));
+    } else {
+      unexpectedHttp.push(formatHttpObservation(observation));
+    }
+  }
+
+  for (const observation of consoleErrors) {
+    const source = parsedConsoleSource(observation);
+    const known = knownConsoleObservations.find(
+      (candidate) =>
+        candidate.message === observation.message &&
+        candidate.routePath === routePath &&
+        isTrustedHydrationSource(source) &&
+        source.origin === candidate.sourceOrigin &&
+        source.pathname === candidate.sourcePath &&
+        source.search === '' &&
+        source.hash === '',
+    );
+    const key = known ? knownConsoleKey(known) : undefined;
+    const remaining = key ? consoleBudget.get(key) : undefined;
+    const safe = formatConsoleObservation(observation, routePath);
+    if (known && remaining !== undefined && remaining > 0) {
+      consoleBudget.set(key!, remaining - 1);
+      knownConsole.push(safe);
+    } else {
+      unexpectedConsole.push(safe);
+    }
+  }
+
+  return { knownHttp, unexpectedHttp, knownConsole, unexpectedConsole };
+};

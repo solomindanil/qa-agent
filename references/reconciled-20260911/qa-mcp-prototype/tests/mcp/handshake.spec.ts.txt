@@ -1,0 +1,21 @@
+import { test, expect } from '../fixtures/mcp-client';
+import { hasMcpEnv } from '../fixtures/env';
+
+test.skip(!hasMcpEnv, 'MCP_SERVER_URL не настроен (.env)');
+
+test('MCP-сервер отвечает на handshake и отдаёт список инструментов @smoke', async ({ mcp }, testInfo) => {
+  const { tools } = await mcp.listTools();
+
+  expect(tools.length).toBeGreaterThan(0);
+  for (const tool of tools) {
+    expect(tool.name).toBeTruthy();
+    expect(tool.inputSchema).toBeDefined();
+  }
+
+  // Фиксируем реальные имена инструментов в отчёте — по ним обновляется
+  // константа TOOLS в tests/fixtures/mcp-client.ts.
+  await testInfo.attach('tools-list', {
+    body: JSON.stringify(tools.map((t) => ({ name: t.name, description: t.description })), null, 2),
+    contentType: 'application/json',
+  });
+});

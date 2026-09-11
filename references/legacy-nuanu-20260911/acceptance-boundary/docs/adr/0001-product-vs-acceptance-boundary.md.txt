@@ -1,0 +1,72 @@
+# ADR 0001: Product pre-merge testing and deployed acceptance boundary
+
+**Status:** Accepted — 2026-08-01
+
+## Context
+
+NuanuFlowQA validates a released product independently of the product repository.
+Without a firm boundary, product-owned checks can be mistaken for release
+acceptance, or acceptance QA can bypass the deployed product through privileged
+implementation access. Either failure weakens the evidence attached to a
+release.
+
+## Decision
+
+The product repository owns pre-merge testing: unit, integration, controlled
+stack, and other checks that use product source or product-maintained fixtures.
+NuanuFlowQA owns **deployed acceptance**: an independent, post-deployment oracle
+that tests the release identified by the release handshake below.
+
+The same journey may exist in both repositories only when the product version is
+a pre-merge controlled-stack gate and the NuanuFlowQA version is an independent
+deployed-release oracle. They have different evidence, targets, and owners.
+
+NuanuFlowQA may depend only on these acceptance boundaries:
+
+- the deployed UI at the supplied `baseUrl`;
+- supported deployed product APIs exposed by that release; and
+- the **official Nuanu Flow MCP** for QA work-item and evidence operations.
+
+When Nuanu Flow MCP creates or updates an artifact, NuanuFlowQA records and
+uses the exact returned IDs; it does not infer identifiers from names or obtain
+them through product internals.
+
+NuanuFlowQA has **no direct database access**. It must not import product source,
+open a database connection, use a Django shell, call private Engine diagnostics,
+or consume product or tracker secrets supplied by management. Credentials,
+tokens, OAuth material, cookies, browser storage state, transcripts, raw audio,
+signed URLs, and provider payloads are never committed.
+
+## Release handshake
+
+A product team supplies the following opaque, non-secret identifiers for every
+acceptance run:
+
+```ts
+type ProductReleaseInput = {
+  baseUrl: string;
+  environmentId: string;
+  gitSha: string; // product Git SHA
+  buildId: string;
+  capabilitiesDigest: string;
+};
+```
+
+`baseUrl` identifies the deployed target, `environmentId` identifies the
+environment, `gitSha` and `buildId` identify the product release, and
+`capabilitiesDigest` identifies the published capability description without
+passing the underlying payload. All five fields are required and non-empty.
+
+`src/program/boundary.ts` is the executable form of this decision. It validates
+the release handshake and permits only the three allowed acceptance dependency
+kinds. Its Playwright contract test protects the boundary from accidental
+relaxation; it is not a schema or registry for later program work.
+
+## Consequences
+
+Product teams retain fast, implementation-aware feedback before merging. QA
+receives an auditable release identity and observes only the interfaces available
+to users and supported automation. Acceptance failures therefore describe the
+deployed release rather than a privileged internal state. Any requested new
+acceptance dependency requires an ADR update and a matching contract-test
+change.

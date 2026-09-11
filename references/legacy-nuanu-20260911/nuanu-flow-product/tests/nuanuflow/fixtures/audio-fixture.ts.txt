@@ -1,0 +1,612 @@
+import {
+  execFile as nodeExecFile,
+  spawn as nodeSpawn,
+} from 'node:child_process';
+import { constants as fsConstants } from 'node:fs';
+import { lstat, open, realpath } from 'node:fs/promises';
+import {
+  basename,
+  isAbsolute,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
+
+export const APPROVED_AUDIO_BASENAME =
+  'qa-transcription-sample-valid.mp3';
+export const AUDIO_FIXTURE_MAX_BYTES = 10 * 1024 * 1024;
+const AUDIO_FIXTURE_MIN_DURATION_SECONDS = 1;
+const AUDIO_FIXTURE_MAX_DURATION_SECONDS = 30;
+const AUDIO_FIXTURE_COMMAND_TIMEOUT_MS = 5_000;
+const AUDIO_FIXTURE_MAX_COMMAND_OUTPUT_BYTES = 65_536;
+const AUDIO_FIXTURE_MAX_ORACLE_TEXT = 4_096;
+const AUDIO_FIXTURE_MAX_ORACLE_SPEAKER = 256;
+const EVIDENCE_DIRECTORY = 'docs/local/nuanuflow/evidence';
+
+export type AudioFixtureCommandResult = {
+  exitCode: number | null;
+  stdout: string;
+  timedOut: boolean;
+};
+
+type AudioFixtureStat = {
+  isFile: () => boolean;
+  isSymbolicLink: () => boolean;
+  size: number;
+};
+
+type AudioFixtureCommandOptions = {
+  cwd: string;
+  timeoutMs: number;
+  maxBufferBytes: number;
+};
+
+export type AudioFixtureDependencies = {
+  realpath: (path: string) => Promise<string>;
+  lstat: (path: string) => Promise<AudioFixtureStat>;
+  readStableFile: (
+    path: string,
+    expectedSize: number,
+  ) => Promise<Uint8Array>;
+  execFile: (
+    command: string,
+    args: readonly string[],
+    options: AudioFixtureCommandOptions,
+  ) => Promise<AudioFixtureCommandResult>;
+  execFileWithInput: (
+    command: string,
+    args: readonly string[],
+    input: Uint8Array,
+    options: AudioFixtureCommandOptions,
+  ) => Promise<AudioFixtureCommandResult>;
+};
+
+export type PrivateAudioFixtureDescriptor = {
+  readonly basename: typeof APPROVED_AUDIO_BASENAME;
+  readonly byteCount: number;
+  readonly codecName: 'mp3';
+  readonly codecType: 'audio';
+  readonly durationSeconds: number;
+  readonly formatName: 'mp3';
+  readonly oracleSpeaker: string;
+  readonly oracleText: string;
+};
+
+export type ValidatedAudioUploadPayload = {
+  name: typeof APPROVED_AUDIO_BASENAME;
+  mimeType: 'audio/mpeg';
+  buffer: Buffer;
+};
+
+const privateFixtureHandles = new WeakMap<
+  PrivateAudioFixtureDescriptor,
+  {
+    byteCount: number;
+    dependencies: AudioFixtureDependencies;
+    oracleSpeaker: string;
+    oracleText: string;
+    path: string;
+    validatedBytes: Buffer;
+  }
+>();
+
+export class AudioFixtureValidationError extends Error {
+  constructor(readonly code: string) {
+    super(
+      `Audio fixture validation failed: ${code} (${APPROVED_AUDIO_BASENAME}).`,
+    );
+    this.name = 'AudioFixtureValidationError';
+  }
+}
+
+function fail(code: string): never {
+  throw new AudioFixtureValidationError(code);
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isStrictDescendant = (parent: string, candidate: string) => {
+  const relativePath = relative(parent, candidate);
+  return (
+    relativePath !== '' &&
+    relativePath !== '..' &&
+    !relativePath.startsWith(`..${sep}`) &&
+    !isAbsolute(relativePath)
+  );
+};
+
+const trimmedOracle = (
+  value: string | undefined,
+  maximumLength: number,
+  code: string,
+) => {
+  if (typeof value !== 'string') throw new AudioFixtureValidationError(code);
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.length > maximumLength) {
+    throw new AudioFixtureValidationError(code);
+  }
+  return trimmed;
+};
+
+const hasMp3Magic = (prefix: Uint8Array) =>
+  (prefix.length >= 3 &&
+    prefix[0] === 0x49 &&
+    prefix[1] === 0x44 &&
+    prefix[2] === 0x33) ||
+  (prefix.length >= 2 &&
+    prefix[0] === 0xff &&
+    (prefix[1]! & 0xe0) === 0xe0);
+
+const commandOptions = (repositoryRoot: string): AudioFixtureCommandOptions => ({
+  cwd: repositoryRoot,
+  timeoutMs: AUDIO_FIXTURE_COMMAND_TIMEOUT_MS,
+  maxBufferBytes: AUDIO_FIXTURE_MAX_COMMAND_OUTPUT_BYTES,
+});
+
+const runCommand = (
+  dependencies: AudioFixtureDependencies,
+  repositoryRoot: string,
+  command: string,
+  args: readonly string[],
+) => dependencies.execFile(command, args, commandOptions(repositoryRoot));
+
+const runInputCommand = (
+  dependencies: AudioFixtureDependencies,
+  repositoryRoot: string,
+  command: string,
+  args: readonly string[],
+  input: Uint8Array,
+) => dependencies.execFileWithInput(
+  command,
+  args,
+  input,
+  commandOptions(repositoryRoot),
+);
+
+const parseProbe = (result: AudioFixtureCommandResult) => {
+  if (result.timedOut) fail('AUDIO_FIXTURE_PROBE_TIMEOUT');
+  if (Buffer.byteLength(result.stdout, 'utf8') >
+    AUDIO_FIXTURE_MAX_COMMAND_OUTPUT_BYTES) {
+    fail('AUDIO_FIXTURE_PROBE_OUTPUT');
+  }
+  if (result.exitCode !== 0) fail('AUDIO_FIXTURE_PROBE_FAILED');
+
+  let document: unknown;
+  try {
+    document = JSON.parse(result.stdout);
+  } catch {
+    fail('AUDIO_FIXTURE_PROBE_JSON');
+  }
+  if (!isRecord(document)) {
+    throw new AudioFixtureValidationError('AUDIO_FIXTURE_PROBE_JSON');
+  }
+
+  const streams = document.streams;
+  if (!Array.isArray(streams) || streams.length !== 1) {
+    fail('AUDIO_FIXTURE_STREAM_COUNT');
+  }
+  const stream = streams[0]!;
+  if (!isRecord(stream)) {
+    throw new AudioFixtureValidationError('AUDIO_FIXTURE_STREAM_TYPE');
+  }
+  if (stream.codec_type !== 'audio') fail('AUDIO_FIXTURE_STREAM_TYPE');
+  if (stream.codec_name !== 'mp3') fail('AUDIO_FIXTURE_CODEC');
+
+  const format = document.format;
+  if (!isRecord(format) || typeof format.format_name !== 'string') {
+    throw new AudioFixtureValidationError('AUDIO_FIXTURE_CONTAINER');
+  }
+  const containers = format.format_name
+    .split(',')
+    .map((value) => value.trim().toLowerCase());
+  if (!containers.includes('mp3')) fail('AUDIO_FIXTURE_CONTAINER');
+
+  let duration =
+    typeof format.duration === 'string' || typeof format.duration === 'number'
+      ? Number(format.duration)
+      : Number.NaN;
+  if (!Number.isFinite(duration)) {
+    const sampleRate =
+      typeof stream.sample_rate === 'string' ||
+        typeof stream.sample_rate === 'number'
+        ? Number(stream.sample_rate)
+        : Number.NaN;
+    const frameCount =
+      typeof stream.nb_read_frames === 'string' ||
+        typeof stream.nb_read_frames === 'number'
+        ? Number(stream.nb_read_frames)
+        : Number.NaN;
+    const validMp3SampleRates = new Set([
+      8_000,
+      11_025,
+      12_000,
+      16_000,
+      22_050,
+      24_000,
+      32_000,
+      44_100,
+      48_000,
+    ]);
+    if (
+      !Number.isSafeInteger(sampleRate) ||
+      !validMp3SampleRates.has(sampleRate) ||
+      !Number.isSafeInteger(frameCount) ||
+      frameCount <= 0
+    ) {
+      fail('AUDIO_FIXTURE_DURATION');
+    }
+    const samplesPerFrame = sampleRate >= 32_000 ? 1_152 : 576;
+    duration = frameCount * samplesPerFrame / sampleRate;
+  }
+  if (
+    !Number.isFinite(duration) ||
+    duration < AUDIO_FIXTURE_MIN_DURATION_SECONDS ||
+    duration > AUDIO_FIXTURE_MAX_DURATION_SECONDS
+  ) {
+    fail('AUDIO_FIXTURE_DURATION');
+  }
+
+  return duration;
+};
+
+const productionExecFile: AudioFixtureDependencies['execFile'] = (
+  command,
+  args,
+  options,
+) =>
+  new Promise((resolveCommand) => {
+    nodeExecFile(
+      command,
+      [...args],
+      {
+        cwd: options.cwd,
+        encoding: 'utf8',
+        maxBuffer: options.maxBufferBytes,
+        timeout: options.timeoutMs,
+        windowsHide: true,
+      },
+      (error, stdout) => {
+        const commandError = error as
+          | (Error & {
+              code?: number | string;
+              killed?: boolean;
+              signal?: NodeJS.Signals;
+            })
+          | null;
+        const numericExitCode =
+          typeof commandError?.code === 'number' ? commandError.code : null;
+        resolveCommand({
+          exitCode: commandError === null ? 0 : numericExitCode,
+          stdout,
+          timedOut:
+            commandError?.killed === true || commandError?.signal === 'SIGTERM',
+        });
+      },
+    );
+  });
+
+const productionExecFileWithInput:
+AudioFixtureDependencies['execFileWithInput'] = (
+  command,
+  args,
+  input,
+  options,
+) => new Promise((resolveCommand) => {
+  const child = nodeSpawn(command, [...args], {
+    cwd: options.cwd,
+    windowsHide: true,
+    shell: false,
+    stdio: ['pipe', 'pipe', 'ignore'],
+  });
+  const chunks: Buffer[] = [];
+  let capturedBytes = 0;
+  let settled = false;
+  let timedOut = false;
+
+  const settle = (exitCode: number | null) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    resolveCommand({
+      exitCode,
+      stdout: Buffer.concat(chunks).toString('utf8'),
+      timedOut,
+    });
+  };
+  const timer = setTimeout(() => {
+    timedOut = true;
+    child.kill('SIGTERM');
+  }, options.timeoutMs);
+
+  child.stdout.on('data', (chunk: Buffer) => {
+    const remaining =
+      AUDIO_FIXTURE_MAX_COMMAND_OUTPUT_BYTES + 1 - capturedBytes;
+    if (remaining > 0) {
+      const captured = chunk.subarray(0, remaining);
+      chunks.push(captured);
+      capturedBytes += captured.length;
+    }
+    if (capturedBytes > options.maxBufferBytes) child.kill('SIGTERM');
+  });
+  child.once('error', () => settle(null));
+  child.once('close', (exitCode) => settle(exitCode));
+  child.stdin.on('error', () => {
+    // A command may close stdin early; close/error still settles the result.
+  });
+  child.stdin.end(Buffer.from(input));
+});
+
+const productionReadStableFile:
+AudioFixtureDependencies['readStableFile'] = async (path, expectedSize) => {
+  const file = await open(
+    path,
+    fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+  );
+  try {
+    const before = await file.stat();
+    if (!before.isFile() || before.size !== expectedSize) {
+      throw new Error('AUDIO_FIXTURE_UNSTABLE');
+    }
+    const bytes = Buffer.alloc(expectedSize + 1);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const result = await file.read(
+        bytes,
+        offset,
+        bytes.length - offset,
+        offset,
+      );
+      if (result.bytesRead === 0) break;
+      offset += result.bytesRead;
+    }
+    const after = await file.stat();
+    if (
+      offset !== expectedSize ||
+      !after.isFile() ||
+      after.size !== before.size ||
+      after.dev !== before.dev ||
+      after.ino !== before.ino ||
+      after.mtimeMs !== before.mtimeMs ||
+      after.ctimeMs !== before.ctimeMs
+    ) {
+      throw new Error('AUDIO_FIXTURE_UNSTABLE');
+    }
+    return bytes.subarray(0, offset);
+  } finally {
+    await file.close();
+  }
+};
+
+export const productionAudioFixtureDependencies: AudioFixtureDependencies = {
+  realpath,
+  lstat,
+  readStableFile: productionReadStableFile,
+  execFile: productionExecFile,
+  execFileWithInput: productionExecFileWithInput,
+};
+
+export const loadValidatedAudioFixture = async (
+  descriptor: PrivateAudioFixtureDescriptor,
+): Promise<ValidatedAudioUploadPayload> => {
+  const handle = privateFixtureHandles.get(descriptor);
+  if (!handle) fail('AUDIO_FIXTURE_HANDLE');
+
+  const currentPath = await handle.dependencies
+    .realpath(handle.path)
+    .catch(() => fail('AUDIO_FIXTURE_CHANGED'));
+  const currentStat = await handle.dependencies
+    .lstat(handle.path)
+    .catch(() => fail('AUDIO_FIXTURE_CHANGED'));
+  if (
+    currentPath !== handle.path ||
+    currentStat.isSymbolicLink() ||
+    !currentStat.isFile() ||
+    currentStat.size !== handle.byteCount
+  ) {
+    fail('AUDIO_FIXTURE_CHANGED');
+  }
+
+  const currentBytes = await handle.dependencies
+    .readStableFile(handle.path, handle.byteCount)
+    .catch(() => fail('AUDIO_FIXTURE_CHANGED'));
+  if (
+    currentBytes.byteLength !== handle.byteCount ||
+    !Buffer.from(currentBytes).equals(handle.validatedBytes)
+  ) {
+    fail('AUDIO_FIXTURE_CHANGED');
+  }
+
+  return {
+    name: APPROVED_AUDIO_BASENAME,
+    mimeType: 'audio/mpeg',
+    buffer: Buffer.from(handle.validatedBytes),
+  };
+};
+
+const normalizeTranscriptSurface = (value: string) =>
+  value.normalize('NFC').replace(/\s+/gu, ' ').trim();
+
+export const assertRedactedTranscriptFidelity = (
+  descriptor: PrivateAudioFixtureDescriptor,
+  actual: {
+    transcriptText: string;
+    speakerLabels: readonly string[];
+  },
+): void => {
+  const handle = privateFixtureHandles.get(descriptor);
+  if (!handle) fail('AUDIO_FIXTURE_HANDLE');
+
+  const transcript = normalizeTranscriptSurface(actual.transcriptText);
+  const expectedText = normalizeTranscriptSurface(handle.oracleText);
+  if (expectedText.length === 0 || !transcript.includes(expectedText)) {
+    fail('AUDIO_TRANSCRIPT_TEXT_MISMATCH');
+  }
+
+  const expectedSpeaker = normalizeTranscriptSurface(handle.oracleSpeaker);
+  const speakers = actual.speakerLabels.map(normalizeTranscriptSurface);
+  if (!speakers.includes(expectedSpeaker)) {
+    fail('AUDIO_TRANSCRIPT_SPEAKER_MISMATCH');
+  }
+};
+
+export const validatePrivateAudioFixture = async ({
+  dependencies = productionAudioFixtureDependencies,
+  environment = process.env,
+  repositoryRoot = process.cwd(),
+}: {
+  dependencies?: AudioFixtureDependencies;
+  environment?: Record<string, string | undefined>;
+  repositoryRoot?: string;
+} = {}): Promise<PrivateAudioFixtureDescriptor | undefined> => {
+  const configuredPath = environment.NUANUFLOW_AUDIO_FIXTURE;
+  if (configuredPath === undefined) return undefined;
+  if (configuredPath.trim().length === 0) fail('AUDIO_FIXTURE_EMPTY');
+
+  const oracleText = trimmedOracle(
+    environment.NUANUFLOW_AUDIO_ORACLE_TEXT,
+    AUDIO_FIXTURE_MAX_ORACLE_TEXT,
+    'AUDIO_FIXTURE_ORACLE_TEXT',
+  );
+  const oracleSpeaker = trimmedOracle(
+    environment.NUANUFLOW_AUDIO_ORACLE_SPEAKER,
+    AUDIO_FIXTURE_MAX_ORACLE_SPEAKER,
+    'AUDIO_FIXTURE_ORACLE_SPEAKER',
+  );
+
+  const normalizedRepositoryRoot = resolve(repositoryRoot);
+  const evidenceRoot = resolve(normalizedRepositoryRoot, EVIDENCE_DIRECTORY);
+  const candidatePath = isAbsolute(configuredPath)
+    ? resolve(configuredPath)
+    : resolve(normalizedRepositoryRoot, configuredPath);
+
+  if (basename(candidatePath) !== APPROVED_AUDIO_BASENAME) {
+    fail('AUDIO_FIXTURE_BASENAME');
+  }
+  if (!isStrictDescendant(evidenceRoot, candidatePath)) {
+    fail('AUDIO_FIXTURE_OUTSIDE_EVIDENCE');
+  }
+
+  const fileStat = await dependencies
+    .lstat(candidatePath)
+    .catch(() => fail('AUDIO_FIXTURE_UNAVAILABLE'));
+  if (fileStat.isSymbolicLink()) fail('AUDIO_FIXTURE_SYMLINK');
+  if (!fileStat.isFile()) fail('AUDIO_FIXTURE_NOT_REGULAR');
+  if (!Number.isSafeInteger(fileStat.size) || fileStat.size <= 0) {
+    fail('AUDIO_FIXTURE_EMPTY_FILE');
+  }
+  if (fileStat.size > AUDIO_FIXTURE_MAX_BYTES) {
+    fail('AUDIO_FIXTURE_TOO_LARGE');
+  }
+
+  const [realRepositoryRoot, realEvidenceRoot, realCandidatePath] =
+    await Promise.all([
+      dependencies.realpath(normalizedRepositoryRoot),
+      dependencies.realpath(evidenceRoot),
+      dependencies.realpath(candidatePath),
+    ]).catch(() => fail('AUDIO_FIXTURE_REALPATH'));
+  if (!isStrictDescendant(realRepositoryRoot, realEvidenceRoot)) {
+    fail('AUDIO_FIXTURE_EVIDENCE_ROOT_ESCAPE');
+  }
+  if (
+    !isStrictDescendant(realEvidenceRoot, realCandidatePath) ||
+    basename(realCandidatePath) !== APPROVED_AUDIO_BASENAME
+  ) {
+    fail('AUDIO_FIXTURE_REALPATH_ESCAPE');
+  }
+
+  const ignored = await runCommand(
+    dependencies,
+    normalizedRepositoryRoot,
+    'git',
+    ['check-ignore', '--quiet', '--', realCandidatePath],
+  ).catch(() => fail('AUDIO_FIXTURE_GIT_CHECK'));
+  if (ignored.timedOut || ignored.exitCode !== 0) {
+    fail('AUDIO_FIXTURE_NOT_IGNORED');
+  }
+
+  const tracked = await runCommand(
+    dependencies,
+    normalizedRepositoryRoot,
+    'git',
+    ['ls-files', '--error-unmatch', '--', realCandidatePath],
+  ).catch(() => fail('AUDIO_FIXTURE_GIT_CHECK'));
+  if (tracked.timedOut) fail('AUDIO_FIXTURE_GIT_CHECK');
+  if (tracked.exitCode === 0) fail('AUDIO_FIXTURE_TRACKED');
+  if (tracked.exitCode !== 1) fail('AUDIO_FIXTURE_GIT_CHECK');
+
+  const validatedBytes = await dependencies
+    .readStableFile(realCandidatePath, fileStat.size)
+    .catch(() => fail('AUDIO_FIXTURE_READ'));
+  if (validatedBytes.byteLength !== fileStat.size) {
+    fail('AUDIO_FIXTURE_CHANGED');
+  }
+  if (!hasMp3Magic(validatedBytes)) fail('AUDIO_FIXTURE_MAGIC');
+
+  const mime = await runInputCommand(
+    dependencies,
+    normalizedRepositoryRoot,
+    'file',
+    ['--brief', '--mime-type', '-'],
+    validatedBytes,
+  ).catch(() => fail('AUDIO_FIXTURE_MIME'));
+  if (
+    mime.timedOut ||
+    mime.exitCode !== 0 ||
+    mime.stdout.trim().toLowerCase() !== 'audio/mpeg'
+  ) {
+    fail('AUDIO_FIXTURE_MIME');
+  }
+
+  const probe = await runInputCommand(
+    dependencies,
+    normalizedRepositoryRoot,
+    'ffprobe',
+    [
+      '-v',
+      'error',
+      '-count_frames',
+      '-show_entries',
+      'format=format_name,duration',
+      '-show_entries',
+      'stream=codec_name,codec_type,sample_rate,nb_read_frames',
+      '-of',
+      'json',
+      '-i',
+      'pipe:0',
+    ],
+    validatedBytes,
+  ).catch(() => fail('AUDIO_FIXTURE_PROBE_FAILED'));
+  const durationSeconds = parseProbe(probe);
+
+  const descriptor = {
+    basename: APPROVED_AUDIO_BASENAME,
+    byteCount: fileStat.size,
+    codecName: 'mp3',
+    codecType: 'audio',
+    durationSeconds,
+    formatName: 'mp3',
+  } as PrivateAudioFixtureDescriptor;
+  Object.defineProperties(descriptor, {
+    oracleSpeaker: {
+      enumerable: false,
+      value: oracleSpeaker,
+      writable: false,
+    },
+    oracleText: {
+      enumerable: false,
+      value: oracleText,
+      writable: false,
+    },
+  });
+  Object.freeze(descriptor);
+  privateFixtureHandles.set(descriptor, {
+    byteCount: fileStat.size,
+    dependencies,
+    oracleSpeaker,
+    oracleText,
+    path: realCandidatePath,
+    validatedBytes: Buffer.from(validatedBytes),
+  });
+  return descriptor;
+};

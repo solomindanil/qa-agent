@@ -1,0 +1,39 @@
+import fs from 'node:fs/promises';import vm from 'node:vm';import assert from 'node:assert/strict';
+import {memoryCases,evaluateMemoryScope} from './memory-scope-oracle.mjs';
+const dir='evidence/memory-scoped-negatives-2026-09-06T182029356Z';const raw={};for(const n of ['identity-before','identity-after',...memoryCases.map(c=>c[0])])raw[n]=JSON.parse(await fs.readFile(dir+'/'+n+'.json','utf8'));
+const expected={expectedSha:'640bc5c9da4d28114b6b77c6c32ab6176bb927cf',expectedAgentId:'3da6737b-fdcd-4514-87e7-1c63eccf2bd7',forbiddenTextTokens:['QA_SYNTHETIC_FORBIDDEN_VALUE_CONTROL']};
+const oldSource=await fs.readFile('audit/memory-scope-regression-pre-fix-20260907.mjs','utf8');const oldBody=oldSource.slice(oldSource.indexOf('const rec='),oldSource.indexOf('const result='));
+const legacyUnwrap=r=>{const t=r.response?.result;if(t?.structuredContent!==undefined)return t.structuredContent;const s=t?.content?.filter(c=>c.type==='text').map(c=>c.text).join('\n')??'';try{return JSON.parse(s);}catch{return s;}};
+const oldPass=x=>{try{return vm.runInNewContext(oldBody+'\nchecks.every(c=>c.status===\'PASS\');',{raw:x,unwrap:legacyUnwrap});}catch{return false;}};
+const sc=(x,n)=>x[n].record?.response.result.structuredContent??x[n].response?.result.structuredContent;
+const r=(x,n)=>x[n].record??x[n];
+const cases=[
+ ['valid_historical',x=>{},true],
+ ['absent_site_http502',x=>r(x,'absent-site').httpStatus=502,false],
+ ['absent_site_mcp_error',x=>r(x,'absent-site').response.result={isError:true,content:[{type:'text',text:'unavailable'}]},false],
+ ['absent_site_empty_object',x=>r(x,'absent-site').response.result.structuredContent={},false],
+ ['templates_entities_missing',x=>delete sc(x,'site-templates').entities,false],
+ ['templates_entities_empty',x=>sc(x,'site-templates').entities=[],false],
+ ['templates_missing_one_retained_active',x=>sc(x,'site-templates').entities.forEach(e=>e.items=e.items.filter(i=>i.id!=='5938e72c-9f85-4657-8e71-2ec387820d5e')),false],
+ ['all_saved_inputs_wrong',x=>memoryCases.forEach(([n])=>x[n].input={wrong:true}),false],
+ ['both_builds_missing',x=>['identity-before','identity-after'].forEach(n=>delete sc(x,n).buildId),false],
+ ['both_builds_non_sha',x=>['identity-before','identity-after'].forEach(n=>sc(x,n).buildId='not-a-sha'),false],
+ ['selected_agent_changed',x=>sc(x,'identity-after').x402PaymentRun.selectedAgentId='11111111-1111-1111-1111-111111111111',false],
+ ['parallel_text_sentinel',x=>r(x,'exact-item').response.result.content.push({type:'text',text:'QA_SYNTHETIC_FORBIDDEN_VALUE_CONTROL'}),false],
+ ['parallel_text_provider_payload',x=>r(x,'site-active').response.result.content.push({type:'text',text:'{"provider_payload":{"value":"synthetic"}}'}),false],
+ ['structured_provider_payload',x=>sc(x,'site-active').providerPayload={field:'synthetic'},false],
+ ['item_http503',x=>r(x,'exact-item').httpStatus=503,false],
+ ['positive_jsonrpc_error',x=>r(x,'site-active').response.error={code:-32603,message:'unavailable'},false],
+ ['positive_is_error',x=>r(x,'site-templates').response.result.isError=true,false],
+ ['items_array_missing',x=>delete sc(x,'absent-site').entities[0].items,false],
+ ['wrong_negative_error',x=>r(x,'missing-scope').response.result.content=[{type:'text',text:'authentication failed'}],false],
+ ['wrong_saved_tool_name',x=>x['site-active'].toolName='get_payment_balance',false],
+ ['known_site_wrong_item',x=>sc(x,'site-active').entities.flatMap(e=>e.items)[0].id='wrong-item',false],
+ ['wrong_scope_item',x=>sc(x,'site-active').entities.flatMap(e=>e.items)[0].resource.key='other.invalid',false],
+ ['genuine_empty_site',x=>sc(x,'absent-site').entities=[],true],
+ ['future_explicit_tool_names',x=>memoryCases.forEach(([n,t])=>x[n].toolName=t),true]
+];
+const results=cases.map(([id,mutate,want])=>{const x=structuredClone(raw);mutate(x);const old=oldPass(x),current=evaluateMemoryScope(x,expected);assert.equal(current.passed,want,id);return{id,expected:want,legacyPassed:old,currentPassed:current.passed};});
+for(const [id,o] of [['missing_expected_sha',{...expected,expectedSha:undefined}],['wrong_expected_sha',{...expected,expectedSha:'0'.repeat(40)}],['missing_expected_agent',{...expected,expectedAgentId:undefined}]]){assert.equal(evaluateMemoryScope(raw,o).passed,false);results.push({id,expected:false,currentPassed:false});}
+const result={at:new Date().toISOString(),productCalls:0,sourceCapture:dir,checks:results.length,legacyFalsePassesExposed:results.filter(r=>r.expected===false&&r.legacyPassed===true).length,results};
+const target=process.argv[2];if(target)await fs.writeFile(target,JSON.stringify(result,null,2)+'\n',{flag:'wx'});console.log(JSON.stringify(result));

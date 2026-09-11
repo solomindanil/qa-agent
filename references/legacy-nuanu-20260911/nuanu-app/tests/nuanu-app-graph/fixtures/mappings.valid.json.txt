@@ -1,0 +1,25 @@
+{
+  "productId": "nuanu-app",
+  "mappings": [
+    {
+      "sourcePath": "apps/nuanu-web/src/app/page.tsx",
+      "nodeId": "nuanu-app:route:home",
+      "automatedTestIds": ["nuanu-app:automated-test:home-smoke"],
+      "edges": [
+        {
+          "source": "nuanu-app:source_file:home-page",
+          "kind": "implements",
+          "target": "nuanu-app:route:home"
+        }
+      ],
+      "provenance": "source",
+      "coverageDisposition": "NOT_DEPLOYED"
+    }
+  ],
+  "no_product_impact": [
+    {
+      "path": "apps/nuanu-web/README.md",
+      "reason": "Documentation-only change has no product graph impact."
+    }
+  ]
+}

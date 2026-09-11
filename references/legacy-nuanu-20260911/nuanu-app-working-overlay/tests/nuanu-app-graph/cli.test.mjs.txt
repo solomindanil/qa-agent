@@ -1,0 +1,2494 @@
+import assert from "node:assert/strict";
+import { execFile, execFileSync } from "node:child_process";
+import {
+  appendFile,
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rename,
+  rm,
+  symlink,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import test from "node:test";
+
+import { digestJson } from "../../tools/nuanu-app-graph/model.mjs";
+import {
+  createJsonIo,
+  readJson,
+  writeJsonAtomic,
+} from "../../tools/nuanu-app-graph/io.mjs";
+import {
+  computeMappingDigest,
+  runCli,
+} from "../../tools/nuanu-app-graph/cli.mjs";
+import {
+  buildReviewedRuntimeContract,
+  canonicalDigest,
+} from "../../tools/nuanu-app-graph/runtime-contract.mjs";
+import { buildTelemetrySignals } from "../../tools/nuanu-app-graph/telemetry-policy.mjs";
+import { buildTelemetryCatalog } from "../../tools/nuanu-app-graph/telemetry.mjs";
+
+const execFileAsync = promisify(execFile);
+const TEST_DIRECTORY = dirname(fileURLToPath(import.meta.url));
+const QA_ROOT = resolve(TEST_DIRECTORY, "../..");
+const CLI_PATH = join(QA_ROOT, "tools/nuanu-app-graph/cli.mjs");
+const EXPECTED_REMOTE = "https://github.com/nuanu-ai/nuanu-web.git";
+const FIXED_NOW = "2026-08-26T08:00:00.000Z";
+const RUNTIME_ONLY_IMPACT = {
+  mode: "runtime_only",
+  changedFiles: [],
+  affectedNodeIds: [],
+  unmappedFiles: [],
+  paths: [],
+  sourceImpact: "UNVERIFIED",
+};
+
+const LEGACY_TEST_IDS = [
+  "nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-001 homepage returns HTML and renders an application shell",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-SAFE-001 blocks non-idempotent requests before network dispatch",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-001 removes query and fragment data from evidence URLs",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-SAFE-002 disables artifacts for the Nuanu App runtime project",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-002 records bounded non-sensitive console markers and attaches no raw text",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-003 records at most 25 sanitized failed request URLs",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-004 records only first-party HTTP 500-599 responses and caps them",
+];
+const CONTRACT_TEST_ID = "nuanu-app:auto:tests/nuanu-app/offline/runtime-contract.spec.ts#NAPP-CONTRACT-001 synthetic runtime contract drives unique exact role-name discovery locators without network";
+const REVIEWED_DISCOVERY_TEST_ID = "nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-002 reviewed discovery controls map marker and place card are reachable";
+const TEST_IDS = [...LEGACY_TEST_IDS, CONTRACT_TEST_ID, REVIEWED_DISCOVERY_TEST_ID];
+const RUNTIME_CONTRACT_INVARIANT = "nuanu-app:invariant:reviewed-runtime-contract";
+
+function playwrightList({ omitLast = false } = {}) {
+  const ids = omitLast ? TEST_IDS.slice(0, -1) : TEST_IDS;
+  return ids.flatMap((id, index) => {
+    const location = id.slice("nuanu-app:auto:".length).split("#", 1)[0].replace(/^tests\//, "");
+    const title = id.slice(id.indexOf("#") + 1);
+    return [
+      `  [nuanu-app] › ${location}:${index + 1}:1 › ${title}`,
+      `  [nuanu-app-firefox] › ${location}:${index + 1}:1 › ${title}`,
+    ];
+  }).join("\n");
+}
+
+function runtimeObservation(overrides = {}) {
+  return {
+    capturedAt: FIXED_NOW,
+    routes: ["/", "/__napp_runtime_probe__"],
+    rootCandidates: {
+      state: "root",
+      route: "/",
+      surfaces: [{ name: "Main", role: "main" }],
+      controls: [],
+      taxonomy: [],
+    },
+    settle: {
+      status: "STABLE_NONEMPTY",
+      sampleCount: 2,
+      initialSnapshotEmpty: false,
+      candidateSnapshotDigest: "d4b77638796470fada4ebcb2604596ba2b5bb73f4d29d509ca2ee6950d834c8a",
+    },
+    probe: { route: "/__napp_runtime_probe__", status: 404 },
+    apiHosts: [],
+    dependencies: [],
+    manifest: { name: "Nuanu App", start_url: "/", display: "standalone" },
+    ...overrides,
+  };
+}
+
+function starterMappingsFixture() {
+  return {
+    schemaVersion: 1,
+    productId: "nuanu-app",
+    repositoryUrl: EXPECTED_REMOTE,
+    sourceRoots: ["apps/nuanu-web"],
+    nodes: [
+      {
+        id: "nuanu-app:invariant:public-read-only-evidence-contract",
+        kind: "invariant",
+        provenance: "runtime",
+        coverageDisposition: "AUTOMATED",
+        alwaysRun: true,
+      },
+      {
+        id: RUNTIME_CONTRACT_INVARIANT,
+        kind: "invariant",
+        provenance: "runtime",
+        coverageDisposition: "AUTOMATED",
+        alwaysRun: true,
+      },
+    ],
+    edges: [
+      { source: LEGACY_TEST_IDS[0], kind: "verifies", target: "nuanu-app:route:root" },
+      ...LEGACY_TEST_IDS.slice(1).map((source) => ({
+        source,
+        kind: "verifies",
+        target: "nuanu-app:invariant:public-read-only-evidence-contract",
+      })),
+      { source: CONTRACT_TEST_ID, kind: "verifies", target: RUNTIME_CONTRACT_INVARIANT },
+      { source: REVIEWED_DISCOVERY_TEST_ID, kind: "verifies", target: "nuanu-app:route:root" },
+    ],
+    mappings: [],
+    no_product_impact: [],
+    unresolved: [],
+  };
+}
+
+function without(object, key) {
+  return Object.fromEntries(Object.entries(object).filter(([candidate]) => candidate !== key));
+}
+
+async function selectorBundle(runtimeCatalog, {
+  observedAt = runtimeCatalog.capturedAt,
+} = {}) {
+  const capturePlan = JSON.parse(await readFile(
+    join(TEST_DIRECTORY, "fixtures/selector-capture-plan.synthetic.json"),
+    "utf8",
+  ));
+  capturePlan.capturePlanDigest = canonicalDigest(without(capturePlan, "capturePlanDigest"));
+
+  const observation = JSON.parse(await readFile(
+    join(TEST_DIRECTORY, "fixtures/selector-observation.synthetic.json"),
+    "utf8",
+  ));
+  observation.observedAt = observedAt;
+  observation.runtimeDigest = runtimeCatalog.runtimeDigest;
+  observation.capturePlanDigest = capturePlan.capturePlanDigest;
+  observation.observationDigest = canonicalDigest(without(observation, "observationDigest"));
+
+  const bindings = JSON.parse(await readFile(
+    join(TEST_DIRECTORY, "fixtures/selector-bindings.synthetic.json"),
+    "utf8",
+  ));
+  bindings.observationDigest = observation.observationDigest;
+  bindings.capturePlanDigest = capturePlan.capturePlanDigest;
+  bindings.bindingDigest = canonicalDigest(without(bindings, "bindingDigest"));
+
+  const contract = buildReviewedRuntimeContract({
+    catalog: runtimeCatalog,
+    capturePlan,
+    observation,
+    bindings,
+  });
+  return { capturePlan, observation, bindings, contract };
+}
+
+async function installRuntimeContractInputs(root, io, {
+  accepted = true,
+  observedAt,
+} = {}) {
+  const runtimeCatalog = JSON.parse(await readFile(
+    join(root, "product-graph/current/runtime-catalog.json"),
+    "utf8",
+  ));
+  const bundle = await selectorBundle(runtimeCatalog, { observedAt });
+  await io.writeJsonAtomic(
+    join(root, "product-graph/selector-capture-plan.v1.json"),
+    bundle.capturePlan,
+  );
+  await io.writeJsonAtomic(
+    join(root, "product-graph/current/runtime-selector-observation.v1.json"),
+    bundle.observation,
+  );
+  await io.writeJsonAtomic(
+    join(root, "product-graph/selector-bindings.v1.json"),
+    bundle.bindings,
+  );
+  if (accepted) {
+    await io.writeJsonAtomic(
+      join(root, "product-graph/current/runtime-contract.v1.json"),
+      bundle.contract,
+    );
+  }
+  return { runtimeCatalog, ...bundle };
+}
+
+async function privateFixture(t, options = {}) {
+  const createdRoot = await mkdtemp(join(tmpdir(), "napp-cli-private-"));
+  const root = await realpath(createdRoot);
+  t.after(() => rm(createdRoot, { recursive: true, force: true }));
+  return { root, io: createJsonIo({ privateRoot: root, ...options }) };
+}
+
+async function cleanQaFixture(t, { localExists = false } = {}) {
+  const createdQaRoot = await mkdtemp(join(tmpdir(), "napp-cli-clean-qa-"));
+  const qaRoot = await realpath(createdQaRoot);
+  t.after(() => rm(createdQaRoot, { recursive: true, force: true }));
+  await mkdir(join(qaRoot, "docs"));
+  if (localExists) await mkdir(join(qaRoot, "docs/local"));
+  const privateRoot = join(qaRoot, "docs/local/nuanu-app");
+  return {
+    qaRoot,
+    privateRoot,
+    io: createJsonIo({ privateRoot, trustedRoot: qaRoot }),
+  };
+}
+
+function transactionLeftovers(names) {
+  return names.filter((name) => name.endsWith(".tmp") || name.endsWith(".rollback"));
+}
+
+function storedGraphDigest(graph) {
+  const timestampSuffixes = [
+    "timestamp",
+    "timestamps",
+    "timestampms",
+    "generatedat",
+    "createdat",
+    "updatedat",
+    "observedat",
+    "capturedat",
+    "collectedat",
+    "fetchedat",
+    "checkedat",
+    "seenat",
+    "timeobserved",
+    "observationtime",
+  ];
+  const withoutTimestamps = (value) => {
+    if (Array.isArray(value)) return value.map(withoutTimestamps);
+    if (!value || typeof value !== "object") return value;
+    return Object.fromEntries(Object.entries(value)
+      .filter(([key]) => {
+        const normalized = key.replace(/[^a-z0-9]/gi, "").toLowerCase();
+        return !timestampSuffixes.some((suffix) => normalized.endsWith(suffix));
+      })
+      .map(([key, child]) => [key, withoutTimestamps(child)]));
+  };
+  const semantic = withoutTimestamps(graph);
+  delete semantic.graphDigest;
+  return digestJson(semantic);
+}
+
+async function captureCli(args, dependencies = {}) {
+  let stdout = "";
+  let stderr = "";
+  const exitCode = await runCli(args, {
+    now: () => new Date(FIXED_NOW),
+    discoverPlaywright: async () => playwrightList(),
+    observeRuntime: async () => runtimeObservation(),
+    loadChromium: async () => ({ launch() { throw new Error("observer must be injected"); } }),
+    stdout: { write(value) { stdout += value; } },
+    stderr: { write(value) { stderr += value; } },
+    ...dependencies,
+  });
+  return { exitCode, stdout, stderr };
+}
+
+function parseLine(value) {
+  assert.match(value, /^\{.*\}\n$/);
+  return JSON.parse(value);
+}
+
+async function bootstrapGraph(t, dependencies = {}) {
+  const fixture = await privateFixture(t, dependencies.ioOptions);
+  assert.equal((await captureCli(["init"], { io: fixture.io })).exitCode, 0);
+  assert.equal((await captureCli(["runtime", "--url", "https://app.nuanu.com"], {
+    io: fixture.io,
+    ...dependencies,
+  })).exitCode, 0);
+  await installRuntimeContractInputs(fixture.root, fixture.io);
+  const validated = await captureCli(["validate"], { io: fixture.io, ...dependencies });
+  assert.equal(validated.exitCode, 0, validated.stderr);
+  return fixture;
+}
+
+async function installBlockedTelemetryOverlay(root, io) {
+  const telemetryDirectory = join(root, "telemetry");
+  await mkdir(telemetryDirectory);
+  const accessLock = JSON.parse(await readFile(
+    join(TEST_DIRECTORY, "fixtures/posthog/access-lock.synthetic.json"),
+    "utf8",
+  ));
+  const capturedAt = "2026-08-26T00:03:00.000Z";
+  const catalog = buildTelemetryCatalog({
+    accessLockDigest: digestJson(accessLock),
+    capturedAt,
+    candidates: [{
+      queryId: "route-health",
+      queryHash: null,
+      p75Pairing: null,
+      metricId: "route-health",
+      status: "BLOCKED",
+      capturedAt,
+      bucketEndedAt: null,
+      aggregate: null,
+      breakdowns: [],
+      exceptionGroups: [],
+      providerExceptionFingerprintAttestation: null,
+      limitations: ["ACCESS_BLOCKED"],
+    }],
+    publicValueAllowlists: {},
+    randomUUID: () => "00000000-0000-4000-8000-000000000001",
+  });
+  const mappings = {
+    version: 1,
+    productId: "nuanu-app",
+    catalogDigest: catalog.catalogDigest,
+    entries: [{
+      mappingId: "napp-telemetry-map-v1:route-health",
+      metricId: "route-health",
+      disposition: "select",
+      kind: "regression",
+      priority: "elevated",
+      targetNodeIds: ["nuanu-app:route:root"],
+      reviewedAt: "2026-08-26T00:04:00.000Z",
+      reviewEvidenceDigest: "d".repeat(64),
+    }],
+  };
+  const graph = JSON.parse(await readFile(
+    join(root, "product-graph/current/graph.json"),
+    "utf8",
+  ));
+  const signals = buildTelemetrySignals({ mappings, graph, catalog, accessLock });
+  const paths = {
+    accessLock: join(telemetryDirectory, "access-lock.v1.json"),
+    catalog: join(telemetryDirectory, "telemetry-catalog.json"),
+    mappings: join(telemetryDirectory, "mappings.v1.json"),
+    signals: join(telemetryDirectory, "telemetry-signals.json"),
+  };
+  await io.writeJsonAtomic(paths.accessLock, accessLock);
+  await io.writeJsonAtomic(paths.catalog, catalog);
+  await io.writeJsonAtomic(paths.mappings, mappings);
+  await io.writeJsonAtomic(paths.signals, signals);
+  return { accessLock, catalog, mappings, signals, paths };
+}
+
+async function installSourceInputs(root, io, {
+  sourcePath = "apps/nuanu-web/src/app.ts",
+  automatedTestId = TEST_IDS[0],
+} = {}) {
+  const mappingsPath = join(root, "product-graph/mappings.v1.json");
+  const mappings = JSON.parse(await readFile(mappingsPath, "utf8"));
+  mappings.mappings = [{
+    sourcePath,
+    nodeId: "nuanu-app:route:root",
+    automatedTestIds: [automatedTestId],
+    edges: [{
+      source: `nuanu-app:source:${sourcePath}`,
+      kind: "implements",
+      target: "nuanu-app:route:root",
+    }],
+    provenance: "source_and_runtime",
+    coverageDisposition: "AUTOMATED",
+  }];
+  await io.writeJsonAtomic(mappingsPath, mappings);
+  const sourceLock = {
+    productId: "nuanu-app",
+    repositoryUrl: EXPECTED_REMOTE,
+    commitSha: "b".repeat(40),
+    clean: true,
+    sourceRoots: ["apps/nuanu-web"],
+    contentDigest: "c".repeat(64),
+    mappingDigest: computeMappingDigest(mappings),
+  };
+  await io.writeJsonAtomic(
+    join(root, "product-graph/current/source-lock.json"),
+    sourceLock,
+  );
+  return { mappings, sourceLock };
+}
+
+function git(repoPath, args) {
+  return execFileSync("git", args, { cwd: repoPath, encoding: "utf8" }).trim();
+}
+
+async function sourceRepository(t, { remote = EXPECTED_REMOTE, dirty = false } = {}) {
+  const repoPath = await mkdtemp(join(tmpdir(), "napp-cli-source-"));
+  t.after(() => rm(repoPath, { recursive: true, force: true }));
+  await mkdir(join(repoPath, "apps/nuanu-web/src"), { recursive: true });
+  await writeFile(join(repoPath, "apps/nuanu-web/src/app.ts"), "export const app = true;\n");
+  git(repoPath, ["init", "-q"]);
+  git(repoPath, ["config", "user.email", "qa@example.test"]);
+  git(repoPath, ["config", "user.name", "QA Test"]);
+  git(repoPath, ["add", "."]);
+  git(repoPath, ["commit", "-qm", "fixture"]);
+  git(repoPath, ["remote", "add", "origin", remote]);
+  if (dirty) await writeFile(join(repoPath, "apps/nuanu-web/src/app.ts"), "dirty\n");
+  return repoPath;
+}
+
+test("writeJsonAtomic writes formatted JSON with one final newline and mode 0600", async (t) => {
+  const events = [];
+  const { root, io } = await privateFixture(t, { onEvent: (event) => events.push(event) });
+  const target = join(root, "product-graph/current/value.json");
+  await mkdir(dirname(target), { recursive: true });
+
+  await io.writeJsonAtomic(target, { z: 2, a: 1 });
+
+  assert.equal(await readFile(target, "utf8"), '{\n  "z": 2,\n  "a": 1\n}\n');
+  assert.equal((await lstat(target)).mode & 0o777, 0o600);
+  assert.deepEqual(events.map((event) => event.type), [
+    "temp-opened", "file-synced", "file-closed", "parent-reattested",
+    "target-reattested", "renamed", "destination-reattested", "directory-syncing",
+    "directory-synced",
+  ]);
+});
+
+test("atomic writers use unique concurrent temporary files and leave none behind", async (t) => {
+  const temps = [];
+  const { root, io } = await privateFixture(t, {
+    onEvent(event) {
+      if (event.type === "temp-opened") temps.push(event.tempPath);
+    },
+  });
+  const current = join(root, "product-graph/current");
+  await mkdir(current, { recursive: true });
+
+  await Promise.all(Array.from({ length: 12 }, (_, index) =>
+    io.writeJsonAtomic(join(current, `${index}.json`), { index })));
+
+  assert.equal(new Set(temps).size, 12);
+  assert.deepEqual((await readdir(current)).filter((name) => name.endsWith(".tmp")), []);
+});
+
+test("exclusive-create loses an EEXIST race without overwriting or leaking its temp", async (t) => {
+  const { root } = await privateFixture(t);
+  const current = join(root, "product-graph/current");
+  const target = join(current, "mapping.json");
+  await mkdir(current, { recursive: true });
+  const competitor = Buffer.from('{"competitor":true}\n');
+  const io = createJsonIo({
+    privateRoot: root,
+    operations: {
+      async link() {
+        await writeFile(target, competitor, { mode: 0o600 });
+        const failure = new Error("synthetic exclusive-create race");
+        failure.code = "EEXIST";
+        throw failure;
+      },
+    },
+  });
+
+  assert.equal(await io.writeJsonExclusive(target, { ours: true }), false);
+  assert.deepEqual(await readFile(target), competitor);
+  assert.deepEqual(transactionLeftovers(await readdir(current)), []);
+});
+
+test("atomic writer rejects a symlink target introduced during the write race", async (t) => {
+  const { root } = await privateFixture(t);
+  const current = join(root, "product-graph/current");
+  const target = join(current, "raced.json");
+  const outside = join(root, "outside.json");
+  await mkdir(current, { recursive: true });
+  await writeFile(outside, "{}\n");
+  let injected = false;
+  const io = createJsonIo({
+    privateRoot: root,
+    async onEvent(event) {
+      if (event.type === "parent-reattested" && !injected) {
+        injected = true;
+        await symlink(outside, target);
+      }
+    },
+  });
+
+  await assert.rejects(() => io.writeJsonAtomic(target, { safe: true }), {
+    code: "SYMLINK_PATH_REJECTED",
+  });
+  assert.equal(await readFile(outside, "utf8"), "{}\n");
+  assert.deepEqual((await readdir(current)).filter((name) => name.endsWith(".tmp")), []);
+});
+
+test("a failed replacement preserves the old artifact and cleans only its own temp", async (t) => {
+  const { root } = await privateFixture(t);
+  const current = join(root, "product-graph/current");
+  const target = join(current, "value.json");
+  await mkdir(current, { recursive: true });
+  await writeFile(target, "{\"old\":true}\n", { mode: 0o600 });
+  const io = createJsonIo({
+    privateRoot: root,
+    operations: {
+      async rename() {
+        const error = new Error("synthetic rename failure");
+        error.code = "EIO";
+        throw error;
+      },
+    },
+  });
+
+  await assert.rejects(() => io.writeJsonAtomic(target, { old: false }), {
+    code: "ATOMIC_WRITE_FAILED",
+  });
+  assert.equal(await readFile(target, "utf8"), "{\"old\":true}\n");
+  assert.deepEqual((await readdir(current)).filter((name) => name.endsWith(".tmp")), []);
+});
+
+test("JSON I/O rejects prefix siblings, symlink ancestors and symlink targets", async (t) => {
+  const { root, io } = await privateFixture(t);
+  const sibling = `${root}-sibling`;
+  t.after(() => rm(sibling, { recursive: true, force: true }));
+  await mkdir(sibling, { recursive: true });
+  await assert.rejects(() => io.writeJsonAtomic(join(sibling, "escape.json"), {}), {
+    code: "PATH_OUTSIDE_PRIVATE_ROOT",
+  });
+
+  const outside = await mkdtemp(join(tmpdir(), "napp-cli-outside-"));
+  t.after(() => rm(outside, { recursive: true, force: true }));
+  await mkdir(join(root, "product-graph"), { recursive: true });
+  await symlink(outside, join(root, "product-graph/current"));
+  await assert.rejects(
+    () => io.writeJsonAtomic(join(root, "product-graph/current/escape.json"), {}),
+    { code: "SYMLINK_PATH_REJECTED" },
+  );
+  await rm(join(root, "product-graph/current"));
+  await mkdir(join(root, "product-graph/current"));
+  await writeFile(join(outside, "target.json"), "{}\n");
+  await symlink(join(outside, "target.json"), join(root, "product-graph/current/target.json"));
+  await assert.rejects(
+    () => io.readJson(join(root, "product-graph/current/target.json")),
+    { code: "SYMLINK_PATH_REJECTED" },
+  );
+});
+
+test("private-root parent chains reject real dangling and swapped symlinks for mkdir read and write", async (t) => {
+  const createdBase = await mkdtemp(join(tmpdir(), "napp-cli-parent-chain-"));
+  const base = await realpath(createdBase);
+  const createdOutside = await mkdtemp(join(tmpdir(), "napp-cli-parent-outside-"));
+  const outside = await realpath(createdOutside);
+  t.after(() => rm(createdBase, { recursive: true, force: true }));
+  t.after(() => rm(createdOutside, { recursive: true, force: true }));
+
+  const outsidePrivate = join(outside, "private");
+  const outsideCurrent = join(outsidePrivate, "product-graph/current");
+  await mkdir(outsideCurrent, { recursive: true });
+  const outsideArtifact = join(outsideCurrent, "value.json");
+  await writeFile(outsideArtifact, '{"outside":true}\n');
+
+  const realLink = join(base, "real-link");
+  await symlink(outside, realLink);
+  const linkedRoot = join(realLink, "private");
+  const linkedIo = createJsonIo({ privateRoot: linkedRoot });
+  for (const operation of [
+    () => linkedIo.ensureDirectory("product-graph/new"),
+    () => linkedIo.readJson(join(linkedRoot, "product-graph/current/value.json")),
+    () => linkedIo.writeJsonAtomic(join(linkedRoot, "product-graph/current/escape.json"), { escaped: true }),
+  ]) {
+    await assert.rejects(operation, { code: "SYMLINK_PATH_REJECTED" });
+  }
+
+  const dangling = join(base, "dangling");
+  await symlink(join(base, "missing-parent"), dangling);
+  const danglingRoot = join(dangling, "private");
+  const danglingIo = createJsonIo({ privateRoot: danglingRoot });
+  for (const operation of [
+    () => danglingIo.ensureDirectory("product-graph/current"),
+    () => danglingIo.readJson(join(danglingRoot, "product-graph/current/value.json")),
+    () => danglingIo.writeJsonAtomic(join(danglingRoot, "product-graph/current/value.json"), {}),
+  ]) {
+    await assert.rejects(operation, { code: "SYMLINK_PATH_REJECTED" });
+  }
+
+  const swapped = join(base, "swapped-parent");
+  const swappedRoot = join(swapped, "private");
+  await mkdir(join(swappedRoot, "product-graph/current"), { recursive: true });
+  const swappedIo = createJsonIo({ privateRoot: swappedRoot });
+  const displaced = join(base, "displaced-parent");
+  await rename(swapped, displaced);
+  await symlink(outside, swapped);
+  for (const operation of [
+    () => swappedIo.ensureDirectory("product-graph/new"),
+    () => swappedIo.readJson(join(swappedRoot, "product-graph/current/value.json")),
+    () => swappedIo.writeJsonAtomic(join(swappedRoot, "product-graph/current/escape.json"), {}),
+  ]) {
+    await assert.rejects(operation, { code: "SYMLINK_PATH_REJECTED" });
+  }
+
+  assert.equal(await readFile(outsideArtifact, "utf8"), '{"outside":true}\n');
+  assert.equal((await readdir(outsideCurrent)).includes("escape.json"), false);
+  assert.equal((await readdir(join(outsidePrivate, "product-graph"))).includes("new"), false);
+});
+
+test("hook-visible ancestor swaps fail closed before commit and after destination attestation", async (t) => {
+  for (const phase of ["target-reattested", "destination-reattested"]) {
+    const { root } = await privateFixture(t);
+    const current = join(root, "product-graph/current");
+    const createdOutside = await mkdtemp(join(tmpdir(), `napp-cli-race-outside-${phase}-`));
+    const outside = await realpath(createdOutside);
+    t.after(() => rm(createdOutside, { recursive: true, force: true }));
+    const displaced = join(root, `displaced-${phase}`);
+    const target = join(current, "value.json");
+    await mkdir(current, { recursive: true });
+    await writeFile(join(outside, "sentinel.json"), '{"outside":true}\n');
+    let swapped = false;
+    const io = createJsonIo({
+      privateRoot: root,
+      async onEvent(event) {
+        if (!swapped && event.type === phase) {
+          swapped = true;
+          await rename(current, displaced);
+          await symlink(outside, current);
+        }
+      },
+    });
+
+    await assert.rejects(() => io.writeJsonAtomic(target, { safe: true }), (error) =>
+      ["PATH_RACE_DETECTED", "SYMLINK_PATH_REJECTED", "ATOMIC_WRITE_FAILED"].includes(error.code));
+    assert.equal(swapped, true);
+    assert.equal(await readFile(join(outside, "sentinel.json"), "utf8"), '{"outside":true}\n');
+    assert.deepEqual(await readdir(outside), ["sentinel.json"]);
+  }
+});
+
+test("destination replacement after renamed or linked is rejected by temp-inode equality", async (t) => {
+  for (const exclusive of [false, true]) {
+    const { root } = await privateFixture(t);
+    const current = join(root, "product-graph/current");
+    const target = join(current, exclusive ? "exclusive.json" : "replace.json");
+    await mkdir(current, { recursive: true });
+    const original = Buffer.from('{"old":true}\n');
+    if (!exclusive) await writeFile(target, original, { mode: 0o600 });
+    const io = createJsonIo({
+      privateRoot: root,
+      async onEvent(event) {
+        if (event.type === (exclusive ? "linked" : "renamed")) {
+          await unlink(target);
+          await writeFile(target, '{"attacker":true}\n', { mode: 0o600 });
+        }
+      },
+    });
+
+    await assert.rejects(
+      () => exclusive
+        ? io.writeJsonExclusive(target, { created: true })
+        : io.writeJsonAtomic(target, { old: false }),
+      { code: "PATH_RACE_DETECTED" },
+    );
+    if (exclusive) {
+      await assert.rejects(() => lstat(target), { code: "ENOENT" });
+    } else {
+      assert.deepEqual(await readFile(target), original);
+    }
+    assert.deepEqual(transactionLeftovers(await readdir(current)), []);
+  }
+});
+
+test("every post-commit event or directory-sync failure rolls back old and new targets", async (t) => {
+  const phases = ["renamed", "destination-reattested", "directory-syncing", "directory-synced"];
+  for (const [phaseIndex, phase] of phases.entries()) {
+    for (const existing of [false, true]) {
+      const { root } = await privateFixture(t);
+      const current = join(root, "product-graph/current");
+      const target = join(current, `${phaseIndex}-${existing}.json`);
+      await mkdir(current, { recursive: true });
+      const original = Buffer.from(`{"old":${phaseIndex}}\n`);
+      if (existing) await writeFile(target, original, { mode: 0o600 });
+      const io = createJsonIo({
+        privateRoot: root,
+        onEvent(event) {
+          if (event.type === phase) {
+            const failure = new Error("synthetic transaction phase failure");
+            failure.code = "EIO";
+            throw failure;
+          }
+        },
+      });
+
+      await assert.rejects(() => io.writeJsonAtomic(target, { replacement: true }), {
+        code: "ATOMIC_WRITE_FAILED",
+      });
+      if (existing) assert.deepEqual(await readFile(target), original);
+      else await assert.rejects(() => lstat(target), { code: "ENOENT" });
+      assert.deepEqual(transactionLeftovers(await readdir(current)), []);
+    }
+  }
+
+  const { root } = await privateFixture(t);
+  const current = join(root, "product-graph/current");
+  const target = join(current, "sync-operation.json");
+  const original = Buffer.from('{"old":"sync"}\n');
+  await mkdir(current, { recursive: true });
+  await writeFile(target, original, { mode: 0o600 });
+  const io = createJsonIo({
+    privateRoot: root,
+    operations: {
+      async syncDirectory() {
+        const failure = new Error("synthetic directory fsync failure");
+        failure.code = "EIO";
+        throw failure;
+      },
+    },
+  });
+  await assert.rejects(() => io.writeJsonAtomic(target, { replacement: true }), {
+    code: "ATOMIC_WRITE_FAILED",
+  });
+  assert.deepEqual(await readFile(target), original);
+  assert.deepEqual(transactionLeftovers(await readdir(current)), []);
+});
+
+test("throw-after-success rename and link outcomes are inferred and rolled back", async (t) => {
+  for (const operation of ["rename", "link"]) {
+    const { root } = await privateFixture(t);
+    const current = join(root, "product-graph/current");
+    const target = join(current, `${operation}.json`);
+    await mkdir(current, { recursive: true });
+    const original = Buffer.from('{"old":"byte-identical"}\n');
+    if (operation === "rename") await writeFile(target, original, { mode: 0o600 });
+    const io = createJsonIo({
+      privateRoot: root,
+      operations: {
+        async [operation](from, to, actualOperation) {
+          await actualOperation(from, to);
+          const failure = new Error(`synthetic ${operation} wrapper failure after success`);
+          failure.code = "EIO";
+          throw failure;
+        },
+      },
+    });
+
+    await assert.rejects(
+      () => operation === "rename"
+        ? io.writeJsonAtomic(target, { replacement: true })
+        : io.writeJsonExclusive(target, { created: true }),
+      { code: "ATOMIC_WRITE_FAILED" },
+    );
+    if (operation === "rename") assert.deepEqual(await readFile(target), original);
+    else await assert.rejects(() => lstat(target), { code: "ENOENT" });
+    assert.deepEqual(transactionLeftovers(await readdir(current)), []);
+  }
+});
+
+test("readJson rejects oversized and non-regular artifacts without exposing contents", async (t) => {
+  const { root, io } = await privateFixture(t, { maxBytes: 32 });
+  const current = join(root, "product-graph/current");
+  await mkdir(current, { recursive: true });
+  const large = join(current, "large.json");
+  await writeFile(large, JSON.stringify({ secret: "x".repeat(100) }));
+  await assert.rejects(() => io.readJson(large), (error) =>
+    error.code === "JSON_ARTIFACT_TOO_LARGE" && !error.message.includes("xxx"));
+  await assert.rejects(() => io.readJson(current), { code: "NON_REGULAR_FILE" });
+});
+
+test("readJson rejects invalid UTF-8 bytes with a controlled JSON error", async (t) => {
+  const { root, io } = await privateFixture(t);
+  const current = join(root, "product-graph/current");
+  const target = join(current, "invalid-utf8.json");
+  await mkdir(current, { recursive: true });
+  await writeFile(target, Buffer.concat([
+    Buffer.from('{"value":"'),
+    Buffer.from([0x80]),
+    Buffer.from('"}\n'),
+  ]), { mode: 0o600 });
+
+  await assert.rejects(() => io.readJson(target), (error) =>
+    error.code === "INVALID_JSON_ARTIFACT" &&
+    error.message === "Private artifact is not valid JSON" &&
+    !error.message.includes(root) &&
+    !error.message.includes("\uFFFD"));
+});
+
+test("readJson accepts valid UTF-8 across a read-chunk boundary at the exact byte limit", async (t) => {
+  const prefix = Buffer.from('{"value":"');
+  const filler = Buffer.alloc(65_535 - prefix.length, 0x61);
+  const artifact = Buffer.concat([prefix, filler, Buffer.from("é"), Buffer.from('"}\n')]);
+  assert.equal(artifact[65_535], 0xc3);
+  assert.equal(artifact[65_536], 0xa9);
+
+  const { root } = await privateFixture(t);
+  const current = join(root, "product-graph/current");
+  const target = join(current, "chunk-boundary.json");
+  const io = createJsonIo({ privateRoot: root, maxBytes: artifact.length });
+  await mkdir(current, { recursive: true });
+  await writeFile(target, artifact, { mode: 0o600 });
+
+  const parsed = await io.readJson(target);
+  assert.equal(parsed.value.length, filler.length + 1);
+  assert.equal(parsed.value.at(-1), "é");
+});
+
+test("readJson bounds same-inode growth and rejects same-size mutation before parsing", async (t) => {
+  for (const mutation of ["grow", "same-size"]) {
+    const { root } = await privateFixture(t);
+    const current = join(root, "product-graph/current");
+    const target = join(current, `${mutation}.json`);
+    await mkdir(current, { recursive: true });
+    await writeFile(target, '{"value":"aaaa"}\n', { mode: 0o600 });
+    let mutated = false;
+    const io = createJsonIo({
+      privateRoot: root,
+      maxBytes: 64,
+      async onEvent(event) {
+        if (mutated) return;
+        if (mutation === "grow" && event.type === "read-opened") {
+          mutated = true;
+          await appendFile(target, "x".repeat(128));
+        }
+        if (mutation === "same-size" && event.type === "read-pass-complete" && event.pass === 1) {
+          mutated = true;
+          await writeFile(target, '{"value":"bbbb"}\n', { mode: 0o600 });
+        }
+      },
+    });
+
+    await assert.rejects(() => io.readJson(target), {
+      code: mutation === "grow" ? "JSON_ARTIFACT_TOO_LARGE" : "PATH_RACE_DETECTED",
+    });
+    assert.equal(mutated, true);
+  }
+});
+
+test("readJson rejects an ancestor swapped after its file handle opens", async (t) => {
+  const { root } = await privateFixture(t);
+  const current = join(root, "product-graph/current");
+  const displaced = join(root, "read-displaced");
+  const createdOutside = await mkdtemp(join(tmpdir(), "napp-cli-read-outside-"));
+  const outside = await realpath(createdOutside);
+  t.after(() => rm(createdOutside, { recursive: true, force: true }));
+  const target = join(current, "value.json");
+  await mkdir(current, { recursive: true });
+  await writeFile(target, '{"inside":true}\n');
+  await writeFile(join(outside, "value.json"), '{"outside":true}\n');
+  let swapped = false;
+  const io = createJsonIo({
+    privateRoot: root,
+    async onEvent(event) {
+      if (!swapped && event.type === "read-opened") {
+        swapped = true;
+        await rename(current, displaced);
+        await symlink(outside, current);
+      }
+    },
+  });
+
+  await assert.rejects(() => io.readJson(target), (error) =>
+    ["PATH_RACE_DETECTED", "SYMLINK_PATH_REJECTED"].includes(error.code));
+  assert.equal(swapped, true);
+  assert.equal(await readFile(join(outside, "value.json"), "utf8"), '{"outside":true}\n');
+});
+
+test("readJson reports a missing artifact without leaking its absolute path", async (t) => {
+  const { root, io } = await privateFixture(t);
+  const current = join(root, "product-graph/current");
+  await mkdir(current, { recursive: true });
+  const missing = join(current, "missing.json");
+
+  await assert.rejects(() => io.readJson(missing), (error) =>
+    error.code === "MISSING_ARTIFACT" &&
+    error.message === "Required private artifact does not exist" &&
+    !error.message.includes(root));
+});
+
+test("module-level JSON exports reject output outside the module-derived private root", async () => {
+  const outside = join(tmpdir(), "napp-module-output.json");
+  await assert.rejects(() => writeJsonAtomic(outside, {}), {
+    code: "PATH_OUTSIDE_PRIVATE_ROOT",
+  });
+  await assert.rejects(() => readJson(outside), {
+    code: "PATH_OUTSIDE_PRIVATE_ROOT",
+  });
+});
+
+test("init additively creates nine starter edges while preserving all seven legacy IDs and relationships byte-exact", async (t) => {
+  const { root, io } = await privateFixture(t);
+  const result = await captureCli(["init"], { io });
+
+  assert.equal(result.exitCode, 0);
+  assert.equal(result.stderr, "");
+  assert.deepEqual((await readdir(root)).sort(), ["product-graph"]);
+  assert.deepEqual((await readdir(join(root, "product-graph"))).sort(), [
+    "current", "mappings.v1.json", "snapshots",
+  ]);
+  const mappingsPath = join(root, "product-graph/mappings.v1.json");
+  const mappings = JSON.parse(await readFile(mappingsPath, "utf8"));
+  assert.equal(mappings.schemaVersion, 1);
+  assert.equal(mappings.productId, "nuanu-app");
+  assert.equal(mappings.repositoryUrl, EXPECTED_REMOTE);
+  assert.deepEqual(mappings.sourceRoots, ["apps/nuanu-web"]);
+  assert.deepEqual(mappings.mappings, []);
+  assert.deepEqual(mappings.no_product_impact, []);
+  assert.deepEqual(mappings.unresolved, []);
+  assert.deepEqual(mappings.nodes, starterMappingsFixture().nodes);
+  assert.deepEqual(mappings.edges.slice(0, LEGACY_TEST_IDS.length),
+    starterMappingsFixture().edges.slice(0, LEGACY_TEST_IDS.length));
+  assert.deepEqual(mappings.edges.map((edge) => edge.source).sort(), [...TEST_IDS].sort());
+  assert.deepEqual(mappings.edges.slice(LEGACY_TEST_IDS.length), [
+    { source: CONTRACT_TEST_ID, kind: "verifies", target: RUNTIME_CONTRACT_INVARIANT },
+    { source: REVIEWED_DISCOVERY_TEST_ID, kind: "verifies", target: "nuanu-app:route:root" },
+  ]);
+  assert.ok(mappings.edges.every((edge) => edge.kind === "verifies"));
+  assert.deepEqual(parseLine(result.stdout), {
+    ok: true,
+    command: "init",
+    artifacts: ["product-graph/mappings.v1.json"],
+    created: true,
+  });
+});
+
+test("init never silently rewrites an existing private seven-edge mapping file", async (t) => {
+  const { root, io } = await privateFixture(t);
+  await io.ensureDirectory("product-graph");
+  await io.ensureDirectory("product-graph/current");
+  await io.ensureDirectory("product-graph/snapshots");
+  const legacy = starterMappingsFixture();
+  legacy.nodes = legacy.nodes.slice(0, 1);
+  legacy.edges = legacy.edges.slice(0, LEGACY_TEST_IDS.length);
+  const mappingPath = join(root, "product-graph/mappings.v1.json");
+  await io.writeJsonAtomic(mappingPath, legacy);
+  const before = await readFile(mappingPath);
+
+  const result = await captureCli(["init"], { io });
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(parseLine(result.stdout).created, false);
+  assert.deepEqual(await readFile(mappingPath), before);
+});
+
+test("init bootstraps a clean canonical private root from the trusted QA root only", async (t) => {
+  const { qaRoot, privateRoot, io } = await cleanQaFixture(t);
+  const result = await captureCli(["init"], { io });
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  assert.deepEqual(await readdir(qaRoot), ["docs"]);
+  assert.deepEqual(await readdir(join(qaRoot, "docs")), ["local"]);
+  assert.deepEqual(await readdir(join(qaRoot, "docs/local")), ["nuanu-app"]);
+  assert.deepEqual(await readdir(privateRoot), ["product-graph"]);
+  assert.deepEqual((await readdir(join(privateRoot, "product-graph"))).sort(), [
+    "current", "mappings.v1.json", "snapshots",
+  ]);
+  for (const directory of [
+    join(qaRoot, "docs/local"),
+    privateRoot,
+    join(privateRoot, "product-graph"),
+    join(privateRoot, "product-graph/current"),
+    join(privateRoot, "product-graph/snapshots"),
+  ]) {
+    assert.equal((await lstat(directory)).mode & 0o777, 0o700);
+  }
+
+  const mappingPath = join(privateRoot, "product-graph/mappings.v1.json");
+  const initialBytes = await readFile(mappingPath);
+  const repeated = await captureCli(["init"], { io });
+  assert.equal(repeated.exitCode, 0, repeated.stderr);
+  assert.equal(parseLine(repeated.stdout).created, false);
+  assert.deepEqual(await readFile(mappingPath), initialBytes);
+  assert.deepEqual(transactionLeftovers(await readdir(join(privateRoot, "product-graph"))), []);
+});
+
+test("init creates the private-root leaf beneath an existing approved docs/local anchor", async (t) => {
+  const { qaRoot, privateRoot } = await cleanQaFixture(t, { localExists: true });
+  const io = createJsonIo({
+    privateRoot,
+    trustedRoot: join(qaRoot, "docs/local"),
+  });
+
+  const result = await captureCli(["init"], { io });
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.deepEqual(await readdir(join(qaRoot, "docs/local")), ["nuanu-app"]);
+  assert.deepEqual(await readdir(privateRoot), ["product-graph"]);
+  assert.equal((await lstat(privateRoot)).mode & 0o777, 0o700);
+});
+
+test("direct init succeeds from a clean module-derived QA root", async (t) => {
+  const createdQaRoot = await mkdtemp(join(tmpdir(), "napp-cli-direct-clean-"));
+  const qaRoot = await realpath(createdQaRoot);
+  t.after(() => rm(createdQaRoot, { recursive: true, force: true }));
+  const toolDirectory = join(qaRoot, "tools/nuanu-app-graph");
+  await mkdir(toolDirectory, { recursive: true });
+  await mkdir(join(qaRoot, "docs"));
+  for (const fileName of [
+    "cli.mjs", "io.mjs", "model.mjs", "planner.mjs", "runtime.mjs",
+    "runtime-contract.mjs", "selector-observation.mjs", "source.mjs",
+  ]) {
+    await copyFile(
+      join(QA_ROOT, "tools/nuanu-app-graph", fileName),
+      join(toolDirectory, fileName),
+    );
+  }
+
+  const { stdout, stderr } = await execFileAsync(
+    process.execPath,
+    [join(toolDirectory, "cli.mjs"), "init"],
+    { cwd: tmpdir(), encoding: "utf8" },
+  );
+  assert.equal(stderr, "");
+  assert.deepEqual(parseLine(stdout), {
+    ok: true,
+    command: "init",
+    artifacts: ["product-graph/mappings.v1.json"],
+    created: true,
+  });
+  assert.deepEqual(await readdir(join(qaRoot, "docs")), ["local"]);
+  assert.deepEqual(
+    await readdir(join(qaRoot, "docs/local/nuanu-app")),
+    ["product-graph"],
+  );
+});
+
+test("non-init commands never bootstrap an absent canonical private root", async (t) => {
+  const { qaRoot, privateRoot, io } = await cleanQaFixture(t);
+  let externalDependencyCalled = false;
+  const dependencies = {
+    io,
+    async loadChromium() {
+      externalDependencyCalled = true;
+      throw new Error("must not load Chromium");
+    },
+    async discoverPlaywright() {
+      externalDependencyCalled = true;
+      throw new Error("must not discover tests");
+    },
+    async attestRepository() {
+      externalDependencyCalled = true;
+      throw new Error("must not inspect Git");
+    },
+  };
+  const commands = [
+    ["runtime", "--url", "https://app.nuanu.com"],
+    ["source-lock", "--repo", "/synthetic/repository"],
+    ["validate"],
+    ["plan", "--runtime-only", "--dry-run"],
+  ];
+
+  for (const command of commands) {
+    const result = await captureCli(command, dependencies);
+    assert.equal(result.exitCode, 1, command.join(" "));
+    assert.equal(result.stdout, "");
+    await assert.rejects(() => lstat(privateRoot), { code: "ENOENT" });
+    assert.deepEqual(await readdir(join(qaRoot, "docs")), []);
+  }
+  assert.equal(externalDependencyCalled, false);
+});
+
+test("init bootstrap rejects untrusted and raced ancestors without outside writes", async (t) => {
+  const untrusted = await cleanQaFixture(t);
+  const createdOutsideRoot = await mkdtemp(join(tmpdir(), "napp-cli-bootstrap-untrusted-"));
+  const outsideRoot = await realpath(createdOutsideRoot);
+  t.after(() => rm(createdOutsideRoot, { recursive: true, force: true }));
+  assert.throws(() => createJsonIo({
+    privateRoot: join(outsideRoot, "nuanu-app"),
+    trustedRoot: untrusted.qaRoot,
+  }), { code: "INVALID_PRIVATE_ROOT" });
+
+  const linked = await cleanQaFixture(t);
+  const createdLinkedOutside = await mkdtemp(join(tmpdir(), "napp-cli-bootstrap-linked-"));
+  const linkedOutside = await realpath(createdLinkedOutside);
+  t.after(() => rm(createdLinkedOutside, { recursive: true, force: true }));
+  await writeFile(join(linkedOutside, "sentinel.json"), '{"outside":true}\n');
+  await symlink(linkedOutside, join(linked.qaRoot, "docs/local"));
+  const linkedResult = await captureCli(["init"], { io: linked.io });
+  assert.equal(linkedResult.exitCode, 1);
+  assert.equal(parseLine(linkedResult.stderr).errors[0].code, "SYMLINK_PATH_REJECTED");
+  assert.deepEqual(await readdir(linkedOutside), ["sentinel.json"]);
+
+  const dangling = await cleanQaFixture(t);
+  await symlink(join(dangling.qaRoot, "missing"), join(dangling.qaRoot, "docs/local"));
+  const danglingResult = await captureCli(["init"], { io: dangling.io });
+  assert.equal(danglingResult.exitCode, 1);
+  assert.equal(parseLine(danglingResult.stderr).errors[0].code, "SYMLINK_PATH_REJECTED");
+
+  const nonDirectory = await cleanQaFixture(t, { localExists: true });
+  await writeFile(nonDirectory.privateRoot, "preserve this file\n");
+  const nonDirectoryResult = await captureCli(["init"], { io: nonDirectory.io });
+  assert.equal(nonDirectoryResult.exitCode, 1);
+  assert.equal(parseLine(nonDirectoryResult.stderr).errors[0].code, "NON_DIRECTORY_PATH");
+  assert.equal(await readFile(nonDirectory.privateRoot, "utf8"), "preserve this file\n");
+
+  const raced = await cleanQaFixture(t);
+  const createdRaceOutside = await mkdtemp(join(tmpdir(), "napp-cli-bootstrap-race-"));
+  const raceOutside = await realpath(createdRaceOutside);
+  t.after(() => rm(createdRaceOutside, { recursive: true, force: true }));
+  await writeFile(join(raceOutside, "sentinel.json"), '{"outside":true}\n');
+  let swapped = false;
+  const racedIo = createJsonIo({
+    privateRoot: raced.privateRoot,
+    trustedRoot: raced.qaRoot,
+    async onEvent(event) {
+      if (!swapped && event.type === "directory-created" && event.directoryName === "local") {
+        swapped = true;
+        await rename(join(raced.qaRoot, "docs"), join(raced.qaRoot, "displaced-docs"));
+        await symlink(raceOutside, join(raced.qaRoot, "docs"));
+      }
+    },
+  });
+  const racedResult = await captureCli(["init"], { io: racedIo });
+  assert.equal(racedResult.exitCode, 1);
+  assert.equal(swapped, true);
+  assert.ok(["PATH_RACE_DETECTED", "SYMLINK_PATH_REJECTED"].includes(
+    parseLine(racedResult.stderr).errors[0].code,
+  ));
+  assert.deepEqual(await readdir(raceOutside), ["sentinel.json"]);
+});
+
+test("init is byte-idempotent and never overwrites an existing invalid mapping", async (t) => {
+  const { root, io } = await privateFixture(t);
+  assert.equal((await captureCli(["init"], { io })).exitCode, 0);
+  const mappingPath = join(root, "product-graph/mappings.v1.json");
+  const original = await readFile(mappingPath);
+  const repeated = await captureCli(["init"], { io });
+  assert.equal(repeated.exitCode, 0);
+  assert.deepEqual(await readFile(mappingPath), original);
+  assert.equal(parseLine(repeated.stdout).created, false);
+
+  await writeFile(mappingPath, "invalid but preserved\n");
+  const invalidRepeated = await captureCli(["init"], { io });
+  assert.equal(invalidRepeated.exitCode, 0);
+  assert.equal(await readFile(mappingPath, "utf8"), "invalid but preserved\n");
+  assert.deepEqual((await readdir(join(root, "product-graph"))).filter((name) => name.endsWith(".tmp")), []);
+});
+
+test("strict grammar rejects unknown duplicate equals and positional options with one sanitized line", async () => {
+  const cases = [
+    [],
+    ["unknown"],
+    ["init", "extra"],
+    ["init", "--refresh"],
+    ["validate", "--unknown"],
+    ["validate", "--refresh", "--refresh"],
+    ["validate", "--refresh=true"],
+    ["validate", "--dry-run"],
+    ["validate", "--refresh", "extra"],
+    ["runtime", "--url=https://app.nuanu.com"],
+    ["runtime", "--url", "https://app.nuanu.com", "--url", "https://app.nuanu.com"],
+    ["selector-observe"],
+    ["selector-observe", "--url=https://app.nuanu.com"],
+    ["selector-observe", "--url", "https://app.nuanu.com", "--path", "/tmp/private"],
+    ["selector-observe", "--url", "https://app.nuanu.com.evil.test"],
+    ["contract-candidate", "--path", "/tmp/private"],
+    ["contract-candidate", "extra"],
+    ["source-lock", "--repo", "relative"],
+    ["plan", "--runtime-only", "--repo", "/tmp/repo", "--from", "a".repeat(40), "--to", "b".repeat(40), "--dry-run"],
+    ["plan", "--runtime-only", "--dry-run", "--output", "elsewhere"],
+    ["plan", "--runtime-only", "--dry-run", "--execute"],
+  ];
+  for (const args of cases) {
+    const result = await captureCli(args);
+    assert.equal(result.exitCode, 2, args.join(" "));
+    assert.equal(result.stdout, "");
+    const error = parseLine(result.stderr);
+    assert.equal(error.ok, false);
+    assert.ok(Array.isArray(error.errors));
+    assert.equal(JSON.stringify(error).includes(QA_ROOT), false);
+  }
+});
+
+test("stderr never echoes unknown commands or artifact-controlled tokens URLs controls and paths", async () => {
+  const secret = "token-qa-73f9";
+  const malicious = `${secret}\nhttps://evil.example/?credential=${secret}\u001b/Users/private/secret`;
+  let result = await captureCli([malicious]);
+  let failure = parseLine(result.stderr);
+  assert.equal(result.exitCode, 2);
+  assert.equal(failure.command, "unknown");
+  assert.equal(result.stderr.includes(secret), false);
+  assert.equal(result.stderr.includes("evil.example"), false);
+  assert.equal(result.stderr.includes("/Users/private"), false);
+  assert.equal(result.stderr.split("\n").length, 2);
+
+  const controlled = new Error(malicious);
+  controlled.code = malicious;
+  controlled.path = malicious;
+  controlled.validationErrors = [{
+    code: "TOKEN_QA_73F9",
+    path: "$.token_qa_73f9",
+    message: malicious,
+  }];
+  result = await captureCli(["runtime", "--url", "https://app.nuanu.com"], {
+    io: {
+      privateRoot: "/synthetic/private",
+      async preflightWrite() { throw controlled; },
+    },
+  });
+  failure = parseLine(result.stderr);
+  assert.equal(result.exitCode, 1);
+  assert.equal(failure.command, "runtime");
+  assert.deepEqual(failure.errors, [{ code: "VALIDATION_FAILED", message: "Validation failed" }]);
+  assert.equal(result.stderr.includes("TOKEN_QA_73F9"), false);
+  assert.equal(result.stderr.includes(secret), false);
+  assert.equal(result.stderr.includes("evil.example"), false);
+  assert.equal(result.stderr.includes("/Users/private"), false);
+  assert.equal(result.stderr.split("\n").length, 2);
+});
+
+test("plan without dry-run fails before any read discovery Git browser or write", async () => {
+  const calls = [];
+  const trap = (name) => async () => { calls.push(name); throw new Error(name); };
+  const result = await captureCli(["plan", "--runtime-only"], {
+    io: { readJson: trap("read"), writeJsonAtomic: trap("write") },
+    discoverPlaywright: trap("playwright"),
+    git: trap("git"),
+    observeRuntime: trap("browser"),
+  });
+  assert.equal(result.exitCode, 2);
+  assert.deepEqual(calls, []);
+  assert.equal(parseLine(result.stderr).errors[0].code, "DRY_RUN_REQUIRED");
+});
+
+test("direct CLI grammar is cwd-independent and writes only one stderr JSON line", async (t) => {
+  const cwd = await mkdtemp(join(tmpdir(), "napp-cli-cwd-"));
+  t.after(() => rm(cwd, { recursive: true, force: true }));
+  const { stdout, stderr } = await execFileAsync(process.execPath, [
+    CLI_PATH, "plan", "--runtime-only",
+  ], { cwd }).catch((error) => error);
+  assert.equal(stdout, "");
+  assert.equal(parseLine(stderr).errors[0].code, "DRY_RUN_REQUIRED");
+  assert.equal(stderr.includes(QA_ROOT), false);
+});
+
+test("runtime rejects invalid URLs before destination checks or Chromium launch", async () => {
+  const calls = [];
+  const result = await captureCli(["runtime", "--url", "https://app.nuanu.com.evil.test"], {
+    io: { preflightWrite: async () => calls.push("destination") },
+    loadChromium: async () => { calls.push("chromium"); return {}; },
+    observeRuntime: async () => { calls.push("observer"); return {}; },
+  });
+  assert.equal(result.exitCode, 2);
+  assert.deepEqual(calls, []);
+  assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_RUNTIME_URL");
+});
+
+test("runtime normalizes injected observation and writes only the private runtime catalog", async (t) => {
+  const { root, io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  const result = await captureCli(["runtime", "--url", "https://app.nuanu.com/"], {
+    io,
+    observeRuntime: async () => runtimeObservation({
+      routes: ["/", "/__napp_runtime_probe__", "/?token=removed"],
+      requestHeaders: { Authorization: "removed" },
+    }),
+  });
+  assert.equal(result.exitCode, 0, result.stderr);
+  const catalog = JSON.parse(await readFile(join(root, "product-graph/current/runtime-catalog.json"), "utf8"));
+  assert.deepEqual(catalog.routes, ["/", "/__napp_runtime_probe__"]);
+  assert.deepEqual(catalog.rootCandidates, {
+    state: "root",
+    route: "/",
+    surfaces: [{ name: "Main", role: "main" }],
+    controls: [],
+    taxonomy: [],
+  });
+  assert.deepEqual(catalog.probe, { route: "/__napp_runtime_probe__", status: 404 });
+  assert.equal("surfaces" in catalog, false);
+  assert.equal(JSON.stringify(catalog).includes("token"), false);
+  assert.equal(JSON.stringify(catalog).includes("Authorization"), false);
+  assert.deepEqual((await readdir(join(root, "product-graph/current"))).sort(), ["runtime-catalog.json"]);
+});
+
+test("runtime rejects legacy flattened candidates without writing a catalog", async (t) => {
+  const { root, io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  const legacy = runtimeObservation();
+  legacy.surfaces = legacy.rootCandidates.surfaces;
+  delete legacy.rootCandidates;
+
+  const result = await captureCli(["runtime", "--url", "https://app.nuanu.com"], {
+    io,
+    observeRuntime: async () => legacy,
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_RUNTIME_CANDIDATE_ATTRIBUTION");
+  await assert.rejects(
+    () => lstat(join(root, "product-graph/current/runtime-catalog.json")),
+    { code: "ENOENT" },
+  );
+});
+
+test("selector-observe accepts only the exact app URL and writes one fixed observation through the injected safe producer", async (t) => {
+  const { root, io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  await captureCli(["runtime", "--url", "https://app.nuanu.com"], { io });
+  const bundle = await installRuntimeContractInputs(root, io, { accepted: false });
+  await rm(join(root, "product-graph/current/runtime-selector-observation.v1.json"));
+  await rm(join(root, "product-graph/selector-bindings.v1.json"));
+  const chromium = { marker: "synthetic-browser" };
+  const calls = [];
+
+  const result = await captureCli(["selector-observe", "--url", "https://app.nuanu.com"], {
+    io,
+    loadChromium: async () => chromium,
+    produceSelectorObservation: async (input) => {
+      calls.push(input);
+      return bundle.observation;
+    },
+  });
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].chromium, chromium);
+  assert.deepEqual(calls[0].catalog, bundle.runtimeCatalog);
+  assert.deepEqual(calls[0].capturePlan, bundle.capturePlan);
+  assert.equal(typeof calls[0].now, "function");
+  assert.deepEqual(JSON.parse(await readFile(
+    join(root, "product-graph/current/runtime-selector-observation.v1.json"),
+    "utf8",
+  )), bundle.observation);
+  assert.deepEqual((await readdir(join(root, "product-graph/current"))).sort(), [
+    "runtime-catalog.json",
+    "runtime-selector-observation.v1.json",
+  ]);
+  assert.deepEqual(parseLine(result.stdout), {
+    ok: true,
+    command: "selector-observe",
+    artifacts: ["product-graph/current/runtime-selector-observation.v1.json"],
+    observationDigest: bundle.observation.observationDigest,
+    stateCount: bundle.observation.states.length,
+    limitationCount: bundle.observation.limitations.length,
+  });
+  assert.equal(result.stdout.includes("Synthetic"), false);
+  assert.equal(result.stdout.includes(root), false);
+});
+
+test("selector-observe rejects invalid grammar before private reads, Chromium loading, or writes", async () => {
+  for (const args of [
+    ["selector-observe"],
+    ["selector-observe", "--url", "https://app.nuanu.com.evil.test"],
+    ["selector-observe", "--url", "https://app.nuanu.com", "--output", "/tmp/candidate"],
+  ]) {
+    const calls = [];
+    const trap = (name) => async () => { calls.push(name); throw new Error(name); };
+    const result = await captureCli(args, {
+      io: {
+        privateRoot: "/synthetic/private",
+        readJson: trap("read"),
+        preflightWrite: trap("preflight"),
+        writeJsonAtomic: trap("write"),
+      },
+      loadChromium: trap("chromium"),
+      produceSelectorObservation: trap("producer"),
+    });
+    assert.equal(result.exitCode, 2, args.join(" "));
+    assert.deepEqual(calls, []);
+  }
+});
+
+test("selector-observe re-attests injected producer output before the fixed atomic write", async (t) => {
+  const { root, io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  await captureCli(["runtime", "--url", "https://app.nuanu.com"], { io });
+  const bundle = await installRuntimeContractInputs(root, io, { accepted: false });
+  const observationPath = join(root, "product-graph/current/runtime-selector-observation.v1.json");
+  await rm(observationPath);
+  await rm(join(root, "product-graph/selector-bindings.v1.json"));
+  const malformed = structuredClone(bundle.observation);
+  malformed.privateCredential = "must-not-be-written-or-printed";
+
+  const result = await captureCli(["selector-observe", "--url", "https://app.nuanu.com"], {
+    io,
+    loadChromium: async () => ({}),
+    produceSelectorObservation: async () => malformed,
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.stdout, "");
+  assert.equal(parseLine(result.stderr).errors[0].code, "RUNTIME_CONTRACT_SCHEMA_MISMATCH");
+  assert.equal(result.stderr.includes("Credential"), false);
+  await assert.rejects(() => lstat(observationPath), { code: "ENOENT" });
+});
+
+test("contract-candidate reads fixed reviewed siblings, launches no browser, and writes only the fixed unaccepted candidate", async (t) => {
+  const { root, io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  await captureCli(["runtime", "--url", "https://app.nuanu.com"], { io });
+  const bundle = await installRuntimeContractInputs(root, io, { accepted: false });
+  let browserLoaded = false;
+
+  const result = await captureCli(["contract-candidate"], {
+    io,
+    loadChromium: async () => { browserLoaded = true; throw new Error("must not load browser"); },
+  });
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(browserLoaded, false);
+  assert.deepEqual(JSON.parse(await readFile(
+    join(root, "product-graph/current/runtime-contract.candidate.v1.json"),
+    "utf8",
+  )), bundle.contract);
+  await assert.rejects(
+    () => lstat(join(root, "product-graph/current/runtime-contract.v1.json")),
+    { code: "ENOENT" },
+  );
+  assert.deepEqual(parseLine(result.stdout), {
+    ok: true,
+    command: "contract-candidate",
+    artifacts: ["product-graph/current/runtime-contract.candidate.v1.json"],
+    observationDigest: bundle.contract.selectorEvidence.observationDigest,
+    bindingDigest: bundle.contract.selectorEvidence.bindingDigest,
+  });
+  assert.equal(result.stdout.includes("Synthetic"), false);
+  assert.equal(result.stdout.includes(root), false);
+});
+
+test("contract-candidate re-attests injected builder output before the fixed atomic write", async (t) => {
+  const { root, io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  await captureCli(["runtime", "--url", "https://app.nuanu.com"], { io });
+  const bundle = await installRuntimeContractInputs(root, io, { accepted: false });
+  const malformed = structuredClone(bundle.contract);
+  malformed.privateCredential = "must-not-be-written-or-printed";
+  const candidatePath = join(root, "product-graph/current/runtime-contract.candidate.v1.json");
+
+  const result = await captureCli(["contract-candidate"], {
+    io,
+    createContractCandidate: () => malformed,
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.stdout, "");
+  assert.equal(parseLine(result.stderr).errors[0].code, "RUNTIME_CONTRACT_SCHEMA_MISMATCH");
+  assert.equal(result.stderr.includes("Credential"), false);
+  await assert.rejects(() => lstat(candidatePath), { code: "ENOENT" });
+});
+
+test("contract-candidate fails closed on missing or malformed reviewed inputs without creating a candidate", async (t) => {
+  for (const { missing, code } of [
+    { missing: "runtime-catalog.json", code: "MISSING_RUNTIME_CATALOG" },
+    { missing: "runtime-selector-observation.v1.json", code: "MISSING_SELECTOR_OBSERVATION" },
+    { missing: "selector-capture-plan.v1.json", code: "MISSING_SELECTOR_CAPTURE_PLAN" },
+    { missing: "selector-bindings.v1.json", code: "MISSING_SELECTOR_BINDINGS" },
+  ]) {
+    const { root, io } = await privateFixture(t);
+    await captureCli(["init"], { io });
+    await captureCli(["runtime", "--url", "https://app.nuanu.com"], { io });
+    await installRuntimeContractInputs(root, io, { accepted: false });
+    const missingPath = missing.startsWith("selector-")
+      ? join(root, "product-graph", missing)
+      : join(root, "product-graph/current", missing);
+    await rm(missingPath);
+
+    const result = await captureCli(["contract-candidate"], { io });
+    assert.equal(result.exitCode, 1, missing);
+    assert.equal(parseLine(result.stderr).errors[0].code, code);
+    assert.equal(result.stderr.includes(root), false);
+    await assert.rejects(
+      () => lstat(join(root, "product-graph/current/runtime-contract.candidate.v1.json")),
+      { code: "ENOENT" },
+    );
+  }
+});
+
+test("validate exits one and prints stable validation codes without leaking private paths", async (t) => {
+  const { root, io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  const result = await captureCli(["validate"], { io });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.stdout, "");
+  const failure = parseLine(result.stderr);
+  assert.equal(failure.command, "validate");
+  assert.equal(failure.errors[0].code, "MISSING_RUNTIME_CATALOG");
+  assert.equal(result.stderr.includes(root), false);
+});
+
+test("validate requires every reviewed runtime-contract artifact and never writes a graph for missing evidence", async (t) => {
+  for (const { missing, code } of [
+    { missing: "runtime-contract.v1.json", code: "MISSING_RUNTIME_CONTRACT" },
+    { missing: "runtime-selector-observation.v1.json", code: "MISSING_SELECTOR_OBSERVATION" },
+    { missing: "selector-capture-plan.v1.json", code: "MISSING_SELECTOR_CAPTURE_PLAN" },
+    { missing: "selector-bindings.v1.json", code: "MISSING_SELECTOR_BINDINGS" },
+  ]) {
+    const { root, io } = await privateFixture(t);
+    await captureCli(["init"], { io });
+    await captureCli(["runtime", "--url", "https://app.nuanu.com"], { io });
+    await installRuntimeContractInputs(root, io);
+    const missingPath = missing.startsWith("selector-")
+      ? join(root, "product-graph", missing)
+      : join(root, "product-graph/current", missing);
+    await rm(missingPath);
+
+    const result = await captureCli(["validate"], { io });
+
+    assert.equal(result.exitCode, 1, missing);
+    assert.equal(parseLine(result.stderr).errors[0].code, code);
+    assert.equal(result.stderr.includes(root), false);
+    await assert.rejects(
+      () => lstat(join(root, "product-graph/current/graph.json")),
+      { code: "ENOENT" },
+    );
+  }
+});
+
+test("validate reports stale accepted runtime evidence as stable UNVERIFIED codes without leaking values", async (t) => {
+  const { root, io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  await captureCli(["runtime", "--url", "https://app.nuanu.com"], { io });
+  const bundle = await installRuntimeContractInputs(root, io);
+  const contractPath = join(root, "product-graph/current/runtime-contract.v1.json");
+  const contract = structuredClone(bundle.contract);
+  contract.selectorEvidence.bindingDigest = "f".repeat(64);
+  await io.writeJsonAtomic(contractPath, contract);
+
+  const result = await captureCli(["validate"], { io });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "RUNTIME_CONTRACT_DIGEST_MISMATCH");
+  assert.equal(result.stderr.includes("Synthetic"), false);
+  assert.equal(result.stderr.includes(root), false);
+  await assert.rejects(
+    () => lstat(join(root, "product-graph/current/graph.json")),
+    { code: "ENOENT" },
+  );
+});
+
+test("validate discovers and deduplicates all nine current IDs then builds an attested graph", async (t) => {
+  const { root } = await bootstrapGraph(t);
+  const graph = JSON.parse(await readFile(join(root, "product-graph/current/graph.json"), "utf8"));
+  const tests = graph.nodes.filter((node) => node.kind === "automated_test");
+  assert.deepEqual(tests.map((node) => node.id), [...TEST_IDS].sort());
+  assert.ok(tests.every((node) => node.execution === "automated" && node.safety === "read_only"));
+  assert.equal(graph.edges.filter((edge) => edge.kind === "verifies").length, 9);
+  assert.match(graph.graphDigest, /^[a-f0-9]{64}$/);
+});
+
+test("validated graph durably binds the accepted contract, selector observation, capture plan, and bindings", async (t) => {
+  const { root, io } = await bootstrapGraph(t);
+  const graphPath = join(root, "product-graph/current/graph.json");
+  const graph = JSON.parse(await readFile(graphPath, "utf8"));
+  assert.deepEqual(Object.keys(graph.inputDigests).sort(), [
+    "reviewedMappings",
+    "runtimeCatalog",
+    "runtimeContract",
+    "selectorBindings",
+    "selectorCapturePlan",
+    "selectorObservation",
+    "sourceLock",
+    "testCatalog",
+  ]);
+  const originalBytes = await readFile(graphPath);
+  const originalObservation = JSON.parse(await readFile(
+    join(root, "product-graph/current/runtime-selector-observation.v1.json"),
+    "utf8",
+  ));
+  const alternative = await installRuntimeContractInputs(root, io, {
+    observedAt: "2026-08-26T07:59:00.000Z",
+  });
+  assert.notEqual(
+    alternative.observation.observationDigest,
+    originalObservation.observationDigest,
+  );
+
+  const result = await captureCli(["validate"], { io });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "STALE_GRAPH");
+  assert.deepEqual(await readFile(graphPath), originalBytes);
+});
+
+test("validate --refresh explicitly replaces a legitimate stale mode graph", async (t) => {
+  const { root, io } = await bootstrapGraph(t);
+  const graphPath = join(root, "product-graph/current/graph.json");
+  const originalGraphBytes = await readFile(graphPath);
+  await installSourceInputs(root, io);
+  const discoveryInvocations = [];
+  let forbiddenDependencyCalled = false;
+  const dependencies = {
+    io,
+    async discoverPlaywright(invocation) {
+      discoveryInvocations.push(invocation);
+      assert.equal(invocation.args.filter((value) => value === "--list").length, 1);
+      return playwrightList();
+    },
+    async loadChromium() {
+      forbiddenDependencyCalled = true;
+      throw new Error("validate must not load Chromium");
+    },
+    async observeRuntime() {
+      forbiddenDependencyCalled = true;
+      throw new Error("validate must not observe runtime");
+    },
+    async attestRepository() {
+      forbiddenDependencyCalled = true;
+      throw new Error("validate must not inspect a repository");
+    },
+    async buildSourceLock() {
+      forbiddenDependencyCalled = true;
+      throw new Error("validate must not rebuild a source lock");
+    },
+    async git() {
+      forbiddenDependencyCalled = true;
+      throw new Error("validate must not run Git");
+    },
+  };
+
+  const defaultResult = await captureCli(["validate"], dependencies);
+  assert.equal(defaultResult.exitCode, 1);
+  assert.equal(parseLine(defaultResult.stderr).errors[0].code, "STALE_GRAPH");
+  assert.deepEqual(await readFile(graphPath), originalGraphBytes);
+
+  const refreshedResult = await captureCli(["validate", "--refresh"], dependencies);
+  assert.equal(refreshedResult.exitCode, 0, refreshedResult.stderr);
+  assert.equal(refreshedResult.stderr, "");
+  const summary = parseLine(refreshedResult.stdout);
+  assert.equal(summary.refreshed, true);
+  assert.deepEqual(Object.keys(summary).sort(), [
+    "artifacts", "command", "edgeCount", "graphDigest", "nodeCount", "ok",
+    "refreshed", "testCount",
+  ]);
+  assert.equal(refreshedResult.stdout.includes("apps/nuanu-web"), false);
+  assert.equal(refreshedResult.stdout.includes("bbbbbbbb"), false);
+  const refreshedGraphBytes = await readFile(graphPath);
+  assert.notDeepEqual(refreshedGraphBytes, originalGraphBytes);
+  const refreshedGraph = JSON.parse(refreshedGraphBytes.toString("utf8"));
+  assert.ok(refreshedGraph.nodes.some((node) =>
+    node.id === "nuanu-app:source:apps/nuanu-web/src/app.ts"));
+
+  const repeated = await captureCli(["validate"], dependencies);
+  assert.equal(repeated.exitCode, 0, repeated.stderr);
+  assert.equal(Object.hasOwn(parseLine(repeated.stdout), "refreshed"), false);
+  assert.equal(discoveryInvocations.length, 3);
+  assert.equal(forbiddenDependencyCalled, false);
+});
+
+test("validate --refresh explicitly migrates only a canonical self-valid four-digest legacy graph", async (t) => {
+  const { root, io } = await bootstrapGraph(t);
+  const graphPath = join(root, "product-graph/current/graph.json");
+  const legacy = JSON.parse(await readFile(graphPath, "utf8"));
+  for (const field of [
+    "runtimeContract",
+    "selectorObservation",
+    "selectorCapturePlan",
+    "selectorBindings",
+  ]) {
+    delete legacy.inputDigests[field];
+  }
+  legacy.graphDigest = storedGraphDigest(legacy);
+  await io.writeJsonAtomic(graphPath, legacy);
+  const legacyBytes = await readFile(graphPath);
+
+  const ordinary = await captureCli(["validate"], { io });
+  assert.equal(ordinary.exitCode, 1);
+  assert.equal(parseLine(ordinary.stderr).errors[0].code, "STALE_GRAPH");
+  assert.deepEqual(await readFile(graphPath), legacyBytes);
+
+  const migrated = await captureCli(["validate", "--refresh"], { io });
+  assert.equal(migrated.exitCode, 0, migrated.stderr);
+  assert.equal(parseLine(migrated.stdout).refreshed, true);
+  const refreshed = JSON.parse(await readFile(graphPath, "utf8"));
+  assert.deepEqual(Object.keys(refreshed.inputDigests).sort(), [
+    "reviewedMappings",
+    "runtimeCatalog",
+    "runtimeContract",
+    "selectorBindings",
+    "selectorCapturePlan",
+    "selectorObservation",
+    "sourceLock",
+    "testCatalog",
+  ]);
+
+  delete refreshed.inputDigests.runtimeContract;
+  delete refreshed.inputDigests.sourceLock;
+  refreshed.graphDigest = storedGraphDigest(refreshed);
+  await io.writeJsonAtomic(graphPath, refreshed);
+  const malformedLegacyBytes = await readFile(graphPath);
+  const rejected = await captureCli(["validate", "--refresh"], { io });
+  assert.equal(rejected.exitCode, 1);
+  assert.equal(parseLine(rejected.stderr).errors[0].code, "STALE_GRAPH");
+  assert.deepEqual(await readFile(graphPath), malformedLegacyBytes);
+});
+
+test("validate --refresh requires an existing structurally valid product graph", async (t) => {
+  for (const mutation of ["shape", "product", "null"]) {
+    const { root, io } = await bootstrapGraph(t);
+    const graphPath = join(root, "product-graph/current/graph.json");
+    const graph = JSON.parse(await readFile(graphPath, "utf8"));
+    let invalidGraph;
+    if (mutation === "shape") {
+      invalidGraph = [graph];
+    } else if (mutation === "null") {
+      invalidGraph = null;
+    } else {
+      graph.productId = "foreign-product";
+      const semantic = structuredClone(graph);
+      delete semantic.graphDigest;
+      delete semantic.generatedAt;
+      graph.graphDigest = digestJson(semantic);
+      invalidGraph = graph;
+    }
+    await io.writeJsonAtomic(graphPath, invalidGraph);
+    const invalidBytes = await readFile(graphPath);
+
+    const result = await captureCli(["validate", "--refresh"], { io });
+    assert.equal(result.exitCode, 1, mutation);
+    assert.equal(parseLine(result.stderr).errors[0].code, "STALE_GRAPH");
+    assert.deepEqual(await readFile(graphPath), invalidBytes);
+  }
+
+  const { root, io } = await bootstrapGraph(t);
+  const graphPath = join(root, "product-graph/current/graph.json");
+  await rm(graphPath);
+  const missing = await captureCli(["validate", "--refresh"], { io });
+  assert.equal(missing.exitCode, 1);
+  assert.equal(parseLine(missing.stderr).errors[0].code, "MISSING_GRAPH");
+  await assert.rejects(() => lstat(graphPath), { code: "ENOENT" });
+});
+
+test("validate --refresh rejects rehashed graphs outside the canonical persisted envelope", async (t) => {
+  const attacks = [
+    {
+      name: "missing required input digests and unresolved fields",
+      mutate(graph) {
+        delete graph.inputDigests;
+        delete graph.unresolved;
+      },
+    },
+    {
+      name: "unknown semantic top-level field",
+      mutate(graph) {
+        graph.reviewedSemanticOverride = { approved: true };
+      },
+    },
+    {
+      name: "missing canonical input digest key",
+      mutate(graph) {
+        delete graph.inputDigests.sourceLock;
+      },
+    },
+    {
+      name: "extra input digest key",
+      mutate(graph) {
+        graph.inputDigests.extra = "a".repeat(64);
+      },
+    },
+    {
+      name: "non-lowercase input digest",
+      mutate(graph) {
+        graph.inputDigests.runtimeCatalog = graph.inputDigests.runtimeCatalog.toUpperCase();
+      },
+    },
+    {
+      name: "non-array unresolved field",
+      mutate(graph) {
+        graph.unresolved = {};
+      },
+    },
+  ];
+
+  for (const attack of attacks) {
+    const { root, io } = await bootstrapGraph(t);
+    const graphPath = join(root, "product-graph/current/graph.json");
+    const graph = JSON.parse(await readFile(graphPath, "utf8"));
+    attack.mutate(graph);
+    graph.graphDigest = storedGraphDigest(graph);
+    await io.writeJsonAtomic(graphPath, graph);
+    const attackedBytes = await readFile(graphPath);
+
+    const result = await captureCli(["validate", "--refresh"], { io });
+    assert.equal(result.exitCode, 1, attack.name);
+    assert.equal(result.stdout, "", attack.name);
+    assert.equal(parseLine(result.stderr).errors[0].code, "STALE_GRAPH", attack.name);
+    assert.deepEqual(await readFile(graphPath), attackedBytes, attack.name);
+    assert.deepEqual(
+      transactionLeftovers(await readdir(dirname(graphPath))),
+      [],
+      attack.name,
+    );
+  }
+});
+
+test("validate --refresh rejects array-coerced stored graph digests", async (t) => {
+  const attacks = [
+    {
+      name: "sourceLock input digest array",
+      mutate(graph) {
+        graph.inputDigests.sourceLock = [graph.inputDigests.sourceLock];
+        graph.graphDigest = storedGraphDigest(graph);
+      },
+    },
+    {
+      name: "runtimeCatalog input digest array",
+      mutate(graph) {
+        graph.inputDigests.runtimeCatalog = [graph.inputDigests.runtimeCatalog];
+        graph.graphDigest = storedGraphDigest(graph);
+      },
+    },
+    {
+      name: "reviewedMappings input digest array",
+      mutate(graph) {
+        graph.inputDigests.reviewedMappings = [graph.inputDigests.reviewedMappings];
+        graph.graphDigest = storedGraphDigest(graph);
+      },
+    },
+    {
+      name: "testCatalog input digest array",
+      mutate(graph) {
+        graph.inputDigests.testCatalog = [graph.inputDigests.testCatalog];
+        graph.graphDigest = storedGraphDigest(graph);
+      },
+    },
+    {
+      name: "graph digest array",
+      mutate(graph) {
+        graph.graphDigest = [graph.graphDigest];
+      },
+    },
+  ];
+
+  for (const attack of attacks) {
+    const { root, io } = await bootstrapGraph(t);
+    const graphPath = join(root, "product-graph/current/graph.json");
+    const graph = JSON.parse(await readFile(graphPath, "utf8"));
+    attack.mutate(graph);
+    await io.writeJsonAtomic(graphPath, graph);
+    const attackedBytes = await readFile(graphPath);
+
+    const result = await captureCli(["validate", "--refresh"], { io });
+    assert.equal(result.exitCode, 1, attack.name);
+    assert.equal(result.stdout, "", attack.name);
+    assert.equal(parseLine(result.stderr).errors[0].code, "STALE_GRAPH", attack.name);
+    assert.deepEqual(await readFile(graphPath), attackedBytes, attack.name);
+    assert.deepEqual(
+      transactionLeftovers(await readdir(dirname(graphPath))),
+      [],
+      attack.name,
+    );
+  }
+});
+
+test("validate --refresh never bypasses malformed current inputs or path and test safety", async (t) => {
+  {
+    const { root, io } = await bootstrapGraph(t);
+    const graphPath = join(root, "product-graph/current/graph.json");
+    const originalGraphBytes = await readFile(graphPath);
+    const secret = "credential-token-73f9";
+    await installSourceInputs(root, io, { sourcePath: `../${secret}` });
+    const result = await captureCli(["validate", "--refresh"], { io });
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr.includes(secret), false);
+    assert.equal(result.stderr.includes(root), false);
+    assert.deepEqual(await readFile(graphPath), originalGraphBytes);
+  }
+
+  {
+    const { root, io } = await bootstrapGraph(t);
+    const graphPath = join(root, "product-graph/current/graph.json");
+    const originalGraphBytes = await readFile(graphPath);
+    await installSourceInputs(root, io, { automatedTestId: TEST_IDS.at(-1) });
+    const result = await captureCli(["validate", "--refresh"], {
+      io,
+      discoverPlaywright: async () => playwrightList({ omitLast: true }),
+    });
+    assert.equal(result.exitCode, 1);
+    assert.deepEqual(await readFile(graphPath), originalGraphBytes);
+  }
+
+  {
+    const { root, io } = await bootstrapGraph(t);
+    const graphPath = join(root, "product-graph/current/graph.json");
+    const originalGraphBytes = await readFile(graphPath);
+    const runtimePath = join(root, "product-graph/current/runtime-catalog.json");
+    const runtime = JSON.parse(await readFile(runtimePath, "utf8"));
+    runtime.routes.push("/?credential=not-retained");
+    await io.writeJsonAtomic(runtimePath, runtime);
+    const result = await captureCli(["validate", "--refresh"], { io });
+    assert.equal(result.exitCode, 1);
+    assert.equal(parseLine(result.stderr).errors[0].code, "STALE_RUNTIME_CATALOG");
+    assert.equal(result.stderr.includes("credential"), false);
+    assert.deepEqual(await readFile(graphPath), originalGraphBytes);
+  }
+});
+
+test("validate rejects stale runtime mappings graph and test discovery attestations", async (t) => {
+  const { root, io } = await bootstrapGraph(t);
+  const graphPath = join(root, "product-graph/current/graph.json");
+  const graph = JSON.parse(await readFile(graphPath, "utf8"));
+  graph.graphDigest = "a".repeat(64);
+  await io.writeJsonAtomic(graphPath, graph);
+  let result = await captureCli(["validate"], { io });
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "STALE_GRAPH");
+
+  await rm(graphPath);
+  const runtimePath = join(root, "product-graph/current/runtime-catalog.json");
+  const runtime = JSON.parse(await readFile(runtimePath, "utf8"));
+  runtime.routes.push("/tampered");
+  await io.writeJsonAtomic(runtimePath, runtime);
+  result = await captureCli(["validate"], { io });
+  assert.equal(parseLine(result.stderr).errors[0].code, "STALE_RUNTIME_CATALOG");
+
+  await captureCli(["runtime", "--url", "https://app.nuanu.com"], { io });
+  await captureCli(["validate"], { io });
+  result = await captureCli(["validate"], {
+    io,
+    discoverPlaywright: async () => playwrightList({ omitLast: true }),
+  });
+  assert.equal(parseLine(result.stderr).errors[0].code, "STALE_TEST_CATALOG");
+});
+
+test("stored graph attestation recursively ignores timestamp metadata but rejects semantic mutation", async (t) => {
+  const { root, io } = await bootstrapGraph(t);
+  const graphPath = join(root, "product-graph/current/graph.json");
+  let graph = JSON.parse(await readFile(graphPath, "utf8"));
+  graph.reviewObservedAt = "2026-08-26T08:00:00.000Z";
+  graph.nodes[0].observedAt = "2026-08-26T08:00:00.000Z";
+  await io.writeJsonAtomic(graphPath, graph);
+
+  let result = await captureCli(["validate"], { io });
+  assert.equal(result.exitCode, 0, result.stderr);
+  result = await captureCli(["validate"], { io });
+  assert.equal(result.exitCode, 0, result.stderr);
+
+  graph = JSON.parse(await readFile(graphPath, "utf8"));
+  graph.nodes[0].review = { evidence: { reviewer: "semantic mutation" } };
+  await io.writeJsonAtomic(graphPath, graph);
+  result = await captureCli(["validate"], { io });
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "STALE_GRAPH");
+});
+
+test("mapping digest is canonical across reordered semantic arrays", () => {
+  const base = {
+    schemaVersion: 1,
+    productId: "nuanu-app",
+    repositoryUrl: EXPECTED_REMOTE,
+    sourceRoots: ["packages/ui", "apps/nuanu-web"],
+    nodes: [
+      { id: "nuanu-app:route:z", kind: "route", provenance: "source", coverageDisposition: "UNVERIFIED" },
+      { id: "nuanu-app:route:a", kind: "route", provenance: "source", coverageDisposition: "UNVERIFIED" },
+    ],
+    edges: [
+      { source: TEST_IDS[1], kind: "verifies", target: "nuanu-app:route:z" },
+      { source: TEST_IDS[0], kind: "verifies", target: "nuanu-app:route:a" },
+    ],
+    mappings: [],
+    no_product_impact: [
+      { path: "README.md", reason: "docs" },
+      { path: "LICENSE", reason: "metadata" },
+    ],
+    unresolved: [{ id: "z" }, { id: "a" }],
+  };
+  const reordered = structuredClone(base);
+  for (const key of ["sourceRoots", "nodes", "edges", "no_product_impact", "unresolved"]) {
+    reordered[key].reverse();
+  }
+  assert.equal(computeMappingDigest(base), computeMappingDigest(reordered));
+});
+
+test("mapping digest rejects unknown top-level fields and covers allowed nested semantics", () => {
+  const mappings = starterMappingsFixture();
+  const withUnknown = structuredClone(mappings);
+  withUnknown.reviewedButUndigested = { approval: "must not be dropped" };
+  assert.throws(() => computeMappingDigest(withUnknown), { code: "INVALID_MAPPINGS" });
+
+  const nestedMutation = structuredClone(mappings);
+  nestedMutation.nodes[0].reviewedRisk = "changed";
+  assert.notEqual(computeMappingDigest(nestedMutation), computeMappingDigest(mappings));
+});
+
+test("source-lock rejects an unknown mapping field before repository inspection", async (t) => {
+  const { root, io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  const mappingsPath = join(root, "product-graph/mappings.v1.json");
+  const mappings = JSON.parse(await readFile(mappingsPath, "utf8"));
+  mappings.reviewedButUndigested = { semantic: true };
+  await io.writeJsonAtomic(mappingsPath, mappings);
+  let inspected = false;
+
+  const result = await captureCli(["source-lock", "--repo", "/synthetic/repo"], {
+    io,
+    attestRepository: async () => { inspected = true; return "/synthetic/repo"; },
+  });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_MAPPINGS");
+  assert.equal(inspected, false);
+});
+
+test("source-lock rejects dirty wrong-remote and symlink-escaping synthetic repositories", async (t) => {
+  for (const options of [
+    { dirty: true, code: "DIRTY_CHECKOUT" },
+    { remote: "https://example.test/wrong.git", code: "UNEXPECTED_REMOTE" },
+  ]) {
+    const repoPath = await sourceRepository(t, options);
+    const { io } = await privateFixture(t);
+    await captureCli(["init"], { io });
+    const result = await captureCli(["source-lock", "--repo", repoPath], { io });
+    assert.equal(result.exitCode, 1);
+    assert.equal(parseLine(result.stderr).errors[0].code, options.code);
+  }
+
+  const repoPath = await sourceRepository(t);
+  const linkParent = await mkdtemp(join(tmpdir(), "napp-cli-repo-link-"));
+  t.after(() => rm(linkParent, { recursive: true, force: true }));
+  const linkedRepo = join(linkParent, "repo");
+  await symlink(repoPath, linkedRepo);
+  const { io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  const result = await captureCli(["source-lock", "--repo", linkedRepo], { io });
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "SYMLINK_REPOSITORY_REJECTED");
+
+  const linkedParent = join(linkParent, "parent");
+  await symlink(dirname(repoPath), linkedParent);
+  const nestedLinkedRepo = join(linkedParent, basename(repoPath));
+  const nestedResult = await captureCli(["source-lock", "--repo", nestedLinkedRepo], { io });
+  assert.equal(nestedResult.exitCode, 1);
+  assert.equal(parseLine(nestedResult.stderr).errors[0].code, "SYMLINK_REPOSITORY_REJECTED");
+});
+
+test("source-lock validates mappings first and writes one attested source artifact", async (t) => {
+  const repoPath = await sourceRepository(t);
+  const { root, io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  const result = await captureCli(["source-lock", "--repo", repoPath], { io });
+  assert.equal(result.exitCode, 0, result.stderr);
+  const sourceLock = JSON.parse(await readFile(join(root, "product-graph/current/source-lock.json"), "utf8"));
+  assert.equal(sourceLock.commitSha, git(repoPath, ["rev-parse", "HEAD"]));
+  assert.equal(sourceLock.repositoryUrl, EXPECTED_REMOTE);
+  assert.match(sourceLock.mappingDigest, /^[a-f0-9]{64}$/);
+  assert.deepEqual((await readdir(join(root, "product-graph/current"))), ["source-lock.json"]);
+});
+
+test("source-lock validates source-and-runtime mappings against an attested runtime catalog", async (t) => {
+  const repoPath = await sourceRepository(t);
+  const { root, io } = await privateFixture(t);
+  await captureCli(["init"], { io });
+  await captureCli(["runtime", "--url", "https://app.nuanu.com"], { io });
+  const mappingsPath = join(root, "product-graph/mappings.v1.json");
+  const mappings = JSON.parse(await readFile(mappingsPath, "utf8"));
+  mappings.mappings = [{
+    sourcePath: "apps/nuanu-web/src/app.ts",
+    nodeId: "nuanu-app:route:root",
+    automatedTestIds: [TEST_IDS[0]],
+    edges: [{
+      source: "nuanu-app:source:apps/nuanu-web/src/app.ts",
+      kind: "implements",
+      target: "nuanu-app:route:root",
+    }],
+    provenance: "source_and_runtime",
+    coverageDisposition: "AUTOMATED",
+  }];
+  await io.writeJsonAtomic(mappingsPath, mappings);
+
+  const result = await captureCli(["source-lock", "--repo", repoPath], { io });
+
+  assert.equal(result.exitCode, 0, result.stderr);
+  const sourceLock = JSON.parse(await readFile(join(root, "product-graph/current/source-lock.json"), "utf8"));
+  assert.equal(sourceLock.mappingDigest, computeMappingDigest(mappings));
+});
+
+test("runtime-only plan emits the exact empty impact and safe nine-test fallback", async (t) => {
+  const { root, io } = await bootstrapGraph(t);
+  const result = await captureCli(["plan", "--runtime-only", "--dry-run"], { io });
+  assert.equal(result.exitCode, 0, result.stderr);
+  const impact = JSON.parse(await readFile(join(root, "product-graph/current/impact.json"), "utf8"));
+  const plan = JSON.parse(await readFile(join(root, "product-graph/current/test-plan.json"), "utf8"));
+  assert.deepEqual(impact, RUNTIME_ONLY_IMPACT);
+  assert.deepEqual(plan.selectedAutomated.map((entry) => entry.id), [...TEST_IDS].sort());
+  assert.equal(plan.fallbackApplied, true);
+  const summary = parseLine(result.stdout);
+  assert.equal(summary.dryRun, true);
+  assert.equal(summary.executed, false);
+  assert.equal(summary.mode, "runtime_only");
+});
+
+test("source plan checks candidate and source lock identity before diff", async (t) => {
+  const { io } = await bootstrapGraph(t);
+  const repo = resolve(tmpdir(), "synthetic-repo");
+  const from = "a".repeat(40);
+  const to = "b".repeat(40);
+  const calls = [];
+  const result = await captureCli([
+    "plan", "--repo", repo, "--from", from, "--to", to, "--dry-run",
+  ], {
+    io,
+    attestRepository: async () => repo,
+    git: async (_repo, args) => {
+      calls.push(args);
+      if (args[0] === "rev-parse" && args[1] === "HEAD") return `${"c".repeat(40)}\n`;
+      return "";
+    },
+  });
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "CANDIDATE_HEAD_MISMATCH");
+  assert.equal(calls.some((args) => args[0] === "diff"), false);
+});
+
+test("source diff preserves deletions and NUL paths while splitting exact no-impact entries", async (t) => {
+  const { root, io } = await bootstrapGraph(t);
+  const mappingsPath = join(root, "product-graph/mappings.v1.json");
+  const mappings = JSON.parse(await readFile(mappingsPath, "utf8"));
+  mappings.no_product_impact = [{ path: "apps/nuanu-web/README.md", reason: "docs only" }];
+  await io.writeJsonAtomic(mappingsPath, mappings);
+  const sourceLock = {
+    productId: "nuanu-app",
+    repositoryUrl: EXPECTED_REMOTE,
+    commitSha: "b".repeat(40),
+    clean: true,
+    sourceRoots: ["apps/nuanu-web"],
+    contentDigest: "c".repeat(64),
+    mappingDigest: computeMappingDigest(mappings),
+  };
+  await io.writeJsonAtomic(join(root, "product-graph/current/source-lock.json"), sourceLock);
+  await rm(join(root, "product-graph/current/graph.json"));
+  assert.equal((await captureCli(["validate"], { io })).exitCode, 0);
+  const log = [];
+  const result = await captureCli([
+    "plan", "--repo", "/synthetic/repo", "--from", "a".repeat(40), "--to", "b".repeat(40), "--dry-run",
+  ], {
+    io,
+    attestRepository: async (value) => value,
+    buildSourceLock: async () => sourceLock,
+    git: async (_repo, args, options) => {
+      log.push({ args, options });
+      if (args[0] === "rev-parse") return `${"b".repeat(40)}\n`;
+      if (args[0] === "cat-file") return "";
+      if (args[0] === "diff") {
+        return Buffer.from("apps/nuanu-web/README.md\0apps/nuanu-web/src/deleted.ts\0");
+      }
+      throw new Error("unexpected Git command");
+    },
+  });
+  assert.equal(result.exitCode, 0, result.stderr);
+  const impact = JSON.parse(await readFile(join(root, "product-graph/current/impact.json"), "utf8"));
+  assert.deepEqual(impact.changedFiles, [
+    "apps/nuanu-web/README.md", "apps/nuanu-web/src/deleted.ts",
+  ]);
+  assert.deepEqual(impact.noProductImpact, [{
+    path: "apps/nuanu-web/README.md", reason: "docs only",
+  }]);
+  assert.deepEqual(impact.unmappedFiles, ["apps/nuanu-web/src/deleted.ts"]);
+  assert.equal((JSON.parse(await readFile(join(root, "product-graph/current/test-plan.json"), "utf8"))).fallbackApplied, true);
+  const diffCall = log.find((entry) => entry.args[0] === "diff");
+  assert.deepEqual(diffCall.args, [
+    "diff", "--name-only", "--no-renames", "-z", "--diff-filter=ACDMRTUXB",
+    "a".repeat(40), "b".repeat(40), "--",
+  ]);
+});
+
+test("zero-diff and all-no-impact source plans do not apply source fallback", async (t) => {
+  for (const changed of [Buffer.alloc(0), Buffer.from("apps/nuanu-web/README.md\0")]) {
+    const { root, io } = await bootstrapGraph(t);
+    const mappingsPath = join(root, "product-graph/mappings.v1.json");
+    const mappings = JSON.parse(await readFile(mappingsPath, "utf8"));
+    mappings.no_product_impact = [{ path: "apps/nuanu-web/README.md", reason: "docs" }];
+    await io.writeJsonAtomic(mappingsPath, mappings);
+    const lock = {
+      productId: "nuanu-app", repositoryUrl: EXPECTED_REMOTE,
+      commitSha: "b".repeat(40), clean: true, sourceRoots: ["apps/nuanu-web"],
+      contentDigest: "c".repeat(64), mappingDigest: computeMappingDigest(mappings),
+    };
+    await io.writeJsonAtomic(join(root, "product-graph/current/source-lock.json"), lock);
+    await rm(join(root, "product-graph/current/graph.json"));
+    assert.equal((await captureCli(["validate"], { io })).exitCode, 0);
+    const result = await captureCli([
+      "plan", "--repo", "/synthetic/repo", "--from", "a".repeat(40), "--to", "b".repeat(40), "--dry-run",
+    ], {
+      io, attestRepository: async (value) => value, buildSourceLock: async () => lock,
+      git: async (_repo, args) => {
+        if (args[0] === "rev-parse") return `${"b".repeat(40)}\n`;
+        if (args[0] === "cat-file") return "";
+        if (args[0] === "diff") return changed;
+        throw new Error("unexpected Git command");
+      },
+    });
+    assert.equal(result.exitCode, 0, result.stderr);
+    const plan = JSON.parse(await readFile(join(root, "product-graph/current/test-plan.json"), "utf8"));
+    assert.equal(plan.fallbackApplied, false);
+  }
+});
+
+test("source diff rejects embedded control characters before planning", async (t) => {
+  const { root, io } = await bootstrapGraph(t);
+  const mappings = JSON.parse(await readFile(join(root, "product-graph/mappings.v1.json"), "utf8"));
+  const lock = {
+    productId: "nuanu-app", repositoryUrl: EXPECTED_REMOTE,
+    commitSha: "b".repeat(40), clean: true, sourceRoots: ["apps/nuanu-web"],
+    contentDigest: "c".repeat(64), mappingDigest: computeMappingDigest(mappings),
+  };
+  await io.writeJsonAtomic(join(root, "product-graph/current/source-lock.json"), lock);
+  await rm(join(root, "product-graph/current/graph.json"));
+  assert.equal((await captureCli(["validate"], { io })).exitCode, 0);
+  const result = await captureCli([
+    "plan", "--repo", "/synthetic/repo", "--from", "a".repeat(40), "--to", "b".repeat(40), "--dry-run",
+  ], {
+    io, attestRepository: async (value) => value, buildSourceLock: async () => lock,
+    git: async (_repo, args) => {
+      if (args[0] === "rev-parse") return `${"b".repeat(40)}\n`;
+      if (args[0] === "cat-file") return "";
+      return Buffer.from("apps/nuanu-web/src/bad\npath.ts\0");
+    },
+  });
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_GIT_DIFF_PATH");
+});
+
+test("telemetry rebuilds the canonical private overlay and blocked selectors select nothing", async (t) => {
+  const { root, io } = await bootstrapGraph(t);
+  const overlay = await installBlockedTelemetryOverlay(root, io);
+  let result = await captureCli([
+    "plan", "--runtime-only", "--dry-run", "--telemetry-signals",
+    "docs/local/nuanu-app/telemetry/telemetry-signals.json",
+  ], { io });
+  assert.equal(result.exitCode, 0, result.stderr);
+  let plan = JSON.parse(await readFile(join(root, "product-graph/current/test-plan.json"), "utf8"));
+  assert.deepEqual(plan.telemetrySignals, overlay.signals);
+  assert.equal(plan.telemetrySignals[0].disposition, "blocked");
+  assert.ok(plan.selectedAutomated.every((entry) => entry.reason !== "telemetry_signal"));
+
+  result = await captureCli([
+    "plan", "--runtime-only", "--dry-run", "--telemetry-signals", join(root, "elsewhere.json"),
+  ], { io });
+  assert.equal(result.exitCode, 2);
+  assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_TELEMETRY_PATH");
+
+  const forgedSignals = structuredClone(overlay.signals);
+  forgedSignals[0].id = `napp-telemetry-v1-${"f".repeat(64)}`;
+  await io.writeJsonAtomic(overlay.paths.signals, forgedSignals);
+  result = await captureCli([
+    "plan", "--runtime-only", "--dry-run", "--telemetry-signals", overlay.paths.signals,
+  ], { io });
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_TELEMETRY_SIGNALS");
+
+  await io.writeJsonAtomic(overlay.paths.signals, overlay.signals);
+  const invalidMappings = structuredClone(overlay.mappings);
+  invalidMappings.entries[0].reviewEvidenceDigest = "not-a-digest";
+  await io.writeJsonAtomic(overlay.paths.mappings, invalidMappings);
+  result = await captureCli([
+    "plan", "--runtime-only", "--dry-run", "--telemetry-signals", overlay.paths.signals,
+  ], { io });
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_TELEMETRY_SIGNALS");
+
+  await io.writeJsonAtomic(overlay.paths.mappings, overlay.mappings);
+  const invalidCatalog = structuredClone(overlay.catalog);
+  invalidCatalog.provider = "not-posthog";
+  await io.writeJsonAtomic(overlay.paths.catalog, invalidCatalog);
+  result = await captureCli([
+    "plan", "--runtime-only", "--dry-run", "--telemetry-signals", overlay.paths.signals,
+  ], { io });
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_TELEMETRY_SIGNALS");
+
+  await io.writeJsonAtomic(overlay.paths.catalog, overlay.catalog);
+  await io.writeJsonAtomic(overlay.paths.accessLock, {
+    ...overlay.accessLock,
+    credential: "forbidden",
+  });
+  result = await captureCli([
+    "plan", "--runtime-only", "--dry-run", "--telemetry-signals", overlay.paths.signals,
+  ], { io });
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_TELEMETRY_SIGNALS");
+
+  await io.writeJsonAtomic(overlay.paths.accessLock, overlay.accessLock);
+  await rm(overlay.paths.mappings);
+  result = await captureCli([
+    "plan", "--runtime-only", "--dry-run", "--telemetry-signals", overlay.paths.signals,
+  ], { io });
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_TELEMETRY_SIGNALS");
+});
+
+test("invalid telemetry fails before replacing deterministic plan artifacts", async (t) => {
+  const { root, io } = await bootstrapGraph(t);
+  let result = await captureCli(["plan", "--runtime-only", "--dry-run"], { io });
+  assert.equal(result.exitCode, 0, result.stderr);
+  const current = join(root, "product-graph/current");
+  const artifactPaths = ["impact.json", "test-plan.json", "plan-commit.json"]
+    .map((name) => join(current, name));
+  const before = await Promise.all(artifactPaths.map((path) => readFile(path, "utf8")));
+  const overlay = await installBlockedTelemetryOverlay(root, io);
+  await io.writeJsonAtomic(overlay.paths.signals, { credential: "forbidden", rawRows: [] });
+
+  result = await captureCli([
+    "plan", "--runtime-only", "--dry-run", "--telemetry-signals", overlay.paths.signals,
+  ], { io });
+
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_TELEMETRY_SIGNALS");
+  assert.deepEqual(
+    await Promise.all(artifactPaths.map((path) => readFile(path, "utf8"))),
+    before,
+  );
+
+  await io.writeJsonAtomic(overlay.paths.signals, overlay.signals);
+  await writeFile(
+    overlay.paths.mappings,
+    JSON.stringify({ padding: "x".repeat(128 * 1024) }),
+  );
+  const boundedIo = createJsonIo({ privateRoot: root, maxBytes: 128 * 1024 });
+  result = await captureCli([
+    "plan", "--runtime-only", "--dry-run", "--telemetry-signals", overlay.paths.signals,
+  ], { io: boundedIo });
+  assert.equal(result.exitCode, 1);
+  assert.equal(parseLine(result.stderr).errors[0].code, "JSON_ARTIFACT_TOO_LARGE");
+  assert.deepEqual(
+    await Promise.all(artifactPaths.map((path) => readFile(path, "utf8"))),
+    before,
+  );
+});
+
+test("omitting telemetry preserves the deterministic plan and accepts no telemetry controls", async (t) => {
+  const { root, io } = await bootstrapGraph(t);
+  let result = await captureCli(["plan", "--runtime-only", "--dry-run"], { io });
+  assert.equal(result.exitCode, 0, result.stderr);
+  const planPath = join(root, "product-graph/current/test-plan.json");
+  const before = await readFile(planPath, "utf8");
+  const overlay = await installBlockedTelemetryOverlay(root, io);
+  await io.writeJsonAtomic(overlay.paths.accessLock, { credential: "forbidden" });
+
+  result = await captureCli(["plan", "--runtime-only", "--dry-run"], { io });
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.equal(await readFile(planPath, "utf8"), before);
+
+  for (const [option, value] of [
+    ["--host", "https://posthog.invalid"],
+    ["--credential", "secret"],
+    ["--query", "raw query"],
+    ["--raw-results", "rows.json"],
+  ]) {
+    result = await captureCli([
+      "plan", "--runtime-only", "--dry-run", option, value,
+    ], { io });
+    assert.equal(result.exitCode, 2);
+    assert.equal(parseLine(result.stderr).errors[0].code, "INVALID_ARGUMENTS");
+  }
+});
+
+test("plan writes impact then test plan and commits their exact digests last", async (t) => {
+  const events = [];
+  const { root, io } = await bootstrapGraph(t, {
+    ioOptions: { onEvent: (event) => {
+      if (event.type === "renamed") events.push(event.fileName);
+    } },
+  });
+  events.length = 0;
+  const result = await captureCli(["plan", "--runtime-only", "--dry-run"], { io });
+  assert.equal(result.exitCode, 0, result.stderr);
+  assert.deepEqual(events.slice(-3), ["impact.json", "test-plan.json", "plan-commit.json"]);
+  const impact = JSON.parse(await readFile(join(root, "product-graph/current/impact.json"), "utf8"));
+  const plan = JSON.parse(await readFile(join(root, "product-graph/current/test-plan.json"), "utf8"));
+  const marker = JSON.parse(await readFile(join(root, "product-graph/current/plan-commit.json"), "utf8"));
+  const graph = JSON.parse(await readFile(join(root, "product-graph/current/graph.json"), "utf8"));
+  assert.deepEqual(marker, {
+    schemaVersion: 1,
+    productId: "nuanu-app",
+    mode: "runtime_only",
+    graphDigest: graph.graphDigest,
+    impactDigest: digestJson(impact),
+    testPlanDigest: digestJson(plan),
+  });
+});
+
+test("failure writing the second plan artifact leaves no new commit marker or temp", async (t) => {
+  const fixture = await bootstrapGraph(t);
+  const markerPath = join(fixture.root, "product-graph/current/plan-commit.json");
+  await fixture.io.writeJsonAtomic(markerPath, { previous: true });
+  const failingIo = createJsonIo({
+    privateRoot: fixture.root,
+    operations: {
+      async rename(from, to, actualRename) {
+        if (to.endsWith("test-plan.json")) {
+          const error = new Error("synthetic second artifact failure");
+          error.code = "EIO";
+          throw error;
+        }
+        return actualRename(from, to);
+      },
+    },
+  });
+  const result = await captureCli(["plan", "--runtime-only", "--dry-run"], { io: failingIo });
+  assert.equal(result.exitCode, 1);
+  assert.deepEqual(JSON.parse(await readFile(markerPath, "utf8")), { previous: true });
+  assert.deepEqual((await readdir(dirname(markerPath))).filter((name) => name.endsWith(".tmp")), []);
+});
+
+test("plan marker is restored or removed when its post-rename directory-sync event fails", async (t) => {
+  for (const existing of [false, true]) {
+    const fixture = await bootstrapGraph(t);
+    const current = join(fixture.root, "product-graph/current");
+    const markerPath = join(current, "plan-commit.json");
+    const original = Buffer.from('{"previous":true}\n');
+    if (existing) await writeFile(markerPath, original, { mode: 0o600 });
+    let markerRenamed = false;
+    const failingIo = createJsonIo({
+      privateRoot: fixture.root,
+      onEvent(event) {
+        if (event.type === "renamed" && event.fileName === "plan-commit.json") {
+          markerRenamed = true;
+        } else if (markerRenamed && event.type === "directory-synced") {
+          const failure = new Error("synthetic marker directory sync event failure");
+          failure.code = "EIO";
+          throw failure;
+        }
+      },
+    });
+
+    const result = await captureCli(["plan", "--runtime-only", "--dry-run"], { io: failingIo });
+    assert.equal(result.exitCode, 1);
+    assert.equal(markerRenamed, true);
+    if (existing) assert.deepEqual(await readFile(markerPath), original);
+    else await assert.rejects(() => lstat(markerPath), { code: "ENOENT" });
+    assert.deepEqual(transactionLeftovers(await readdir(current)), []);
+  }
+});
+
+test("plan marker is restored or absent when rename succeeds then its wrapper throws", async (t) => {
+  for (const existing of [false, true]) {
+    const fixture = await bootstrapGraph(t);
+    const current = join(fixture.root, "product-graph/current");
+    const markerPath = join(current, "plan-commit.json");
+    const original = Buffer.from('{"previous":"byte-identical"}\n');
+    if (existing) await writeFile(markerPath, original, { mode: 0o600 });
+    let renamedMarker = false;
+    const failingIo = createJsonIo({
+      privateRoot: fixture.root,
+      operations: {
+        async rename(from, to, actualRename) {
+          await actualRename(from, to);
+          if (to === markerPath) {
+            renamedMarker = true;
+            const failure = new Error("synthetic marker rename wrapper failure after success");
+            failure.code = "EIO";
+            throw failure;
+          }
+        },
+      },
+    });
+
+    const result = await captureCli(["plan", "--runtime-only", "--dry-run"], { io: failingIo });
+    assert.equal(result.exitCode, 1);
+    assert.equal(renamedMarker, true);
+    if (existing) assert.deepEqual(await readFile(markerPath), original);
+    else await assert.rejects(() => lstat(markerPath), { code: "ENOENT" });
+    assert.deepEqual(transactionLeftovers(await readdir(current)), []);
+  }
+});
+
+test("spawn log permits only read-only Git commands and Playwright list discovery", async (t) => {
+  const { io } = await bootstrapGraph(t);
+  const repo = "/synthetic/repo";
+  const lock = {
+    productId: "nuanu-app", repositoryUrl: EXPECTED_REMOTE,
+    commitSha: "b".repeat(40), clean: true, sourceRoots: ["apps/nuanu-web"],
+    contentDigest: "c".repeat(64), mappingDigest: "d".repeat(64),
+  };
+  const log = [];
+  const result = await captureCli([
+    "plan", "--repo", repo, "--from", "a".repeat(40), "--to", "b".repeat(40), "--dry-run",
+  ], {
+    io,
+    attestRepository: async () => repo,
+    discoverPlaywright: async (invocation) => {
+      log.push({ kind: "playwright", invocation });
+      return playwrightList();
+    },
+    buildSourceLock: async (input) => {
+      log.push({ kind: "source-lock", input });
+      return { ...lock, mappingDigest: input.mappingDigest };
+    },
+    git: async (_repo, args, options) => {
+      log.push({ kind: "git", args, options });
+      if (args[0] === "rev-parse") return `${"b".repeat(40)}\n`;
+      if (args[0] === "cat-file") return "";
+      if (args[0] === "diff") return Buffer.alloc(0);
+      throw new Error("unapproved Git command");
+    },
+  });
+  assert.equal(result.exitCode, 1);
+  assert.equal(log.some((entry) => ["checkout", "fetch", "pull", "add", "commit", "push"].includes(entry.args?.[0])), false);
+  assert.ok(log.filter((entry) => entry.kind === "git").every((entry) =>
+    entry.options.env.GIT_OPTIONAL_LOCKS === "0" &&
+    entry.options.env.GIT_TERMINAL_PROMPT === "0" &&
+    entry.options.env.GIT_FSMONITOR_TEST === "0"));
+  assert.ok(log.filter((entry) => entry.kind === "playwright").every((entry) =>
+    entry.invocation.args.includes("--list") && !entry.invocation.args.some((arg) => arg === "--ui")));
+});

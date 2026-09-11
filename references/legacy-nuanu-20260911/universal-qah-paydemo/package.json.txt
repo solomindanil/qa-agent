@@ -1,0 +1,39 @@
+{
+  "name": "nuanuflowqa",
+  "version": "1.0.0",
+  "description": "Agent-driven QA platform: automated product testing with bug filing to Linear and fix-prompt generation",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build:paydemo": "PAYDEMO_VARIANT=fixed-v2 node scripts/build-paydemo.mjs",
+    "start:paydemo": "npm run build:paydemo && PAYDEMO_VARIANT=fixed-v2 node apps/paydemo/server.mjs",
+    "test:paydemo:harness": "node --test tests/paydemo-probe/*.mjs tests/paydemo-synthesize/*.mjs tests/paydemo-environment/*.mjs tests/paydemo-broker/*.mjs tests/paydemo-route/*.mjs",
+    "test:paydemo:broker": "node --test tests/paydemo-broker/*.mjs",
+    "test:paydemo:route": "node --test tests/paydemo-route/*.mjs",
+    "test:paydemo:provenance": "node --test tests/paydemo/build-provenance.test.mjs",
+    "test:paydemo:identity": "node --test tests/paydemo/server-identity.test.mjs",
+    "test:paydemo": "PAYDEMO_SUITE=fixed PAYDEMO_VARIANT=fixed-v2 playwright test --config=playwright.paydemo.config.ts",
+    "test:paydemo:bugs": "PAYDEMO_SUITE=controlled-bug PAYDEMO_VARIANT=buggy-v1 playwright test --config=playwright.paydemo.config.ts",
+    "verify:paydemo": "npm run build:paydemo && npm run test:paydemo:harness && npm run test:paydemo:provenance && npm run test:paydemo:identity && npm run test:paydemo && npm run test:paydemo:bugs",
+    "test:qah:contracts": "node --test tests/qah/contracts.test.mjs",
+    "test:qah": "node --test tests/qah/*.test.mjs",
+    "test:qah:proof-gate": "node --test tests/qah/release-policy.test.mjs tests/qah/decision.test.mjs tests/qah/finalize.test.mjs tests/qah/claim-adapter.test.mjs tests/qah/task-runtime.test.mjs tests/qah/e2e.test.mjs tests/qah/process-blueprint.test.mjs tests/qah/proof-gate-canary.test.mjs tests/qah/ui-graph-canary.test.mjs tests/qah/onyx-browser-probe.test.mjs tests/qah/preflight-report.test.mjs",
+    "qah:preflight-report": "node scripts/qah/preflight-report.mjs",
+    "demo:qah:graph-offline": "node scripts/qah/offline-graph-demo.mjs",
+    "verify:qah:proof-gate": "npm run test:qah:proof-gate && npm run typecheck",
+    "verify:qah": "npm run test:qah && npm run test:paydemo:harness && npm run typecheck",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.1.0",
+    "dotenv": "^17.4.2",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "yaml": "2.8.1"
+  }
+}

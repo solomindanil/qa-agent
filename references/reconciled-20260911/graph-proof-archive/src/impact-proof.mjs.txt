@@ -1,0 +1,178 @@
+import { canonicalJson, digestCanonical } from "./model.mjs";
+
+const CLASSIFICATION_KEYS = Object.freeze([
+  "assuranceImpact",
+  "assuranceNodeIds",
+  "diffSha256",
+  "disposition",
+  "nodeIds",
+  "paths",
+  "reason",
+  "status",
+]);
+
+export function changedFileKey(value) {
+  return canonicalJson({
+    status: String(value?.status ?? ""),
+    paths: Array.isArray(value?.paths) ? value.paths : [],
+  });
+}
+
+export function buildChangedFileClassificationDocument({ baselineSha, candidateSha, classifications }) {
+  assertGitSha(baselineSha, "CHANGED_FILE_BASELINE_SHA_INVALID");
+  assertGitSha(candidateSha, "CHANGED_FILE_CANDIDATE_SHA_INVALID");
+  if (baselineSha === candidateSha) throw new TypeError("CHANGED_FILE_IDENTITIES_EQUAL");
+  if (!Array.isArray(classifications)) throw new TypeError("CHANGED_FILE_CLASSIFICATIONS_INVALID");
+  const normalized = classifications.map(normalizeClassification).sort((left, right) =>
+    changedFileKey(left).localeCompare(changedFileKey(right), "en"),
+  );
+  assertUnique(normalized.map(changedFileKey), "CHANGED_FILE_CLASSIFICATION_DUPLICATE");
+  const body = { schemaVersion: 1, baselineSha, candidateSha, classifications: normalized };
+  return { ...body, classificationDigest: digestCanonical(body) };
+}
+
+export function validateChangedFileClassifications({
+  document,
+  expectedChanges,
+  baselineSha,
+  candidateSha,
+  validNodeIds,
+  requireComplete = false,
+}) {
+  assertExactKeys(document, [
+    "baselineSha",
+    "candidateSha",
+    "classificationDigest",
+    "classifications",
+    "schemaVersion",
+  ], "CHANGED_FILE_DOCUMENT");
+  if (document.schemaVersion !== 1) throw new TypeError("CHANGED_FILE_SCHEMA_INVALID");
+  if (document.baselineSha !== baselineSha || document.candidateSha !== candidateSha) {
+    throw new TypeError("CHANGED_FILE_SHA_MISMATCH");
+  }
+  const rebuilt = buildChangedFileClassificationDocument({
+    baselineSha: document.baselineSha,
+    candidateSha: document.candidateSha,
+    classifications: document.classifications,
+  });
+  if (canonicalJson(document) !== canonicalJson(rebuilt)) {
+    throw new TypeError("CHANGED_FILE_DIGEST_OR_ORDER_MISMATCH");
+  }
+  if (!Array.isArray(expectedChanges)) throw new TypeError("CHANGED_FILE_EXPECTED_CHANGES_INVALID");
+  const normalizedExpected = expectedChanges.map(normalizeExpectedChange);
+  assertUnique(normalizedExpected.map(changedFileKey), "CHANGED_FILE_EXPECTED_DUPLICATE");
+  const expectedByKey = new Map(normalizedExpected.map(change => [changedFileKey(change), change]));
+  const validOwners = validNodeIds instanceof Set ? validNodeIds : new Set(validNodeIds ?? []);
+  const byKey = new Map();
+
+  for (const row of rebuilt.classifications) {
+    const key = changedFileKey(row);
+    const expected = expectedByKey.get(key);
+    if (!expected) throw new TypeError(`CHANGED_FILE_CLASSIFICATION_UNKNOWN ${key}`);
+    if (row.diffSha256 !== expected.diffSha256) throw new TypeError(`CHANGED_FILE_DIFF_MISMATCH ${key}`);
+    if (row.nodeIds.some(nodeId => !validOwners.has(nodeId))) {
+      throw new TypeError(`CHANGED_FILE_OWNER_UNKNOWN ${key}`);
+    }
+    if (row.assuranceNodeIds.some(nodeId => !validOwners.has(nodeId))) {
+      throw new TypeError(`CHANGED_FILE_ASSURANCE_OWNER_UNKNOWN ${key}`);
+    }
+    byKey.set(key, Object.freeze(row));
+  }
+
+  const missing = [...expectedByKey.keys()].filter(key => !byKey.has(key)).sort();
+  if (requireComplete && missing.length) {
+    throw new TypeError(`CHANGED_FILE_CLASSIFICATION_INCOMPLETE ${missing.length} ${missing.join(",")}`);
+  }
+  return {
+    ok: true,
+    classified: byKey.size,
+    required: expectedByKey.size,
+    missing,
+    byKey,
+    counts: countByDisposition(rebuilt.classifications),
+  };
+}
+
+function normalizeClassification(row) {
+  assertExactKeys(row, CLASSIFICATION_KEYS, "CHANGED_FILE_CLASSIFICATION");
+  const expected = normalizeExpectedChange(row);
+  const disposition = String(row.disposition ?? "");
+  if (!new Set(["product_impact", "no_product_impact"]).has(disposition)) {
+    throw new TypeError("CHANGED_FILE_DISPOSITION_INVALID");
+  }
+  const nodeIds = Array.isArray(row.nodeIds) ? [...row.nodeIds].map(String).sort() : null;
+  if (!nodeIds) throw new TypeError("CHANGED_FILE_NODE_IDS_INVALID");
+  assertUnique(nodeIds, "CHANGED_FILE_NODE_IDS_DUPLICATE");
+  if (disposition === "product_impact" && nodeIds.length === 0) {
+    throw new TypeError("CHANGED_FILE_PRODUCT_OWNER_REQUIRED");
+  }
+  if (disposition === "no_product_impact" && nodeIds.length !== 0) {
+    throw new TypeError("CHANGED_FILE_NO_IMPACT_OWNER_FORBIDDEN");
+  }
+  const assuranceNodeIds = Array.isArray(row.assuranceNodeIds)
+    ? [...row.assuranceNodeIds].map(String).sort()
+    : null;
+  if (!assuranceNodeIds) throw new TypeError("CHANGED_FILE_ASSURANCE_NODE_IDS_INVALID");
+  assertUnique(assuranceNodeIds, "CHANGED_FILE_ASSURANCE_NODE_IDS_DUPLICATE");
+  const reason = String(row.reason ?? "").trim();
+  if (reason.length < 16) throw new TypeError("CHANGED_FILE_REASON_INVALID");
+  const assuranceImpact = String(row.assuranceImpact ?? "").trim();
+  if (disposition === "no_product_impact" && isAssuranceSurface(expected.paths) && assuranceImpact === "none") {
+    throw new TypeError("CHANGED_FILE_ASSURANCE_IMPACT_REQUIRED");
+  }
+  if (assuranceImpact.length < 8) throw new TypeError("CHANGED_FILE_ASSURANCE_IMPACT_INVALID");
+  return { ...expected, disposition, nodeIds, assuranceNodeIds, reason, assuranceImpact };
+}
+
+function normalizeExpectedChange(row) {
+  if (!row || typeof row !== "object" || Array.isArray(row)) throw new TypeError("CHANGED_FILE_CHANGE_INVALID");
+  const status = String(row.status ?? "");
+  if (!/^(?:A|M|D|T|U|X|B|R\d{1,3}|C\d{1,3})$/.test(status)) {
+    throw new TypeError("CHANGED_FILE_STATUS_INVALID");
+  }
+  const paths = Array.isArray(row.paths) ? row.paths.map(String) : null;
+  const expectedPathCount = /^(?:R|C)/.test(status) ? 2 : 1;
+  if (!paths || paths.length !== expectedPathCount || paths.some(path => !isSafeRelativePath(path))) {
+    throw new TypeError("CHANGED_FILE_PATHS_INVALID");
+  }
+  if (new Set(paths).size !== paths.length) throw new TypeError("CHANGED_FILE_PATHS_DUPLICATE");
+  const diffSha256 = String(row.diffSha256 ?? "");
+  if (!/^sha256:[a-f0-9]{64}$/.test(diffSha256)) throw new TypeError("CHANGED_FILE_DIFF_DIGEST_INVALID");
+  return { status, paths, diffSha256 };
+}
+
+function isAssuranceSurface(paths) {
+  return paths.some(path =>
+    /(?:^|\/)(?:tests?|__tests__|specs?)(?:\/|\.)/i.test(path)
+    || /(?:^|\/)(?:ci|workflows)(?:\/|\.)/i.test(path)
+    || /(?:\.test|\.spec)\.[^/]+$/i.test(path),
+  );
+}
+
+function countByDisposition(rows) {
+  const counts = { productImpact: 0, noProductImpact: 0 };
+  for (const row of rows) counts[row.disposition === "product_impact" ? "productImpact" : "noProductImpact"] += 1;
+  return counts;
+}
+
+function isSafeRelativePath(path) {
+  return path.length > 0
+    && !path.startsWith("/")
+    && !path.includes("\\")
+    && !path.includes("\0")
+    && !path.split("/").some(part => part === "" || part === "." || part === "..");
+}
+
+function assertGitSha(value, code) {
+  if (!/^[a-f0-9]{40}$/.test(String(value ?? ""))) throw new TypeError(code);
+}
+
+function assertExactKeys(value, expected, code) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`${code}_INVALID`);
+  const actual = Object.keys(value).sort();
+  if (canonicalJson(actual) !== canonicalJson([...expected].sort())) throw new TypeError(`${code}_KEYS_INVALID`);
+}
+
+function assertUnique(values, code) {
+  if (new Set(values).size !== values.length) throw new TypeError(code);
+}

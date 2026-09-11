@@ -1,0 +1,1863 @@
+import { expect, test, type Page } from '@playwright/test';
+import {
+  APPROVED_AUDIO_BASENAME,
+  AUDIO_FIXTURE_MAX_BYTES,
+  assertRedactedTranscriptFidelity,
+  type AudioFixtureCommandResult,
+  type AudioFixtureDependencies,
+  loadValidatedAudioFixture,
+  validatePrivateAudioFixture,
+} from './fixtures/audio-fixture';
+import {
+  MEETING_SANDBOX_WORKSPACE_ID,
+  MeetingsPage,
+  captureBlockedMeetingMutations,
+  captureMeetingMutationTransaction,
+  cleanupOwnedMeetingEntities,
+  createManualMeetingCreateContract,
+  parseMeetingCleanupInspection,
+  parseOwnedMeetingEntityResponse,
+  reconcileMeetingCaptureRecovery,
+  type MeetingCleanupInspection,
+  type MeetingMutationCapture,
+  type OwnedMeetingEntity,
+} from './pages/meetings.page';
+
+const REPOSITORY_ROOT = '/qa/repository';
+const EVIDENCE_ROOT =
+  `${REPOSITORY_ROOT}/docs/local/nuanuflow/evidence`;
+const VALID_PATH = `${EVIDENCE_ROOT}/${APPROVED_AUDIO_BASENAME}`;
+
+type FakeOverrides = Partial<{
+  candidateRealPath: string;
+  evidenceRealPath: string;
+  repositoryRealPath: string;
+  symbolicLink: boolean;
+  regularFile: boolean;
+  size: number;
+  magic: Uint8Array;
+  mime: AudioFixtureCommandResult;
+  ignored: AudioFixtureCommandResult;
+  tracked: AudioFixtureCommandResult;
+  probe: AudioFixtureCommandResult;
+  readFileError: Error;
+  commandError: { command: string; error: Error };
+  fileBytes: Uint8Array;
+  onInputCommand: (command: string, input: Uint8Array) => void;
+}>;
+
+const ok = (stdout = ''): AudioFixtureCommandResult => ({
+  exitCode: 0,
+  stdout,
+  timedOut: false,
+});
+
+const failed = (stdout = ''): AudioFixtureCommandResult => ({
+  exitCode: 1,
+  stdout,
+  timedOut: false,
+});
+
+const validProbe = JSON.stringify({
+  streams: [{ codec_name: 'mp3', codec_type: 'audio' }],
+  format: { duration: '5.25', format_name: 'mp3' },
+});
+
+const createDependencies = (overrides: FakeOverrides = {}) => {
+  const calls: Array<{
+    command: string;
+    args: readonly string[];
+    cwd: string;
+    timeoutMs: number;
+    maxBufferBytes: number;
+    input?: Uint8Array;
+  }> = [];
+  const dependencies: AudioFixtureDependencies = {
+    realpath: async (path) => {
+      if (path === REPOSITORY_ROOT) {
+        return overrides.repositoryRealPath ?? REPOSITORY_ROOT;
+      }
+      if (path === EVIDENCE_ROOT) {
+        return overrides.evidenceRealPath ?? EVIDENCE_ROOT;
+      }
+      return overrides.candidateRealPath ?? VALID_PATH;
+    },
+    lstat: async () => ({
+      isFile: () => overrides.regularFile ?? true,
+      isSymbolicLink: () => overrides.symbolicLink ?? false,
+      size: overrides.size ?? 41_536,
+    }),
+    readStableFile: async () => {
+      if (overrides.readFileError) throw overrides.readFileError;
+      if (overrides.fileBytes) return overrides.fileBytes;
+      const bytes = new Uint8Array(41_536).fill(0x11);
+      bytes.set(
+        overrides.magic ?? new Uint8Array([0x49, 0x44, 0x33, 0x04]),
+      );
+      return bytes;
+    },
+    execFile: async (command, args, options) => {
+      calls.push({ command, args: [...args], ...options });
+      if (overrides.commandError?.command === command) {
+        throw overrides.commandError.error;
+      }
+      if (command === 'git' && args[0] === 'check-ignore') {
+        return overrides.ignored ?? ok();
+      }
+      if (command === 'git' && args[0] === 'ls-files') {
+        return overrides.tracked ?? failed();
+      }
+      throw new Error('Unexpected fake command.');
+    },
+    execFileWithInput: async (command, args, input, options) => {
+      const inputCopy = Uint8Array.from(input);
+      calls.push({ command, args: [...args], input: inputCopy, ...options });
+      overrides.onInputCommand?.(command, inputCopy);
+      if (overrides.commandError?.command === command) {
+        throw overrides.commandError.error;
+      }
+      if (command === 'file') return overrides.mime ?? ok('audio/mpeg\n');
+      if (command === 'ffprobe') return overrides.probe ?? ok(validProbe);
+      throw new Error('Unexpected fake input command.');
+    },
+  };
+  return { calls, dependencies };
+};
+
+const validEnvironment = (overrides: Record<string, string | undefined> = {}) => ({
+  NUANUFLOW_AUDIO_FIXTURE: VALID_PATH,
+  NUANUFLOW_AUDIO_ORACLE_TEXT: '  Synthetic expected sentence.  ',
+  NUANUFLOW_AUDIO_ORACLE_SPEAKER: '  QA Speaker  ',
+  ...overrides,
+});
+
+const validationCode = async (
+  environment: Record<string, string | undefined>,
+  overrides: FakeOverrides = {},
+) => {
+  const { dependencies } = createDependencies(overrides);
+  try {
+    await validatePrivateAudioFixture({
+      dependencies,
+      environment,
+      repositoryRoot: REPOSITORY_ROOT,
+    });
+  } catch (error) {
+    return {
+      code: (error as { code?: unknown }).code,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+  throw new Error('Expected fixture validation to fail.');
+};
+
+test('absent fixture configuration returns no descriptor without touching disk', async () => {
+  let dependencyCalled = false;
+  const dependencies: AudioFixtureDependencies = {
+    realpath: async () => {
+      dependencyCalled = true;
+      throw new Error('unexpected realpath');
+    },
+    lstat: async () => {
+      dependencyCalled = true;
+      throw new Error('unexpected lstat');
+    },
+    readStableFile: async () => {
+      dependencyCalled = true;
+      throw new Error('unexpected file read');
+    },
+    execFile: async () => {
+      dependencyCalled = true;
+      throw new Error('unexpected command');
+    },
+    execFileWithInput: async () => {
+      dependencyCalled = true;
+      throw new Error('unexpected input command');
+    },
+  };
+
+  await expect(
+    validatePrivateAudioFixture({
+      dependencies,
+      environment: {},
+      repositoryRoot: REPOSITORY_ROOT,
+    }),
+  ).resolves.toBeUndefined();
+  expect(dependencyCalled).toBe(false);
+});
+
+test('valid fixture returns a bounded descriptor and uses argument-array commands', async () => {
+  const { calls, dependencies } = createDependencies();
+  const descriptor = await validatePrivateAudioFixture({
+    dependencies,
+    environment: validEnvironment(),
+    repositoryRoot: REPOSITORY_ROOT,
+  });
+
+  expect(descriptor).toMatchObject({
+    basename: APPROVED_AUDIO_BASENAME,
+    byteCount: 41_536,
+    codecName: 'mp3',
+    codecType: 'audio',
+    durationSeconds: 5.25,
+    formatName: 'mp3',
+  });
+  expect(descriptor?.oracleSpeaker).toBe('QA Speaker');
+  expect(descriptor?.oracleText).toBe('Synthetic expected sentence.');
+  expect(Object.keys(descriptor!)).not.toContain('oracleSpeaker');
+  expect(Object.keys(descriptor!)).not.toContain('oracleText');
+  expect(JSON.stringify(descriptor)).not.toContain('Synthetic expected sentence.');
+  expect(JSON.stringify(descriptor)).not.toContain('QA Speaker');
+  expect(calls.map(({ command }) => command)).toEqual([
+    'git',
+    'git',
+    'file',
+    'ffprobe',
+  ]);
+  for (const call of calls) {
+    if (call.command === 'git') {
+      expect(call.args.at(-1)).toBe(VALID_PATH);
+      expect(call.args).toContain('--');
+      expect(call.input).toBeUndefined();
+    } else {
+      expect(call.args).not.toContain(VALID_PATH);
+      expect(call.input).toHaveLength(41_536);
+      expect(call.input?.slice(0, 4)).toEqual(
+        new Uint8Array([0x49, 0x44, 0x33, 0x04]),
+      );
+    }
+    expect(call.cwd).toBe(REPOSITORY_ROOT);
+    expect(call.timeoutMs).toBeGreaterThan(0);
+    expect(call.maxBufferBytes).toBeLessThanOrEqual(65_536);
+  }
+});
+
+test('validated fixture exposes no path and loads a bounded in-memory upload payload', async () => {
+  const fileBytes = new Uint8Array(41_536).fill(0x22);
+  fileBytes.set([0x49, 0x44, 0x33, 0x04]);
+  const { dependencies } = createDependencies({ fileBytes });
+  const descriptor = await validatePrivateAudioFixture({
+    dependencies,
+    environment: validEnvironment(),
+    repositoryRoot: REPOSITORY_ROOT,
+  });
+  expect(descriptor).toBeDefined();
+  expect(Object.keys(descriptor!)).not.toContain('filePath');
+  expect(JSON.stringify(descriptor)).not.toContain(REPOSITORY_ROOT);
+
+  const payload = await loadValidatedAudioFixture(descriptor!);
+  expect(payload.name).toBe(APPROVED_AUDIO_BASENAME);
+  expect(payload.mimeType).toBe('audio/mpeg');
+  expect(payload.buffer).toEqual(Buffer.from(fileBytes));
+
+  payload.buffer.fill(0);
+  const secondPayload = await loadValidatedAudioFixture(descriptor!);
+  expect(secondPayload.buffer).toEqual(Buffer.from(fileBytes));
+  expect(secondPayload.buffer).not.toBe(payload.buffer);
+});
+
+test('rejects short or long stable snapshots before content commands', async () => {
+  for (const fileBytes of [
+    new Uint8Array(41_535),
+    new Uint8Array(41_537),
+  ]) {
+    fileBytes.set([0x49, 0x44, 0x33, 0x04]);
+    const { calls, dependencies } = createDependencies({ fileBytes });
+    const error = await validatePrivateAudioFixture({
+      dependencies,
+      environment: validEnvironment(),
+      repositoryRoot: REPOSITORY_ROOT,
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ code: 'AUDIO_FIXTURE_CHANGED' });
+    expect(calls.map(({ command }) => command)).toEqual(['git', 'git']);
+  }
+});
+
+test('validated upload reload rejects a post-validation path or stat change', async () => {
+  const pathState: FakeOverrides = {};
+  const pathDependencies = createDependencies(pathState).dependencies;
+  const pathDescriptor = await validatePrivateAudioFixture({
+    dependencies: pathDependencies,
+    environment: validEnvironment(),
+    repositoryRoot: REPOSITORY_ROOT,
+  });
+  pathState.candidateRealPath =
+    `/private/replaced/${APPROVED_AUDIO_BASENAME}`;
+  await expect(loadValidatedAudioFixture(pathDescriptor!)).rejects.toMatchObject({
+    code: 'AUDIO_FIXTURE_CHANGED',
+  });
+
+  const statState: FakeOverrides = {};
+  const statDependencies = createDependencies(statState).dependencies;
+  const statDescriptor = await validatePrivateAudioFixture({
+    dependencies: statDependencies,
+    environment: validEnvironment(),
+    repositoryRoot: REPOSITORY_ROOT,
+  });
+  statState.size = 9;
+  await expect(loadValidatedAudioFixture(statDescriptor!)).rejects.toMatchObject({
+    code: 'AUDIO_FIXTURE_CHANGED',
+  });
+});
+
+test('validated upload rejects a same-size magic-preserving file substitution', async () => {
+  const original = new Uint8Array(41_536).fill(0x31);
+  original.set([0x49, 0x44, 0x33, 0x04]);
+  const replacement = new Uint8Array(41_536).fill(0x62);
+  replacement.set([0x49, 0x44, 0x33, 0x04]);
+  const state: FakeOverrides = { fileBytes: original };
+  const { dependencies } = createDependencies(state);
+  const descriptor = await validatePrivateAudioFixture({
+    dependencies,
+    environment: validEnvironment(),
+    repositoryRoot: REPOSITORY_ROOT,
+  });
+
+  state.fileBytes = replacement;
+  await expect(loadValidatedAudioFixture(descriptor!)).rejects.toMatchObject({
+    code: 'AUDIO_FIXTURE_CHANGED',
+  });
+});
+
+test('MIME and ffprobe validate the one retained byte snapshot even when the path changes', async () => {
+  const original = new Uint8Array(41_536).fill(0x41);
+  original.set([0x49, 0x44, 0x33, 0x04]);
+  const replacement = new Uint8Array(41_536).fill(0x52);
+  replacement.set([0x49, 0x44, 0x33, 0x04]);
+  const validatedInputs: Array<{ command: string; input: Uint8Array }> = [];
+  const state: FakeOverrides = {
+    fileBytes: original,
+    onInputCommand: (command, input) => {
+      validatedInputs.push({ command, input: Uint8Array.from(input) });
+      state.fileBytes = replacement;
+    },
+  };
+  const { dependencies } = createDependencies(state);
+  const descriptor = await validatePrivateAudioFixture({
+    dependencies,
+    environment: validEnvironment(),
+    repositoryRoot: REPOSITORY_ROOT,
+  });
+
+  expect(validatedInputs.map(({ command }) => command))
+    .toEqual(['file', 'ffprobe']);
+  for (const { input } of validatedInputs) {
+    expect(input).toEqual(original);
+    expect(input).not.toEqual(replacement);
+  }
+  await expect(loadValidatedAudioFixture(descriptor!)).rejects.toMatchObject({
+    code: 'AUDIO_FIXTURE_CHANGED',
+  });
+});
+
+test('transcript fidelity normalizes only Unicode and whitespace and redacts mismatch data', async () => {
+  const { dependencies } = createDependencies();
+  const descriptor = await validatePrivateAudioFixture({
+    dependencies,
+    environment: validEnvironment({
+      NUANUFLOW_AUDIO_ORACLE_TEXT: 'Cafe\u0301: Synthetic sentence!',
+      NUANUFLOW_AUDIO_ORACLE_SPEAKER: 'QA Speaker',
+    }),
+    repositoryRoot: REPOSITORY_ROOT,
+  });
+
+  expect(() => assertRedactedTranscriptFidelity(descriptor!, {
+    transcriptText: 'Prefix\nCaf\u00e9:   Synthetic sentence!\nSuffix',
+    speakerLabels: ['QA Speaker'],
+  })).not.toThrow();
+
+  for (const [actual, code] of [
+    [
+      { transcriptText: 'Caf\u00e9: synthetic sentence!', speakerLabels: ['QA Speaker'] },
+      'AUDIO_TRANSCRIPT_TEXT_MISMATCH',
+    ],
+    [
+      { transcriptText: 'Caf\u00e9: Synthetic sentence!', speakerLabels: ['Speaker 1'] },
+      'AUDIO_TRANSCRIPT_SPEAKER_MISMATCH',
+    ],
+  ] as const) {
+    let captured: unknown;
+    try {
+      assertRedactedTranscriptFidelity(descriptor!, actual);
+    } catch (error) {
+      captured = error;
+    }
+    expect(captured).toMatchObject({ code });
+    expect(String(captured)).not.toContain('Caf');
+    expect(String(captured)).not.toContain('Speaker 1');
+    expect(String(captured)).not.toContain('QA Speaker');
+  }
+});
+
+test('dependency rejections become stable redacted validation errors', async () => {
+  const privateMaterial =
+    `/private/customer/${APPROVED_AUDIO_BASENAME} PRIVATE ORACLE PRIVATE OUTPUT`;
+  const prefixFailure = await validationCode(validEnvironment(), {
+    readFileError: new Error(privateMaterial),
+  });
+  expect(prefixFailure.code).toBe('AUDIO_FIXTURE_READ');
+  expect(prefixFailure.message).not.toContain('/private/');
+  expect(prefixFailure.message).not.toContain('PRIVATE');
+
+  const commandFailure = await validationCode(validEnvironment(), {
+    commandError: { command: 'ffprobe', error: new Error(privateMaterial) },
+  });
+  expect(commandFailure.code).toBe('AUDIO_FIXTURE_PROBE_FAILED');
+  expect(commandFailure.message).not.toContain('/private/');
+  expect(commandFailure.message).not.toContain('PRIVATE');
+});
+
+test('rejects empty, wrong-basename, and lexical-escape fixture inputs', async () => {
+  expect((await validationCode(validEnvironment({ NUANUFLOW_AUDIO_FIXTURE: '' }))).code)
+    .toBe('AUDIO_FIXTURE_EMPTY');
+  expect((await validationCode(validEnvironment({
+    NUANUFLOW_AUDIO_FIXTURE: `${EVIDENCE_ROOT}/lookalike.mp3`,
+  }))).code).toBe('AUDIO_FIXTURE_BASENAME');
+  expect((await validationCode(validEnvironment({
+    NUANUFLOW_AUDIO_FIXTURE:
+      `${EVIDENCE_ROOT}/../escape/${APPROVED_AUDIO_BASENAME}`,
+  }))).code).toBe('AUDIO_FIXTURE_OUTSIDE_EVIDENCE');
+});
+
+test('rejects realpath escape, symlink files, and non-regular files', async () => {
+  expect((await validationCode(validEnvironment(), {
+    candidateRealPath: `/private/escape/${APPROVED_AUDIO_BASENAME}`,
+  })).code).toBe('AUDIO_FIXTURE_REALPATH_ESCAPE');
+  expect((await validationCode(validEnvironment(), { symbolicLink: true })).code)
+    .toBe('AUDIO_FIXTURE_SYMLINK');
+  expect((await validationCode(validEnvironment(), { regularFile: false })).code)
+    .toBe('AUDIO_FIXTURE_NOT_REGULAR');
+});
+
+test('rejects a fixture when the repository or evidence realpath is untrusted', async () => {
+  expect((await validationCode(validEnvironment(), {
+    evidenceRealPath: '/private/evidence',
+    candidateRealPath: `/private/evidence/${APPROVED_AUDIO_BASENAME}`,
+  })).code).toBe('AUDIO_FIXTURE_EVIDENCE_ROOT_ESCAPE');
+});
+
+test('requires the candidate to be ignored and untracked', async () => {
+  expect((await validationCode(validEnvironment(), { ignored: failed() })).code)
+    .toBe('AUDIO_FIXTURE_NOT_IGNORED');
+  expect((await validationCode(validEnvironment(), { tracked: ok(VALID_PATH) })).code)
+    .toBe('AUDIO_FIXTURE_TRACKED');
+});
+
+test('rejects zero-byte and oversized fixture files', async () => {
+  expect((await validationCode(validEnvironment(), { size: 0 })).code)
+    .toBe('AUDIO_FIXTURE_EMPTY_FILE');
+  expect((await validationCode(validEnvironment(), {
+    size: AUDIO_FIXTURE_MAX_BYTES + 1,
+  })).code).toBe('AUDIO_FIXTURE_TOO_LARGE');
+});
+
+test('rejects MIME spoofing and corrupt MP3 magic', async () => {
+  expect((await validationCode(validEnvironment(), {
+    mime: ok('text/plain\n'),
+  })).code).toBe('AUDIO_FIXTURE_MIME');
+  expect((await validationCode(validEnvironment(), {
+    magic: new Uint8Array([0x4e, 0x4f, 0x54, 0x4d, 0x50, 0x33]),
+  })).code).toBe('AUDIO_FIXTURE_MAGIC');
+});
+
+test('rejects ffprobe command failure and timeout', async () => {
+  expect((await validationCode(validEnvironment(), { probe: failed('private raw') })).code)
+    .toBe('AUDIO_FIXTURE_PROBE_FAILED');
+  expect((await validationCode(validEnvironment(), {
+    probe: { exitCode: null, stdout: 'private raw', timedOut: true },
+  })).code).toBe('AUDIO_FIXTURE_PROBE_TIMEOUT');
+});
+
+test('derives bounded MP3 duration from counted stdin frames when format duration is absent', async () => {
+  const { dependencies } = createDependencies({
+    probe: ok(JSON.stringify({
+      streams: [{
+        codec_name: 'mp3',
+        codec_type: 'audio',
+        sample_rate: '22050',
+        nb_read_frames: '198',
+      }],
+      format: { format_name: 'mp3' },
+    })),
+  });
+  const descriptor = await validatePrivateAudioFixture({
+    dependencies,
+    environment: validEnvironment(),
+    repositoryRoot: REPOSITORY_ROOT,
+  });
+
+  expect(descriptor?.durationSeconds).toBeCloseTo(
+    198 * 576 / 22_050,
+    6,
+  );
+});
+
+test('rejects malformed, oversized, and invalid ffprobe documents', async () => {
+  const cases: Array<[string, AudioFixtureCommandResult, string]> = [
+    ['malformed JSON', ok('{'), 'AUDIO_FIXTURE_PROBE_JSON'],
+    ['oversized JSON', ok('x'.repeat(65_537)), 'AUDIO_FIXTURE_PROBE_OUTPUT'],
+    [
+      'no stream',
+      ok(JSON.stringify({ streams: [], format: { duration: '5', format_name: 'mp3' } })),
+      'AUDIO_FIXTURE_STREAM_COUNT',
+    ],
+    [
+      'video stream',
+      ok(JSON.stringify({
+        streams: [{ codec_name: 'h264', codec_type: 'video' }],
+        format: { duration: '5', format_name: 'mp3' },
+      })),
+      'AUDIO_FIXTURE_STREAM_TYPE',
+    ],
+    [
+      'wrong codec',
+      ok(JSON.stringify({
+        streams: [{ codec_name: 'aac', codec_type: 'audio' }],
+        format: { duration: '5', format_name: 'mp3' },
+      })),
+      'AUDIO_FIXTURE_CODEC',
+    ],
+    [
+      'wrong container',
+      ok(JSON.stringify({
+        streams: [{ codec_name: 'mp3', codec_type: 'audio' }],
+        format: { duration: '5', format_name: 'wav' },
+      })),
+      'AUDIO_FIXTURE_CONTAINER',
+    ],
+    [
+      'non-finite duration',
+      ok(JSON.stringify({
+        streams: [{ codec_name: 'mp3', codec_type: 'audio' }],
+        format: { duration: 'NaN', format_name: 'mp3' },
+      })),
+      'AUDIO_FIXTURE_DURATION',
+    ],
+    [
+      'too-short duration',
+      ok(JSON.stringify({
+        streams: [{ codec_name: 'mp3', codec_type: 'audio' }],
+        format: { duration: '0.5', format_name: 'mp3' },
+      })),
+      'AUDIO_FIXTURE_DURATION',
+    ],
+    [
+      'too-long duration',
+      ok(JSON.stringify({
+        streams: [{ codec_name: 'mp3', codec_type: 'audio' }],
+        format: { duration: '31', format_name: 'mp3' },
+      })),
+      'AUDIO_FIXTURE_DURATION',
+    ],
+  ];
+
+  for (const [, probe, expectedCode] of cases) {
+    expect((await validationCode(validEnvironment(), { probe })).code)
+      .toBe(expectedCode);
+  }
+});
+
+test('requires bounded private oracle fields whenever the fixture is configured', async () => {
+  expect((await validationCode(validEnvironment({
+    NUANUFLOW_AUDIO_ORACLE_TEXT: undefined,
+  }))).code).toBe('AUDIO_FIXTURE_ORACLE_TEXT');
+  expect((await validationCode(validEnvironment({
+    NUANUFLOW_AUDIO_ORACLE_SPEAKER: '   ',
+  }))).code).toBe('AUDIO_FIXTURE_ORACLE_SPEAKER');
+  expect((await validationCode(validEnvironment({
+    NUANUFLOW_AUDIO_ORACLE_TEXT: 'x'.repeat(4_097),
+  }))).code).toBe('AUDIO_FIXTURE_ORACLE_TEXT');
+  expect((await validationCode(validEnvironment({
+    NUANUFLOW_AUDIO_ORACLE_SPEAKER: 'x'.repeat(257),
+  }))).code).toBe('AUDIO_FIXTURE_ORACLE_SPEAKER');
+});
+
+test('validation errors redact paths, oracle values, and command output', async () => {
+  const privatePath = `/private/customer/${APPROVED_AUDIO_BASENAME}`;
+  const privateText = 'PRIVATE ORACLE SENTENCE';
+  const privateSpeaker = 'PRIVATE PERSON';
+  const privateProbe = 'PRIVATE PROBE OUTPUT';
+  const result = await validationCode(
+    {
+      NUANUFLOW_AUDIO_FIXTURE: privatePath,
+      NUANUFLOW_AUDIO_ORACLE_TEXT: privateText,
+      NUANUFLOW_AUDIO_ORACLE_SPEAKER: privateSpeaker,
+    },
+    { probe: failed(privateProbe) },
+  );
+
+  expect(result.message).not.toContain('/private/');
+  expect(result.message).not.toContain(privateText);
+  expect(result.message).not.toContain(privateSpeaker);
+  expect(result.message).not.toContain(privateProbe);
+  expect(result.message).not.toContain('customer');
+  expect(result.message).toContain(String(result.code));
+});
+
+const MEETING_IDS = Object.freeze({
+  first: '11111111-1111-4111-8111-111111111111',
+  second: '22222222-2222-4222-8222-222222222222',
+  transcript: '33333333-3333-4333-8333-333333333333',
+  upload: '44444444-4444-4444-8444-444444444444',
+  job: '55555555-5555-4555-8555-555555555555',
+  foreign: '66666666-6666-4666-8666-666666666666',
+});
+const MEETING_ORIGIN = 'https://meetings.qa.invalid';
+const MEETING_HOME_PATH = '/nf-qa-sandbox/';
+const MEETING_COLLECTION_PATH =
+  '/be/api/workspaces/nf-qa-sandbox/meetings/';
+const MEETING_ENDPOINT =
+  `${MEETING_ORIGIN}${MEETING_COLLECTION_PATH}`;
+const MEETING_TITLE = 'QA E2E synthetic-run manual meeting';
+const MEETING_TRANSCRIPT = 'Synthetic alpha.\nSynthetic beta!\nSynthetic gamma?';
+
+const meetingBody = (overrides: Record<string, unknown> = {}) => ({
+  id: MEETING_IDS.first,
+  title: MEETING_TITLE,
+  source: 'manual',
+  status: 'ready',
+  transcript_text: MEETING_TRANSCRIPT,
+  workspace: MEETING_SANDBOX_WORKSPACE_ID,
+  project: null,
+  team: null,
+  ...overrides,
+});
+
+const openSyntheticMeetingPage = async (page: Page) => {
+  await page.route(`${MEETING_ORIGIN}/`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<main>synthetic meeting safety</main>',
+    }));
+  await page.goto(MEETING_ORIGIN);
+};
+
+const syntheticMeetingHome = () => `<!doctype html>
+<html><body>
+  <button type="button" id="open-manual">Add Transcript</button>
+  <button type="button">Upload Audio</button>
+  <button type="button">Create Meet</button>
+  <div role="dialog" id="manual-dialog" hidden>
+    <h2>Add meeting transcript</h2>
+    <input aria-label="e.g. Sprint Planning &#8212; Week 28" placeholder="e.g. Sprint Planning &#8212; Week 28" />
+    <input type="datetime-local" />
+    <input aria-label="Comma-separated, e.g. Alice, Bob" placeholder="Comma-separated, e.g. Alice, Bob" />
+    <textarea aria-label="Paste the raw meeting transcript here" placeholder="Paste the raw meeting transcript here"></textarea>
+    <button type="button">Cancel</button>
+    <button type="button" id="submit-manual">Add transcript</button>
+  </div>
+  <script>
+    const dialog = document.querySelector('#manual-dialog');
+    document.querySelector('#open-manual').addEventListener('click', () => {
+      dialog.hidden = false;
+    });
+    document.querySelector('#submit-manual').addEventListener('click', async () => {
+      const fields = dialog.querySelectorAll('input, textarea');
+      await fetch('/be/api/workspaces/nf-qa-sandbox/meetings/', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title: fields[0].value,
+          source: 'manual',
+          status: 'ready',
+          transcript_text: fields[3].value,
+        }),
+      });
+      dialog.hidden = true;
+    });
+  </script>
+</body></html>`;
+
+const manualContract = () => createManualMeetingCreateContract({
+  endpoint: MEETING_ENDPOINT,
+  requestedTitle: MEETING_TITLE,
+  transcriptText: MEETING_TRANSCRIPT,
+  workspaceId: MEETING_SANDBOX_WORKSPACE_ID,
+  workspaceSlug: 'nf-qa-sandbox',
+});
+
+test('gotoHome resolves the sandbox path from baseURL on a fresh about:blank page and waits for semantic readiness', async ({ page }, testInfo) => {
+  const configuredBaseURL = testInfo.project.use.baseURL;
+  if (typeof configuredBaseURL !== 'string') {
+    throw new Error('SYNTHETIC_BASE_URL_REQUIRED');
+  }
+  const expectedHomeUrl = new URL(
+    MEETING_HOME_PATH,
+    configuredBaseURL,
+  ).href;
+  const homeRequests: string[] = [];
+  const unexpectedRequests: string[] = [];
+
+  await page.route('**/*', async (route) => {
+    unexpectedRequests.push(route.request().url());
+    await route.abort('blockedbyclient');
+  });
+  await page.route(expectedHomeUrl, async (route) => {
+    homeRequests.push(route.request().url());
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html; charset=utf-8',
+      body: '<main data-testid="synthetic-home-shell">home shell</main>',
+    });
+  });
+
+  expect(page.url()).toBe('about:blank');
+  const meetings = new MeetingsPage(page, async () => {});
+  let resolved = false;
+  const outcome = meetings.gotoHome().then(
+    () => {
+      resolved = true;
+      return { ok: true as const };
+    },
+    (error: unknown) => ({ ok: false as const, error }),
+  );
+  const firstEvent = await Promise.race([
+    page.getByTestId('synthetic-home-shell').waitFor({ state: 'visible' })
+      .then(() => 'shell-ready' as const),
+    outcome.then((result) => {
+      if (!result.ok) throw result.error;
+      return 'goto-resolved' as const;
+    }),
+  ]);
+
+  expect(firstEvent).toBe('shell-ready');
+  expect(resolved).toBe(false);
+  await page.evaluate(() => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Add Transcript';
+    document.body.append(button);
+  });
+  const result = await outcome;
+  if (!result.ok) throw result.error;
+
+  expect(page.url()).toBe(expectedHomeUrl);
+  expect(new URL(page.url()).origin).toBe(new URL(configuredBaseURL).origin);
+  expect(homeRequests).toEqual([expectedHomeUrl]);
+  expect(unexpectedRequests).toEqual([]);
+});
+
+test('manual meeting contract rejects every non-canonical collection path', () => {
+  for (const endpoint of [
+    `${MEETING_ORIGIN}/be/api/workspaces/foreign/meetings/`,
+    `${MEETING_ENDPOINT}unexpected/`,
+  ]) {
+    expect(() => createManualMeetingCreateContract({
+      endpoint,
+      requestedTitle: MEETING_TITLE,
+      transcriptText: MEETING_TRANSCRIPT,
+      workspaceId: MEETING_SANDBOX_WORKSPACE_ID,
+      workspaceSlug: 'nf-qa-sandbox',
+    })).toThrow('MEETING_ENDPOINT_CONTRACT');
+  }
+});
+
+test('meeting collector rejects a cross-origin contract before running the action', async ({ page }) => {
+  await openSyntheticMeetingPage(page);
+  let actionCalled = false;
+  const foreignContract = createManualMeetingCreateContract({
+    endpoint:
+      'https://foreign.qa.invalid/be/api/workspaces/nf-qa-sandbox/meetings/',
+    requestedTitle: MEETING_TITLE,
+    transcriptText: MEETING_TRANSCRIPT,
+    workspaceId: MEETING_SANDBOX_WORKSPACE_ID,
+    workspaceSlug: 'nf-qa-sandbox',
+  });
+
+  await expect(captureMeetingMutationTransaction({
+    page,
+    guardPatterns: ['**/*'],
+    contracts: [foreignContract],
+    action: async () => { actionCalled = true; },
+    register: () => {},
+  })).rejects.toThrow('MEETING_CONTRACT_ORIGIN');
+  expect(actionCalled).toBe(false);
+});
+
+test('blocked mutation capture guards writes outside caller route families', async ({ page }) => {
+  let backendWrites = 0;
+  const writes = [
+    { endpoint: `${MEETING_ORIGIN}/unrelated-write`, method: 'POST' },
+    { endpoint: 'https://uploads.qa.invalid/blob', method: 'PUT' },
+    { endpoint: `${MEETING_ORIGIN}/integration-state`, method: 'PATCH' },
+    { endpoint: `${MEETING_ORIGIN}/calendar-event`, method: 'DELETE' },
+  ] as const;
+  for (const { endpoint } of writes) {
+    await page.route(endpoint, (route) => {
+      backendWrites += 1;
+      return route.fulfill({ status: 204 });
+    });
+  }
+  await openSyntheticMeetingPage(page);
+
+  const capture = await captureBlockedMeetingMutations({
+    page,
+    guardPatterns: [`${MEETING_ORIGIN}/expected-family/**`],
+    action: () => page.evaluate((attempts) => Promise.all(
+      attempts.map(({ endpoint, method }) => fetch(endpoint, { method })
+        .catch(() => undefined)),
+    ), writes),
+    quietMs: 20,
+  });
+
+  expect(capture.attemptCount).toBe(4);
+  expect(capture.attempts.map(({ method }) => method).sort())
+    .toEqual(['DELETE', 'PATCH', 'POST', 'PUT']);
+  expect(backendWrites).toBe(0);
+});
+
+const postMeeting = (page: Page, suffix = '') => page.evaluate(
+  ({ endpoint, title, transcriptText, marker }) => fetch(endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      source: 'manual',
+      status: 'ready',
+      transcript_text: transcriptText,
+      ...(marker ? { marker } : {}),
+    }),
+  }).catch(() => undefined),
+  {
+    endpoint: MEETING_ENDPOINT,
+    title: MEETING_TITLE,
+    transcriptText: MEETING_TRANSCRIPT,
+    marker: suffix,
+  },
+);
+
+const captureManualMeetings = (
+  page: Page,
+  action: () => Promise<unknown>,
+  options: Partial<{
+    register: (entity: OwnedMeetingEntity) => unknown;
+    quietMs: number;
+    minAdmissionMs: number;
+    maxAdmissionMs: number;
+  }> = {},
+) => captureMeetingMutationTransaction({
+  page,
+  guardPatterns: [`${MEETING_ORIGIN}/**`],
+  contracts: [manualContract()],
+  action,
+  register: options.register ?? (() => {}),
+  quietMs: options.quietMs ?? 20,
+  minAdmissionMs: options.minAdmissionMs,
+  maxAdmissionMs: options.maxAdmissionMs ?? 100,
+});
+
+test('meeting collector drains a delayed 2xx after the action throws', async ({ page }) => {
+  await page.route(MEETING_ENDPOINT, async (route) => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 80));
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(meetingBody()),
+    });
+  });
+  await openSyntheticMeetingPage(page);
+
+  const capture = await captureManualMeetings(page, async () => {
+    await page.evaluate(
+      ({ endpoint, title, transcriptText }) => {
+        void fetch(endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            source: 'manual',
+            status: 'ready',
+            transcript_text: transcriptText,
+          }),
+        });
+      },
+      {
+        endpoint: MEETING_ENDPOINT,
+        title: MEETING_TITLE,
+        transcriptText: MEETING_TRANSCRIPT,
+      },
+    );
+    throw new Error('synthetic action failure');
+  }, { maxAdmissionMs: 40 });
+
+  expect(capture.actionError).toEqual({ code: 'ACTION_FAILED' });
+  expect(capture.successfulEntries.map(({ entity }) => entity.id))
+    .toEqual([MEETING_IDS.first]);
+  expect(capture.responseCount).toBe(1);
+});
+
+test('meeting collector captures two rapid successes in request order', async ({ page }) => {
+  let ordinal = 0;
+  await page.route(MEETING_ENDPOINT, async (route) => {
+    const id = ordinal++ === 0 ? MEETING_IDS.first : MEETING_IDS.second;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(meetingBody({ id })),
+    });
+  });
+  await openSyntheticMeetingPage(page);
+
+  const capture = await captureManualMeetings(page, () => Promise.all([
+    postMeeting(page),
+    postMeeting(page),
+  ]));
+
+  expect(capture.successfulEntries.map(({ requestOrdinal, entity }) => ({
+    requestOrdinal,
+    id: entity.id,
+  }))).toEqual([
+    { requestOrdinal: 0, id: MEETING_IDS.first },
+    { requestOrdinal: 1, id: MEETING_IDS.second },
+  ]);
+});
+
+test('meeting collector never abandons one admitted stalled response while another is fast', async ({ page }) => {
+  let ordinal = 0;
+  await page.route(MEETING_ENDPOINT, async (route) => {
+    const current = ordinal++;
+    if (current === 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 120));
+    }
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(meetingBody({
+        id: current === 0 ? MEETING_IDS.first : MEETING_IDS.second,
+      })),
+    });
+  });
+  await openSyntheticMeetingPage(page);
+
+  const capture = await captureManualMeetings(page, async () => {
+    void postMeeting(page);
+    void postMeeting(page);
+  }, { quietMs: 10, maxAdmissionMs: 30 });
+
+  expect(capture.attemptCount).toBe(2);
+  expect(capture.responseCount).toBe(2);
+  expect(capture.successfulEntries).toHaveLength(2);
+});
+
+test('meeting collector preserves only a canonical top-level recovery ID from malformed 2xx', async ({ page }) => {
+  await page.route(MEETING_ENDPOINT, (route) => route.fulfill({
+    status: 201,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      id: MEETING_IDS.first,
+      nested: { id: MEETING_IDS.foreign },
+    }),
+  }));
+  await openSyntheticMeetingPage(page);
+
+  const capture = await captureManualMeetings(page, () => postMeeting(page));
+
+  expect(capture.successfulEntries).toEqual([]);
+  expect(capture.contractErrors).toEqual([
+    expect.objectContaining({
+      requestOrdinal: 0,
+      routeKey: 'meeting-create',
+      recoveryCandidates: [{ kind: 'meeting', id: MEETING_IDS.first }],
+    }),
+  ]);
+  expect(JSON.stringify(capture.contractErrors)).not.toContain(
+    MEETING_IDS.foreign,
+  );
+});
+
+test('manual wrapper completes malformed-success reconciliation and cleanup before resolving', async ({ page }, testInfo) => {
+  const configuredBaseURL = testInfo.project.use.baseURL;
+  if (typeof configuredBaseURL !== 'string') {
+    throw new Error('SYNTHETIC_BASE_URL_REQUIRED');
+  }
+  const homeUrl = new URL(MEETING_HOME_PATH, configuredBaseURL).href;
+  const collectionUrl = new URL(
+    MEETING_COLLECTION_PATH,
+    configuredBaseURL,
+  ).href;
+  const unexpectedRequests: string[] = [];
+  await page.route('**/*', async (route) => {
+    unexpectedRequests.push(route.request().url());
+    await route.abort('blockedbyclient');
+  });
+  await page.route(homeUrl, (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/html; charset=utf-8',
+    body: syntheticMeetingHome(),
+  }));
+  await page.route(collectionUrl, (route) => route.fulfill({
+    status: 201,
+    contentType: 'application/json',
+    body: JSON.stringify({ id: MEETING_IDS.first }),
+  }));
+  expect(page.url()).toBe('about:blank');
+
+  let exists = true;
+  const calls: string[] = [];
+  const response = (status: number, body?: unknown) => ({
+    status: () => status,
+    json: async () => body,
+  });
+  const request = {
+    get: async (url: string) => {
+      if (url === `/be/api/workspaces/nf-qa-sandbox/meetings/${MEETING_IDS.first}/`) {
+        calls.push(`detail:${exists ? 200 : 404}`);
+        return response(
+          exists ? 200 : 404,
+          exists ? meetingBody() : undefined,
+        );
+      }
+      if (url === '/be/api/workspaces/nf-qa-sandbox/meetings/') {
+        calls.push(`collection:${exists ? 'present' : 'absent'}`);
+        return response(200, exists ? [meetingBody()] : []);
+      }
+      throw new Error('Unexpected synthetic request URL.');
+    },
+    delete: async (url: string) => {
+      expect(url).toBe(
+        `/be/api/workspaces/nf-qa-sandbox/meetings/${MEETING_IDS.first}/`,
+      );
+      calls.push('delete:204');
+      exists = false;
+      return response(204);
+    },
+  };
+  const registered: string[] = [];
+  const meetings = new MeetingsPage(page, async () => {}, request);
+  await meetings.gotoHome();
+  expect(page.url()).toBe(homeUrl);
+
+  const capture = await meetings.createOwnedManualTranscript({
+    title: MEETING_TITLE,
+    transcriptText: MEETING_TRANSCRIPT,
+    register: async ({ id }) => { registered.push(id); },
+  });
+  calls.push('wrapper:resolved');
+
+  expect(capture.contractErrors).toEqual([
+    expect.objectContaining({
+      recoveryCandidates: [{ kind: 'meeting', id: MEETING_IDS.first }],
+    }),
+  ]);
+  expect(registered).toEqual([MEETING_IDS.first]);
+  expect(calls).toEqual([
+    'detail:200',
+    'detail:200',
+    'delete:204',
+    'detail:404',
+    'collection:absent',
+    'collection:absent',
+    'wrapper:resolved',
+  ]);
+  expect(exists).toBe(false);
+  expect(unexpectedRequests).toEqual([]);
+});
+
+test('meeting collector refuses a response with cross-scope or wrong-title identity', async ({ page }) => {
+  await page.route(MEETING_ENDPOINT, (route) => route.fulfill({
+    status: 201,
+    contentType: 'application/json',
+    body: JSON.stringify(meetingBody({
+      workspace: MEETING_IDS.foreign,
+      title: `${MEETING_TITLE} foreign`,
+    })),
+  }));
+  await openSyntheticMeetingPage(page);
+
+  const capture = await captureManualMeetings(page, () => postMeeting(page));
+
+  expect(capture.successfulEntries).toEqual([]);
+  expect(capture.contractErrors).toEqual([
+    expect.objectContaining({
+      recoveryCandidates: [{ kind: 'meeting', id: MEETING_IDS.first }],
+    }),
+  ]);
+});
+
+test('meeting collector retains both entities when first registration fails', async ({ page }) => {
+  let ordinal = 0;
+  await page.route(MEETING_ENDPOINT, (route) => route.fulfill({
+    status: 201,
+    contentType: 'application/json',
+    body: JSON.stringify(meetingBody({
+      id: ordinal++ === 0 ? MEETING_IDS.first : MEETING_IDS.second,
+    })),
+  }));
+  await openSyntheticMeetingPage(page);
+
+  const capture = await captureManualMeetings(page, () => Promise.all([
+    postMeeting(page),
+    postMeeting(page),
+  ]), {
+    register: ({ id }) => {
+      if (id === MEETING_IDS.first) throw new Error('ledger unavailable');
+    },
+  });
+
+  expect(capture.successfulEntries).toHaveLength(2);
+  expect(capture.registrationErrors).toEqual([
+    expect.objectContaining({
+      requestOrdinal: 0,
+      entityId: MEETING_IDS.first,
+      routeKey: 'meeting-create',
+    }),
+  ]);
+});
+
+test('meeting collector records an admitted requestfailed with no raw URL', async ({ page }) => {
+  await page.route(MEETING_ENDPOINT, (route) => route.abort('connectionfailed'));
+  await openSyntheticMeetingPage(page);
+
+  const capture = await captureManualMeetings(page, () => postMeeting(page));
+
+  expect(capture.requestFailedOutcomes).toEqual([{
+    requestOrdinal: 0,
+    routeKey: 'meeting-create',
+  }]);
+  expect(JSON.stringify(capture)).not.toContain(MEETING_ORIGIN);
+});
+
+test('meeting collector settles safely when no request is admitted', async ({ page }) => {
+  await openSyntheticMeetingPage(page);
+  const capture = await captureManualMeetings(page, async () => {});
+  expect(capture.attemptCount).toBe(0);
+  expect(capture.responseCount).toBe(0);
+  expect(capture.successfulEntries).toEqual([]);
+});
+
+test('meeting collector removes listeners and guards after settlement', async ({ page }) => {
+  let backendWrites = 0;
+  await page.route(MEETING_ENDPOINT, (route) => {
+    backendWrites += 1;
+    return route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(meetingBody()),
+    });
+  });
+  await openSyntheticMeetingPage(page);
+  const eventPage = page as Page & {
+    listenerCount: (event: string) => number;
+  };
+  const before = {
+    request: eventPage.listenerCount('request'),
+    response: eventPage.listenerCount('response'),
+    failed: eventPage.listenerCount('requestfailed'),
+  };
+
+  await captureManualMeetings(page, () => postMeeting(page));
+
+  expect(eventPage.listenerCount('request')).toBe(before.request);
+  expect(eventPage.listenerCount('response')).toBe(before.response);
+  expect(eventPage.listenerCount('requestfailed')).toBe(before.failed);
+  await postMeeting(page);
+  expect(backendWrites).toBe(2);
+});
+
+test('meeting collector preflights its exact endpoint even when a family pattern is misconfigured', async ({ page }) => {
+  let backendWrites = 0;
+  await page.route(MEETING_ENDPOINT, (route) => {
+    backendWrites += 1;
+    return route.fulfill({ status: 201, body: JSON.stringify(meetingBody()) });
+  });
+  await openSyntheticMeetingPage(page);
+
+  const capture = await captureMeetingMutationTransaction({
+    page,
+    guardPatterns: [`${MEETING_ORIGIN}/unrelated/**`],
+    contracts: [manualContract()],
+    action: () => page.evaluate(
+      ({ endpoint, title, transcriptText }) => fetch(endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          source: 'manual',
+          status: 'ready',
+          transcript_text: transcriptText,
+          unsafe_extra: true,
+        }),
+      }).catch(() => undefined),
+      {
+        endpoint: MEETING_ENDPOINT,
+        title: MEETING_TITLE,
+        transcriptText: MEETING_TRANSCRIPT,
+      },
+    ),
+    register: () => {},
+    quietMs: 20,
+    maxAdmissionMs: 100,
+  });
+
+  expect(backendWrites).toBe(0);
+  expect(capture.contractErrors).toEqual([
+    expect.objectContaining({
+      requestOrdinal: 0,
+      routeKey: 'meeting-create',
+      code: 'REQUEST_CONTRACT',
+    }),
+  ]);
+});
+
+const parsedOwnedEntity = ({
+  id,
+  kind = 'meeting',
+  requestOrdinal = 0,
+  entityOrdinal = requestOrdinal,
+  meetingId,
+  uploadId,
+}: {
+  id: string;
+  kind?: OwnedMeetingEntity['kind'];
+  requestOrdinal?: number;
+  entityOrdinal?: number;
+  meetingId?: string;
+  uploadId?: string;
+}) => parseOwnedMeetingEntityResponse({
+  id,
+  kind,
+  title: MEETING_TITLE,
+  workspace_id: MEETING_SANDBOX_WORKSPACE_ID,
+  workspace_slug: 'nf-qa-sandbox',
+  project_id: null,
+  team_id: null,
+  meeting_id: meetingId ?? null,
+  upload_id: uploadId ?? null,
+  source: kind === 'meeting' ? 'manual' : null,
+}, {
+  kind,
+  requestedTitle: MEETING_TITLE,
+  workspaceId: MEETING_SANDBOX_WORKSPACE_ID,
+  workspaceSlug: 'nf-qa-sandbox',
+  requestOrdinal,
+  entityOrdinal,
+  meetingId,
+  uploadId,
+  source: kind === 'meeting' ? 'manual' : undefined,
+});
+
+const exactInspection = (
+  entity: OwnedMeetingEntity,
+  lifecycleStatus: string = 'ready',
+): MeetingCleanupInspection => ({
+  status: 200,
+  identity: {
+    kind: entity.kind,
+    id: entity.id,
+    title: entity.title,
+    workspaceId: entity.workspaceId,
+    workspaceSlug: entity.workspaceSlug,
+    projectId: entity.projectId,
+    teamId: entity.teamId,
+    meetingId: entity.meetingId,
+    uploadId: entity.uploadId,
+    source: entity.source,
+    lifecycleStatus,
+  },
+});
+
+const meetingCapture = (
+  overrides: Partial<MeetingMutationCapture> = {},
+): MeetingMutationCapture => ({
+  attemptCount: 1,
+  responseCount: 1,
+  successfulEntries: [],
+  nonSuccessResponses: [],
+  contractErrors: [],
+  registrationErrors: [],
+  requestFailedOutcomes: [],
+  unexpectedMutationAttempts: [],
+  ...overrides,
+});
+
+const recoveryOptions = (
+  capture: MeetingMutationCapture,
+  overrides: Partial<Parameters<typeof reconcileMeetingCaptureRecovery>[0]> = {},
+) => ({
+  capture,
+  contract: manualContract(),
+  requestedTitle: MEETING_TITLE,
+  transcriptText: MEETING_TRANSCRIPT,
+  workspaceId: MEETING_SANDBOX_WORKSPACE_ID,
+  workspaceSlug: 'nf-qa-sandbox',
+  inspect: async () => ({ status: 404 }),
+  register: async () => {},
+  cleanup: async () => {},
+  ...overrides,
+});
+
+test('capture recovery fresh-reads an owned canonical ID and exactly cleans it before return', async () => {
+  const capture = meetingCapture({
+    contractErrors: [{
+      requestOrdinal: 0,
+      routeKey: 'meeting-create',
+      recoveryCandidates: [{ kind: 'meeting', id: MEETING_IDS.first }],
+      code: 'RESPONSE_CONTRACT',
+    }],
+  });
+  let exists = true;
+  const calls: string[] = [];
+  const registered: string[] = [];
+
+  await reconcileMeetingCaptureRecovery(recoveryOptions(capture, {
+    inspect: async ({ id }) => {
+      calls.push(`inspect:${id}`);
+      return { status: 200, body: meetingBody({ id }) };
+    },
+    register: async ({ id }) => { registered.push(id); },
+    cleanup: async (entities) => cleanupOwnedMeetingEntities({
+      entities,
+      inspect: async (entity) => exactInspection(entity),
+      remove: async (entity) => {
+        calls.push(`delete:${entity.id}:204`);
+        exists = false;
+        return { status: 204 };
+      },
+      verifyExactAbsence: async (entity) => {
+        calls.push(`absence:${entity.id}`);
+        return {
+          detailAbsent: !exists,
+          collectionAbsent: !exists,
+          uiIdAbsent: !exists,
+        };
+      },
+      verifyTitleAbsence: async () => !exists,
+      assertSandbox: async () => {},
+    }),
+  }));
+
+  expect(registered).toEqual([MEETING_IDS.first]);
+  expect(calls).toEqual([
+    `inspect:${MEETING_IDS.first}`,
+    `delete:${MEETING_IDS.first}:204`,
+    `absence:${MEETING_IDS.first}`,
+  ]);
+});
+
+test('capture recovery refuses foreign or mismatched exact detail with an exact residual', async () => {
+  const capture = meetingCapture({
+    contractErrors: [{
+      requestOrdinal: 0,
+      routeKey: 'meeting-create',
+      recoveryCandidates: [{ kind: 'meeting', id: MEETING_IDS.first }],
+      code: 'RESPONSE_CONTRACT',
+    }],
+  });
+
+  for (const mismatch of [
+    { workspace: MEETING_IDS.foreign },
+    { title: `${MEETING_TITLE} mismatch` },
+    { project: MEETING_IDS.second },
+  ]) {
+    let cleanupCalled = false;
+    const error = await reconcileMeetingCaptureRecovery(recoveryOptions(
+      capture,
+      {
+        inspect: async () => ({
+          status: 200,
+          body: meetingBody(mismatch),
+        }),
+        cleanup: async () => { cleanupCalled = true; },
+      },
+    )).catch((caught: unknown) => caught);
+
+    expect(error).toMatchObject({ residualIds: [MEETING_IDS.first] });
+    expect(cleanupCalled).toBe(false);
+  }
+});
+
+test('capture recovery continues across candidates and aggregates inspection and identity residuals', async () => {
+  const capture = meetingCapture({
+    contractErrors: [{
+      requestOrdinal: 3,
+      routeKey: 'meeting-create',
+      recoveryCandidates: [
+        { kind: 'meeting', id: MEETING_IDS.first },
+        { kind: 'meeting', id: MEETING_IDS.second },
+        { kind: 'meeting', id: MEETING_IDS.transcript },
+      ],
+      code: 'RESPONSE_CONTRACT',
+    }],
+  });
+  const inspected: string[] = [];
+  const cleaned: string[] = [];
+  const error = await reconcileMeetingCaptureRecovery(recoveryOptions(capture, {
+    inspect: async ({ id }) => {
+      inspected.push(id);
+      if (id === MEETING_IDS.first) throw new Error('private response');
+      if (id === MEETING_IDS.second) {
+        return { status: 200, body: meetingBody({ id, team: MEETING_IDS.foreign }) };
+      }
+      return { status: 200, body: meetingBody({ id }) };
+    },
+    cleanup: async (entities) => {
+      cleaned.push(...entities.map(({ id }) => id));
+    },
+  })).catch((caught: unknown) => caught);
+
+  expect(inspected).toEqual([
+    MEETING_IDS.first,
+    MEETING_IDS.second,
+    MEETING_IDS.transcript,
+  ]);
+  expect(cleaned).toEqual([MEETING_IDS.transcript]);
+  expect(error).toMatchObject({
+    residualIds: [MEETING_IDS.first, MEETING_IDS.second],
+  });
+  expect(String(error)).not.toContain('private response');
+});
+
+test('capture recovery aggregates exact cleanup failures and still cleans later safe IDs', async () => {
+  const capture = meetingCapture({
+    contractErrors: [{
+      requestOrdinal: 0,
+      routeKey: 'meeting-create',
+      recoveryCandidates: [
+        { kind: 'meeting', id: MEETING_IDS.first },
+        { kind: 'meeting', id: MEETING_IDS.second },
+      ],
+      code: 'RESPONSE_CONTRACT',
+    }],
+  });
+  const cleanupBatches: string[][] = [];
+  const error = await reconcileMeetingCaptureRecovery(recoveryOptions(capture, {
+    inspect: async ({ id }) => ({ status: 200, body: meetingBody({ id }) }),
+    cleanup: async (entities) => {
+      cleanupBatches.push(entities.map(({ id }) => id));
+      throw Object.assign(new Error('private cleanup failure'), {
+        residualIds: [MEETING_IDS.first],
+      });
+    },
+  })).catch((caught: unknown) => caught);
+
+  expect(cleanupBatches).toEqual([[
+    MEETING_IDS.first,
+    MEETING_IDS.second,
+  ]]);
+  expect(error).toMatchObject({ residualIds: [MEETING_IDS.first] });
+  expect(String(error)).not.toContain('private cleanup failure');
+});
+
+test('capture recovery cleans a response-owned entity even when registration failed', async () => {
+  const entity = parsedOwnedEntity({ id: MEETING_IDS.first });
+  const capture = meetingCapture({
+    successfulEntries: [{
+      requestOrdinal: 0,
+      routeKey: 'meeting-create',
+      entity,
+    }],
+    registrationErrors: [{
+      requestOrdinal: 0,
+      routeKey: 'meeting-create',
+      entityId: entity.id,
+      code: 'REGISTRATION_FAILED',
+    }],
+  });
+  const cleaned: string[] = [];
+
+  await reconcileMeetingCaptureRecovery(recoveryOptions(capture, {
+    inspect: async () => { throw new Error('unexpected recovery GET'); },
+    cleanup: async (entities) => {
+      cleaned.push(...entities.map(({ id }) => id));
+    },
+  }));
+
+  expect(cleaned).toEqual([entity.id]);
+});
+
+test('capture recovery cleans registered same-title siblings in the malformed batch', async () => {
+  const sibling = parsedOwnedEntity({
+    id: MEETING_IDS.second,
+    requestOrdinal: 1,
+    entityOrdinal: 1,
+  });
+  const capture = meetingCapture({
+    successfulEntries: [{
+      requestOrdinal: 1,
+      routeKey: 'meeting-create',
+      entity: sibling,
+    }],
+    contractErrors: [{
+      requestOrdinal: 0,
+      routeKey: 'meeting-create',
+      recoveryCandidates: [{ kind: 'meeting', id: MEETING_IDS.first }],
+      code: 'RESPONSE_CONTRACT',
+    }],
+  });
+  const removed: string[] = [];
+  let titleVerified = false;
+
+  await reconcileMeetingCaptureRecovery(recoveryOptions(capture, {
+    inspect: async ({ id }) => ({ status: 200, body: meetingBody({ id }) }),
+    cleanup: async (entities) => cleanupOwnedMeetingEntities({
+      entities,
+      inspect: async (entity) => exactInspection(entity),
+      remove: async (entity) => {
+        removed.push(entity.id);
+        return { status: 204 };
+      },
+      verifyExactAbsence: async () => ({
+        detailAbsent: true,
+        collectionAbsent: true,
+        uiIdAbsent: true,
+      }),
+      verifyTitleAbsence: async () => {
+        titleVerified = true;
+        return removed.length === 2;
+      },
+      assertSandbox: async () => {},
+    }),
+  }));
+
+  expect(removed).toEqual([MEETING_IDS.second, MEETING_IDS.first]);
+  expect(titleVerified).toBe(true);
+});
+
+test('fresh meeting detail must prove manual source and null project/team before cleanup', () => {
+  const entity = parsedOwnedEntity({ id: MEETING_IDS.first });
+  const detail = {
+    id: entity.id,
+    title: entity.title,
+    workspace: entity.workspaceId,
+    project: null,
+    team: null,
+    source: 'manual',
+    status: 'ready',
+  };
+
+  expect(parseMeetingCleanupInspection(detail, entity)).toEqual({
+    status: 200,
+    identity: {
+      kind: 'meeting',
+      id: entity.id,
+      title: entity.title,
+      workspaceId: entity.workspaceId,
+      workspaceSlug: entity.workspaceSlug,
+      source: 'manual',
+      lifecycleStatus: 'ready',
+    },
+  });
+
+  for (const mismatch of [
+    { source: 'upload' },
+    { project: MEETING_IDS.second },
+    { team: MEETING_IDS.transcript },
+  ]) {
+    expect(parseMeetingCleanupInspection({ ...detail, ...mismatch }, entity))
+      .toEqual({ status: 422 });
+  }
+});
+
+test('meeting cleanup accepts every lifecycle status and an already-404 entity', async () => {
+  const ids = [
+    MEETING_IDS.first,
+    MEETING_IDS.second,
+    MEETING_IDS.transcript,
+    MEETING_IDS.upload,
+    MEETING_IDS.job,
+  ];
+  const statuses = ['ready', 'scheduled', 'recording', 'processing', 'failed'];
+  const entities = ids.map((id, index) => parsedOwnedEntity({
+    id,
+    requestOrdinal: index,
+  }));
+  const removed: string[] = [];
+  let sandboxChecks = 0;
+
+  await cleanupOwnedMeetingEntities({
+    entities,
+    inspect: async (entity) => entity.id === MEETING_IDS.job
+      ? { status: 404 }
+      : exactInspection(entity, statuses[entities.indexOf(entity)]),
+    remove: async (entity) => {
+      removed.push(entity.id);
+      return { status: 204 };
+    },
+    verifyExactAbsence: async () => ({
+      detailAbsent: true,
+      collectionAbsent: true,
+      uiIdAbsent: true,
+    }),
+    verifyTitleAbsence: async () => true,
+    assertSandbox: async () => { sandboxChecks += 1; },
+  });
+
+  expect(removed).toEqual(ids.slice(0, 4).reverse());
+  expect(sandboxChecks).toBe(4);
+});
+
+test('meeting cleanup orders children before meeting and treats cascade 404 as resolved', async () => {
+  const meeting = parsedOwnedEntity({ id: MEETING_IDS.first, requestOrdinal: 0 });
+  const upload = parsedOwnedEntity({
+    id: MEETING_IDS.upload,
+    kind: 'upload',
+    requestOrdinal: 1,
+    meetingId: meeting.id,
+  });
+  const transcript = parsedOwnedEntity({
+    id: MEETING_IDS.transcript,
+    kind: 'transcript',
+    requestOrdinal: 2,
+    meetingId: meeting.id,
+  });
+  const job = parsedOwnedEntity({
+    id: MEETING_IDS.job,
+    kind: 'transcription-job',
+    requestOrdinal: 3,
+    meetingId: meeting.id,
+    uploadId: upload.id,
+  });
+  const removed: string[] = [];
+
+  await cleanupOwnedMeetingEntities({
+    entities: [meeting, upload, transcript, job],
+    inspect: async (entity) => entity.id === transcript.id
+      ? { status: 404 }
+      : exactInspection(entity),
+    remove: async (entity) => {
+      removed.push(entity.id);
+      return { status: 204 };
+    },
+    verifyExactAbsence: async () => ({
+      detailAbsent: true,
+      collectionAbsent: true,
+      uiIdAbsent: true,
+    }),
+    verifyTitleAbsence: async () => true,
+    assertSandbox: async () => {},
+  });
+
+  expect(removed).toEqual([job.id, upload.id, meeting.id]);
+});
+
+test('meeting cleanup deletes same-title IDs in LIFO order before shared-title verification', async () => {
+  const first = parsedOwnedEntity({ id: MEETING_IDS.first, requestOrdinal: 0 });
+  const second = parsedOwnedEntity({ id: MEETING_IDS.second, requestOrdinal: 1 });
+  const calls: string[] = [];
+
+  await cleanupOwnedMeetingEntities({
+    entities: [first, second],
+    inspect: async (entity) => exactInspection(entity),
+    remove: async (entity) => {
+      calls.push(`remove:${entity.id}`);
+      return { status: 204 };
+    },
+    verifyExactAbsence: async (entity) => {
+      calls.push(`verify:${entity.id}`);
+      return {
+        detailAbsent: true,
+        collectionAbsent: true,
+        uiIdAbsent: true,
+      };
+    },
+    verifyTitleAbsence: async () => {
+      calls.push('verify-title');
+      return true;
+    },
+    assertSandbox: async () => {},
+  });
+
+  expect(calls.slice(0, 2)).toEqual([
+    `remove:${second.id}`,
+    `remove:${first.id}`,
+  ]);
+  expect(calls.at(-1)).toBe('verify-title');
+});
+
+test('meeting cleanup continues after one GET or DELETE failure and aggregates exact residual IDs', async () => {
+  const first = parsedOwnedEntity({ id: MEETING_IDS.first, requestOrdinal: 0 });
+  const second = parsedOwnedEntity({ id: MEETING_IDS.second, requestOrdinal: 1 });
+  const removed: string[] = [];
+  const error = await cleanupOwnedMeetingEntities({
+    entities: [first, second],
+    inspect: async (entity) => {
+      if (entity.id === second.id) throw new Error('private backend output');
+      return exactInspection(entity);
+    },
+    remove: async (entity) => {
+      removed.push(entity.id);
+      return { status: 500 };
+    },
+    verifyExactAbsence: async (entity) => ({
+      detailAbsent: entity.id === second.id,
+      collectionAbsent: entity.id === second.id,
+      uiIdAbsent: entity.id === second.id,
+    }),
+    verifyTitleAbsence: async () => false,
+    assertSandbox: async () => {},
+  }).catch((caught: unknown) => caught);
+
+  expect(error).toMatchObject({
+    residualIds: [MEETING_IDS.first, MEETING_IDS.second],
+  });
+  expect(String(error)).not.toContain('private backend output');
+  expect(removed).toEqual([MEETING_IDS.first]);
+});
+
+test('meeting cleanup refuses foreign workspace and name or ID mismatches', async () => {
+  const entity = parsedOwnedEntity({ id: MEETING_IDS.first });
+  for (const identityOverride of [
+    { workspaceId: MEETING_IDS.foreign },
+    { title: `${MEETING_TITLE} mismatch` },
+    { id: MEETING_IDS.foreign },
+  ]) {
+    let removed = false;
+    const error = await cleanupOwnedMeetingEntities({
+      entities: [entity],
+      inspect: async () => {
+        const inspection = exactInspection(entity);
+        return {
+          ...inspection,
+          identity: { ...inspection.identity!, ...identityOverride },
+        };
+      },
+      remove: async () => {
+        removed = true;
+        return { status: 204 };
+      },
+      verifyExactAbsence: async () => ({
+        detailAbsent: false,
+        collectionAbsent: false,
+        uiIdAbsent: false,
+      }),
+      verifyTitleAbsence: async () => false,
+      assertSandbox: async () => {},
+    }).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ residualIds: [entity.id] });
+    expect(removed).toBe(false);
+  }
+});
+
+test('meeting cleanup is idempotent across a second exact pass', async () => {
+  const entity = parsedOwnedEntity({ id: MEETING_IDS.first });
+  let exists = true;
+  const options = {
+    entities: [entity],
+    inspect: async (candidate: OwnedMeetingEntity) => exists
+      ? exactInspection(candidate)
+      : { status: 404 as const },
+    remove: async () => {
+      exists = false;
+      return { status: 204 };
+    },
+    verifyExactAbsence: async () => ({
+      detailAbsent: !exists,
+      collectionAbsent: !exists,
+      uiIdAbsent: !exists,
+    }),
+    verifyTitleAbsence: async () => !exists,
+    assertSandbox: async () => {},
+  };
+  await cleanupOwnedMeetingEntities(options);
+  await cleanupOwnedMeetingEntities(options);
+  expect(exists).toBe(false);
+});
+
+test('meeting cleanup deduplicates one durable ID across ordinals at its latest safe LIFO position', async () => {
+  const first = parsedOwnedEntity({ id: MEETING_IDS.first, requestOrdinal: 0 });
+  const second = parsedOwnedEntity({ id: MEETING_IDS.second, requestOrdinal: 1 });
+  const repeated = parseOwnedMeetingEntityResponse({
+    id: first.id,
+    kind: first.kind,
+    title: first.title,
+    workspace_id: first.workspaceId,
+    workspace_slug: first.workspaceSlug,
+    project_id: null,
+    team_id: null,
+    meeting_id: null,
+    upload_id: null,
+    source: 'manual',
+  }, {
+    kind: 'meeting',
+    requestedTitle: MEETING_TITLE,
+    workspaceId: MEETING_SANDBOX_WORKSPACE_ID,
+    workspaceSlug: 'nf-qa-sandbox',
+    source: 'manual',
+    requestOrdinal: 2,
+    entityOrdinal: 2,
+  });
+  const removes: string[] = [];
+  await cleanupOwnedMeetingEntities({
+    entities: [first, second, repeated],
+    inspect: async (entity: OwnedMeetingEntity) => exactInspection(entity),
+    remove: async (entity) => {
+      removes.push(entity.id);
+      return { status: 204 };
+    },
+    verifyExactAbsence: async () => ({
+      detailAbsent: true,
+      collectionAbsent: true,
+      uiIdAbsent: true,
+    }),
+    verifyTitleAbsence: async () => true,
+    assertSandbox: async () => {},
+  });
+
+  expect(removes).toEqual([first.id, second.id]);
+});
+
+test('meeting cleanup never re-admits an ID after any conflicting duplicate identity', async () => {
+  const first = parsedOwnedEntity({ id: MEETING_IDS.first, requestOrdinal: 0 });
+  const conflictingTitle = `${MEETING_TITLE} conflicting`;
+  const conflicting = parseOwnedMeetingEntityResponse({
+    id: first.id,
+    kind: first.kind,
+    title: conflictingTitle,
+    workspace_id: first.workspaceId,
+    workspace_slug: first.workspaceSlug,
+    project_id: null,
+    team_id: null,
+    meeting_id: null,
+    upload_id: null,
+    source: 'manual',
+  }, {
+    kind: 'meeting',
+    requestedTitle: conflictingTitle,
+    workspaceId: MEETING_SANDBOX_WORKSPACE_ID,
+    workspaceSlug: 'nf-qa-sandbox',
+    source: 'manual',
+    requestOrdinal: 2,
+    entityOrdinal: 2,
+  });
+  const repeatedFirst = parseOwnedMeetingEntityResponse({
+    id: first.id,
+    kind: first.kind,
+    title: first.title,
+    workspace_id: first.workspaceId,
+    workspace_slug: first.workspaceSlug,
+    project_id: null,
+    team_id: null,
+    meeting_id: null,
+    upload_id: null,
+    source: 'manual',
+  }, {
+    kind: 'meeting',
+    requestedTitle: MEETING_TITLE,
+    workspaceId: MEETING_SANDBOX_WORKSPACE_ID,
+    workspaceSlug: 'nf-qa-sandbox',
+    source: 'manual',
+    requestOrdinal: 3,
+    entityOrdinal: 3,
+  });
+  let removes = 0;
+  const error = await cleanupOwnedMeetingEntities({
+    entities: [first, conflicting, repeatedFirst],
+    inspect: async (entity) => exactInspection(entity),
+    remove: async () => {
+      removes += 1;
+      return { status: 204 };
+    },
+    verifyExactAbsence: async () => ({
+      detailAbsent: false,
+      collectionAbsent: false,
+      uiIdAbsent: false,
+    }),
+    verifyTitleAbsence: async () => false,
+    assertSandbox: async () => {},
+  }).catch((caught: unknown) => caught);
+
+  expect(error).toMatchObject({ residualIds: [first.id] });
+  expect(removes).toBe(0);
+});

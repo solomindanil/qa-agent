@@ -1,0 +1,18 @@
+import type { Locator, Page } from '@playwright/test';
+
+// Первая итерация проверяет только отображение флоу пополнения
+// (адрес депозита показывается). Реальные testnet-транзакции — позже.
+export class TopupPage {
+  readonly page: Page;
+  readonly depositAddress: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+    // TODO(product): уточнить testid/структуру страницы пополнения
+    this.depositAddress = page.getByTestId('deposit-address');
+  }
+
+  async goto(): Promise<void> {
+    await this.page.goto('/topup');
+  }
+}

@@ -1,0 +1,211 @@
+# Console / Kernel / independent harness reconciliation
+
+Read-only Lead AQA source audit, 2026-09-11. No source changes, product calls, tracker writes, dependency installation, registrations or tests were performed by this reviewer. The only write is this report. Functional qualification commands below were handed to the integration owner for separate execution; they are not results.
+
+## Decision
+
+Retain Console `f3660d0eed9c442aec974f1b57dcaa6b7a8bcc3b` and Kernel `15a067c9a694de26460102ce5dadb9707c7977b1` as the coherent canonical source pair. Among the audited Console/Kernel refs and dirty source, no omitted runtime fix needs cherry-picking. Keep reporting `10d398d8a077068c2184f33958e9b654a2f2947c` inactive. Preserve, but do not merge, the old fixture-driven Claude UI and the independent QAH process designs.
+
+Exact checked consumer: `/Users/danilsolomin/projectsnew/qa-agent/.local/qa-h001-review-20260911.gx5j0h/cold`, outer HEAD `c3f9ca2dc5c156b5eaada337dee22f75e9db4c0c`. Its Console and Kernel children were clean at inspection. Console tree `af54d7c4d1dea07a86846f9603bb4de56d93d762`; Kernel tree `4e865e14beac98930651a6b0a790e13e69affab3`. Manifest pins/roles: `sources/manifest.v1.json:7`, `:17`, `:41`. Accepted source histories contain 127 Console commits and 129 Kernel commits respectively.
+
+This decision is source reconciliation, not proof of deployed-product quality, current browser/account readiness, actual Claude execution, production interruption recovery, or promotion of the outer accepted workspace at `48bccef`.
+
+## Inventory and method
+
+Read the current locator `/Users/danilsolomin/.codex/qa-workspaces.md`, root/cold AGENTS, and `ai-native-qa-harness/AGENTS.md`. Console and Kernel selected repositories contain no root AGENTS. Inspected HEAD/tree/status, every available branch/remote/tag ref, primary-repository worktree records including detached/prunable HEADs, ancestry closures, stable patch IDs for non-ancestor refs, and source blob identities for dirty donors. A final read-only `git ls-remote --heads --tags` refresh and available reflog inspection are recorded below. No fetch was performed. Unreachable objects absent from available reflogs were not exhaustively recovered; no claim is made about unavailable historical dirty bytes.
+
+Initial `.local` discovery found 309 `.git` entries. Of those, 224 were under `qualification/assembly.Zf9Fo0/tmp/qa-source-workspace-*`, and three under `critical-review-20260907/source-stat-probe-*`: synthetic packaging fixtures, not alternate products. Their generator is `qa-agent/tests/workspace.test.mjs:13–34`; a retained fixture manifest explicitly says `Synthetic source only`. The 41 relevant Console/Kernel/reporting clone paths (including `qualification/console-authored-bundle.WZOfER/restored`) collapse to 39 common Git directories and 14 distinct HEAD/tree pairs. A later scan saw five new integration-owner repositories, excluded as outputs of this reconciliation rather than newly discovered donors.
+
+Primary repositories:
+
+| Path under `/Users/danilsolomin/projectsnew` | Observed HEAD | Disposition |
+| --- | --- | --- |
+| `qa-console` | `a05e99e7f35a4f0ab9fc0600fac59e0802030b95` | Ancestor; all eight branch refs audited. Untracked `.claude/worktrees/` contains the separately inspected dirty UI worktree. |
+| `AgentFirstQAStarter` | `ba49ebf31f24b6e636cfaffd30bc6cc2b2591a5e` | Ancestor; eight branch refs audited. Untracked `docs/assets/brand/` has 16 logo SVG/PNG concepts, not runtime source. |
+| `qa-starter-frozen` | `ba49ebf31f24b6e636cfaffd30bc6cc2b2591a5e` | Separate Git directory, same HEAD/tree as AgentFirst; all remote refs are ancestors or the patch-equivalent safe-readback ref. Clean. |
+| `ai-native-qa-harness` | `3b92547be1d96921d722d4f71c89ef3e7326baad` | Independent design/process history; clean; three newer remote branch tips audited below. |
+
+Relevant `.local` locations, paths relative to `/Users/danilsolomin/projectsnew/qa-agent/.local`:
+
+| HEAD / source | Clone groups |
+| --- | --- |
+| Console `43262b2` | `bundle-review/console`; `qualification/assembly.Zf9Fo0/{cold-self-root,cold-source-root,final-clone}/components/console` |
+| Kernel `393af20` | Corresponding four Kernel clones above; `qualification/qa-agent-authored-cold.LJTQg4/components/kernel` |
+| Console `f4b0d56` | `critical-review-20260907/latest/console` |
+| Console `b38a8b4` | `qualification/console-authored-bundle.WZOfER/restored`; `qualification/qa-agent-authored-cold.LJTQg4/components/console` |
+| Console `cef3a8d`; Kernel `11d013c` | `latest-source-20260909.EweLnK/repo/components/{console,kernel}` |
+| Console `f3660d0`; Kernel `15a067c` | `product-discovery-20260909.SVbw3S/{console,kernel}` are worktrees sharing the two preceding common dirs; `qa-h001-review-20260911.gx5j0h/cold/components/{console,kernel}` and `source-assembly-20260910.hT28L8/{cold-tree,committed-cold}/components/{console,kernel}` are separate clean replicas |
+| Console `6dfef30` | `worktrees/{console-finding-learning,console-qa01-continuation}`: independent clones with dirty source examined below |
+| Console `d6963a8`, `dd27714` | `worktrees/console-postreview`; `worktrees/console-qa01-deadline-repair`, respectively; clean |
+| Console `784eda0`, `deb262c`; Kernel `11d013c` | `worktrees/{postreview-assembly,product-analysis-integration}/components/{console,kernel}` |
+| Reporting `10d398d` | All 11 initial `kernel-reporting-reference` replicas in the listed bundle/assembly/qualification roots have the same clean tree `f9edc6f43166b69781973fd0568de624a6b11f82`; no independent newer reporting code found |
+
+Other `.local` repositories were classified as outer assembly roots, Freeland/product roots, research clones, presentation code or topology scratch; they are not Console/Kernel donors and are assigned to the other audit lanes. No secret/private workspace content was used to determine versions.
+
+Historical locator checks:
+
+- `/private/tmp/qa-starter-local-gate-k82vknnh/console` and `/accepted-kernel`, `/private/tmp/qa-starter-observation-report-x8qi1m7y/kernel`, and `/private/tmp/qa-product-bootstrap-_nvr5zk3/console` still have directory remnants but are **not usable Git repositories** (`git rev-parse` fails). Do not choose them as current source/runtime. Their named committed lines are available in accepted/bundled history.
+- All six historical `/private/tmp/qa-console-*` worktree records are prunable/unavailable; their recorded HEAD commits remain in the primary common object database and were compared. Detached `6b526ac` is already in accepted history.
+- All 13 historical AgentFirst `/private/tmp` worktree records and the frozen I1 demo record are unavailable. All recorded HEADs are ancestors except the explicitly handled safe-readback and observation branches. Three task8-red records at `7d4612f` are the same historical source, not three implementations.
+
+### Read-only remote and reflog refresh
+
+At the integration owner's request, configured remotes were inspected without printing credential fields. Across the selected repositories there are 39 distinct remote destinations: 35 local bundle files, three local donor repositories, and one GitHub repository. `qa-console` and `AgentFirstQAStarter` themselves have no configured remote. Bundle refs are bounded archived sources already inspected, not evidence of fresh network state.
+
+Fresh `git ls-remote --heads --tags` returned exit 0 for all four non-bundle destinations, without fetch/worktree mutation:
+
+- `https://github.com/solomindanil/ai-native-qa-harness.git`: four heads exactly match locally audited `bc2f5aa`, `77a2f82`, `b3c1967`, `3b92547`; no tags or newer heads were advertised.
+- `qa-starter-frozen` origin is local `AgentFirstQAStarter`: eight current branches, already audited. Some frozen cached remote refs lag, but source comparison used the live donor, not that cache.
+- The dirty Console donors' origin is local `.local/worktrees/console-postreview`: advertises `499f5fa` and `d6963a8`, both accepted.
+- `console-postreview` origin `/private/tmp/claude-qa02-mEmMpj/console` is actually still usable (separate from the failed locator remnants). Direct check found clean HEAD `499f5fa`, no AGENTS, and advertised `499f5fa`/`f4b0d56`, both accepted. This additional donor was included in the final available-reflog scan.
+
+`git reflog show --all --format=%H` was read from 43 distinct available Console/Kernel common dirs (including the three primary families and that additional tmp donor): 321 unique-per-common reflog tip entries. The non-ancestor tips are the seven already-disposed patch/reporting objects plus seven superseded Kernel amendment objects:
+
+| Reflog-only object(s) | Accepted final amendment | Evidence / disposition |
+| --- | --- | --- |
+| `42a88282ff69e5daf1f4395f2c6799db080ffce8` | `e479a0ee96cb9cbd43080e529698db9c6a7e6c28` | Same parent `130cc25`; reflog says amend. Final diff corrects registration phase fixture positive/negative cases (5 additions/1 deletion). Superseded, not a missing test. |
+| `ed140767a1303297cbd0f09eef546dd2adc29397` | `01dc08861448c78a0cada08b8fe5dea8cf571be8` | Same parent `afcb268`; final adds approved-plan requirement and regression rejecting receipts bound to draft plans (15 added lines). Superseded. |
+| `cf9c8e3f182358c680e23f0f44e051f44a87d13f`, `1fe9006864bcab5bc401919083f6f64cf6f49c6a`, `637faf8a67f57599ca51906f4e6be3448a2e750f`, `c7a14bcd6fe201f29e6a8c82d6673a16a474cdce`, `4b1d46b67a5db5311b6f322dca6269f26f02d2e5` | `7d4612f674ca6f7ff33cf724e1e17dcbc8265894` | All same parent `263c561`; ordered amendment chain in reflog. Final source replaces unscoped WeakSet trust with operation/admission-bound WeakMap authority and adds replay regressions. Last delta is 394 additions/57 deletions across regenerator/tests. Earlier snapshots are superseded safety work, not parallel implementations to merge. |
+
+All final amendments are ancestors of accepted Kernel `15a067c`. This does not assert completeness for expired reflogs, deleted working files, undisclosed remotes or unknown repositories; it bounds the latest-source claim to the enumerated local sources and freshly advertised configured remotes.
+
+## Commit dispositions
+
+Every primary Console ref is an ancestor of `f3660d0`, except these exact patch duplicates. Stable `git patch-id --stable` matched the complete commit diffs:
+
+| Donor commit | Accepted commit with identical stable patch | Decision |
+| --- | --- | --- |
+| `89671e91c56c6d755a7807d6e1c46a74b24a85e3` first-evidence UI | `a53307304bf03f9000ecbdcc0e4f5c62b9ab9707` | Already included |
+| `22713e3` exact private targets | `02bd402297c3c9f9e0e2ef0e250913ec7cc5424c` | Already included |
+| `62654c707653b7ad0cd4aa3eb44f7f61adde0ea2` session-bound private grants | `01a3726eed6785f7583541f1d1c10f6c6b91544a` | Already included |
+| Kernel `555e23557c24025f07a7d09324b029633bcb2423` safe discovery readback | `3497fcde0a7b69356080c79109e0ad3b6d56db5c` | Already included in accepted Kernel; frozen remote is the same donor |
+
+All refs in `.local` Console clones (`499f5fa`, `f4b0d56`, `6dfef30`, `dd27714`, `784eda0`, `d6963a8`, `deb262c`, `cef3a8d`, `f3660d0`) are accepted ancestors, not missing improvements. The accepted tail is:
+
+`6dfef30 → dd27714 → 049e516 → 784eda0 → d6963a8 → deb262c → cef3a8d → 1c5c502 → af832c9 → f3660d0`.
+
+The only non-equivalent primary Kernel branch commits are `25758eb` (persist caller-provided bound agent observations) and `e5e513e` (retain blocked observations under scoped positive readback). They are already preserved as ancestors of reporting `10d398d`, not omitted active Kernel fixes.
+
+### Dirty source: no blanket reset or copy
+
+`worktrees/console-finding-learning` has ten changed/untracked source files. Every file blob equals either current accepted Console bytes or the exact accepted historical version at `dd27714`/`784eda0`. `worktrees/console-qa01-continuation` has eleven changed/untracked source files, likewise equal to current accepted bytes or versions at `dd27714`/`049e516`. In both, the older adapter and declarative reference are superseded; the continuation human-help test is additionally superseded by `af832c9`. Do not recopy either dirty tree: nothing is missing and their older files would undo accepted changes. Their dirty state belongs to the original work and was left untouched.
+
+`qa-console/.claude/worktrees/claude-i1-console` shares the primary qa-console common dir, HEAD `e4af8e7`. It contains unique uncommitted UI files plus modified README/App/intake/CSS and generated `tsconfig.tsbuildinfo`. None of the 18 inspected non-generated changed files exactly matches a historical accepted blob. The uniqueness is **not** a justification for activation:
+
+- `src/components/evidence/EvidenceFlow.tsx:40` creates a fixture baseline; `:58–83` uses timers and `fixtureApproval`, `fixturePlan`, `fixtureExecutionApproval`, `fixtureReceipt`, not persisted APIs.
+- `src/lib/evidence-fixture.ts:1–9` explicitly labels the adapter and fixture-prefixed digests; `:36` calls the delay pretend timing.
+- `tests/e2e/evidence-flow.spec.ts:8–9` explicitly states the evidence walk makes no network call.
+- `src/lib/evidence-flow.ts:5–10` restricts the UI to incomplete/environment/harness outcomes and disables release acceptance, so this is not hidden production PASS machinery; it is a safe design prototype with no runtime integration evidence.
+
+Disposition: preserve as optional UI/design donor outside canonical runtime. A later UI task must deliberately port presentation against the current real receipt contracts, not copy this older intake/App replacement wholesale.
+
+Exact preserved UI inventory, paths relative to `/Users/danilsolomin/projectsnew/qa-console/.claude/worktrees/claude-i1-console`. SHA-256 identifies observed working bytes, not a reviewed commit or runtime qualification. No file was modified or copied by this reviewer.
+
+| Path | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `README.md` | 6691 | `0b56be9fbdb8aa1f426153e9fd43a555bac2fecfcb8f45988266ebf62cdfd0af` |
+| `src/App.tsx` | 6389 | `452e4009f30dae91dc3c8da48b11eabd402ae4bdd8a82f8b546de6845a51fa13` |
+| `src/components/intake/IntakeScreen.tsx` | 24168 | `6396a7c633d8b7baa691ac2d3e7fdb7ba6df27e889afd41567ba17908ff6d80c` |
+| `src/styles/global.css` | 32241 | `c34760b0844fb1cb065a55818421445f0453031a9b5d6659212f694054c52379` |
+| `src/components/evidence/BaselineReviewCard.tsx` | 3312 | `b97dae7d37652fe89b6828d433de4ed05f9c75be3d45f42463592474ea9661e8` |
+| `src/components/evidence/DryRunScopeCard.tsx` | 4638 | `18eb572c6f706e4e2eb09e2522cc3e3797000f56c18fae1f6cc20e20ac818e76` |
+| `src/components/evidence/EvidenceFields.tsx` | 1755 | `482ee41e61341f5d281d7aaa1b0e5d3258a39583c0ca847889e65b5b2ee1d4c3` |
+| `src/components/evidence/EvidenceFlow.tsx` | 5412 | `a8be06eacde6b9511a3155873ea2d041b71328b3fd72f63cf8120e9895e08c9a` |
+| `src/components/evidence/EvidenceStepper.tsx` | 1360 | `3ae70bf1e871a6bf43d760cf25c35c2d7733b240739a2c74f39251ea5f99ead2` |
+| `src/components/evidence/RunReceiptCard.tsx` | 4027 | `8a046b4c4bdd19bbd2c377476902d8b004bbe3b534cc0a762fcb230b21d30dab` |
+| `src/components/registration/RegistrationProgress.tsx` | 4286 | `9d5855c8307634a7e75f0e97fe0094651d7754877365768618a621548bfff4f4` |
+| `src/lib/evidence-fixture.ts` | 8259 | `7672c8c16619fe74a73d65a19def3cca0f611e327d718128e10e26169d02ddf1` |
+| `src/lib/evidence-flow.ts` | 17041 | `023fe9d7accbd3d249e85055cddea8349ebfe73490e829e85613f04c0bfc01fe` |
+| `src/lib/registration-progress.ts` | 8052 | `d395922622557a494e4358b7057018a4f2ca7424bb89e34d6018e8620fd78838` |
+| `tests/e2e/evidence-flow.spec.ts` | 8503 | `a1fb78b10749da6e74c04cb44b4ada22e1b66ddf00a40ea4e0fa8359d41fddd3` |
+| `tests/e2e/registration-progress.spec.ts` | 5734 | `4423604a1059aba77aff592fa15d1368c3ea36fa6738e02476da7d7c1e5b5b11` |
+| `tests/unit/evidence-flow.test.ts` | 12702 | `4519364e767d504211c22667d7cbfd92576d2b02e6dedca92e5db686c9acc4ac` |
+| `tests/unit/registration-progress.test.ts` | 7276 | `12e83b885c5f5bb5fb27ba6df5c71e1efe56fd550e3abfd53c440028ae5e4d56` |
+| `tsconfig.tsbuildinfo` (generated; never source donor) | 1380 | `ab1ef29baa3729dd88af78b6e26f69bf449675a00e52efc08b6dac4a8c044959` |
+
+### Reporting must remain inactive
+
+Reporting `10d398d` branches from Kernel `9533fcd`, then adds the two observation commits and read-only per-target reports. Relative to `9533fcd`, it adds six files/1,353 lines; it does **not** include accepted `393af20` reviewed graph relations, `11d013c` bounded quoted-secret detection, or `15a067c` public private-reader export. Switching the runtime pin to reporting would drop those reviewed changes and violate Console's exact authority check (`components/console/server/kernel-authority.mjs:7`, `:75–83`).
+
+The accepted skill intentionally handles this missing capability: `components/console/skills/qa-product-v0/references/agent-observations.md:41–52` requires real public exports and current bindings or explicit local/unsealed fallback. This is a recorded capability boundary, not an unconditional broken API call. Current `record-review`/`read-review` works on existing runner evidence and is a different API (`:7–27`). There is no need to activate reporting for this reconciliation. A future accepted observation writer would require a dedicated integration/security/compatibility review on top of current Kernel, not a sibling pin swap.
+
+## Independent ai-native-qa-harness
+
+All available refs form one separate linear history:
+
+`7d3935d → 3b92547 → bc2f5aa → 77a2f82 → b3c1967`.
+
+The main tree stops at `3b92547`; the remote section-0/section-1 refs preserve baseline evidence, a process graph/contract, an offline validator and a readiness design. They are not Console/Kernel runtime descendants. `b3c1967` itself changes only a 267-line design document. Its tree has no package.json, Playwright harness or implementation of the planned `scripts/section-1-readiness.rb`.
+
+Evidence on ref `b3c196793b9697edac7515e9f803e46a4727c94e`:
+
+- `docs/superpowers/specs/2026-08-07-section-1-release-readiness-design.md:9–11`: process remains draft; revision-2 readiness work is unimplemented.
+- `:19–26`: excludes external product QA, Playwright, credentials, VPS and speculative Flow interfaces.
+- `:96–100`: describes the planned checker, not an existing runnable entrypoint.
+- Existing `scripts/validate-section-1.rb:8–15` pins old QAH graph/contract/agent/binding identities; `:31–35`, `:113–124` only validates local exact draft inputs, not live server readiness. It uses Ruby standard-library reads with no network call.
+- Main `AGENTS.md:1–3` establishes a standalone harness and forbids implied imports from NuanuFlowQA; later rules require separate owner authority for activation.
+
+Disposition: reference-only independent process-design lineage. Preserve a provenance pointer if useful; do not merge QAH project IDs, agents, approvals or historical evidence into universal qa-agent runtime. Its offline validator can be run later from a restored exact branch if specifically qualifying that draft, but adds nothing to current Console/Kernel product evidence.
+
+## Compatibility hazards in the current pair
+
+These are source-observed integration hazards; this reviewer did not launch commands to reproduce failures.
+
+1. **Historical README pin conflicts with embedded authority.** `components/console/README.md:69–75` demands `b3e3104`, while `server/kernel-authority.mjs:7` selects `15a067c`. The latter validates HEAD and authority files before building. Canonical onboarding must use the exact paired pin, not copy the child quick-start literally.
+2. **Unconfigured defaults point at old/out-of-scope locations.** `components/console/server/registration-runtime.mjs:26` derives sibling `AgentFirstQAStarter`, not assembled `components/kernel`. `playwright.config.ts:34–41` defaults to an owner workspace, original Kernel checkout, broad workspace search roots and a Freeland graph. This is why explicit environment routing is mandatory and default `npm test` is not a source self-test.
+3. **Config import can execute work.** `playwright.registration.config.ts:13–15` validates/builds Kernel before configuration export, then materializes a workspace at `:23–25`. Even test listing is not assumed read-only.
+4. **Console typecheck is not full server/test qualification.** `components/console/tsconfig.json:16` includes only `src`; package scripts use build mode, which rewrites tracked `tsconfig.tsbuildinfo`. Typecheck/build must run in isolated qualification clones and cannot replace explicit CLI/server/fixture tests.
+
+Additional concrete mismatch: `server/bridge.mjs:60–63` defaults to sibling `example-web-qa` / `qa-starter-frozen`, while registration-runtime defaults to `AgentFirstQAStarter`; `tests/fixtures/kernel-i1-authority.ts:12` hardcodes the original machine's absolute Kernel path. These are source defaults, not current-owner discovery.
+
+No direct accepted Console/Kernel pin incompatibility was found in the inspected source: current Console uses the public reader exported at `components/kernel/src/index.ts:50`, and its authority names the exact accepted Kernel SHA. Whether the new assembled executable actually passes is for fresh qualification, not inferred from this audit.
+
+### Prepared bounded corrective patch scope (not implemented)
+
+The canonical source should correct these entrypoints, not merely append another warning. Suggested single-purpose Console successor commit, retaining Kernel `15a067c` unchanged:
+
+1. Update `README.md` active quick-start and runtime section to the actual embedded pin and explicit workspace/Kernel/private-store environment. Document source typecheck/build versus local fixture integration versus intentional live run. Preserve history only in explicitly historical sections, not under Required runtime. Keep standalone `serve.mjs --workspace ... --starter-repo ...` and all documented environment overrides supported.
+2. Introduce one tiny shared ESM path resolver (e.g. `server/runtime-paths.mjs`) for **explicit** `options.starterRepo` / `QA_STARTER_REPO`, in that precedence order. Blank configuration must fail with a clear configuration error, never resolve `''` to cwd. Missing explicit authority must not silently choose `qa-starter-frozen`, `AgentFirstQAStarter`, a product owner, or reporting. Canonical assembly supplies `components/kernel` explicitly; standalone users supply their own exact checkout with the existing flag/env. This avoids platform paths while preserving supported explicit standalone use. Keep exact revision/dirty-source validation in the existing authority layer, not a second hand-written pin validator.
+3. Apply the resolver to `server/registration-runtime.mjs`, Kernel-backed bridge operations in `server/bridge.mjs`, and `tests/fixtures/kernel-i1-authority.ts`. Do not force a Kernel build at module import just to render sample UI or inspect a configured workspace; the bridge's existing lazy registration boundary should remain lazy. Remove implicit `example-web-qa` workspace selection: either an explicit workspace exists or the live lane returns a bounded unconfigured response while sample UI remains usable. Do not discover, migrate, initialize or write a user's existing workspace as a fallback.
+4. Replace `playwright.config.ts` host-specific workspace/Kernel/roots/Freeland defaults with explicit fixture inputs (fail clearly when the full live-fixture suite lacks them). Keep the test run's own temp receipts/store/registry isolation. `QA_EXTERNAL_GRAPH`/label default empty, never Freeland. Preserve explicit user overrides. Avoid adding automatic `materializeI1Workspace` to config: it currently builds fixture authority at import and its materializer removes the passed path (`tests/fixtures/i1-live-workspace.ts:8`, `:66–69`), so only an already-owned newly allocated path may ever be supplied. Full default E2E semantic redesign is outside this patch.
+5. Add focused tests before implementation, then run existing compatibility gates: new `tests/unit/runtime-paths.test.ts` for flag/options-over-env, exact absolute explicit paths, blank/missing rejection, no fallback scan/build/mutation, and standalone override; a source/config guard test verifying no host absolute defaults and no implicit external graph; extend `bridge-registration.test.ts` / `registration-runtime.test.ts` to exercise both explicit paths and an unconfigured fail-closed lane without touching stores; keep `kernel-fixture-authority.test.ts` dirty/wrong-revision controls. Verify README's required SHA against imported `PINNED_I1_KERNEL_REVISION` so drift cannot recur.
+
+Qualification for that successor: new focused tests → existing `bridge-registration.test.ts`, `registration-runtime.test.ts`, `registration-http.test.ts`, `registration-targets.test.ts`, `kernel-fixture-authority.test.ts` (audit these broader gates before launch) → source typecheck/build → the already-recommended loopback authored/review/human-help gates. Preserve failures; do not use changed startup behavior to hide failing tests. Update only the Console bundle/pin and corresponding outer provenance after independent review and clean exact-byte verification. No active owners, installed skills, product registrations or Kernel/reporting pins move as part of this corrective source patch.
+
+## Minimum meaningful fresh integration qualification
+
+Use new normal Git child clones of the exact pair, never the active Agentify owner or the clean historical source consumers. Record HEAD/tree/status and dependency/browser identities first. Dependencies/build outputs are local effects and require the integration owner's authorized provisioning. No lifecycle install scripts or browser downloads are implicit.
+
+Use an allowlisted child environment rather than inheriting product credentials/URLs/proxies/NODE_OPTIONS: retain required PATH and locale, set dedicated existing canonical `TMPDIR`, `TMP`, `TEMP`, `NODE_DISABLE_COMPILE_CACHE=1`, `TSX_DISABLE_CACHE=1`, `GIT_OPTIONAL_LOCKS=0`, `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`. Do not repurpose HOME or CODEX_HOME. Explicitly set:
+
+- `QA_STARTER_REPO=<absolute isolated kernel>` and `QA_STARTER_EXPECTED_SHA=15a067c9a694de26460102ce5dadb9707c7977b1`.
+- `QA_CONSOLE_STATE=<new private root>/receipts.json`, `QA_CONSOLE_PRIVATE_ROOT=<new private root>`.
+- `QA_REGISTRATION_STORE=<new separate store>` and `QA_REGISTRATION_TARGET_REGISTRY=<new sibling registry file>`; account for sibling idempotency files.
+- `QA_EXTERNAL_GRAPH=` and `QA_EXTERNAL_GRAPH_LABEL=`; no owner workspace variables.
+- Explicit existing `PLAYWRIGHT_BROWSERS_PATH` only if needed after verifying it contains the expected installed Chromium. Tests call normal `chromium.launch({headless:true})`, not an invented executable fallback.
+
+Kernel cwd:
+
+```sh
+npm run typecheck
+npm run build
+npm test -- tests/contracts/canonical-json.test.ts tests/contracts/json-preflight.test.ts tests/contracts/five-contracts.test.ts tests/workspace/knowledge-revision.test.ts tests/kernel/private-store.test.ts tests/kernel/private-store-public-api.test.ts tests/security/secret-policy.test.ts
+```
+
+Console cwd, sequential build/typecheck before functional tests:
+
+```sh
+npm run typecheck
+npm run build
+node --import tsx --test --test-concurrency=1 --test-reporter=tap tests/unit/public-auth-authored-revision.test.ts tests/unit/human-help-continuation.test.ts tests/unit/qa-agent-review-v0.test.ts tests/unit/qa-agent-review-store.test.ts tests/unit/qa-agent-review-cli.test.ts tests/unit/campaign-observation.test.ts
+```
+
+The functional files were inspected for effects:
+
+- `public-auth-authored-revision.test.ts:138–175` creates/retains only a fresh private root and owned loopback server; fixed and leaking HTML are explicit fixtures. `:247`, `:262`, `:309`, `:633`, `:674`, `:700` cover healthy/buggy outcomes, agent-reviewed finding → graph revision → unchanged regression, stale plan rejection and preserved NEEDS_HUMAN gaps. Registration discovery is injected from synthetic snapshots; `tests/fixtures/nuanu-readonly/fixture.ts:137–171` fixes store/workspace to this root and refuses repository discovery.
+- `human-help-continuation.test.ts:23–57` creates dedicated stores and allowlisted worker environment; its loopback handler is bound at `:143`. The test exercises fresh callers, retained independent results and interrupted unknown-outcome recovery, not a production resume API. Its own child-process cleanup is scoped to owned POSIX process groups.
+- `qa-agent-review-store.test.ts:14–48` and `qa-agent-review-cli.test.ts:78–93` create fresh loopback evidence; CLI `:145–149` checks no campaign requests or original receipt mutation after review. Serialize this gate; prior retained qualification had a concurrent timing failure.
+- `campaign-observation.test.ts:57–71` serves only literal synthetic pages and deletes only its own new temporary output. It tests monotonic observation windows and real browser timing, not live product assertions. Retain TAP even though this one fixture cleans its internal outputs.
+- Kernel knowledge/private-store tests use newly created fixture directories, with cleanup confined to those roots. The public-reader consumer retains its own root. `five-contracts` adds direct G2 graph positive/negative controls; `knowledge-revision` proves published graph relations do not manufacture coverage.
+
+Run each gate with bounded orchestration while retaining complete logs, exit codes, test/pass/fail/skip/cancel counts and source IDs. If environment or browser startup fails, report it as blocked qualification; do not reroute to a live owner or install another backend implicitly. Do not sum overlapping focused tests into product coverage. These gates can establish local integrated harness behavior only.

@@ -1,0 +1,42 @@
+import type { EvidenceStepStatus, EvidenceStepView } from "../../lib/evidence-flow";
+
+// Presentational: the four I2 gates as one rail. Status and copy both come from
+// the view model, which refuses to claim a gate it cannot evidence.
+
+const GLYPH: Record<EvidenceStepStatus, string> = {
+  complete: "✓",
+  running: "▶",
+  active: "◆",
+  pending: "○",
+  blocked: "✗",
+};
+
+const LABEL: Record<EvidenceStepStatus, string> = {
+  complete: "done",
+  running: "running",
+  active: "your turn",
+  pending: "pending",
+  blocked: "blocked",
+};
+
+interface EvidenceStepperProps {
+  steps: readonly EvidenceStepView[];
+}
+
+export function EvidenceStepper({ steps }: EvidenceStepperProps) {
+  return (
+    <ol className="ev-stepper" aria-label="Safe first evidence steps">
+      {steps.map((step, index) => (
+        <li key={step.key} className={`ev-step is-${step.status}`}>
+          <span className="ev-step-mark mono" aria-hidden="true">{GLYPH[step.status]}</span>
+          <span className="ev-step-index mono" aria-hidden="true">{index + 1}</span>
+          <span className="ev-step-body">
+            <span className="ev-step-title">{step.title}</span>
+            <span className="ev-step-detail">{step.detail}</span>
+          </span>
+          <span className="ev-step-status mono">{LABEL[step.status]}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}

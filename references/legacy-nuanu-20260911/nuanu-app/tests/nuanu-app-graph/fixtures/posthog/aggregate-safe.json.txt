@@ -1,0 +1,39 @@
+{
+  "accessLockDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "capturedAt": "2026-08-26T00:00:00.000Z",
+  "bucketEndedAt": "2026-08-25T23:00:00.000Z",
+  "syntheticAggregates": {
+    "count": { "sampleSize": 200, "count": 10, "rate": null, "p75": null },
+    "rate": { "sampleSize": 200, "count": null, "rate": 0.05, "p75": null },
+    "p75": { "sampleSize": 200, "count": null, "rate": null, "p75": 2100.5 }
+  },
+  "publicValueAllowlists": {
+    "browser": ["Synthetic Browser"],
+    "device": ["Synthetic Device"],
+    "os": ["Synthetic OS"],
+    "pwa_mode": ["Synthetic Browser Mode"],
+    "release": ["Synthetic Release"]
+  },
+  "p75Pairing": {
+    "p75PairDigestInput": {
+      "metricId": "web-vitals-lcp-p75",
+      "dimensions": ["browser"],
+      "percentile": {
+        "role": "p75_value",
+        "queryHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "sampleCount": {
+        "role": "sample_count",
+        "queryHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    },
+    "pairDigest": "5ac7409e6fd27240e4b27f708d8141eace9e1b9790037460d4fe88beafd4a4b6",
+    "sampleSizeSource": "independent_total_count"
+  },
+  "providerExceptionFingerprintAttestation": {
+    "propertyIdentifier": "synthetic_exception_fingerprint",
+    "officialSchemaEvidenceDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "syntheticProviderFingerprint": "synthetic-provider-opaque-group-1",
+  "syntheticPrivateValue": "Synthetic Private Cohort"
+}

@@ -1,0 +1,13 @@
+import { test, expect } from '@playwright/test';
+import { hasDashboardEnv } from '../fixtures/env';
+import { DashboardPage } from '../pages/dashboard.page';
+
+test.skip(!hasDashboardEnv, 'дашборд-env не настроен (.env)');
+
+test('авторизованная сессия попадает на дашборд @smoke', async ({ page }) => {
+  const dashboard = new DashboardPage(page);
+  await dashboard.goto();
+
+  await expect(page).not.toHaveURL(/login/);
+  await expect(dashboard.balance).toBeVisible();
+});

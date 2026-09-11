@@ -1,0 +1,870 @@
+@import "./tokens.css";
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--ink-70); text-decoration: none; }
+a:hover { color: var(--ink); }
+button { font: inherit; color: inherit; background: none; border: none; padding: 0; cursor: pointer; }
+
+.mono { font-family: var(--font-mono); }
+.micro {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+  font-weight: 500;
+}
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-panel);
+}
+button.chip:hover { color: var(--ink); border-color: rgba(255, 255, 255, 0.3); }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  height: 22px;
+  padding: 0 10px;
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-70);
+}
+.pill-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 20px;
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease;
+}
+.pill-button:hover { border-color: rgba(255, 255, 255, 0.3); background: var(--hover); }
+.pill-button:disabled { opacity: 0.45; cursor: default; }
+.pill-button:disabled:hover { border-color: var(--hair-strong); background: none; }
+.pill-button:focus-visible,
+button:focus-visible { outline: 1px solid rgba(255, 255, 255, 0.5); outline-offset: 2px; }
+
+/* App shell */
+.shell { display: flex; min-height: 100vh; }
+.shell-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* Rail */
+.rail {
+  width: 200px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--hair);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 12px 16px;
+  gap: 2px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+}
+.rail-brand { display: flex; align-items: center; gap: 8px; padding: 6px 12px 18px; }
+.rail-item {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: var(--ink-50);
+  font-size: 13px;
+  width: 100%;
+  text-align: left;
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+.rail-item:hover { color: var(--ink-85); background: var(--hover); }
+.rail-item.is-active { background: var(--active-bg); color: var(--ink); font-weight: 500; }
+.rail-foot {
+  border-top: 1px solid var(--hair);
+  padding: 14px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Shared rows */
+.kv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 0;
+  border-top: 1px solid var(--hair);
+  font-size: 12.5px;
+}
+.kv-row .k { color: var(--ink-50); }
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+}
+
+/* Header */
+.screen-head { display: flex; align-items: center; gap: 14px; padding: 24px 32px 18px; }
+.screen-title { margin: 0; font-size: 22px; font-weight: 500; letter-spacing: -0.02em; }
+.screen-title--display { font-size: 28px; }
+.head-spacer { flex-grow: 1; }
+
+/* Stepper */
+.stepper { display: flex; align-items: center; padding: 4px 32px 18px; flex-wrap: wrap; row-gap: 8px; }
+.step { display: flex; align-items: center; gap: 8px; }
+.step-dot { width: 6px; height: 6px; border-radius: 50%; }
+.step-link { width: 26px; height: 1px; background: rgba(255, 255, 255, 0.08); margin: 0 10px; }
+
+/* Overview grid */
+.overview-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: min-content;
+  gap: 16px;
+  padding: 0 32px 24px;
+}
+.span-3 { grid-column: span 3; }
+.coverage-bar { display: flex; height: 8px; gap: 2px; }
+.coverage-bar .seg { border-radius: 2px; }
+.legend { display: flex; gap: 28px; flex-wrap: wrap; }
+.legend-item { display: inline-flex; align-items: center; gap: 8px; }
+.legend-swatch { width: 8px; height: 8px; border-radius: 2px; }
+
+.receipt-row {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  border-top: 1px solid var(--hair);
+  gap: 14px;
+}
+
+/* Graph screen. Unlike the list screens (which scroll the page under a sticky
+   rail), the graph is a viewport: it claims exactly the window height so the
+   canvas and its side panels are bounded, and each panel scrolls on its own. */
+.screen-fill { height: 100vh; height: 100dvh; display: flex; flex-direction: column; min-height: 0; }
+.graph-body { flex: 1; display: flex; min-height: 0; padding: 0 32px 24px; gap: 16px; }
+/* A hub node's edge list is long. The side panels scroll inside the row
+   rather than stretching it — otherwise the canvas, being flex:1, grows to
+   match the tallest panel and the graph field runs off the bottom. */
+.graph-filters { width: 196px; flex-shrink: 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  border-top: 1px solid var(--hair);
+}
+.graph-canvas { flex: 1; min-width: 0; min-height: 0; position: relative; overflow: hidden; }
+.graph-node { cursor: pointer; }
+/* Hover dims everything outside the neighborhood. Expressed as two class
+   rules rather than an opacity prop on ~2000 elements: React then only
+   re-renders the handful of elements whose active state actually flipped.
+   Transitions are dropped on dense graphs, where one mouse move would
+   otherwise start ~1900 concurrent SVG transitions. */
+.graph-node, .graph-edge { transition: opacity 200ms ease; }
+.graph-canvas.is-dense .graph-node,
+.graph-canvas.is-dense .graph-edge { transition: none; }
+.graph-canvas.is-hovering .graph-node { opacity: 0.15; }
+.graph-canvas.is-hovering .graph-node.is-active { opacity: 1; }
+.graph-canvas.is-hovering .graph-edge { opacity: 0.25; }
+.graph-canvas.is-hovering .graph-edge.is-active { opacity: 1; }
+.graph-canvas.is-hovering .graph-edge.is-active line { stroke: rgba(255, 255, 255, 0.45); }
+.graph-node:focus-visible { outline: 1px solid rgba(255, 255, 255, 0.5); outline-offset: 2px; }
+.graph-node text { pointer-events: none; }
+.inspector { width: 300px; flex-shrink: 0; min-height: 0; overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; }
+/* Rows keep their natural height so the panel scrolls as a whole; without
+   this they squash to fit and the trace button gets crushed. */
+.inspector > * { flex-shrink: 0; }
+
+/* Runs screen */
+.runs-body { flex: 1; display: flex; min-height: 0; padding: 0 32px; gap: 16px; }
+.checks-table { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-x: auto; align-self: flex-start; }
+.checks-table .check-row,
+.checks-table .check-group-head { min-width: 640px; }
+.check-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 34px;
+  padding: 0 16px;
+  background: var(--surface-deep);
+  border-top: 1px solid var(--hair);
+}
+.check-group-head:first-child { border-top: none; }
+.check-row {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  gap: 14px;
+  border-top: 1px solid var(--hair);
+  padding: 0 16px;
+  width: 100%;
+  text-align: left;
+  transition: background var(--duration-fast) ease;
+}
+.check-row:hover { background: var(--hover); }
+.check-row.is-selected { background: var(--hover); }
+.check-row .glyph { width: 14px; flex-shrink: 0; font-size: 12px; text-align: center; }
+.check-row .status { width: 76px; flex-shrink: 0; font-size: 11px; }
+.check-row .name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--ink-85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.check-row .target { width: 180px; flex-shrink: 0; font-size: 11px; color: var(--ink-40); }
+.check-row .duration { width: 52px; flex-shrink: 0; font-size: 11px; color: var(--ink-40); text-align: right; }
+.check-row .evidence { width: 56px; flex-shrink: 0; font-size: 11px; color: var(--ink-50); text-align: right; }
+.runs-side { width: 320px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px; }
+
+/* Empty state */
+.empty-wrap { flex: 1; display: flex; min-height: 0; padding: 0 32px 24px; }
+.empty-canvas {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+@media (max-width: 1100px) {
+  .shell { flex-direction: column; }
+  .overview-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .span-3 { grid-column: span 1; }
+  .graph-body, .runs-body { flex-direction: column; }
+  /* Stacked: the page itself scrolls, so the screen grows with its content
+     and the panels do too, instead of each carrying its own scrollbar. */
+  .screen-fill { height: auto; }
+  /* Stacked, the canvas has no row to fill. It needs a definite height, not a
+     minimum: the SVG sizes itself at 100% and would otherwise fall back to the
+     150px default against an auto-height parent. */
+  .graph-canvas { flex: none; height: 420px; }
+  .graph-filters, .inspector, .runs-side { width: 100%; overflow-y: visible; }
+  .rail { position: static; height: auto; width: 100%; flex-direction: row; align-items: center; flex-wrap: wrap; gap: 4px; border-right: none; border-bottom: 1px solid var(--hair); padding: 12px; }
+  .rail-brand { padding: 0 12px 0 4px; }
+  .rail-item { width: auto; height: 40px; }
+  .rail-foot { border-top: none; padding-top: 0; margin-left: auto; flex-direction: row; align-items: baseline; gap: 8px; }
+  .rail-foot .micro { display: none; }
+}
+
+/* Intake screen. Laid out in CSS rather than inline styles so the narrow
+   breakpoints can reach it: at 390px a 150px selector next to a text input
+   (whose intrinsic min-width is ~170px) plus a remove button needs ~410px in a
+   ~280px panel, which is what pushed the form past the viewport. */
+.intake-body {
+  display: flex;
+  gap: 16px;
+  padding: 0 32px 32px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.intake-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 700px;
+  width: 100%;
+  flex: 1 1 460px;
+  min-width: 0;
+}
+/* The side column carries the intake draft and the build progress, stacked.
+   It pins beside the form and scrolls on its own: stacked, the two panels are
+   taller than the viewport, and a plain sticky column would leave the build
+   progress permanently below the fold. */
+.intake-side {
+  width: 300px;
+  flex-shrink: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 16px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.intake-aside {
+  width: 100%;
+  min-width: 0;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Registration build pipeline. Rows are a 3-column grid so the phase name,
+   its status and the note it is derived from stay aligned down the list, and
+   the note spans the full width at phone widths instead of reflowing. */
+.intake-side.is-building .registration-progress { order: -1; }
+.registration-progress {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.phase-count { font-size: 12px; color: var(--ink-70); }
+.phase-track { display: flex; gap: 2px; padding: 6px 0 14px; }
+.phase-seg { flex: 1; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); }
+.phase-seg.is-complete { background: rgba(255, 255, 255, 0.85); }
+.phase-seg.is-running { background: rgba(255, 255, 255, 0.42); }
+.phase-seg.is-blocked { background: var(--accent); }
+.phase-headline { font-size: 14px; letter-spacing: -0.01em; color: var(--ink); }
+.phase-detail { font-size: 12px; color: var(--ink-50); line-height: 1.7; padding-top: 5px; }
+.phase-list { list-style: none; margin: 14px 0 0; padding: 0; }
+.phase-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--hair);
+}
+.phase-glyph { font-size: 11px; color: var(--ink-40); text-align: center; }
+.phase-name { font-size: 12px; letter-spacing: 0.04em; color: var(--ink-50); }
+.phase-status { font-size: 10.5px; color: var(--ink-40); }
+.phase-note {
+  grid-column: 2 / -1;
+  font-size: 11px;
+  color: var(--ink-40);
+  line-height: 1.7;
+  padding-top: 3px;
+  overflow-wrap: anywhere;
+}
+.phase-row.is-complete .phase-glyph,
+.phase-row.is-complete .phase-name { color: var(--ink); }
+.phase-row.is-running .phase-name { color: var(--ink-85); }
+.phase-row.is-running .phase-glyph { color: var(--ink-85); animation: phase-pulse 1.6s ease-in-out infinite; }
+.phase-row.is-blocked .phase-glyph,
+.phase-row.is-blocked .phase-status { color: var(--accent); }
+@keyframes phase-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.phase-evidence {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  color: var(--ink-40);
+  white-space: nowrap;
+}
+.phase-evidence.is-reported { border-color: var(--hair-strong); color: var(--ink-70); }
+.phase-reported { font-size: 10.5px; color: var(--ink-40); line-height: 1.7; padding-top: 12px; }
+.phase-error { font-size: 11.5px; color: var(--accent); line-height: 1.8; padding-top: 10px; overflow-wrap: anywhere; }
+.phase-outcome { display: flex; flex-direction: column; padding-top: 14px; }
+.phase-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 8px; }
+.phase-chips .chip { max-width: 100%; height: auto; min-height: 22px; white-space: normal; overflow-wrap: anywhere; }
+.phase-value { min-width: 0; font-size: 11.5px; color: var(--ink-70); text-align: right; }
+.phase-wrap { font-size: 11px; overflow-wrap: anywhere; }
+.phase-gate { margin: 12px 0 0; font-size: 12px; color: var(--ink-70); line-height: 1.75; }
+.phase-open { align-self: flex-start; height: 40px; margin-top: 14px; }
+.intake-row { display: flex; gap: 8px; }
+.intake-row .intake-kind { width: 150px; flex-shrink: 0; }
+.intake-row .intake-value { flex-grow: 1; min-width: 0; }
+/* min-width:auto on a flex item is the input's intrinsic size — it must shrink. */
+.intake-row input,
+.intake-row select { min-width: 0; }
+.intake-surfaces { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.intake-surface {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 32px;
+  min-width: 0;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.intake-surface .intake-surface-name {
+  color: var(--ink-40);
+  font-size: 11px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Phone widths: the header wraps instead of pushing its right-hand meta off
+   screen, and every side-by-side intake control stacks. */
+@media (max-width: 700px) {
+  .screen-head { flex-wrap: wrap; row-gap: 8px; padding: 20px 16px 14px; }
+  .screen-title--display { font-size: 22px; }
+  .head-spacer { display: none; }
+  .graph-body { padding: 0 16px 24px; }
+  .inspector .mono,
+  .inspector .kv-row > :last-child,
+  .verdict-col .vline,
+  .verdict-col .mono { min-width: 0; overflow-wrap: anywhere; }
+  .inspector .kv-row { align-items: flex-start; gap: 12px; }
+  .coverage-row { height: auto; min-height: 54px; flex-wrap: wrap; gap: 8px 12px; padding: 8px 12px; }
+  .coverage-row > .mono:last-child { width: 100%; min-width: 0; overflow-wrap: anywhere; }
+  .verdict-grid { padding: 0 16px; }
+  .plan-digest-line { padding-left: 16px !important; padding-right: 16px !important; overflow-wrap: anywhere; }
+  .plan-requirements { margin-left: 16px !important; margin-right: 16px !important; }
+  .plan-requirements .kv-row { flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
+  .plan-requirements .kv-row > span:last-child { width: 100%; min-width: 0; justify-content: flex-start !important; }
+  .plan-requirements .chip { max-width: 100%; height: auto; min-height: 22px; white-space: normal; overflow-wrap: anywhere; }
+  .intake-body { padding: 0 16px 24px; }
+  /* Stacked, the page itself scrolls — the column must not carry its own. */
+  .intake-side { width: 100%; position: static; max-height: none; overflow-y: visible; }
+  /* Long digests and paths get their own line instead of squeezing the label. */
+  .registration-progress .kv-row { align-items: flex-start; gap: 12px; }
+  .intake-row { flex-wrap: wrap; }
+  .intake-row .intake-kind { width: 100%; }
+  .intake-row .intake-value { flex-basis: 100%; }
+  .intake-surfaces { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 430px) {
+  .intake-surfaces { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+  .phase-row.is-running .phase-glyph { animation: none; }
+}
+
+/* Load states */
+.load-note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 32px;
+  font-size: 13px;
+  color: var(--ink-50);
+}
+
+/* Data source toggle */
+.rail-source {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-50);
+  transition: color var(--duration-fast) ease, background var(--duration-fast) ease;
+}
+.source-chip:hover { color: var(--ink-85); }
+.source-chip.is-on { background: rgba(255, 255, 255, 0.1); color: var(--ink); }
+
+/* Coverage map */
+.coverage-row {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  gap: 14px;
+  border-top: 1px solid var(--hair);
+  padding: 0 16px;
+}
+.coverage-row .name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--ink-85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Verdict */
+.verdict-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  padding: 0 32px;
+}
+.verdict-col { padding: 16px 20px; display: flex; flex-direction: column; }
+.vline { font-size: 12.5px; color: var(--ink-70); padding: 8px 0 0; }
+.vline.mono { font-size: 12px; }
+@media (max-width: 1100px) {
+  .verdict-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .verdict-grid { grid-template-columns: 1fr; }
+}
+
+/* Workspace picker */
+.workspace-select {
+  appearance: none;
+  background: var(--surface-deep);
+  border: 1px solid var(--hair-strong);
+  border-radius: 6px;
+  color: var(--ink-70);
+  font-size: 12px;
+  padding: 8px 10px;
+  width: 100%;
+}
+.workspace-select:focus-visible { outline: 1px solid rgba(255, 255, 255, 0.5); }
+
+/* Findings */
+.finding-input {
+  background: var(--surface-deep);
+  border: 1px solid var(--hair);
+  border-radius: var(--radius-panel);
+  color: var(--ink);
+  font-size: 13px;
+  padding: 10px 12px;
+  width: 100%;
+}
+.finding-input:focus-visible { outline: 1px solid rgba(255, 255, 255, 0.5); }
+
+/* Graph zoom controls */
+.zoom-controls {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.zoom-button {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-deep);
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-panel);
+  color: var(--ink-70);
+  font-size: 16px;
+  transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease;
+}
+.zoom-button:hover { color: var(--ink); border-color: rgba(255, 255, 255, 0.3); }
+
+/* File preview */
+.file-preview {
+  margin: 0;
+  padding: 14px 16px 14px 46px;
+  border-top: 1px solid var(--hair);
+  background: var(--surface-deep);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--ink-70);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* Inline link to a graph node */
+.target-link {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-70);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--hair-strong);
+}
+.target-link:hover { color: var(--ink); text-decoration-color: var(--accent-soft); }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Safe first evidence (I2) — baseline review → dry-run scope → probe
+   approval → terminal receipt. Colour is semantic here: the accent is
+   reserved for blockers and refusals, never for decoration.
+   ───────────────────────────────────────────────────────────────────────── */
+.ev-flow {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 32px 44px;
+  min-width: 0;
+}
+.ev-head { display: flex; align-items: center; gap: 12px; padding-bottom: 10px; }
+.ev-title { margin: 0; font-size: 19px; font-weight: 500; letter-spacing: -0.02em; }
+.ev-card-spacer { flex: 1; min-width: 0; }
+.ev-status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; }
+.ev-status-item {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 3px 11px;
+  border: 1px solid var(--hair-strong);
+  border-radius: 12px;
+  color: var(--ink-50);
+  /* Run ids are long; the chip wraps rather than pushing the page sideways. */
+  overflow-wrap: anywhere;
+}
+.ev-status-item.is-verdict { white-space: nowrap; border-radius: var(--radius-pill); }
+.ev-status-item.is-verdict.is-not_evaluated { color: var(--ink-50); }
+.ev-status-item.is-verdict.is-inconclusive { color: var(--warm); border-color: rgba(215, 209, 201, 0.4); }
+.ev-status-item.is-verdict.is-env_blocked { color: var(--ink-70); border-color: rgba(255, 255, 255, 0.28); }
+.ev-status-item.is-verdict.is-harness_fail { color: var(--accent); border-color: var(--accent-soft); }
+
+.ev-headline { font-size: 16px; letter-spacing: -0.01em; color: var(--ink); }
+.ev-detail { margin: 5px 0 0; font-size: 12.5px; color: var(--ink-50); line-height: 1.7; max-width: 76ch; }
+
+/* Stepper — four columns, each with a status bar that carries the state. */
+.ev-stepper {
+  list-style: none;
+  margin: 20px 0 22px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.ev-step {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  grid-template-areas: "mark index status" "body body body";
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+  padding: 12px 14px 13px;
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  background: var(--surface-deep);
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease;
+}
+.ev-step-mark { grid-area: mark; font-size: 11px; color: var(--ink-40); }
+.ev-step-index { grid-area: index; font-size: 10.5px; color: var(--ink-25); }
+.ev-step-status { grid-area: status; justify-self: end; font-size: 10px; color: var(--ink-40); letter-spacing: 0.04em; }
+.ev-step-body { grid-area: body; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ev-step-title { font-size: 12.5px; color: var(--ink-50); }
+.ev-step-detail { font-size: 11px; color: var(--ink-40); line-height: 1.6; overflow-wrap: anywhere; }
+
+.ev-step.is-complete { border-top-color: rgba(255, 255, 255, 0.85); }
+.ev-step.is-complete .ev-step-mark,
+.ev-step.is-complete .ev-step-title { color: var(--ink); }
+.ev-step.is-active { border-top-color: var(--warm); background: rgba(255, 255, 255, 0.04); }
+.ev-step.is-active .ev-step-mark,
+.ev-step.is-active .ev-step-status { color: var(--warm); }
+.ev-step.is-active .ev-step-title { color: var(--ink); }
+.ev-step.is-running { border-top-color: rgba(255, 255, 255, 0.45); }
+.ev-step.is-running .ev-step-title { color: var(--ink-85); }
+.ev-step.is-running .ev-step-mark { color: var(--ink-85); animation: phase-pulse 1.6s ease-in-out infinite; }
+.ev-step.is-blocked { border-top-color: var(--accent); }
+.ev-step.is-blocked .ev-step-mark,
+.ev-step.is-blocked .ev-step-status { color: var(--accent); }
+
+/* Cards */
+.ev-card { padding: 18px 22px 20px; margin-bottom: 14px; min-width: 0; }
+.ev-card-head { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; flex-wrap: wrap; }
+.ev-card-title { margin: 0; font-size: 15px; font-weight: 500; letter-spacing: -0.01em; }
+.ev-contract { font-size: 10.5px; color: var(--ink-50); }
+.ev-tag {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-40);
+}
+.ev-tag.is-done { color: var(--ink-85); }
+.ev-lede { margin: 0 0 14px; font-size: 13px; color: var(--ink-70); line-height: 1.75; max-width: 74ch; }
+.ev-caveat { margin: 12px 0 0; font-size: 12px; color: var(--ink-50); line-height: 1.75; max-width: 74ch; }
+.ev-caveat b { color: var(--warm); font-weight: 500; }
+.ev-section-label { display: block; padding: 16px 0 2px; }
+
+/* Fields */
+.ev-digest-grid,
+.ev-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 22px; }
+.ev-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 9px 0;
+  border-top: 1px solid var(--hair);
+  font-size: 12px;
+}
+.ev-field.is-wrap { flex-direction: column; align-items: flex-start; gap: 5px; }
+.ev-field-label { color: var(--ink-50); white-space: nowrap; }
+.ev-field-value { min-width: 0; color: var(--ink-70); text-align: right; overflow-wrap: anywhere; }
+.ev-field.is-wrap .ev-field-value { text-align: left; width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ev-contract-hint { font-size: 10.5px; color: var(--ink-40); }
+.ev-digest {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  padding: 3px 7px;
+  background: var(--surface-deep);
+  border: 1px solid var(--hair);
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-70);
+  overflow-wrap: anywhere;
+}
+.ev-receipt-strip { margin-top: 14px; }
+
+/* Dry-run scope — the request itself gets the largest type in the card. */
+.ev-scope {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  padding: 14px 16px;
+  background: var(--surface-deep);
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-panel);
+}
+.ev-scope-request { display: flex; align-items: baseline; gap: 12px; min-width: 0; flex-wrap: wrap; }
+.ev-method {
+  padding: 3px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 5px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+.ev-url { font-size: 15px; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.ev-limits { display: flex; gap: 8px; flex-wrap: wrap; }
+.ev-limit { font-size: 11px; color: var(--ink-50); white-space: nowrap; }
+.ev-limit b { color: var(--ink-85); font-weight: 500; }
+.ev-retained { padding-top: 16px; }
+.ev-retained-list { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 8px; }
+.ev-retained-chip { height: 21px; font-size: 10.5px; color: var(--ink-50); }
+
+/* The action-time gate — the one place the console asks for a real decision. */
+.ev-gate {
+  margin-top: 18px;
+  padding: 16px 18px;
+  background: var(--surface-deep);
+  border: 1px solid var(--hair-strong);
+  border-left: 2px solid var(--warm);
+  border-radius: var(--radius-panel);
+}
+.ev-gate-copy { display: flex; flex-direction: column; gap: 5px; }
+.ev-gate-title { font-size: 13px; font-weight: 500; color: var(--ink); }
+.ev-gate-detail { font-size: 12px; color: var(--ink-50); line-height: 1.75; max-width: 70ch; }
+.ev-outcome { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; padding: 0; border: none; }
+.ev-outcome legend { padding: 0 0 7px; }
+.ev-outcome:disabled .source-chip { opacity: 0.45; }
+
+.ev-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding-top: 16px; }
+.ev-actions--terminal { border-top: 1px solid var(--hair); margin-top: 18px; }
+.ev-action-note { font-family: var(--font-mono); font-size: 11px; color: var(--ink-40); line-height: 1.7; }
+.ev-primary { background: rgba(255, 255, 255, 0.92); border-color: transparent; color: #0a0a0a; }
+.ev-primary:hover { background: #ffffff; border-color: transparent; }
+.ev-primary:disabled,
+.ev-primary:disabled:hover { background: rgba(255, 255, 255, 0.14); color: var(--ink-50); border-color: transparent; }
+.ev-reset { height: 36px; padding: 0 16px; font-size: 12px; color: var(--ink-50); }
+
+/* Terminal verdict */
+.ev-verdict {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 16px 18px;
+  background: var(--surface-deep);
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-panel);
+}
+.ev-verdict-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 40px;
+  padding: 0 20px;
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-pill);
+  font-size: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ev-verdict.is-inconclusive .ev-verdict-badge { color: var(--warm); border-color: rgba(215, 209, 201, 0.45); }
+.ev-verdict.is-env_blocked .ev-verdict-badge { color: var(--ink-70); }
+.ev-verdict.is-harness_fail .ev-verdict-badge { color: var(--accent); border-color: var(--accent-soft); }
+.ev-verdict-note { margin: 0; flex: 1; min-width: 220px; font-size: 12.5px; color: var(--ink-70); line-height: 1.75; }
+.ev-pending-note { margin: 4px 0 0; font-size: 12.5px; color: var(--ink-50); line-height: 1.75; }
+
+.ev-headers { display: flex; flex-direction: column; gap: 4px; padding-top: 12px; }
+.ev-header { font-size: 11px; color: var(--ink-50); overflow-wrap: anywhere; }
+.ev-header b { color: var(--ink-70); font-weight: 500; }
+
+.ev-blocker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 14px;
+  padding: 13px 16px;
+  background: rgba(255, 99, 8, 0.06);
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--radius-panel);
+}
+.ev-blocker-class { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.ev-blocker-code { font-size: 11.5px; color: var(--ink-85); }
+.ev-blocker-detail { margin: 0; flex-basis: 100%; font-size: 12.5px; color: var(--ink-70); line-height: 1.7; }
+.ev-contract-error {
+  margin: 12px 0 0;
+  font-size: 11.5px;
+  color: var(--accent);
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.ev-fixture-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--ink-40);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.ev-fixture-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-pill);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--warm);
+}
+
+/* Phone widths: every side-by-side pair stacks, long values keep wrapping. */
+@media (max-width: 900px) {
+  .ev-stepper { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 700px) {
+  .ev-flow { padding: 4px 16px 32px; }
+  .ev-head { flex-wrap: wrap; row-gap: 8px; }
+  .ev-card-spacer { display: none; }
+  .ev-stepper { grid-template-columns: 1fr; gap: 8px; }
+  .ev-digest-grid,
+  .ev-split { grid-template-columns: 1fr; }
+  .ev-field { flex-direction: column; align-items: flex-start; gap: 5px; }
+  .ev-field-value { text-align: left; width: 100%; }
+  .ev-card { padding: 16px 14px 18px; }
+  .ev-url { font-size: 13.5px; }
+  /* Stacked, not squeezed: beside the badge the note collapses to a few
+     characters per line at phone widths. */
+  .ev-verdict { flex-direction: column; align-items: flex-start; gap: 12px; padding: 14px; }
+  .ev-verdict-note { min-width: 0; }
+  .ev-gate { padding: 14px; }
+  .ev-actions { gap: 10px; }
+  .ev-actions .pill-button { width: 100%; }
+  .ev-actions--terminal .ev-reset { width: auto; }
+}

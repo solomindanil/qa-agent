@@ -1,0 +1,17 @@
+{
+  "name": "freeland_graph",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Versioned Freeland product dependency graph and E2E impact snapshot",
+  "scripts": {
+    "rebuild": "node scripts/rebuild.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "validate": "node scripts/validate.mjs",
+    "verify:snapshot": "node scripts/verify-snapshot.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

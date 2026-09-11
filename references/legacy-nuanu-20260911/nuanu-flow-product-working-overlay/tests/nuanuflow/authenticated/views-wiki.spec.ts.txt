@@ -1,0 +1,188 @@
+import {
+  captureKnownBugBehavior,
+  test,
+  expect,
+} from '../fixtures/authenticated.fixture';
+import { SANDBOX } from '../fixtures/sandbox-data';
+import { KnowledgeFeaturesPage } from '../pages/knowledge-features.page';
+import { WorkItemsPage } from '../pages/work-items.page';
+
+const MUTATING_TEST_TIMEOUT_MS = 120_000;
+
+test.describe.configure({ mode: 'serial' });
+
+test.describe('Nuanu Flow owned views and Wiki', () => {
+  test('persists a response-owned saved view and exact filtered membership', async ({
+    page,
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const workItems = new WorkItemsPage(page);
+    const knowledge = new KnowledgeFeaturesPage(page, assertSandbox);
+    const itemName = ownedName('saved-view item');
+    const viewName = ownedName('saved view');
+
+    await workItems.goto();
+    await assertSandbox();
+    const item = await workItems.create({ title: itemName }, (created) => {
+      cleanupLedger.register({
+        kind: 'work-item',
+        id: created.id,
+        name: created.name,
+        workspaceSlug: SANDBOX.workspaceSlug,
+        cleanup: () => workItems.deleteOwned(created.id, created.name),
+      });
+    });
+    await workItems.openByName(itemName, item);
+    await assertSandbox();
+    await workItems.setState('Backlog');
+    await expect(workItems.stateButton).toContainText('Backlog');
+    await assertSandbox();
+    await workItems.setPriority('Code Red');
+
+    const itemResponse = await page.request.get(workItems.issueEndpoint(item.id));
+    expect(itemResponse.status()).toBe(200);
+    const itemBody = (await itemResponse.json()) as {
+      priority?: unknown;
+      state_id?: unknown;
+    };
+    expect(itemBody.priority).toBe('urgent');
+    expect(typeof itemBody.state_id).toBe('string');
+    if (typeof itemBody.state_id !== 'string') {
+      throw new Error('Owned saved-view fixture omitted its exact state ID.');
+    }
+
+    const view = await knowledge.createSavedView(
+      viewName,
+      itemBody.state_id,
+      (created) => {
+        cleanupLedger.register({
+          kind: 'saved-view',
+          id: created.id,
+          name: created.name,
+          workspaceSlug: SANDBOX.workspaceSlug,
+          cleanup: () => knowledge.cleanupOwnedSavedView(created),
+        });
+      },
+    );
+    await knowledge.assertSavedViewReloaded(view);
+    await knowledge.assertSavedViewMembership(view, item, true);
+    await workItems.deleteOwned(item.id, itemName);
+    await knowledge.assertSavedViewMembership(view, item, false);
+    await knowledge.cleanupOwnedSavedView(view);
+  });
+
+  test('matches an owned item through an exact creation-date filter', async () => {
+    test.fixme(
+      true,
+      'NUANU-18: created_at__exact returned zero for both the local and backend UTC fixture dates; the active lifecycle instead proves exact membership and miss with the deterministic urgent + Backlog filter.',
+    );
+  });
+
+  test('captures an initially unnamed Wiki page before autosave and persists formatted content', async ({
+    page,
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const knowledge = new KnowledgeFeaturesPage(page, assertSandbox);
+    const name = ownedName('wiki');
+    const body = `${ownedName('formatted body')}\n\nPersistence check paragraph.`;
+
+    const wiki = await knowledge.createWikiPage(name, body, (created) => {
+      cleanupLedger.register({
+        kind: 'wiki',
+        id: created.id,
+        name: created.name,
+        workspaceSlug: SANDBOX.workspaceSlug,
+        cleanup: () => knowledge.cleanupOwnedWiki(created),
+      });
+    });
+    await knowledge.assertWikiReloaded(wiki, body);
+    await knowledge.cleanupOwnedWiki(wiki);
+  });
+
+  test('creates Wiki HTML atomically through the first-party API (NUANU-21)', async ({
+    page,
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+  }) => {
+    test.setTimeout(MUTATING_TEST_TIMEOUT_MS);
+    const knowledge = new KnowledgeFeaturesPage(page, assertSandbox);
+    const name = ownedName('direct Wiki description_html');
+    const descriptionHtml = `<p>${ownedName('direct Wiki HTML body')}</p>`;
+    let observation:
+      | Awaited<
+          ReturnType<
+            KnowledgeFeaturesPage['createWikiPageWithDescriptionHtml']
+          >
+        >
+      | undefined;
+    let behaviorFailure: unknown | undefined;
+
+    try {
+      observation = await knowledge.createWikiPageWithDescriptionHtml(
+        name,
+        descriptionHtml,
+        (created) => {
+          cleanupLedger.register({
+            kind: 'wiki',
+            id: created.id,
+            name: created.name,
+            workspaceSlug: SANDBOX.workspaceSlug,
+            cleanup: () => knowledge.cleanupOwnedWiki(created),
+          });
+        },
+      );
+      behaviorFailure = await captureKnownBugBehavior(async () => {
+        expect(observation?.status).toBe(201);
+        if (!observation?.created) {
+          throw new Error(
+            'Direct Wiki POST 201 omitted its canonical response-owned identity.',
+          );
+        }
+        await knowledge.assertWikiDescriptionHtmlPersisted(
+          observation.created,
+          descriptionHtml,
+        );
+      });
+    } finally {
+      if (observation?.created) {
+        await knowledge.cleanupOwnedWiki(observation.created);
+      } else if (observation) {
+        await knowledge.assertWikiNameAbsent(name);
+      }
+    }
+
+    if (!observation) {
+      throw new Error('Direct Wiki POST ended before a classified response.');
+    }
+    if (behaviorFailure === undefined) {
+      throw new Error('NUANU-21 unexpectedly passed after guarded cleanup.');
+    }
+    if (observation.status !== 500) throw behaviorFailure;
+    test.fail(
+      true,
+      'NUANU-21: one-request Wiki create with description_html returns 500 instead of persisting the page.',
+    );
+    throw behaviorFailure;
+  });
+
+  test('persists Wiki parent-child hierarchy', async () => {
+    test.fixme(
+      true,
+      'Wiki recon exposed Make a copy but no proven exact-ID parent assignment and cleanup contract; hierarchy mutation remains blocked rather than guessed.',
+    );
+  });
+
+  test('warns before navigating away with unsaved Wiki changes', async () => {
+    test.fixme(
+      true,
+      'Wiki autosaves title and description immediately; no reproducible unsaved interval or exact warning was observed during Task 6 recon.',
+    );
+  });
+});

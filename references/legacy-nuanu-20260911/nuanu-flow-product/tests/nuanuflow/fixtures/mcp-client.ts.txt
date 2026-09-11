@@ -1,0 +1,1717 @@
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+
+export const NUANU_FLOW_MCP_ENDPOINT =
+  'https://flow.nuanu.com/mcp-server/mcp' as const;
+
+export type NuanuMcpWorkspace = 'nf-qa-sandbox' | 'nuanu-flow-qa';
+export type TokenProvider = () => string | Promise<string>;
+export type FetchLike = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
+
+export type SandboxWorkItemScope = Readonly<{
+  workspaceSlug: 'nf-qa-sandbox';
+  workspaceId: '8f081389-298d-4dc2-93d5-7cd80c5109da';
+  projectId: '2c2298c0-7bdc-42a5-a5f5-54ad2cb5d3cf';
+  projectIdentifier: 'NFQAS';
+}>;
+
+export type SafeWorkItemProjection = Readonly<{
+  id: string;
+  name: string;
+  projectId: SandboxWorkItemScope['projectId'];
+  sequenceId: number;
+  workspaceSlug: SandboxWorkItemScope['workspaceSlug'];
+  deleted: boolean;
+}>;
+
+export type SafeToolDescriptor = Readonly<{
+  name: string;
+  description?: string;
+  inputProperties: Readonly<Record<string, 'string' | 'number' | 'boolean'>>;
+  required: readonly string[];
+  readOnly: boolean;
+  destructive: boolean;
+}>;
+
+export type AllowedToolSearch = 'work-item-parity';
+export type AllowedReadRequest = Readonly<{
+  operation: 'workItem.get';
+  id: string;
+  sequenceId?: number;
+  scope: SandboxWorkItemScope;
+}>;
+
+export type AllowedOwnedMutation =
+  | Readonly<{
+      operation: 'workItem.create';
+      name: string;
+      description: string;
+      scope: SandboxWorkItemScope;
+      clientCorrelationId?: string;
+    }>
+  | Readonly<{
+      operation: 'workItem.delete';
+      owned: SafeWorkItemProjection;
+      scope: SandboxWorkItemScope;
+    }>;
+
+export type SafeDeleteProjection = Readonly<{
+  id: string;
+  workspaceSlug: SandboxWorkItemScope['workspaceSlug'];
+  projectId: SandboxWorkItemScope['projectId'];
+  absent: true;
+}>;
+
+export type NuanuMcpErrorCode =
+  | 'ARGUMENT_REFUSED'
+  | 'CONTENT_TYPE_REFUSED'
+  | 'DEADLINE_EXCEEDED'
+  | 'HTTP_FAILURE'
+  | 'JSON_RPC_ERROR'
+  | 'JSON_RPC_ID_MISMATCH'
+  | 'OWNERSHIP_REFUSED'
+  | 'PROJECT_REFUSED'
+  | 'REDIRECT_REFUSED'
+  | 'RESPONSE_LIMIT'
+  | 'RESULT_SCHEMA_MISMATCH'
+  | 'SCHEMA_RECON_REQUIRED'
+  | 'SESSION_REFLECTION_REFUSED'
+  | 'TOKEN_INVALID'
+  | 'TOKEN_REFLECTION_REFUSED'
+  | 'TOKEN_REQUIRED'
+  | 'TOOL_REFUSED'
+  | 'TRACKER_MUTATION_REFUSED'
+  | 'WORKSPACE_REFUSED';
+
+export class NuanuMcpError extends Error {
+  constructor(
+    readonly code: NuanuMcpErrorCode,
+    readonly operation: string,
+    readonly status?: number,
+    readonly requestId?: number,
+  ) {
+    super(
+      [code, operation, status === undefined ? undefined : `status=${status}`]
+        .filter((part) => part !== undefined)
+        .join(': '),
+    );
+    this.name = 'NuanuMcpError';
+  }
+
+  toJSON() {
+    return {
+      name: this.name,
+      code: this.code,
+      operation: this.operation,
+      ...(this.status === undefined ? {} : { status: this.status }),
+      ...(this.requestId === undefined ? {} : { requestId: this.requestId }),
+    };
+  }
+}
+
+type ClientOptions = {
+  workspace: NuanuMcpWorkspace;
+  tokenProvider: TokenProvider;
+  fetchImpl?: FetchLike;
+};
+
+const exactOwnData = (
+  value: unknown,
+  requiredKeys: readonly string[],
+  optionalKeys: readonly string[],
+  operation: string,
+): Record<string, unknown> => {
+  if (typeof value !== 'object' || value === null) {
+    throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+  }
+  let prototype: object | null;
+  let descriptors: PropertyDescriptorMap;
+  try {
+    prototype = Object.getPrototypeOf(value);
+    descriptors = Object.getOwnPropertyDescriptors(value);
+  } catch {
+    throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+  }
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+  }
+  const descriptorKeys = Reflect.ownKeys(descriptors);
+  if (descriptorKeys.some((key) => typeof key === 'symbol')) {
+    throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+  }
+  const keys = descriptorKeys as string[];
+  const allowedKeys = new Set([...requiredKeys, ...optionalKeys]);
+  if (
+    requiredKeys.some((key) => !Object.hasOwn(descriptors, key)) ||
+    keys.some((key) => !allowedKeys.has(key)) ||
+    keys.some((key) => !('value' in descriptors[key]!))
+  ) {
+    throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+  }
+  const result = Object.create(null) as Record<string, unknown>;
+  for (const key of keys) result[key] = descriptors[key]!.value;
+  return result;
+};
+
+const assertExactSnapshotKeys = (
+  data: Record<string, unknown>,
+  requiredKeys: readonly string[],
+  optionalKeys: readonly string[],
+  operation: string,
+) => {
+  const keys = Object.keys(data);
+  const allowed = new Set([...requiredKeys, ...optionalKeys]);
+  if (
+    requiredKeys.some((key) => !Object.hasOwn(data, key)) ||
+    keys.some((key) => !allowed.has(key))
+  ) {
+    throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+  }
+};
+
+// These values are deliberately isolated as unverified recon candidates. They
+// are exercised only against synthetic fixtures until an authenticated schema
+// capture proves the server's exact offer/ack contract.
+const RECON_CANDIDATE_PROTOCOL_VERSION = '2025-06-18';
+const RECON_CANDIDATE_INITIALIZED_ACK_STATUS = 202;
+const RECON_CANDIDATE_SEARCH_TOOL_NAME = 'search_tools';
+// Execution authority is intentionally absent. Read-only search observations
+// cannot populate this catalog at runtime.
+const VERIFIED_WORK_ITEM_TOOL_CATALOG: null = null;
+const CLIENT_NAME = 'nuanuflow-qa-e2e';
+const CLIENT_VERSION = '1.0.0';
+const SEARCH_QUERY =
+  'work item create get delete exact id project sequence schema';
+const MAX_TOKEN_LENGTH = 8_192;
+const MAX_DISTINCT_TOKEN_FINGERPRINTS = 64;
+const MAX_TOKEN_FINGERPRINT_LENGTHS = 4;
+const MAX_FINGERPRINT_HMAC_WORK = 20_000;
+const MAX_REQUEST_BYTES = 64 * 1_024;
+const MAX_RESPONSE_BYTES = 1_024 * 1_024;
+const MAX_STREAM_CHUNKS = 4_096;
+const MAX_SSE_EVENTS = 64;
+const MAX_SSE_EVENT_BYTES = 256 * 1_024;
+const MAX_SSE_LINES = 1_024;
+const MAX_JSON_DEPTH = 32;
+const MAX_JSON_NODES = 10_000;
+const REQUEST_DEADLINE_MS = 20_000;
+const SANDBOX_WORKSPACE_SLUG = 'nf-qa-sandbox' as const;
+const SANDBOX_WORKSPACE_ID =
+  '8f081389-298d-4dc2-93d5-7cd80c5109da' as const;
+const SANDBOX_PROJECT_ID =
+  '2c2298c0-7bdc-42a5-a5f5-54ad2cb5d3cf' as const;
+const SANDBOX_PROJECT_IDENTIFIER = 'NFQAS' as const;
+const QA_RUN_NAME =
+  /^QA E2E \d{8}T\d{6}Z-w(?:0|[1-9]\d*)-[a-f0-9]{6} [\x20-\x7e]+$/;
+const SYNTHETIC_DESCRIPTION_PREFIX = 'Synthetic QA ';
+const MAX_WORK_ITEM_NAME_LENGTH = 255;
+const MAX_WORK_ITEM_DESCRIPTION_LENGTH = 2_048;
+const FORBIDDEN_KEYS = new Set(['__proto__', 'prototype', 'constructor']);
+const SAFE_SCHEMA_KEY = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
+const CANONICAL_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const JWT_LIKE = /^[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}$/;
+const CREDENTIAL_IDENTIFIER =
+  /(?:^|[_.:-])(?:api_key|apikey|authorization|bearer|cookie|password|plane_api|secret|session|token|x_plane)(?:$|[_.:-])/i;
+
+const hasSafeIdentifierSyntax = (value: string, maxLength: number) =>
+  value.length > 0 &&
+  value.length <= maxLength &&
+  /^[A-Za-z][A-Za-z0-9_.:-]*$/.test(value);
+
+const isSafeIdentifier = (value: string, maxLength: number) =>
+  hasSafeIdentifierSyntax(value, maxLength) &&
+  !CANONICAL_UUID.test(value) &&
+  !JWT_LIKE.test(value) &&
+  !CREDENTIAL_IDENTIFIER.test(value);
+
+const isCanonicalUuid = (value: unknown): value is string =>
+  typeof value === 'string' && CANONICAL_UUID.test(value);
+
+const isPositiveSequence = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+
+const isCurrentRunName = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length <= MAX_WORK_ITEM_NAME_LENGTH &&
+  value.trim() === value &&
+  QA_RUN_NAME.test(value);
+
+const isSyntheticDescription = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length >= SYNTHETIC_DESCRIPTION_PREFIX.length + 1 &&
+  value.length <= MAX_WORK_ITEM_DESCRIPTION_LENGTH &&
+  value.trim() === value &&
+  value.startsWith(SYNTHETIC_DESCRIPTION_PREFIX) &&
+  !/[\u0000-\u001f\u007f]/.test(value);
+
+const validateSandboxScope = (
+  value: unknown,
+  operation: string,
+): SandboxWorkItemScope => {
+  const data = exactOwnData(
+    value,
+    ['workspaceSlug', 'workspaceId', 'projectId', 'projectIdentifier'],
+    [],
+    operation,
+  );
+  if (
+    data.workspaceSlug !== SANDBOX_WORKSPACE_SLUG ||
+    data.workspaceId !== SANDBOX_WORKSPACE_ID
+  ) {
+    throw new NuanuMcpError('WORKSPACE_REFUSED', operation);
+  }
+  if (
+    data.projectId !== SANDBOX_PROJECT_ID ||
+    data.projectIdentifier !== SANDBOX_PROJECT_IDENTIFIER
+  ) {
+    throw new NuanuMcpError('PROJECT_REFUSED', operation);
+  }
+  return Object.freeze({
+    workspaceSlug: SANDBOX_WORKSPACE_SLUG,
+    workspaceId: SANDBOX_WORKSPACE_ID,
+    projectId: SANDBOX_PROJECT_ID,
+    projectIdentifier: SANDBOX_PROJECT_IDENTIFIER,
+  });
+};
+
+const validateOwnedProjection = (
+  value: unknown,
+  scope: SandboxWorkItemScope,
+  operation: string,
+): SafeWorkItemProjection => {
+  const data = exactOwnData(
+    value,
+    ['id', 'name', 'projectId', 'sequenceId', 'workspaceSlug', 'deleted'],
+    [],
+    operation,
+  );
+  if (!isCanonicalUuid(data.id) || !isPositiveSequence(data.sequenceId)) {
+    throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+  }
+  if (!isCurrentRunName(data.name) || data.deleted !== false) {
+    throw new NuanuMcpError('OWNERSHIP_REFUSED', operation);
+  }
+  if (data.workspaceSlug !== scope.workspaceSlug) {
+    throw new NuanuMcpError('WORKSPACE_REFUSED', operation);
+  }
+  if (data.projectId !== scope.projectId) {
+    throw new NuanuMcpError('PROJECT_REFUSED', operation);
+  }
+  return Object.freeze({
+    id: data.id,
+    name: data.name,
+    projectId: scope.projectId,
+    sequenceId: data.sequenceId,
+    workspaceSlug: scope.workspaceSlug,
+    deleted: false,
+  });
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const startBestEffortCancellation = (cancel: () => unknown) => {
+  try {
+    const result = cancel();
+    if (
+      typeof result === 'object' &&
+      result !== null &&
+      typeof (result as PromiseLike<unknown>).then === 'function'
+    ) {
+      void Promise.resolve(result).catch(() => {});
+    }
+  } catch {
+    // Cancellation is best effort and must never replace the safe error.
+  }
+};
+
+type TokenFingerprint = Readonly<{
+  matches: (candidate: string, budget?: FingerprintWorkBudget) => boolean;
+  contains: (candidate: string, budget?: FingerprintWorkBudget) => boolean;
+}>;
+
+type TokenFingerprintHistory = Readonly<{
+  add: (token: string) => 'added' | 'existing' | 'full';
+  matches: (candidate: string, budget?: FingerprintWorkBudget) => boolean;
+  contains: (candidate: string, budget?: FingerprintWorkBudget) => boolean;
+}>;
+
+type FingerprintWorkBudget = Readonly<{
+  consume: () => void;
+}>;
+
+const createFingerprintWorkBudget = (
+  operation: string,
+): FingerprintWorkBudget => {
+  let consumed = 0;
+  return Object.freeze({
+    consume: () => {
+      consumed += 1;
+      if (consumed > MAX_FINGERPRINT_HMAC_WORK) {
+        throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+      }
+    },
+  });
+};
+
+const createTokenFingerprint = (token: string): TokenFingerprint => {
+  const key = randomBytes(32);
+  const expected = createHmac('sha256', key).update(token, 'utf8').digest();
+  const tokenLength = token.length;
+  const matches = (candidate: string, budget?: FingerprintWorkBudget) => {
+      if (candidate.length !== tokenLength) return false;
+      budget?.consume();
+      const actual = createHmac('sha256', key)
+        .update(candidate, 'utf8')
+        .digest();
+      return timingSafeEqual(expected, actual);
+  };
+  return Object.freeze({
+    matches,
+    contains: (candidate: string, budget?: FingerprintWorkBudget) => {
+      if (candidate.length < tokenLength) return false;
+      for (let offset = 0; offset <= candidate.length - tokenLength; offset += 1) {
+        if (matches(candidate.slice(offset, offset + tokenLength), budget)) return true;
+      }
+      return false;
+    },
+  });
+};
+
+const createTokenFingerprintHistory = (): TokenFingerprintHistory => {
+  const key = randomBytes(32);
+  const digestsByLength = new Map<number, Set<string>>();
+  let distinctCount = 0;
+  const digest = (value: string) =>
+    createHmac('sha256', key).update(value, 'utf8').digest('base64url');
+  const matches = (candidate: string, budget?: FingerprintWorkBudget) => {
+    const digests = digestsByLength.get(candidate.length);
+    if (digests === undefined) return false;
+    budget?.consume();
+    return digests.has(digest(candidate));
+  };
+  return Object.freeze({
+    add: (token: string) => {
+      const tokenDigest = digest(token);
+      const existing = digestsByLength.get(token.length);
+      if (existing?.has(tokenDigest)) return 'existing';
+      if (
+        distinctCount >= MAX_DISTINCT_TOKEN_FINGERPRINTS ||
+        (existing === undefined &&
+          digestsByLength.size >= MAX_TOKEN_FINGERPRINT_LENGTHS)
+      ) {
+        return 'full';
+      }
+      const digests = existing ?? new Set<string>();
+      digests.add(tokenDigest);
+      if (existing === undefined) digestsByLength.set(token.length, digests);
+      distinctCount += 1;
+      return 'added';
+    },
+    matches,
+    contains: (candidate: string, budget?: FingerprintWorkBudget) => {
+      for (const [length, digests] of digestsByLength) {
+        if (length > candidate.length) continue;
+        for (let offset = 0; offset <= candidate.length - length; offset += 1) {
+          budget?.consume();
+          if (digests.has(digest(candidate.slice(offset, offset + length)))) {
+            return true;
+          }
+        }
+      }
+      return false;
+    },
+  });
+};
+
+const NATIVE_HEADERS_DELETE = Headers.prototype.delete;
+const NATIVE_HEADERS_GET = Headers.prototype.get;
+
+const scrubSensitiveHeaders = (headers: Headers) => {
+  try {
+    Reflect.apply(NATIVE_HEADERS_DELETE, headers, ['X-Plane-User-Token']);
+    Reflect.apply(NATIVE_HEADERS_DELETE, headers, ['mcp-session-id']);
+  } catch {
+    // Revocation is best effort and must not expose a hostile injected method.
+  }
+};
+
+type ResponseSnapshot = Readonly<{
+  status: number;
+  type: string;
+  redirected: boolean;
+  url: string;
+  headers: Headers;
+  body: ReadableStream<Uint8Array> | null;
+}>;
+
+type ResponseMetadataSnapshot = Readonly<Omit<ResponseSnapshot, 'headers'>>;
+
+type FingerprintedResponse = ResponseSnapshot &
+  Readonly<{ tokenFingerprint: TokenFingerprint }>;
+
+const cancelSnapshotBody = (response: Pick<ResponseSnapshot, 'body'>) => {
+  if (response.body !== null) {
+    startBestEffortCancellation(() => response.body!.cancel());
+  }
+};
+
+const readSnapshotHeader = (
+  response: ResponseSnapshot,
+  name: string,
+  operation: string,
+): string | null => {
+  try {
+    return Reflect.apply(NATIVE_HEADERS_GET, response.headers, [name]) as
+      | string
+      | null;
+  } catch {
+    cancelSnapshotBody(response);
+    throw new NuanuMcpError('HTTP_FAILURE', operation, response.status);
+  }
+};
+
+const snapshotResponseMetadata = (
+  response: Response,
+  operation: string,
+): ResponseMetadataSnapshot => {
+  let body: ReadableStream<Uint8Array> | null | undefined;
+  try {
+    body = response.body;
+    const status = response.status;
+    const type = response.type;
+    const redirected = response.redirected;
+    const url = response.url;
+    if (
+      !Number.isInteger(status) ||
+      status < 0 ||
+      status > 599 ||
+      typeof type !== 'string' ||
+      typeof redirected !== 'boolean' ||
+      typeof url !== 'string'
+    ) {
+      throw new Error('invalid-response-metadata');
+    }
+    return Object.freeze({ status, type, redirected, url, body });
+  } catch {
+    if (body !== undefined && body !== null) {
+      startBestEffortCancellation(() => body!.cancel());
+    }
+    throw new NuanuMcpError('HTTP_FAILURE', operation);
+  }
+};
+
+const snapshotResponseHeaders = (
+  response: Response,
+  metadata: ResponseMetadataSnapshot,
+  operation: string,
+): ResponseSnapshot => {
+  try {
+    const headers = new Headers(response.headers);
+    return Object.freeze({ ...metadata, headers });
+  } catch {
+    cancelSnapshotBody(metadata);
+    throw new NuanuMcpError('HTTP_FAILURE', operation);
+  }
+};
+
+const validateBoundedJson = (
+  root: unknown,
+  operation: string,
+  tokenHistory?: TokenFingerprintHistory,
+  fingerprintBudget?: FingerprintWorkBudget,
+) => {
+  const stack: Array<{ depth: number; value: unknown }> = [
+    { depth: 0, value: root },
+  ];
+  let nodes = 0;
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) break;
+    nodes += 1;
+    if (nodes > MAX_JSON_NODES || current.depth > MAX_JSON_DEPTH) {
+      throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+    }
+    const value = current.value;
+    if (
+      value === null ||
+      typeof value === 'boolean' ||
+      typeof value === 'string'
+    ) {
+      if (typeof value === 'string' && value.length > MAX_RESPONSE_BYTES) {
+        throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+      }
+      if (
+        typeof value === 'string' &&
+        tokenHistory?.matches(value, fingerprintBudget) === true
+      ) {
+        throw new NuanuMcpError('TOKEN_REFLECTION_REFUSED', operation);
+      }
+      continue;
+    }
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) {
+        throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+      }
+      continue;
+    }
+    if (Array.isArray(value)) {
+      if (nodes + stack.length + value.length > MAX_JSON_NODES) {
+        throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+      }
+      for (const item of value) {
+        stack.push({ depth: current.depth + 1, value: item });
+      }
+      continue;
+    }
+    if (!isRecord(value)) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    const keys = Object.keys(value);
+    if (nodes + stack.length + keys.length > MAX_JSON_NODES) {
+      throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+    }
+    for (const key of keys) {
+      const item = value[key];
+      const reflectedKey =
+        tokenHistory?.matches(key, fingerprintBudget) === true;
+      if (reflectedKey) {
+        throw new NuanuMcpError('TOKEN_REFLECTION_REFUSED', operation);
+      }
+      if (FORBIDDEN_KEYS.has(key)) {
+        throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+      }
+      stack.push({ depth: current.depth + 1, value: item });
+    }
+  }
+};
+
+const readBoundedBody = async (
+  response: ResponseSnapshot,
+  operation: string,
+  signal: AbortSignal,
+): Promise<string> => {
+  const lengthHeader = readSnapshotHeader(
+    response,
+    'content-length',
+    operation,
+  );
+  if (lengthHeader !== null) {
+    if (!/^\d+$/.test(lengthHeader) || Number(lengthHeader) > MAX_RESPONSE_BYTES) {
+      cancelSnapshotBody(response);
+      throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+    }
+  }
+  const body = response.body;
+  if (!body) {
+    throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+  }
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  try {
+    reader = body.getReader();
+  } catch {
+    cancelSnapshotBody(response);
+    throw new NuanuMcpError('HTTP_FAILURE', operation);
+  }
+  const chunks: Uint8Array[] = [];
+  let byteCount = 0;
+  let readCount = 0;
+  let completed = false;
+  let rejectAborted = (_reason?: unknown) => {};
+  const aborted = new Promise<never>((_, reject) => {
+    rejectAborted = reject;
+  });
+  const abortReader = () => {
+    rejectAborted(new NuanuMcpError('DEADLINE_EXCEEDED', operation));
+  };
+  if (signal.aborted) abortReader();
+  else signal.addEventListener('abort', abortReader, { once: true });
+  try {
+    while (true) {
+      readCount += 1;
+      if (readCount > MAX_STREAM_CHUNKS) {
+        throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+      }
+      const { done, value } = await Promise.race([reader.read(), aborted]);
+      if (done) {
+        completed = true;
+        break;
+      }
+      if (!(value instanceof Uint8Array)) {
+        throw new NuanuMcpError('HTTP_FAILURE', operation);
+      }
+      const chunkLength = value.byteLength;
+      if (chunkLength > MAX_RESPONSE_BYTES - byteCount) {
+        throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+      }
+      const chunk = new Uint8Array(value);
+      byteCount += chunkLength;
+      chunks.push(chunk);
+    }
+  } catch (error) {
+    if (error instanceof NuanuMcpError) throw error;
+    throw new NuanuMcpError('HTTP_FAILURE', operation);
+  } finally {
+    signal.removeEventListener('abort', abortReader);
+    if (!completed) {
+      startBestEffortCancellation(() => reader.cancel());
+    }
+    try {
+      reader.releaseLock();
+    } catch {
+      // The original safe result or failure is authoritative.
+    }
+  }
+  const bytes = new Uint8Array(byteCount);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+  }
+};
+
+const readExactEmptyBody = async (
+  response: ResponseSnapshot,
+  operation: string,
+  signal: AbortSignal,
+): Promise<void> => {
+  const body = response.body;
+  const cancelBody = () => {
+    if (body !== null) startBestEffortCancellation(() => body.cancel());
+  };
+  const lengthHeader = readSnapshotHeader(
+    response,
+    'content-length',
+    operation,
+  );
+  if (lengthHeader !== null && lengthHeader !== '0') {
+    cancelBody();
+    throw new NuanuMcpError(
+      'RESULT_SCHEMA_MISMATCH',
+      operation,
+      response.status,
+    );
+  }
+  if (body === null) return;
+
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  try {
+    reader = body.getReader();
+  } catch {
+    cancelBody();
+    throw new NuanuMcpError('HTTP_FAILURE', operation);
+  }
+  let readCount = 0;
+  let completed = false;
+  let rejectAborted = (_reason?: unknown) => {};
+  const aborted = new Promise<never>((_, reject) => {
+    rejectAborted = reject;
+  });
+  const abortReader = () => {
+    rejectAborted(new NuanuMcpError('DEADLINE_EXCEEDED', operation));
+  };
+  if (signal.aborted) abortReader();
+  else signal.addEventListener('abort', abortReader, { once: true });
+  try {
+    while (true) {
+      readCount += 1;
+      if (readCount > MAX_STREAM_CHUNKS) {
+        throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+      }
+      const { done, value } = await Promise.race([reader.read(), aborted]);
+      if (done) {
+        completed = true;
+        return;
+      }
+      if (!(value instanceof Uint8Array)) {
+        throw new NuanuMcpError('HTTP_FAILURE', operation);
+      }
+      if (value.byteLength !== 0) {
+        throw new NuanuMcpError(
+          'RESULT_SCHEMA_MISMATCH',
+          operation,
+          response.status,
+        );
+      }
+    }
+  } catch (error) {
+    if (error instanceof NuanuMcpError) throw error;
+    throw new NuanuMcpError('HTTP_FAILURE', operation);
+  } finally {
+    signal.removeEventListener('abort', abortReader);
+    if (!completed) startBestEffortCancellation(() => reader.cancel());
+    try {
+      reader.releaseLock();
+    } catch {
+      // The exact-empty result or original safe error remains authoritative.
+    }
+  }
+};
+
+const assertNoDuplicateJsonKeys = (text: string, operation: string) => {
+  const stack: Array<{ kind: 'array' } | { kind: 'object'; keys: Set<string> }> = [];
+  let cursor = 0;
+  let lexicalNodes = 0;
+  while (cursor < text.length) {
+    const character = text[cursor];
+    if (character === '{') {
+      lexicalNodes += 1;
+      if (
+        stack.length + 1 > MAX_JSON_DEPTH ||
+        lexicalNodes > MAX_JSON_NODES
+      ) {
+        throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+      }
+      stack.push({ kind: 'object', keys: new Set() });
+      cursor += 1;
+      continue;
+    }
+    if (character === '[') {
+      lexicalNodes += 1;
+      if (
+        stack.length + 1 > MAX_JSON_DEPTH ||
+        lexicalNodes > MAX_JSON_NODES
+      ) {
+        throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+      }
+      stack.push({ kind: 'array' });
+      cursor += 1;
+      continue;
+    }
+    if (character === '}' || character === ']') {
+      stack.pop();
+      cursor += 1;
+      continue;
+    }
+    if (character !== '"') {
+      cursor += 1;
+      continue;
+    }
+
+    const start = cursor;
+    cursor += 1;
+    let terminated = false;
+    while (cursor < text.length) {
+      if (text[cursor] === '\\') {
+        cursor += 2;
+        continue;
+      }
+      if (text[cursor] === '"') {
+        cursor += 1;
+        terminated = true;
+        break;
+      }
+      cursor += 1;
+    }
+    if (!terminated) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    let lookahead = cursor;
+    while (lookahead < text.length && /\s/.test(text[lookahead]!)) {
+      lookahead += 1;
+    }
+    const current = stack[stack.length - 1];
+    if (text[lookahead] !== ':' || current?.kind !== 'object') continue;
+    let key: unknown;
+    try {
+      key = JSON.parse(text.slice(start, cursor));
+    } catch {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    if (typeof key !== 'string' || current.keys.has(key)) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    lexicalNodes += 1;
+    if (lexicalNodes > MAX_JSON_NODES) {
+      throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+    }
+    current.keys.add(key);
+  }
+};
+
+const parseJson = (
+  text: string,
+  operation: string,
+  tokenHistory?: TokenFingerprintHistory,
+  fingerprintBudget?: FingerprintWorkBudget,
+): unknown => {
+  let value: unknown;
+  try {
+    assertNoDuplicateJsonKeys(text, operation);
+    value = JSON.parse(text);
+  } catch (error) {
+    if (error instanceof NuanuMcpError) throw error;
+    throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+  }
+  validateBoundedJson(value, operation, tokenHistory, fingerprintBudget);
+  return value;
+};
+
+const parseJsonRpcResult = (
+  value: unknown,
+  requestId: number,
+  operation: string,
+): unknown => {
+  if (!isRecord(value)) {
+    throw new NuanuMcpError(
+      'RESULT_SCHEMA_MISMATCH',
+      operation,
+      undefined,
+      requestId,
+    );
+  }
+  if (value.jsonrpc !== '2.0' || value.id !== requestId) {
+    throw new NuanuMcpError(
+      'JSON_RPC_ID_MISMATCH',
+      operation,
+      undefined,
+      requestId,
+    );
+  }
+  const hasResult = Object.hasOwn(value, 'result');
+  const hasError = Object.hasOwn(value, 'error');
+  if (hasResult === hasError) {
+    throw new NuanuMcpError(
+      'RESULT_SCHEMA_MISMATCH',
+      operation,
+      undefined,
+      requestId,
+    );
+  }
+  const allowedKeys = new Set(
+    hasResult ? ['jsonrpc', 'id', 'result'] : ['jsonrpc', 'id', 'error'],
+  );
+  if (Object.keys(value).some((key) => !allowedKeys.has(key))) {
+    throw new NuanuMcpError(
+      'RESULT_SCHEMA_MISMATCH',
+      operation,
+      undefined,
+      requestId,
+    );
+  }
+  if (hasError) {
+    throw new NuanuMcpError(
+      'JSON_RPC_ERROR',
+      operation,
+      undefined,
+      requestId,
+    );
+  }
+  return value.result;
+};
+
+const validateReconCandidateInitializeResult = (
+  result: unknown,
+  requestId: number,
+) => {
+  const operation = 'client.initialize';
+  if (
+    !isRecord(result) ||
+    Object.keys(result).length !== 3 ||
+    !Object.hasOwn(result, 'protocolVersion') ||
+    !Object.hasOwn(result, 'capabilities') ||
+    !Object.hasOwn(result, 'serverInfo') ||
+    result.protocolVersion !== RECON_CANDIDATE_PROTOCOL_VERSION ||
+    !isRecord(result.capabilities) ||
+    Object.keys(result.capabilities).length !== 0 ||
+    !isRecord(result.serverInfo) ||
+    Object.keys(result.serverInfo).length !== 2 ||
+    !Object.hasOwn(result.serverInfo, 'name') ||
+    !Object.hasOwn(result.serverInfo, 'version') ||
+    typeof result.serverInfo.name !== 'string' ||
+    !isSafeIdentifier(result.serverInfo.name, 128) ||
+    typeof result.serverInfo.version !== 'string' ||
+    !/^[0-9A-Za-z][0-9A-Za-z_.-]{0,63}$/.test(result.serverInfo.version) ||
+    CREDENTIAL_IDENTIFIER.test(result.serverInfo.version)
+  ) {
+    throw new NuanuMcpError(
+      'RESULT_SCHEMA_MISMATCH',
+      operation,
+      undefined,
+      requestId,
+    );
+  }
+};
+
+const parseSseResult = (
+  text: string,
+  requestId: number,
+  operation: string,
+  tokenHistory: TokenFingerprintHistory,
+  fingerprintBudget: FingerprintWorkBudget,
+): unknown => {
+  const terminalEnvelopes: Record<string, unknown>[] = [];
+  let lineCount = 0;
+  let eventCount = 0;
+  let cursor = 0;
+  let dataLines: string[] = [];
+  let eventBytes = 0;
+  let eventName: string | undefined;
+
+  const processEvent = () => {
+    if (dataLines.length === 0 && eventName === undefined) return;
+    eventCount += 1;
+    if (eventCount > MAX_SSE_EVENTS || eventBytes > MAX_SSE_EVENT_BYTES) {
+      throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+    }
+    if (eventName !== undefined && eventName !== '' && eventName !== 'message') {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    if (dataLines.length === 0) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    const eventValue = parseJson(
+      dataLines.join('\n'),
+      operation,
+      tokenHistory,
+      fingerprintBudget,
+    );
+    if (!isRecord(eventValue) || eventValue.jsonrpc !== '2.0') {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    if (Object.hasOwn(eventValue, 'id')) {
+      if (eventValue.id !== requestId) {
+        throw new NuanuMcpError(
+          'JSON_RPC_ID_MISMATCH',
+          operation,
+          undefined,
+          requestId,
+        );
+      }
+      terminalEnvelopes.push(eventValue);
+      return;
+    }
+    const notificationKeys = new Set(['jsonrpc', 'method', 'params']);
+    if (
+      typeof eventValue.method !== 'string' ||
+      Object.hasOwn(eventValue, 'result') ||
+      Object.hasOwn(eventValue, 'error') ||
+      Object.keys(eventValue).some((key) => !notificationKeys.has(key))
+    ) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+  };
+
+  while (cursor < text.length) {
+    const lineStart = cursor;
+    while (
+      cursor < text.length &&
+      text[cursor] !== '\n' &&
+      text[cursor] !== '\r'
+    ) {
+      cursor += 1;
+    }
+    const line = text.slice(lineStart, cursor);
+    let delimiterBytes = 0;
+    if (cursor < text.length) {
+      if (text[cursor] === '\r' && text[cursor + 1] === '\n') {
+        cursor += 2;
+        delimiterBytes = 2;
+      } else {
+        cursor += 1;
+        delimiterBytes = 1;
+      }
+    }
+    lineCount += 1;
+    if (lineCount > MAX_SSE_LINES) {
+      throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+    }
+    eventBytes += new TextEncoder().encode(line).byteLength + delimiterBytes;
+    if (eventBytes > MAX_SSE_EVENT_BYTES) {
+      throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+    }
+    if (line === '') {
+      processEvent();
+      dataLines = [];
+      eventBytes = 0;
+      eventName = undefined;
+      continue;
+    }
+    if (line.startsWith(':')) continue;
+    const colon = line.indexOf(':');
+    const field = colon === -1 ? line : line.slice(0, colon);
+    let fieldValue = colon === -1 ? '' : line.slice(colon + 1);
+    if (fieldValue.startsWith(' ')) fieldValue = fieldValue.slice(1);
+    if (field === 'data') dataLines.push(fieldValue);
+    else if (field === 'event' && eventName === undefined) eventName = fieldValue;
+    else throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+  }
+
+  if (dataLines.length > 0 || eventName !== undefined) {
+    throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+  }
+  if (terminalEnvelopes.length !== 1) {
+    throw new NuanuMcpError(
+      'RESULT_SCHEMA_MISMATCH',
+      operation,
+      undefined,
+      requestId,
+    );
+  }
+  return parseJsonRpcResult(terminalEnvelopes[0]!, requestId, operation);
+};
+
+const parseSearchDescriptors = (
+  result: unknown,
+  operation: string,
+  tokenHistory: TokenFingerprintHistory,
+  sessionFingerprint?: TokenFingerprint,
+  fingerprintBudget?: FingerprintWorkBudget,
+): readonly SafeToolDescriptor[] => {
+  // Candidate CallToolResult text-wrapper shape. It is observational input,
+  // never authority to execute any returned tool.
+  if (!isRecord(result) || result.isError !== false) {
+    throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+  }
+  const content = result.content;
+  if (
+    !Array.isArray(content) ||
+    content.length !== 1 ||
+    !isRecord(content[0]) ||
+    content[0].type !== 'text' ||
+    typeof content[0].text !== 'string'
+  ) {
+    throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+  }
+  const projection = parseJson(
+    content[0].text,
+    operation,
+    tokenHistory,
+    fingerprintBudget,
+  );
+  if (!isRecord(projection) || !Array.isArray(projection.tools)) {
+    throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+  }
+  if (projection.tools.length > 32) {
+    throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+  }
+  const descriptors: SafeToolDescriptor[] = [];
+  for (const tool of projection.tools) {
+    if (!isRecord(tool) || typeof tool.name !== 'string') {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    if (!hasSafeIdentifierSyntax(tool.name, 128)) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    if (tokenHistory.contains(tool.name, fingerprintBudget)) {
+      throw new NuanuMcpError('TOKEN_REFLECTION_REFUSED', operation);
+    }
+    if (sessionFingerprint?.contains(tool.name, fingerprintBudget) === true) {
+      throw new NuanuMcpError('SESSION_REFLECTION_REFUSED', operation);
+    }
+    if (!isSafeIdentifier(tool.name, 128)) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    if (
+      tool.description !== undefined &&
+      (typeof tool.description !== 'string' ||
+        tool.description.length > 512 ||
+        /[\u0000-\u001f\u007f]/.test(tool.description))
+    ) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    const inputSchema = tool.inputSchema;
+    if (
+      !isRecord(inputSchema) ||
+      inputSchema.type !== 'object' ||
+      !isRecord(inputSchema.properties) ||
+      !Array.isArray(inputSchema.required) ||
+      inputSchema.required.some((key) => typeof key !== 'string') ||
+      inputSchema.required.length > 64 ||
+      Object.keys(inputSchema.properties).length > 64
+    ) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    const inputProperties = Object.create(null) as Record<
+      string,
+      'string' | 'number' | 'boolean'
+    >;
+    for (const [key, schema] of Object.entries(inputSchema.properties)) {
+      if (!SAFE_SCHEMA_KEY.test(key)) {
+        throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+      }
+      if (tokenHistory.contains(key, fingerprintBudget)) {
+        throw new NuanuMcpError('TOKEN_REFLECTION_REFUSED', operation);
+      }
+      if (sessionFingerprint?.contains(key, fingerprintBudget) === true) {
+        throw new NuanuMcpError('SESSION_REFLECTION_REFUSED', operation);
+      }
+      if (
+        FORBIDDEN_KEYS.has(key) ||
+        !isSafeIdentifier(key, 64) ||
+        !isRecord(schema) ||
+        (schema.type !== 'string' &&
+          schema.type !== 'number' &&
+          schema.type !== 'boolean')
+      ) {
+        throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+      }
+      inputProperties[key] = schema.type;
+    }
+    const required = inputSchema.required as string[];
+    if (required.some((key) => !SAFE_SCHEMA_KEY.test(key))) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    if (required.some((key) => tokenHistory.contains(key, fingerprintBudget))) {
+      throw new NuanuMcpError('TOKEN_REFLECTION_REFUSED', operation);
+    }
+    if (
+      required.some(
+        (key) => sessionFingerprint?.contains(key, fingerprintBudget) === true,
+      )
+    ) {
+      throw new NuanuMcpError('SESSION_REFLECTION_REFUSED', operation);
+    }
+    if (
+      new Set(required).size !== required.length ||
+      required.some((key) => !isSafeIdentifier(key, 64)) ||
+      required.some((key) => !Object.hasOwn(inputProperties, key))
+    ) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    const annotations = tool.annotations;
+    if (annotations !== undefined && !isRecord(annotations)) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    if (
+      annotations !== undefined &&
+      (Object.keys(annotations).some(
+        (key) => key !== 'readOnlyHint' && key !== 'destructiveHint',
+      ) ||
+        (annotations.readOnlyHint !== undefined &&
+          typeof annotations.readOnlyHint !== 'boolean') ||
+        (annotations.destructiveHint !== undefined &&
+          typeof annotations.destructiveHint !== 'boolean'))
+    ) {
+      throw new NuanuMcpError('RESULT_SCHEMA_MISMATCH', operation);
+    }
+    descriptors.push(Object.freeze({
+      name: tool.name,
+      inputProperties: Object.freeze(inputProperties),
+      required: Object.freeze([...required]),
+      readOnly: annotations?.readOnlyHint === true,
+      destructive:
+        annotations?.destructiveHint === undefined ||
+        annotations.destructiveHint === true,
+    }));
+  }
+  return Object.freeze(descriptors);
+};
+
+export class NuanuFlowMcpClient {
+  readonly #workspace: NuanuMcpWorkspace;
+  readonly #tokenProvider: TokenProvider;
+  readonly #fetchImpl: FetchLike;
+  readonly #tokenHistory: TokenFingerprintHistory;
+  #nextRequestId = 1;
+  #initialization?: Promise<void>;
+  #sessionId?: string;
+  #sessionFingerprint?: TokenFingerprint;
+  #securityPoison?: 'TOKEN_REFLECTION_REFUSED' | 'SESSION_REFLECTION_REFUSED';
+
+  constructor(options: ClientOptions) {
+    const data = exactOwnData(
+      options,
+      ['workspace', 'tokenProvider'],
+      ['fetchImpl'],
+      'client.construct',
+    );
+    const workspace = data.workspace;
+    if (workspace !== 'nf-qa-sandbox' && workspace !== 'nuanu-flow-qa') {
+      throw new NuanuMcpError('WORKSPACE_REFUSED', 'client.construct');
+    }
+    if (typeof data.tokenProvider !== 'function') {
+      throw new NuanuMcpError('ARGUMENT_REFUSED', 'client.construct');
+    }
+    if (data.fetchImpl !== undefined && typeof data.fetchImpl !== 'function') {
+      throw new NuanuMcpError('ARGUMENT_REFUSED', 'client.construct');
+    }
+    this.#workspace = workspace;
+    this.#tokenProvider = data.tokenProvider as TokenProvider;
+    this.#fetchImpl =
+      (data.fetchImpl as FetchLike | undefined) ??
+      ((input, init) => globalThis.fetch(input, init));
+    try {
+      this.#tokenHistory = createTokenFingerprintHistory();
+    } catch {
+      throw new NuanuMcpError('ARGUMENT_REFUSED', 'client.construct');
+    }
+  }
+
+  async searchTools(query: AllowedToolSearch): Promise<readonly SafeToolDescriptor[]> {
+    if (this.#securityPoison) {
+      throw new NuanuMcpError(this.#securityPoison, 'tools.search');
+    }
+    if (query !== 'work-item-parity') {
+      throw new NuanuMcpError('ARGUMENT_REFUSED', 'tools.search');
+    }
+    try {
+      await this.#ensureInitialized();
+      const requestId = this.#takeRequestId();
+      const response = await this.#postJsonRpc(
+        {
+          jsonrpc: '2.0',
+          id: requestId,
+          method: 'tools/call',
+          params: {
+            name: RECON_CANDIDATE_SEARCH_TOOL_NAME,
+            arguments: { query: SEARCH_QUERY },
+          },
+        },
+        requestId,
+        'tools.search',
+        true,
+      );
+      return parseSearchDescriptors(
+        response.result,
+        'tools.search',
+        this.#tokenHistory,
+        this.#sessionFingerprint,
+        response.fingerprintBudget,
+      );
+    } catch (error) {
+      if (
+        error instanceof NuanuMcpError &&
+        (error.code === 'TOKEN_REFLECTION_REFUSED' ||
+          error.code === 'SESSION_REFLECTION_REFUSED')
+      ) {
+        this.#securityPoison = error.code;
+      }
+      throw error;
+    }
+  }
+
+  async executeReadTool(
+    request: AllowedReadRequest,
+  ): Promise<SafeWorkItemProjection> {
+    if (this.#workspace === 'nuanu-flow-qa') {
+      throw new NuanuMcpError('TOOL_REFUSED', 'workItem.get');
+    }
+    const operation = 'workItem.get';
+    const data = exactOwnData(
+      request,
+      ['operation', 'id', 'scope'],
+      ['sequenceId'],
+      operation,
+    );
+    if (data.operation !== operation) {
+      throw new NuanuMcpError('TOOL_REFUSED', operation);
+    }
+    if (!isCanonicalUuid(data.id)) {
+      throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+    }
+    if (
+      Object.hasOwn(data, 'sequenceId') &&
+      !isPositiveSequence(data.sequenceId)
+    ) {
+      throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+    }
+    validateSandboxScope(data.scope, operation);
+    if (VERIFIED_WORK_ITEM_TOOL_CATALOG === null) {
+      throw new NuanuMcpError('SCHEMA_RECON_REQUIRED', operation);
+    }
+    throw new NuanuMcpError('TOOL_REFUSED', operation);
+  }
+
+  async mutateOwnedTool(
+    request: AllowedOwnedMutation,
+    registerCreated?: (created: SafeWorkItemProjection) => void,
+  ): Promise<SafeWorkItemProjection | SafeDeleteProjection> {
+    if (this.#workspace === 'nuanu-flow-qa') {
+      throw new NuanuMcpError(
+        'TRACKER_MUTATION_REFUSED',
+        'workItem.mutate',
+      );
+    }
+    const snapshot = exactOwnData(
+      request,
+      ['operation'],
+      ['name', 'description', 'scope', 'clientCorrelationId', 'owned'],
+      'workItem.mutate',
+    );
+    if (
+      snapshot.operation !== 'workItem.create' &&
+      snapshot.operation !== 'workItem.delete'
+    ) {
+      throw new NuanuMcpError('TOOL_REFUSED', 'workItem.mutate');
+    }
+
+    if (snapshot.operation === 'workItem.create') {
+      const operation = 'workItem.create';
+      assertExactSnapshotKeys(
+        snapshot,
+        ['operation', 'name', 'description', 'scope'],
+        ['clientCorrelationId'],
+        operation,
+      );
+      if (
+        !isCurrentRunName(snapshot.name) ||
+        !isSyntheticDescription(snapshot.description) ||
+        (Object.hasOwn(snapshot, 'clientCorrelationId') &&
+          !isCanonicalUuid(snapshot.clientCorrelationId)) ||
+        (registerCreated !== undefined && typeof registerCreated !== 'function')
+      ) {
+        throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+      }
+      validateSandboxScope(snapshot.scope, operation);
+      if (VERIFIED_WORK_ITEM_TOOL_CATALOG === null) {
+        throw new NuanuMcpError('SCHEMA_RECON_REQUIRED', operation);
+      }
+      throw new NuanuMcpError('TOOL_REFUSED', operation);
+    }
+
+    const operation = 'workItem.delete';
+    assertExactSnapshotKeys(
+      snapshot,
+      ['operation', 'owned', 'scope'],
+      [],
+      operation,
+    );
+    if (registerCreated !== undefined) {
+      throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+    }
+    const scope = validateSandboxScope(snapshot.scope, operation);
+    validateOwnedProjection(snapshot.owned, scope, operation);
+    if (VERIFIED_WORK_ITEM_TOOL_CATALOG === null) {
+      throw new NuanuMcpError('SCHEMA_RECON_REQUIRED', operation);
+    }
+    throw new NuanuMcpError('TOOL_REFUSED', operation);
+  }
+
+  async #ensureInitialized(): Promise<void> {
+    this.#initialization ??= this.#initialize();
+    await this.#initialization;
+  }
+
+  async #initialize(): Promise<void> {
+    const requestId = this.#takeRequestId();
+    const response = await this.#postJsonRpcWithSession(
+      {
+        jsonrpc: '2.0',
+        id: requestId,
+        method: 'initialize',
+        params: {
+          protocolVersion: RECON_CANDIDATE_PROTOCOL_VERSION,
+          capabilities: {},
+          clientInfo: { name: CLIENT_NAME, version: CLIENT_VERSION },
+        },
+      },
+      requestId,
+      'client.initialize',
+      false,
+    );
+    validateReconCandidateInitializeResult(response.result, requestId);
+    try {
+      this.#sessionId = response.sessionId;
+      this.#sessionFingerprint =
+        response.sessionId === undefined
+          ? undefined
+          : createTokenFingerprint(response.sessionId);
+      await this.#postInitializedNotification();
+    } catch (error) {
+      this.#sessionId = undefined;
+      this.#sessionFingerprint = undefined;
+      if (error instanceof NuanuMcpError) throw error;
+      throw new NuanuMcpError(
+        'RESULT_SCHEMA_MISMATCH',
+        'client.initialize',
+        undefined,
+        requestId,
+      );
+    }
+  }
+
+  #takeRequestId(): number {
+    if (!Number.isSafeInteger(this.#nextRequestId)) {
+      throw new NuanuMcpError('RESPONSE_LIMIT', 'client.request-id');
+    }
+    const requestId = this.#nextRequestId;
+    this.#nextRequestId += 1;
+    return requestId;
+  }
+
+  async #postInitializedNotification(): Promise<void> {
+    const operation = 'client.initialized';
+    await this.#withDeadline(operation, async (signal) => {
+      const response = await this.#fetchResponse(
+        { jsonrpc: '2.0', method: 'notifications/initialized' },
+        operation,
+        true,
+        signal,
+      );
+      if (response.status !== RECON_CANDIDATE_INITIALIZED_ACK_STATUS) {
+        cancelSnapshotBody(response);
+        throw new NuanuMcpError('HTTP_FAILURE', operation, response.status);
+      }
+      await readExactEmptyBody(response, operation, signal);
+    });
+  }
+
+  async #postJsonRpc(
+    body: Record<string, unknown>,
+    requestId: number,
+    operation: string,
+    includeSession: boolean,
+  ): Promise<{
+    result: unknown;
+    tokenFingerprint: TokenFingerprint;
+    fingerprintBudget: FingerprintWorkBudget;
+  }> {
+    const response = await this.#postJsonRpcWithSession(
+      body,
+      requestId,
+      operation,
+      includeSession,
+    );
+    return {
+      result: response.result,
+      tokenFingerprint: response.tokenFingerprint,
+      fingerprintBudget: response.fingerprintBudget,
+    };
+  }
+
+  async #postJsonRpcWithSession(
+    body: Record<string, unknown>,
+    requestId: number,
+    operation: string,
+    includeSession: boolean,
+  ): Promise<{
+    result: unknown;
+    sessionId?: string;
+    tokenFingerprint: TokenFingerprint;
+    fingerprintBudget: FingerprintWorkBudget;
+  }> {
+    return this.#withDeadline(operation, async (signal) => {
+      const response = await this.#fetchResponse(
+        body,
+        operation,
+        includeSession,
+        signal,
+      );
+      if (response.status !== 200) {
+        cancelSnapshotBody(response);
+        throw new NuanuMcpError(
+          'HTTP_FAILURE',
+          operation,
+          response.status,
+          requestId,
+        );
+      }
+      const contentType = readSnapshotHeader(
+        response,
+        'content-type',
+        operation,
+      )
+        ?.split(';', 1)[0]
+        ?.trim()
+        .toLowerCase();
+      if (
+        contentType !== 'application/json' &&
+        contentType !== 'text/event-stream'
+      ) {
+        cancelSnapshotBody(response);
+        throw new NuanuMcpError(
+          'CONTENT_TYPE_REFUSED',
+          operation,
+          response.status,
+          requestId,
+        );
+      }
+      const responseText = await readBoundedBody(response, operation, signal);
+      const fingerprintBudget = createFingerprintWorkBudget(operation);
+      const result =
+        contentType === 'application/json'
+          ? parseJsonRpcResult(
+              parseJson(
+                responseText,
+                operation,
+                this.#tokenHistory,
+                fingerprintBudget,
+              ),
+              requestId,
+              operation,
+            )
+          : parseSseResult(
+              responseText,
+              requestId,
+              operation,
+              this.#tokenHistory,
+              fingerprintBudget,
+            );
+      const sessionHeader = readSnapshotHeader(
+        response,
+        'mcp-session-id',
+        operation,
+      );
+      const validSessionSyntax =
+        sessionHeader === null || /^[\x21-\x7e]{1,256}$/.test(sessionHeader);
+      const reflectedSession =
+        sessionHeader !== null &&
+        validSessionSyntax &&
+        this.#tokenHistory.contains(sessionHeader, fingerprintBudget);
+      if (
+        sessionHeader !== null &&
+        (!validSessionSyntax || reflectedSession)
+      ) {
+        if (reflectedSession) {
+          throw new NuanuMcpError(
+            'TOKEN_REFLECTION_REFUSED',
+            operation,
+            response.status,
+            requestId,
+          );
+        }
+        throw new NuanuMcpError(
+          'RESULT_SCHEMA_MISMATCH',
+          operation,
+          response.status,
+          requestId,
+        );
+      }
+      return {
+        result,
+        tokenFingerprint: response.tokenFingerprint,
+        fingerprintBudget,
+        ...(sessionHeader === null ? {} : { sessionId: sessionHeader }),
+      };
+    });
+  }
+
+  async #fetchResponse(
+    body: Record<string, unknown>,
+    operation: string,
+    includeSession: boolean,
+    signal: AbortSignal,
+  ): Promise<FingerprintedResponse> {
+    const serializedBody = JSON.stringify(body);
+    if (new TextEncoder().encode(serializedBody).byteLength > MAX_REQUEST_BYTES) {
+      throw new NuanuMcpError('ARGUMENT_REFUSED', operation);
+    }
+    let token: unknown;
+    try {
+      token = await this.#tokenProvider();
+    } catch {
+      throw new NuanuMcpError('TOKEN_INVALID', operation);
+    }
+    if (typeof token !== 'string') {
+      throw new NuanuMcpError('TOKEN_INVALID', operation);
+    }
+    if (token.length === 0 || token.trim().length === 0) {
+      throw new NuanuMcpError('TOKEN_REQUIRED', operation);
+    }
+    if (
+      token.length > MAX_TOKEN_LENGTH ||
+      !/^[\x21-\x7e]+$/.test(token)
+    ) {
+      throw new NuanuMcpError('TOKEN_INVALID', operation);
+    }
+    if (signal.aborted) {
+      token = undefined;
+      throw new NuanuMcpError('DEADLINE_EXCEEDED', operation);
+    }
+    let tokenFingerprint: TokenFingerprint;
+    let headers: Headers;
+    try {
+      if (this.#tokenHistory.add(token) === 'full') {
+        throw new NuanuMcpError('RESPONSE_LIMIT', operation);
+      }
+      tokenFingerprint = createTokenFingerprint(token);
+      headers = new Headers({
+        Accept: 'application/json, text/event-stream',
+        'Content-Type': 'application/json',
+        'X-Plane-User-Token': token,
+        'X-Plane-Workspace': this.#workspace,
+      });
+      if (includeSession && this.#sessionId) {
+        if (tokenFingerprint.contains(this.#sessionId)) {
+          throw new NuanuMcpError('TOKEN_REFLECTION_REFUSED', operation);
+        }
+        headers.set('mcp-session-id', this.#sessionId);
+      }
+    } catch (error) {
+      token = undefined;
+      if (error instanceof NuanuMcpError) throw error;
+      throw new NuanuMcpError('TOKEN_INVALID', operation);
+    }
+    token = undefined;
+    if (signal.aborted) {
+      scrubSensitiveHeaders(headers);
+      throw new NuanuMcpError('DEADLINE_EXCEEDED', operation);
+    }
+    let pendingFetch: Promise<Response>;
+    try {
+      pendingFetch = this.#fetchImpl(NUANU_FLOW_MCP_ENDPOINT, {
+        method: 'POST',
+        redirect: 'manual',
+        headers,
+        body: serializedBody,
+        signal,
+      });
+    } catch {
+      throw new NuanuMcpError(
+        signal.aborted ? 'DEADLINE_EXCEEDED' : 'HTTP_FAILURE',
+        operation,
+      );
+    } finally {
+      scrubSensitiveHeaders(headers);
+    }
+    let rawResponse: Response;
+    try {
+      rawResponse = await pendingFetch;
+    } catch {
+      throw new NuanuMcpError(
+        signal.aborted ? 'DEADLINE_EXCEEDED' : 'HTTP_FAILURE',
+        operation,
+      );
+    }
+    const metadata = snapshotResponseMetadata(rawResponse, operation);
+    if (signal.aborted) {
+      cancelSnapshotBody(metadata);
+      throw new NuanuMcpError('DEADLINE_EXCEEDED', operation);
+    }
+    if (
+      metadata.status === 0 ||
+      metadata.type === 'opaqueredirect' ||
+      metadata.redirected ||
+      (metadata.status >= 300 && metadata.status < 400)
+    ) {
+      cancelSnapshotBody(metadata);
+      throw new NuanuMcpError('REDIRECT_REFUSED', operation, metadata.status);
+    }
+    if (metadata.url !== NUANU_FLOW_MCP_ENDPOINT) {
+      cancelSnapshotBody(metadata);
+      throw new NuanuMcpError('REDIRECT_REFUSED', operation, metadata.status);
+    }
+    const response = snapshotResponseHeaders(rawResponse, metadata, operation);
+    return Object.freeze({ ...response, tokenFingerprint });
+  }
+
+  async #withDeadline<T>(
+    operation: string,
+    action: (signal: AbortSignal) => Promise<T>,
+  ): Promise<T> {
+    const controller = new AbortController();
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      deadline = setTimeout(() => {
+        controller.abort();
+        reject(new NuanuMcpError('DEADLINE_EXCEEDED', operation));
+      }, REQUEST_DEADLINE_MS);
+    });
+    const pending = Promise.resolve().then(() => action(controller.signal));
+    void pending.catch(() => {});
+    try {
+      return await Promise.race([pending, timeout]);
+    } finally {
+      if (deadline !== undefined) clearTimeout(deadline);
+    }
+  }
+}

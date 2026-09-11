@@ -1,0 +1,117 @@
+import type {
+  RegistrationPhaseStatus,
+  RegistrationPhaseView,
+  RegistrationProgressView,
+} from "../../lib/registration-progress";
+
+// Presentational only: every claim on screen comes from the view model, which
+// refuses to invent a phase the console cannot evidence.
+interface RegistrationProgressProps {
+  view: RegistrationProgressView;
+  /** Opening the created workspace is the caller's concern — App owns the source. */
+  onOpenWorkspace?: (workspaceDir: string) => void;
+}
+
+const GLYPH: Record<RegistrationPhaseStatus, string> = {
+  complete: "✓",
+  running: "▶",
+  pending: "○",
+  blocked: "✗",
+};
+
+const LABEL: Record<RegistrationPhaseStatus, string> = {
+  complete: "done",
+  running: "running",
+  pending: "pending",
+  blocked: "blocked",
+};
+
+function PhaseRow({ phase }: { phase: RegistrationPhaseView }) {
+  return (
+    <li className={`phase-row is-${phase.status}`}>
+      <span className="phase-glyph mono" aria-hidden="true">{GLYPH[phase.status]}</span>
+      <span className="phase-name mono">{phase.phase}</span>
+      <span className="phase-status mono">{LABEL[phase.status]}</span>
+      <span className="phase-note">
+        {phase.note}
+        <span
+          className={`phase-evidence mono${phase.reported ? " is-reported" : ""}`}
+          title={phase.reported ? "reported by the build itself" : "not reported by this seam"}
+        >
+          {phase.evidence}
+        </span>
+      </span>
+    </li>
+  );
+}
+
+export function RegistrationProgress({ view, onOpenWorkspace }: RegistrationProgressProps) {
+  const { outcome } = view;
+  return (
+    <section className="panel registration-progress">
+      <div className="panel-head">
+        <span className="micro">Registration build</span>
+        <span className="mono phase-count">{view.completeCount}/{view.phases.length}</span>
+      </div>
+      <div className="phase-track" aria-hidden="true">
+        {view.phases.map((phase) => (
+          <span key={phase.phase} className={`phase-seg is-${phase.status}`} />
+        ))}
+      </div>
+      <div className="phase-headline">{view.headline}</div>
+      <div className="phase-detail">{view.detail}</div>
+
+      <ol className="phase-list" aria-label="Registration build phases">
+        {view.phases.map((phase) => <PhaseRow key={phase.phase} phase={phase} />)}
+      </ol>
+
+      <div className="mono phase-reported">{view.evidenceSummary}</div>
+
+      {view.error !== null && (
+        <div className="mono phase-error" role="alert">✗ {view.error}</div>
+      )}
+
+      {outcome !== null && (
+        <div className="phase-outcome" role="status">
+          <div className="phase-chips">
+            <span className="chip">{outcome.lifecycleState}</span>
+            <span className="chip">Runs: none</span>
+            <span className="chip">Verdict: NOT_EVALUATED</span>
+          </div>
+          <div className="kv-row">
+            <span className="k">next action</span>
+            <span className="mono phase-value">{outcome.nextAction}</span>
+          </div>
+          <div className="kv-row">
+            <span className="k">workspace digest</span>
+            <span className="mono phase-value phase-wrap">{outcome.workspaceDigest}</span>
+          </div>
+          <div className="kv-row">
+            <span className="k">workspace</span>
+            <span className="mono phase-value phase-wrap">{outcome.workspacePath}</span>
+          </div>
+          {outcome.baselineApprovalRequired ? (
+            <p className="phase-gate">
+              Nothing has run. The next step is a human review of this exact baseline — registration never executes
+              tests or computes a verdict.
+            </p>
+          ) : (
+            <p className="phase-gate">
+              This workspace is not a registered baseline yet: the build reported {outcome.lifecycleState}, whose next
+              action is {outcome.nextAction}.
+            </p>
+          )}
+          {outcome.canOpenWorkspace && onOpenWorkspace !== undefined && (
+            <button
+              type="button"
+              className="pill-button phase-open"
+              onClick={() => onOpenWorkspace(outcome.workspacePath)}
+            >
+              Open workspace
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}

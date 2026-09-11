@@ -1,0 +1,50 @@
+# NuanuFlowQA
+
+Agent-driven QA platform: resolve a registered product and its owner, verify it with available browser/API/Playwright capabilities, report evidence, and use the product-selected tracker when writes are authorized.
+
+## Three modes (skills)
+
+Skill source safety: this legacy checkout is not an installation authority. `npm run codex:install-skills` is retired and performs no installation; do not bulk-copy its skills into Claude or Codex folders. Resolve the selected project's reviewed source/installation procedure (this machine's locator is `~/.codex/qa-workspaces.md`); preserve backups and verify installed bytes for any separately authorized selective update. Missing registration is a setup gap, not permission to install legacy copies.
+
+- **`/freeland-release-qa`** — agent-first Freeland QA: release, product area, all QA tickets or a selected sprint/ticket. Read `.claude/skills/freeland-release-qa/SKILL.md` and resolve the current FreelandQAmain checkout before commands; NuanuFlowQA is historical context, not the automatic runner. The shared skill defines orchestration; the selected product pack supplies facts and safety constraints. Ask a human only for an actual capability/authority gap after bounded attempts, and continue independent authorized checks. Do not interpret old human-labelled cases as mandatory delegation.
+- **`/qa-check`** — route product QA: resolve registration/workspace, environment, active owner checkpoint, current specialist and product-selected tracker before commands. Existing Starter work uses `/qa-product-v0`; use `/qa-init` only for genuinely missing setup/registration. Once selected, the specialist pack governs; otherwise use the skill's safe generic fallback. See `.claude/skills/qa-check/SKILL.md`.
+- **`/qa-bugfix`** — fetch open bugs from Linear, cluster them by root cause, and generate a self-contained fix prompt per cluster (`templates/fix-prompt.md`) that the product's own coding agent can execute. See `.claude/skills/qa-bugfix/SKILL.md`.
+
+`/qa-bugfix` retains its **Linear MCP server** prerequisite: `claude mcp add --transport http linear-server https://mcp.linear.app/mcp`. `/qa-check` resolves the tracker from the selected product pack; report-only QA has no tracker prerequisite. `/freeland-release-qa` uses the tracker and evidence contract from its current accepted pack.
+
+## Agent
+
+- **`e2e-runner`** (`.claude/agents/e2e-runner.md`) — legacy Linear/Playwright specialist (adapted from ECC). Use it only when the selected product workflow calls for that harness; it is not a prerequisite for generic report-only or specialist-owned QA.
+
+## Stack & commands
+
+TypeScript + Playwright (`@playwright/test`). One Playwright project per product under test.
+
+- All tests: `npm test` · one product: `npx playwright test --project=<product>` · interactive: `npm run test:ui`
+- Typecheck: `npm run typecheck`
+
+## Layout
+
+- `tests/<product>/` — Playwright specs per product (a Playwright project each; enabled only when `<PRODUCT>_BASE_URL` is set)
+- `tests/_template/` — copy this to start a new product's suite
+- `docs/templates/TEST-CASES.md` — test-case document template (living checklist per product)
+- `docs/local/` (gitignored) — your real per-product test cases and notes
+- `templates/` — bug report and fix prompt formats used by the skills
+- `.env` (gitignored, copy from `.env.example`) — `<PRODUCT>_BASE_URL`, `<PRODUCT>_TEST_EMAIL`, `<PRODUCT>_TEST_PASSWORD` per product
+- `CLAUDE.local.md` (gitignored) — product-specific context that must not be published
+
+## Adding a generic Linear-backed product to this legacy repo
+
+1. Copy `tests/_template/` → `tests/<product>/`; adjust selectors after first recon.
+2. Add `<PRODUCT>_BASE_URL` (+ test account vars) to `.env`; add a project entry in `playwright.config.ts` (follow the existing pattern).
+3. Copy `docs/templates/TEST-CASES.md` → `docs/local/<product>/TEST-CASES.md`.
+4. Create a Linear project for the product; reuse team-level labels (`Bug` + product-area label group).
+5. Run `/qa-check`.
+
+## Conventions (non-negotiable)
+
+- Credentials only in `.env` (gitignored). Never hardcode; tests must be read-only against production accounts — no purchases, no settings mutations, no real payments without the product owner.
+- For a selected Linear/Playwright product, bug tickets follow `templates/bug-report.md` and confirmed bugs get `test.fail()` regressions when the writable harness is in scope. Other products follow their own pack and tracker contract.
+- A failing test is not automatically a bug: first rule out locale assumptions, SPA hydration timing, and strict-mode selector collisions.
+- Update the product's TEST-CASES.md whenever product functionality changes.
+- An unexpected regression PASS starts fix verification; it does not prove FIXED alone. Apply ticket states only after the selected product's required deployed-fix evidence and according to its tracker contract.

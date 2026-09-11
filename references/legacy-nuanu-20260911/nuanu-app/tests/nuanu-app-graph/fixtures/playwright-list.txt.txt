@@ -1,0 +1,10 @@
+Listing tests:
+  [nuanu-app] [2m›[22m nuanu-app/public/smoke.spec.ts:3:1 › NAPP-PUB-001 homepage returns HTML and renders an application shell
+  [nuanu-app-firefox] › nuanu-app/public/smoke.spec.ts:3:1 › NAPP-PUB-001 homepage returns HTML and renders an application shell
+  [nuanu-app] › tests/nuanu-app/public/safety-contract.spec.ts:6:1 › NAPP-PUB-002 nested suite › blocks unsafe requests
+  [nuanu-app] › nuanu-app/offline/runtime-contract.spec.ts:56:1 › NAPP-CONTRACT-001 synthetic runtime contract drives unique exact role-name discovery locators without network
+  [nuanu-app-firefox] › tests/nuanu-app/offline/runtime-contract.spec.ts:56:1 › NAPP-CONTRACT-001 synthetic runtime contract drives unique exact role-name discovery locators without network
+  [nuanu-app] › nuanu-app/public/smoke.spec.ts:58:1 › NAPP-PUB-002 reviewed discovery controls map marker and place card are reachable
+  [nuanu-app-ios-webkit] › tests/nuanu-app/public/smoke.spec.ts:58:1 › NAPP-PUB-002 reviewed discovery controls map marker and place card are reachable
+  [magicpay] › magicpay/public/smoke.spec.ts:2:1 › foreign product is ignored
+Total: 4 tests in 2 files

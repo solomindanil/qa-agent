@@ -1,0 +1,284 @@
+# Freeland Nuanu-Native QA Program Execution Index
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Deliver the approved Freeland autonomous QA product without rebuilding Nuanu Flow's orchestration layer, while preserving deterministic browser, evidence, payment, and routing safety.
+
+**Architecture:** Nuanu Flow owns Column and General Processes, BPMN journeys, remote-agent task delivery, Decisions, transition receipts, sanitized Artifacts, and Process Experiments. `NuanuFlowQA` owns reusable process contracts; the private `FreelandQA-I1` repository owns Freeland coverage, the deterministic runner, CDP/Computer Use, personas, payment safety, and release verdicts. This index coordinates six independently reviewable implementation plans whose outputs form one end-to-end path.
+
+**Tech Stack:** Node.js 20.20.x, TypeScript 6, Playwright 1.61.1, Nuanu Flow structured process graphs and remote Codex workers, PostgreSQL 16 for payment-domain atomicity, macOS Chrome/Computer Use, Telegram Web, JSON Schema/Ajv, versioned Nuanu Artifacts.
+
+## Global Constraints
+
+1. The approved design is `docs/superpowers/specs/2026-08-07-freeland-nuanu-native-qa-control-plane-design.md` at commit `affd6e1`.
+2. Do not build a second workflow engine, generic task queue, generic worker lease system, agent registry, Decision inbox, or sanitized Artifact registry.
+3. Nuanu process graphs are structured nodes and edges, never raw BPMN XML.
+4. Every Column Process preserves the server-generated `project_process_start` byte-for-byte and uses explicit `project_status.target_state_id`; `null` is the QA-hold End.
+5. The first live graph is Manual, then Assist. Auto is capability-scoped and remains disabled until the exact race, shadow, receipt, and kill-switch gates pass.
+6. The deterministic FreelandQA evaluator owns `issueVerdict` and `candidateVerdict`; agent prose cannot modify either result.
+7. Computer Use is the primary black-box lane for user-visible Freeland flows. Playwright/API is the faster deterministic secondary lane and cannot replace a required Computer Use or real Telegram observation.
+8. Real staging and production canaries are owner-authorized without per-purchase confirmation, but every submit requires the durable authorization, budget, canonical-intent, mutex, fencing, scrub, and reconciliation gates.
+9. A Nuanu task retry may repeat observation or reconciliation and must never repeat payment submission.
+10. Full PAN, CVV, cookies, storage state, tokens, signed URLs, personal data, and raw provider payloads never enter Git, Nuanu, ordinary logs, Playwright reports, or agent prompts.
+11. Nuanu Artifacts contain only sanitized exact-version derivatives. Restricted raw evidence remains outside Nuanu and follows its own scrub, TTL, deletion-receipt, and tombstone policy.
+12. `Ready for prod` on one ticket never implies `CANDIDATE_RELEASE_READY`; pre-deploy staging certification and post-deploy production canary are separate verdicts.
+13. A false green, stale End transition, duplicate submit, unknown payment outcome, wrong origin, or failed scrub pauses the affected lane and prevents routing.
+14. Use Node `20.20.x` for authoritative FreelandQA commands. Do not accept an ambient Node 22 run as completion evidence.
+15. Preserve the user's dirty root worktree. All documentation changes in this program branch and all product implementation changes in a dedicated clean FreelandQA worktree.
+16. Every code task follows strict RED → minimal GREEN → focused regression → aggregate verification → exact-scope commit.
+
+---
+
+## Audited Starting Points
+
+| Repository | Clean implementation baseline | What is present | What is absent |
+| --- | --- | --- | --- |
+| `NuanuFlowQA` | `codex/qa-auto-program@affd6e1` | Accepted product/acceptance boundary and approved Nuanu-native design | Nuanu graph contracts, worker envelope, live adapter, missed-entry audit |
+| `FreelandQA-I1` | `codex/freeland-agent-first-cdp-i1-local@72378f3` | Coverage contracts, 180-check registry, 164-test baseline, staging/CDP attestation, browser guards, private artifact custody, typed CDP broker commands | Operational runner, Playwright ingestion, daemon/CLI, real Computer Use/Telegram, personas, payments, Nuanu publisher, verdict/routing |
+
+The FreelandQA branch is a separate Git repository with remote
+`https://github.com/solomindanil/FreelandQA-I1.git`. Its current CDP history is
+the product implementation base. Do not copy that source into the generic
+NuanuFlowQA repository or restart the CDP implementation from an older branch.
+
+## Plan Set and Dependency Graph
+
+| Order | Plan | Spec phases | Repository | Independently useful exit |
+| ---: | --- | --- | --- | --- |
+| 1 | `2026-08-07-freeland-nuanu-control-plane.md` | N0, N2, N4 process portion | NuanuFlowQA + Nuanu sandbox/Freeland binding | Manual/Assist Column Process, agent/human paths, receipts, missed-entry audit |
+| 2 | `2026-08-07-freeland-deterministic-runner-evidence.md` | N1 | FreelandQA-I1 | Local known-good/bad/stale/infra verdicts with sanitized bundle |
+| 3 | `2026-08-07-freeland-computer-use-telegram.md` | N3 | FreelandQA-I1 + local Mac | Real web and Telegram black-box observations through bounded worker contracts |
+| 4 | `2026-08-07-freeland-payment-automation.md` | N5 | FreelandQA-I1 + PostgreSQL | One bounded staging canary with duplicate/unknown/data-custody fault proof |
+| 5 | `2026-08-07-freeland-release-certification.md` | N6, N7 | FreelandQA-I1 + Nuanu Artifacts | Separate pre-deploy candidate verdict and post-deploy production-canary verdict |
+| 6 | `2026-08-07-freeland-auto-routing-continuous-coverage.md` | N8, N9 | Both repositories + Nuanu | Capability-scoped Auto, tested rollback, drift/inventory loop |
+
+```text
+control-plane contracts ─────┐
+                             ├─> Manual vertical slice ─> Assist experiments
+deterministic runner ────────┘             │
+          │                                │
+          └─> Computer Use / Telegram ─────┘
+                         │
+                         └─> staging payment ─> staging certification
+                                                  │
+                                                  └─> production canary
+                                                            │
+                                                            └─> Limited Auto + continuous coverage
+```
+
+The control-plane contract work and deterministic-runner work may execute in
+parallel after their own preflights. The first live Manual journey waits for
+both contracts. Computer Use waits for the runner result schema and existing
+CDP broker. Payment waits for Computer Use, personas, and the restricted secret
+boundary. Auto waits for the 30–50 Assist corpus, exact transition-race proof,
+and per-capability promotion record.
+
+## Cross-Plan Interfaces
+
+The following names are immutable across all six plans:
+
+```ts
+export type QaRunKey = string & { readonly __brand: 'QaRunKey' };
+export type IssueVerdict =
+  | 'PASS'
+  | 'PRODUCT_FAIL'
+  | 'AWAITING_DEPLOYMENT'
+  | 'ENV_BLOCKED'
+  | 'PROVIDER_BLOCKED'
+  | 'HARNESS_FAIL'
+  | 'FLAKY'
+  | 'NEEDS_HUMAN';
+export type CandidateVerdict =
+  | 'CANDIDATE_RELEASE_READY'
+  | 'CANDIDATE_RELEASE_BLOCKED'
+  | 'CANDIDATE_RELEASE_INCONCLUSIVE';
+
+export interface QaWorkerSeedV1 {
+  schemaVersion: 1;
+  flowItemId: string;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateDigest: string;
+  requirementIds: readonly string[];
+  runnerCommandId: 'freeland-qa-run-v1';
+  deadline: string;
+  paymentAuthorizationId: string | null;
+}
+
+export interface QaWorkerInputV1 extends QaWorkerSeedV1 {
+  qaRunKey: string;
+}
+
+export interface NuanuTaskEnvelope {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  flowItemId: string;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateDigest: string;
+  requirementIds: readonly string[];
+  runnerCommandId: 'freeland-qa-run-v1';
+  deadline: string;
+  paymentAuthorizationId: string | null;
+}
+
+export interface SanitizedArtifactRef {
+  artifactId: string;
+  versionId: string;
+  sha256: string;
+}
+```
+
+`QaRunResult`, `PaymentLifecycle`, and their JSON Schemas are introduced by the
+deterministic-runner plan. Every later plan imports them from
+`packages/contracts/src/qa-run.ts`; no subsystem creates a similar local type.
+The same N1 contract predeclares closed `QaPlannedLane` variants for API,
+Playwright, CDP, Computer Use, Telegram, and payment plus nullable
+`RunnerDependencies.extensionLanes` ports. N1 leaves later ports null, N3 fills
+CDP/Computer Use/Telegram, and N5 fills payment; all still terminate in the one
+`executeFreelandQaRun` aggregate and `QaRunResult`.
+
+Nuanu supplies a closed `QaWorkerSeedV1` without `qaRunKey`. The trusted N1
+preparation port plans against private reviewed authority, derives the complete
+identity, and returns one frozen wire `QaWorkerInputV1`. The Nuanu worker binding
+must implement N0's `PreparedQaInvocationPort.materializeOnce`, durably commit
+and replay those exact prepared bytes before the sole command dispatches, and
+never call preparation again for the same seed digest. The N1 execution boundary validates and brands that
+wire value as `NuanuTaskEnvelope`; the independent Nuanu adapter validates the complete
+`QaRunResult` schema, requires exactly one artifact reference, and maps only the
+nine exact snake-case graph outputs. Failure to prove prepared-input replay
+keeps the live graph inactive.
+
+The two repositories are composed by one reviewed package boundary, not a
+sibling-source import. N0 builds `@nuanu/freeland-worker-adapter@1.0.0`; N1
+vendors the compiled tarball and pins its N0 source commit, tarball SHA-256, and
+entry digest. N1's `qa:nuanu-worker` static binding verifies that lock, creates
+the N1 `FreelandRunnerPort` plus N0 durable `PreparedQaInvocationPort`, and is
+the only handler mapped by the official remote-worker transport for
+`freeland-qa-run-v1`. The official handler passes an authenticated task-scoped
+control socket only as inherited file descriptor `3`; the static binding adapts
+its two closed operations to authoritative freshness and one sanitized Artifact
+publication, while the child receives no Nuanu token, endpoint, generic method,
+or task-controlled environment value. Its end-to-end test and N0 Manual probe cover seed,
+materialization, prepare-once, execute, nine-field projection, and restart/
+reclaim replay. A source, package, handler-map, or durable-root mismatch keeps
+the Column binding inactive.
+
+N1 also publishes a sanitized `QaCoverageProjection` inside every
+`QaArtifactBundle`, binding Flow item, requirements, checks, capabilities, and
+lanes to the same key. N6 certification and N8 routing consume validated
+`QaRunEvidence` pairs (result plus exact bundle/projection), never result counts
+or lane digests alone.
+
+## Program Acceptance Sequence
+
+- [ ] **Gate A — static contracts:** both repositories typecheck; graph, result,
+  and evidence fixtures validate; FreelandQA selects at least one executable
+  check for every accepted fixture.
+- [ ] **Gate B — local deterministic slice:** known-good, known-bad, stale,
+  infra-failure, incomplete-evidence, retry-only, and empty-selection fixtures
+  receive their exact non-overlapping verdicts.
+- [ ] **Gate C — Manual Nuanu slice:** one synthetic/non-critical item reaches
+  approve, deny, refine, QA-hold, and restart paths without changing status.
+- [ ] **Gate D — real black-box lanes:** public web Computer Use and real
+  Telegram Web observations bind to exact candidate/session identities and
+  agree with required Playwright/API lanes.
+- [ ] **Gate E — Assist calibration:** 30–50 blinded cases, at least 98%
+  reviewed agreement, zero critical false green, zero wrong issue/candidate,
+  zero missing authoritative journeys.
+- [ ] **Gate F — staging payment:** normal paid, declined/cancelled, and forced
+  unknown paths prove one-checkout/one-submit, budget hold, fence, watchdog,
+  scrub, and external reconciliation; the payment lane is aggregated by the
+  same `executeFreelandQaRun` path and returned in its single `QaRunResult`.
+- [ ] **Gate G — release split:** pre-deploy staging candidate verdict contains
+  only staging evidence; post-deploy production canary uses a separate
+  authorization/account/catalog/evidence identity.
+- [ ] **Gate H — Limited Auto:** each capability has at least 30 conclusive
+  shadow journeys over seven consecutive days, zero false green/route, 100%
+  reviewed PRODUCT_FAIL precision, exact receipts, and a successful in-flight
+  kill-switch rollback drill.
+- [ ] **Gate I — continuous inventory:** every active requirement is automated,
+  explicitly blocked, or inapplicable with reviewed current evidence; drift
+  creates a typed gap instead of a silent coverage reduction.
+
+## Program Verification Commands
+
+Run these only from their named repository and with the pinned Node 20 path:
+
+The PostgreSQL integration command assumes the reviewed test compose service is
+healthy and migrations `0010`, `0020`–`0024`, and `0030` have been applied by
+`db:migrate:test`.
+
+```bash
+# NuanuFlowQA
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/typescript/bin/tsc --noEmit
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program
+
+# FreelandQA-I1
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+docker compose -f config/postgres/payment-test.compose.yaml up -d --wait
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:runner
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:computer-use
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:release
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:auto
+FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:auto:integration
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:continuous-coverage
+```
+
+Live commands are never part of a generic aggregate. They require exact
+environment profiles and produce separately reviewed records:
+
+```bash
+# FreelandQA-I1 black-box lanes
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run acceptance:computer-use:web
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run acceptance:telegram-web
+
+# NuanuFlowQA parent launchers; direct Freeland payment/release children are forbidden live
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+FREELAND_PAYMENT_AUTHORIZATION_ID="$FREELAND_PAYMENT_AUTHORIZATION_ID" \
+FREELAND_QA_FLOW_ITEM_ID="$FREELAND_QA_FLOW_ITEM_ID" \
+FREELAND_EXPECTED_CANDIDATE_DIGEST="$FREELAND_EXPECTED_CANDIDATE_DIGEST" \
+  /opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/launch-freeland-payment-canary-trigger.ts
+FREELAND_QA_TASK_ID="$FREELAND_QA_TASK_ID" \
+FREELAND_QA_SEED_DIGEST="$FREELAND_QA_SEED_DIGEST" \
+FREELAND_QA_WORKER_HANDLER_PIN_DIGEST="$FREELAND_QA_WORKER_HANDLER_PIN_DIGEST" \
+  /opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/wait-freeland-payment-canary.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/run-freeland-release-staging.ts --case=live
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/run-freeland-production-canary.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/run-freeland-release-production.ts --case=live
+```
+
+The last three commands require their immutable release deployment/handler
+pins, closed staging/production gates, distinct owner authorizations and
+accounts, and exact attested release SHA. The staging waiter must return
+`TERMINAL`; timeout or identity mismatch stops the sequence without retrigger or
+reconciliation. Every parent tool retains Nuanu authority and maps only its
+reviewed child capability; no direct product payment or release alias is a live
+entrypoint.
+
+The Nuanu Column acceptance is not a shell script: execute the exact official
+MCP operation sequence in `docs/runbooks/nuanu-column-acceptance.md`, then read
+back the saved graph, journey, receipts, and exact Artifact version.
+
+## Overall Definition of Done
+
+The program is complete only when all six implementation plans are complete,
+all Gates A–I have immutable evidence, the exact active Nuanu graph version has
+been read back, sanitized Artifacts are linked to the corresponding work item
+and process run, payment data has no out-of-boundary copy, and every enabled
+Auto capability has a tested one-action rollback to Assist. Completion of a
+Nuanu feature, a plan file, or the CDP library alone does not satisfy this
+definition.
+
+## Execution Handoff
+
+Start Plans 1 and 2 in parallel with separate implementers and two-stage
+reviews. After both pass, execute Plans 3–6 in dependency order. The controller
+must update a single progress ledger with commit OIDs, RED/GREEN commands,
+review findings, acceptance evidence IDs, and remaining gates after every task.

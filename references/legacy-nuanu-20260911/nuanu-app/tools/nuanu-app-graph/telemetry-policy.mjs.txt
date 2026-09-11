@@ -1,0 +1,337 @@
+import { digestJson, validateGraph } from "./model.mjs";
+import { validatePostHogAccessLock } from "./posthog-read.mjs";
+import { P75_METRIC_IDS } from "./telemetry-contract.mjs";
+import { validateTelemetryCatalog } from "./telemetry.mjs";
+
+const PRODUCT_ID = "nuanu-app";
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+const MAPPING_ID = /^napp-telemetry-map-v1:[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+const DISPOSITIONS = new Set(["select", "observe_only", "suppressed", "blocked"]);
+const KINDS = new Set(["observed", "regression"]);
+const PRIORITIES = new Set(["informational", "elevated"]);
+const P75_METRIC_ID_SET = new Set(P75_METRIC_IDS);
+const NON_SELECTING_STATUSES = new Set([
+  "BLOCKED",
+  "NOT_INSTRUMENTED",
+  "UNAVAILABLE",
+]);
+const BLOCKING_LIMITATIONS = new Set([
+  "EVENT_NOT_PROVEN",
+  "QUERY_UNAVAILABLE",
+  "ACCESS_BLOCKED",
+  "CAPABILITY_MATRIX_BLOCKED",
+  "APP_HOST_SCOPE_BLOCKED",
+  "SCOPED_TRANSPORT_BLOCKED",
+  "STRUCTURED_QUERY_BLOCKED",
+  "P75_COUNT_COMPANION_UNAVAILABLE",
+  "P75_COUNT_PAIR_MISMATCH",
+  "P75_COUNT_PAIR_AMBIGUOUS",
+  "HTTP_AUTH_BLOCKED",
+  "HTTP_RATE_LIMIT_BLOCKED",
+  "HTTP_PROVIDER_BLOCKED",
+  "FRESHNESS_UNKNOWN",
+]);
+const MAPPING_KEYS = ["version", "productId", "catalogDigest", "entries"];
+const ENTRY_KEYS = [
+  "mappingId",
+  "metricId",
+  "disposition",
+  "kind",
+  "priority",
+  "targetNodeIds",
+  "reviewedAt",
+  "reviewEvidenceDigest",
+];
+const CALL_KEYS = ["mappings", "graph", "catalog", "accessLock"];
+const MAX_ARRAY_LENGTH = 20_000;
+const MAX_CAPABILITY_AGE_MS = 30 * 60 * 1_000;
+
+function policyError(message, path = "$") {
+  const error = new Error(message);
+  error.code = "INVALID_TELEMETRY_POLICY";
+  error.path = path;
+  return error;
+}
+
+function fail(message, path = "$") {
+  throw policyError(message, path);
+}
+
+function compareCodeUnits(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function assertJsonTree(value, path = "$", seen = new WeakSet()) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || Object.is(value, -0)) fail(`${path} must be a finite JSON number`, path);
+    return;
+  }
+  if (typeof value !== "object") fail(`${path} must contain JSON data only`, path);
+  if (seen.has(value)) fail(`${path} must not contain cycles or shared references`, path);
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    if (Object.getPrototypeOf(value) !== Array.prototype) fail(`${path} must be a plain array`, path);
+    if (!Number.isSafeInteger(value.length) || value.length > MAX_ARRAY_LENGTH) {
+      fail(`${path} exceeds the policy array limit`, path);
+    }
+    if (Object.getOwnPropertySymbols(value).length !== 0) fail(`${path} must not contain symbols`, path);
+    const names = Object.getOwnPropertyNames(value);
+    if (names.length !== value.length + 1 || !names.includes("length")) {
+      fail(`${path} must be dense and contain no extra keys`, path);
+    }
+    for (const name of names) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, name);
+      if (!descriptor || !("value" in descriptor)) fail(`${path} must contain data entries only`, path);
+      if (name === "length") continue;
+      if (!/^(0|[1-9][0-9]*)$/.test(name)) fail(`${path} contains a non-canonical index`, path);
+      const index = Number(name);
+      if (index < 0 || index >= value.length || !descriptor.enumerable) {
+        fail(`${path} contains an invalid array index`, path);
+      }
+      assertJsonTree(descriptor.value, `${path}[${index}]`, seen);
+    }
+    return;
+  }
+
+  if (Object.getPrototypeOf(value) !== Object.prototype) fail(`${path} must be a plain object`, path);
+  if (Object.getOwnPropertySymbols(value).length !== 0) fail(`${path} must not contain symbols`, path);
+  for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
+    if (!("value" in descriptor) || !descriptor.enumerable) {
+      fail(`${path}.${key} must be an enumerable data property`, `${path}.${key}`);
+    }
+    assertJsonTree(descriptor.value, `${path}.${key}`, seen);
+  }
+}
+
+function assertExactObject(value, expectedKeys, path) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    fail(`${path} must be a plain object`, path);
+  }
+  const actual = Object.keys(value).sort(compareCodeUnits);
+  const expected = [...expectedKeys].sort(compareCodeUnits);
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    fail(`${path} has missing or extra keys`, path);
+  }
+}
+
+function assertSha256(value, path) {
+  if (typeof value !== "string" || !SHA256_HEX.test(value)) {
+    fail(`${path} must be a lowercase SHA-256 digest`, path);
+  }
+}
+
+function parseUtcIso(value, path) {
+  if (typeof value !== "string") fail(`${path} must be a canonical UTC timestamp`, path);
+  const timestamp = new Date(value);
+  if (!Number.isFinite(timestamp.getTime()) || timestamp.toISOString() !== value) {
+    fail(`${path} must be a canonical UTC timestamp`, path);
+  }
+  return timestamp.getTime();
+}
+
+function assertDenseStringArray(value, path) {
+  if (!Array.isArray(value)) fail(`${path} must be an array`, path);
+  let previous = null;
+  for (const [index, entry] of value.entries()) {
+    if (typeof entry !== "string" || entry.length === 0) {
+      fail(`${path}[${index}] must be a non-empty node ID`, `${path}[${index}]`);
+    }
+    if (previous !== null && compareCodeUnits(previous, entry) >= 0) {
+      fail(`${path} must be sorted and unique`, path);
+    }
+    previous = entry;
+  }
+}
+
+function validateEntry(entry, index, nodeById, catalogMetricIds, mappingIds, metricIds) {
+  const path = `mappings.entries[${index}]`;
+  assertExactObject(entry, ENTRY_KEYS, path);
+  if (entry.mappingId !== null) {
+    if (typeof entry.mappingId !== "string" || !MAPPING_ID.test(entry.mappingId)) {
+      fail(`${path}.mappingId must be a namespaced mapping ID or null`, `${path}.mappingId`);
+    }
+    if (mappingIds.has(entry.mappingId)) fail(`${path}.mappingId must be unique`, `${path}.mappingId`);
+    mappingIds.add(entry.mappingId);
+  }
+  if (typeof entry.metricId !== "string" || !catalogMetricIds.has(entry.metricId)) {
+    fail(`${path}.metricId does not exist in the exact catalog`, `${path}.metricId`);
+  }
+  if (metricIds.has(entry.metricId)) fail(`${path}.metricId policy must be unique`, `${path}.metricId`);
+  metricIds.add(entry.metricId);
+  if (!DISPOSITIONS.has(entry.disposition)) fail(`${path}.disposition is unsupported`, `${path}.disposition`);
+  if (!KINDS.has(entry.kind)) fail(`${path}.kind is unsupported`, `${path}.kind`);
+  if (!PRIORITIES.has(entry.priority)) fail(`${path}.priority is unsupported`, `${path}.priority`);
+  assertDenseStringArray(entry.targetNodeIds, `${path}.targetNodeIds`);
+  parseUtcIso(entry.reviewedAt, `${path}.reviewedAt`);
+  assertSha256(entry.reviewEvidenceDigest, `${path}.reviewEvidenceDigest`);
+
+  if (entry.mappingId === null) {
+    if (entry.targetNodeIds.length !== 0) {
+      fail(`${path} nullable mapping requires empty targetNodeIds`, `${path}.targetNodeIds`);
+    }
+  } else if (entry.targetNodeIds.length === 0) {
+    fail(`${path} mapped policy requires at least one target`, `${path}.targetNodeIds`);
+  }
+
+  if (
+    entry.kind === "observed" &&
+    entry.priority === "informational" &&
+    entry.disposition !== "observe_only"
+  ) {
+    fail(`${path} baseline observed informational policy must be observe_only`, `${path}.disposition`);
+  }
+  if (
+    entry.mappingId === null &&
+    entry.disposition === "select" &&
+    !(entry.kind === "regression" && entry.priority === "elevated")
+  ) {
+    fail(`${path} only elevated unmapped regression may select`, `${path}.disposition`);
+  }
+
+  for (const targetNodeId of entry.targetNodeIds) {
+    if (!targetNodeId.startsWith(`${PRODUCT_ID}:`)) {
+      fail(`${path} target must use the Nuanu App namespace`, `${path}.targetNodeIds`);
+    }
+    const node = nodeById.get(targetNodeId);
+    if (!node) fail(`${path} target does not exist`, `${path}.targetNodeIds`);
+    if (node.kind === "source_file") fail(`${path} cannot target a source file`, `${path}.targetNodeIds`);
+    if (
+      entry.disposition === "select" &&
+      !["runtime", "source_and_runtime"].includes(node.provenance)
+    ) {
+      fail(`${path} select target must have runtime observation`, `${path}.targetNodeIds`);
+    }
+    if (
+      entry.disposition === "select" &&
+      ["BLOCKED", "MANUAL", "UNVERIFIED", "NOT_DEPLOYED"].includes(node.coverageDisposition)
+    ) {
+      fail(`${path} select target must have live automated coverage`, `${path}.targetNodeIds`);
+    }
+  }
+}
+
+function hasFreshBoundEvidence(catalog, accessLock) {
+  const capturedAt = parseUtcIso(catalog.capturedAt, "catalog.capturedAt");
+  const observedAt = parseUtcIso(
+    accessLock.effectiveCapabilities.inventory.observedAt,
+    "accessLock.effectiveCapabilities.inventory.observedAt",
+  );
+  const windowEnd = parseUtcIso(accessLock.approvedWindow.endAt, "accessLock.approvedWindow.endAt");
+  return observedAt <= capturedAt &&
+    capturedAt - observedAt <= MAX_CAPABILITY_AGE_MS &&
+    windowEnd <= capturedAt;
+}
+
+function hasApprovedQueryProof(metric, accessLock) {
+  if (metric.status !== "AVAILABLE") return false;
+  if (metric.limitations.some((limitation) => BLOCKING_LIMITATIONS.has(limitation))) return false;
+  const approval = accessLock.approvedQueryHashes[metric.metricId];
+  if (!approval || approval.primary !== metric.queryHash) return false;
+  if (metric.bucketEndedAt !== accessLock.approvedWindow.endAt) return false;
+  if (!P75_METRIC_ID_SET.has(metric.metricId)) return metric.p75Pairing === null;
+  if (metric.p75Pairing === null) return false;
+  const pairInput = metric.p75Pairing.p75PairDigestInput;
+  return pairInput.percentile.queryHash === approval.primary &&
+    pairInput.sampleCount.queryHash === approval.sampleCount &&
+    metric.p75Pairing.pairDigest === approval.pairDigest;
+}
+
+function effectiveDisposition(entry, metric, accessAuthorized, freshBoundEvidence, accessLock) {
+  if (metric.status === "SUPPRESSED") return "suppressed";
+  if (NON_SELECTING_STATUSES.has(metric.status)) return "blocked";
+  if (!accessAuthorized || !freshBoundEvidence || !hasApprovedQueryProof(metric, accessLock)) {
+    return "blocked";
+  }
+  return entry.disposition;
+}
+
+function validateInputs(input) {
+  assertJsonTree(input, "input");
+  assertExactObject(input, CALL_KEYS, "input");
+  const { mappings, graph, catalog, accessLock } = input;
+
+  const graphValidation = validateGraph(graph);
+  if (!graphValidation.ok) {
+    const first = graphValidation.errors[0];
+    fail(`graph is invalid: ${first?.message ?? "unknown validation error"}`, first?.path ?? "graph");
+  }
+  validateTelemetryCatalog(catalog);
+  const accessValidation = validatePostHogAccessLock(accessLock);
+  if (digestJson(accessLock) !== catalog.accessLockDigest) {
+    fail("catalog accessLockDigest does not match the exact validated access lock", "catalog.accessLockDigest");
+  }
+
+  assertExactObject(mappings, MAPPING_KEYS, "mappings");
+  if (mappings.version !== 1) fail("mappings.version must be 1", "mappings.version");
+  if (mappings.productId !== PRODUCT_ID) {
+    fail(`mappings.productId must be ${PRODUCT_ID}`, "mappings.productId");
+  }
+  assertSha256(mappings.catalogDigest, "mappings.catalogDigest");
+  if (mappings.catalogDigest !== catalog.catalogDigest) {
+    fail("mappings.catalogDigest does not match the exact catalog", "mappings.catalogDigest");
+  }
+  if (!Array.isArray(mappings.entries)) fail("mappings.entries must be an array", "mappings.entries");
+
+  const nodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const catalogMetricIds = new Set(catalog.metrics.map((metric) => metric.metricId));
+  const mappingIds = new Set();
+  const metricIds = new Set();
+  mappings.entries.forEach((entry, index) =>
+    validateEntry(entry, index, nodeById, catalogMetricIds, mappingIds, metricIds));
+  if (
+    metricIds.size !== catalogMetricIds.size ||
+    [...catalogMetricIds].some((metricId) => !metricIds.has(metricId))
+  ) {
+    fail("mappings entries must cover the exact telemetry catalog metric set", "mappings.entries");
+  }
+
+  return {
+    mappings,
+    catalog,
+    accessLock,
+    accessAuthorized: accessValidation.authorized,
+    freshBoundEvidence: hasFreshBoundEvidence(catalog, accessLock),
+  };
+}
+
+export function validateTelemetryMappings(input = {}) {
+  validateInputs(input);
+  return { ok: true, errors: [] };
+}
+
+export function buildTelemetrySignals(input = {}) {
+  const {
+    mappings,
+    catalog,
+    accessLock,
+    accessAuthorized,
+    freshBoundEvidence,
+  } = validateInputs(input);
+  const metricById = new Map(catalog.metrics.map((metric) => [metric.metricId, metric]));
+
+  return mappings.entries.map((entry) => {
+    const disposition = effectiveDisposition(
+      entry,
+      metricById.get(entry.metricId),
+      accessAuthorized,
+      freshBoundEvidence,
+      accessLock,
+    );
+    const digestInput = {
+      productId: PRODUCT_ID,
+      catalogDigest: catalog.catalogDigest,
+      mappingId: entry.mappingId,
+      metricId: entry.metricId,
+      disposition,
+      kind: entry.kind,
+      priority: entry.priority,
+      targetNodeIds: [...entry.targetNodeIds],
+    };
+    return {
+      id: `napp-telemetry-v1-${digestJson(digestInput)}`,
+      ...digestInput,
+    };
+  }).sort((left, right) => compareCodeUnits(left.id, right.id));
+}

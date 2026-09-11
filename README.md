@@ -18,11 +18,12 @@ Restore uses only the local reviewed bundles. It does not install dependencies, 
 | --- | --- |
 | Codex or Claude session | Read [AGENTS.md](AGENTS.md); Claude starts at [CLAUDE.md](CLAUDE.md) |
 | New product / existing Starter workspace | [Product routing](products/README.md), then the full [qa-init](components/console/skills/qa-init/SKILL.md) or [qa-product-v0](components/console/skills/qa-product-v0/SKILL.md) skill |
-| Freeland release, QA column, sprint or ticket | [Freeland skill](components/freeland/skills/freeland-release-qa/SKILL.md), using components/freeland as QA checkout |
+| Freeland release, QA column, sprint or ticket | [Freeland skill](components/freeland/skills/freeland-release-qa/SKILL.md), resolving an existing campaign's frozen owner runtime before commands |
+| Bug backlog / developer fix prompts | [qa-bugfix](skills/qa-bugfix/SKILL.md), using the product-selected tracker and exact state roles |
 | Agent skills / host prerequisites | [Skills index](skills/README.md) |
 | Reusable tests and report contracts | [Evals](evals/README.md), [templates](templates/README.md) |
 | Current checkpoint and remaining work | [Roadmap](docs/roadmap/README.md) |
 
 Component links resolve after restore. `runtimeAuthority: true` means selected source ownership, not permission to execute or proof that a runtime works. Reporting reference10d is deliberately **not active**. No product accounts, managed registrations or current campaigns are transferred by restore.
 
-This branch is the [reviewed-source integration candidate](docs/qualification/reviewed-source-chain.md), not a promotion of the accepted workspace. It includes the reviewed product-analysis workflow, separately attributed receipt-bound agent reviews, interruption-fixture evidence and trace-retention metadata. Source delivery, product coverage, live deployment identity, plugin authentication and release readiness remain distinct qualifications. Earlier results remain attached to their original revisions.
+Start with [current source and qualification](docs/qualification/current.md). The [cross-repository reconciliation](docs/qualification/reconciliation-20260911.md) explains what was adopted, already integrated, preserved inactive or left with its product owner. The existing product-analysis workflow, receipt-bound agent reviews, interruption fixtures and trace metadata are reused. Source delivery, product coverage, live deployment identity, plugin authentication and release readiness remain distinct qualifications. Earlier results remain attached to their original revisions.

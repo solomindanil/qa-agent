@@ -1,0 +1,308 @@
+export const RUNTIME_SELECTOR_KEYS: readonly RuntimeSelectorKey[];
+export const RUNTIME_ROLES: readonly RuntimeRole[];
+export const RUNTIME_SELECTOR_REASONS: readonly RuntimeSelectorUnavailableReason[];
+
+export type RuntimeSelectorKey =
+  | 'applicationShell' | 'searchInput' | 'openNowControl'
+  | 'placesNavigation' | 'mapNavigation' | 'profileNavigation'
+  | 'mapSurface' | 'mapMarker' | 'placeList' | 'placeCard'
+  | 'categoryGroup' | 'collectionGroup' | 'placeDetail'
+  | 'placeDetailClose' | 'showOnMapAction' | 'callAction' | 'authEntry'
+  | 'updatePrompt' | 'signUpAction' | 'signInAction' | 'emailInput'
+  | 'passwordInput' | 'forgotPasswordAction' | 'appleProviderAction'
+  | 'googleProviderAction' | 'privacyAction';
+
+export type RuntimeRole =
+  | 'application' | 'article' | 'banner' | 'button' | 'checkbox'
+  | 'combobox' | 'dialog' | 'group' | 'img' | 'link' | 'list'
+  | 'listitem' | 'main' | 'navigation' | 'option' | 'region'
+  | 'search' | 'searchbox' | 'switch' | 'tab' | 'tabpanel' | 'textbox';
+
+export type SafeEvidenceMethod = 'GET' | 'HEAD' | 'OPTIONS';
+export type MutationEvidenceMethod = 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OTHER';
+export type EvidenceMethod = SafeEvidenceMethod | MutationEvidenceMethod;
+
+export type RuntimeState =
+  | 'root' | 'places' | 'map' | 'place_detail' | 'auth_entry' | 'update_prompt';
+
+export type RuntimeCapturePurpose =
+  | 'open_places' | 'open_map' | 'open_profile_entry'
+  | 'open_place_detail' | 'close_place_detail' | 'show_on_map';
+
+export type RuntimeRoleName = Readonly<{
+  role: RuntimeRole;
+  name: string;
+}>;
+
+export type RuntimeCaptureStep =
+  | Readonly<{
+      kind: 'observe';
+      state: RuntimeState;
+      postcondition: RuntimeRoleName;
+    }>
+  | Readonly<{
+      kind: 'activate';
+      fromState: RuntimeState;
+      toState: RuntimeState;
+      purpose: RuntimeCapturePurpose;
+      target: RuntimeRoleName;
+      postcondition: RuntimeRoleName;
+    }>;
+
+export type SelectorCapturePlan = Readonly<{
+  schemaVersion: 1;
+  productId: 'nuanu-app';
+  baseUrl: 'https://app.nuanu.com';
+  steps: readonly RuntimeCaptureStep[];
+  capturePlanDigest: string;
+}>;
+
+export type RuntimeCatalog = Readonly<{
+  productId: 'nuanu-app';
+  capturedAt: string;
+  deployment: Readonly<{ status: 'UNVERIFIED'; commitSha: null }>;
+  metadata: Readonly<{ title?: string }>;
+  routes: readonly ['/', '/__napp_runtime_probe__'];
+  rootCandidates: Readonly<{
+    state: 'root';
+    route: '/';
+    surfaces: readonly RuntimeRoleName[];
+    controls: readonly RuntimeRoleName[];
+    taxonomy: readonly string[];
+  }>;
+  probe: Readonly<{
+    route: '/__napp_runtime_probe__';
+    status: number;
+  }>;
+  apiHosts: readonly string[];
+  dependencies: readonly string[];
+  pwa: Readonly<{
+    name?: string;
+    shortName?: string;
+    startUrl?: string;
+    themeColor?: string;
+    display?: string;
+    icons?: readonly Readonly<{ src: string; sizes?: string; type?: string }>[];
+  }>;
+  nodes: readonly Readonly<{
+    id: string;
+    kind: string;
+    label: string;
+    provenance: 'runtime';
+    sourceImpact: 'UNVERIFIED';
+    runtimeAttribution?: Readonly<{ state: 'root'; route: '/' }>;
+  }>[];
+  runtimeDigest: string;
+}>;
+
+export type RuntimeSelectorUnavailableReason =
+  | 'ACCESSIBLE_ROLE_NAME_UNAVAILABLE'
+  | 'STATE_NOT_OBSERVED'
+  | 'AMBIGUOUS_ROLE_NAME'
+  | 'PROHIBITED_INTERACTION_REQUIRED';
+
+export type RuntimeSelector =
+  | Readonly<{
+      status: 'AVAILABLE';
+      role: RuntimeRole;
+      name: string;
+      evidenceId: string;
+      matchCount: 1;
+    }>
+  | Readonly<{
+      status: 'UNVERIFIED';
+      reason: RuntimeSelectorUnavailableReason;
+    }>;
+
+export type RuntimeInventoryItem = Readonly<{
+  role: RuntimeRole;
+  name: string;
+  evidenceId: string;
+  matchCount: 1;
+}>;
+
+export type SelectorEvidenceRecord = Readonly<{
+  evidenceId: string;
+  state: RuntimeState;
+  role: RuntimeRole;
+  name: string;
+  matchCount: number;
+}>;
+
+export type SelectorStateEvidence = Readonly<{
+  state: RuntimeState;
+  postcondition: Readonly<RuntimeRoleName & { evidenceId: string; matchCount: 1 }>;
+  records: readonly SelectorEvidenceRecord[];
+}>;
+
+export type SelectorAmbiguity = Readonly<{
+  evidenceId: string;
+  attemptedState: RuntimeState;
+  role: RuntimeRole;
+  name: string;
+  matchCount: number;
+}>;
+
+export type SelectorLimitation =
+  | Readonly<{
+      state: RuntimeState;
+      reason: Exclude<RuntimeSelectorUnavailableReason, 'AMBIGUOUS_ROLE_NAME'>;
+    }>
+  | Readonly<{
+      state: RuntimeState;
+      reason: 'AMBIGUOUS_ROLE_NAME';
+      evidenceId: string;
+      matchCount: number;
+    }>;
+
+export type SelectorObservation = Readonly<{
+  schemaVersion: 1;
+  productId: 'nuanu-app';
+  baseUrl: 'https://app.nuanu.com';
+  observedAt: string;
+  runtimeDigest: string;
+  capturePlanDigest: string;
+  states: readonly SelectorStateEvidence[];
+  ambiguities: readonly SelectorAmbiguity[];
+  mutationLedger: Readonly<{
+    records: readonly Readonly<{
+      method: MutationEvidenceMethod;
+      originAndPath: string;
+    }>[];
+    overflowed: boolean;
+  }>;
+  limitations: readonly SelectorLimitation[];
+  observationDigest: string;
+}>;
+
+export type SelectorBinding =
+  | Readonly<{ status: 'AVAILABLE'; evidenceId: string; matchCount: 1 }>
+  | Readonly<{ status: 'UNVERIFIED'; reason: RuntimeSelectorUnavailableReason }>;
+
+export type SelectorBindings = Readonly<{
+  schemaVersion: 1;
+  productId: 'nuanu-app';
+  baseUrl: 'https://app.nuanu.com';
+  observationDigest: string;
+  capturePlanDigest: string;
+  selectors: Readonly<Record<RuntimeSelectorKey, SelectorBinding>>;
+  inventory: Readonly<{
+    categories: readonly Readonly<{ evidenceId: string; matchCount: 1 }>[];
+    collections: readonly Readonly<{ evidenceId: string; matchCount: 1 }>[];
+  }>;
+  bindingDigest: string;
+}>;
+
+export type RuntimeContractBundle = Readonly<{
+  catalog: RuntimeCatalog;
+  capturePlan: SelectorCapturePlan;
+  observation: SelectorObservation;
+  bindings: SelectorBindings;
+}>;
+
+export type ReviewedRuntimeContract = Readonly<{
+  schemaVersion: 1;
+  productId: 'nuanu-app';
+  baseUrl: 'https://app.nuanu.com';
+  observedAt: string;
+  observationDigest: string;
+  selectorEvidence: Readonly<{
+    observedAt: string;
+    observationDigest: string;
+    capturePlanDigest: string;
+    bindingDigest: string;
+  }>;
+  selectors: Readonly<Record<RuntimeSelectorKey, RuntimeSelector>>;
+  inventory: Readonly<{
+    categories: readonly RuntimeInventoryItem[];
+    collections: readonly RuntimeInventoryItem[];
+  }>;
+}>;
+
+export type RuntimeContractGate =
+  | Readonly<{ status: 'READY'; contract: ReviewedRuntimeContract }>
+  | Readonly<{
+      status: 'BLOCKED';
+      reason: 'RUNTIME_CONTRACT_MISSING' | 'RUNTIME_CONTRACT_UNREADABLE';
+    }>
+  | Readonly<{
+      status: 'UNVERIFIED';
+      reason:
+        | 'RUNTIME_CONTRACT_MALFORMED_JSON'
+        | 'RUNTIME_CONTRACT_SCHEMA_MISMATCH'
+        | 'RUNTIME_SELECTOR_MISSING'
+        | 'RUNTIME_CONTRACT_DIGEST_MISMATCH'
+        | 'RUNTIME_CONTRACT_TIME_MISMATCH'
+        | 'RUNTIME_SELECTOR_OBSERVATION_MISSING'
+        | 'RUNTIME_SELECTOR_OBSERVATION_STALE'
+        | 'RUNTIME_SELECTOR_OBSERVATION_MISMATCH';
+    }>;
+
+export type RuntimeCaseGateReason =
+  | 'RUNTIME_CONTRACT_MISSING'
+  | 'RUNTIME_CONTRACT_UNREADABLE'
+  | 'RUNTIME_CONTRACT_MALFORMED_JSON'
+  | 'RUNTIME_CONTRACT_SCHEMA_MISMATCH'
+  | 'RUNTIME_SELECTOR_MISSING'
+  | 'RUNTIME_CONTRACT_DIGEST_MISMATCH'
+  | 'RUNTIME_CONTRACT_TIME_MISMATCH'
+  | 'RUNTIME_SELECTOR_OBSERVATION_MISSING'
+  | 'RUNTIME_SELECTOR_OBSERVATION_STALE'
+  | 'RUNTIME_SELECTOR_OBSERVATION_MISMATCH'
+  | 'RUNTIME_SELECTOR_UNAVAILABLE'
+  | 'RUNTIME_SELECTOR_DUPLICATE';
+
+export type RuntimeObservationValidation = Readonly<{
+  catalog: RuntimeCatalog;
+  capturePlan: SelectorCapturePlan;
+  now?: Date | (() => Date);
+}>;
+
+export type RuntimeBindingValidation = Readonly<{
+  observation: SelectorObservation;
+  capturePlan: SelectorCapturePlan;
+}>;
+
+export type RuntimeContractValidation = RuntimeContractBundle & Readonly<{
+  now?: Date | (() => Date);
+}>;
+
+export type RuntimeContractLoaderDependencies = Readonly<{
+  now?: () => Date;
+}> & (
+  | Readonly<{
+      readFile: (path: string, encoding: 'utf8') => Promise<string>;
+      readJson?: never;
+    }>
+  | Readonly<{
+      readFile?: never;
+      readJson: (path: string) => Promise<unknown>;
+    }>
+  | Readonly<{ readFile?: never; readJson?: never }>
+);
+
+export function canonicalDigest(value: unknown): string;
+export function sanitizeEvidenceUrl(raw: unknown): string | null;
+export function sanitizeEvidenceMethod(raw: unknown): EvidenceMethod | null;
+export function isSafeEvidenceMethod(method: EvidenceMethod): method is SafeEvidenceMethod;
+export function assertRuntimeCatalog(catalog: unknown): RuntimeCatalog;
+export function assertCapturePlan(plan: unknown): SelectorCapturePlan;
+export function assertSelectorObservation(
+  observation: unknown,
+  siblings: RuntimeObservationValidation,
+): SelectorObservation;
+export function assertSelectorBindings(
+  bindings: unknown,
+  siblings: RuntimeBindingValidation,
+): SelectorBindings;
+export function buildReviewedRuntimeContract(
+  bundle: RuntimeContractBundle,
+): ReviewedRuntimeContract;
+export function assertReviewedRuntimeContract(
+  contract: unknown,
+  bundle: RuntimeContractValidation,
+): ReviewedRuntimeContract;
+export function createRuntimeContractLoader(
+  dependencies?: RuntimeContractLoaderDependencies,
+): () => Promise<RuntimeContractGate>;
+export function loadReviewedRuntimeContract(): Promise<RuntimeContractGate>;

@@ -1,0 +1,280 @@
+# Nuanu Flow Deep E2E QA Design
+
+Date: 2026-07-26
+
+Target application: `https://flow.nuanu.com`
+
+Test workspace: `NF QA Sandbox` (`nf-qa-sandbox`)
+
+Test project: `NF QA Sandbox` (`2c2298c0-7bdc-42a5-a5f5-54ad2cb5d3cf`)
+
+Bug tracker: workspace `nuanu-flow-qa`, project `NUANU`, through Nuanu Flow MCP only
+
+## Objective
+
+Extend the existing public Nuanu Flow Playwright baseline into a deep, layered E2E campaign that exercises every user-visible product area available to the authenticated QA account. The campaign combines real UI journeys, Playwright regression coverage, API/MCP contract checks, accessibility and responsive checks, and UI-to-MCP parity verification.
+
+The campaign may create, edit, move, archive, and delete test data in `NF QA Sandbox`. It must not modify pre-existing sandbox data. Every mutable object created by the campaign uses a unique name beginning with `QA E2E` and is registered for guarded cleanup.
+
+## Selected approach
+
+Use a hybrid layered approach:
+
+1. Existing anonymous Playwright tests remain the fast public baseline.
+2. Authenticated UI recon and hard-to-automate flows run through the existing signed-in Chrome session.
+3. Authenticated Playwright specs run only when an approved storage-state file is supplied.
+4. Nuanu Flow MCP and first-party API checks cover contracts, data lifecycle, error responses, and UI-to-backend parity.
+5. Confirmed defects are reproduced independently, documented with visual evidence, filed in `nuanu-flow-qa / NUANU`, and pinned with a correct-behavior `test.fail()` regression.
+
+This approach provides UI fidelity without making the entire suite depend on one browser session, while API/MCP checks give fast diagnostics for CRUD and persistence failures.
+
+## Existing baseline and required corrections
+
+The current suite contains fourteen public tests and one conditional authenticated BPMN regression. Public coverage includes sign-in availability, basic validation and keyboard activation, legal pages, guest routing, favicon and document metadata, first-party console/network health, and responsive layout at five widths.
+
+Before expanding authenticated coverage, the implementation must correct these risks:
+
+- The `NUANU-8` regression currently navigates to `nuanu-flow-qa` and creates a name that does not begin with `QA E2E`. It must target `nf-qa-sandbox`, use the required prefix, assert the visible workspace before mutation, and clean up a successfully created object.
+- Authenticated and public specs currently share one Playwright project. They must be separable so absent or expired auth state cannot hide or block the public baseline.
+- A mutable authenticated suite must not run fully parallel. CRUD journeys must be serial or use worker-isolated run IDs and independent cleanup ledgers.
+- The repository's generic QA documentation references Linear. Nuanu Flow campaign files must state that this product uses Nuanu Flow MCP only.
+- `networkidle` is not a reliable universal readiness signal for this polling SPA. Tests must wait for route-specific semantic UI or a specific response.
+
+## Safety model
+
+### Workspace guard
+
+Every mutating UI test must verify both of these conditions before the first mutation:
+
+- the URL pathname begins with `/nf-qa-sandbox/`;
+- the visible workspace switcher contains the exact text `NF QA Sandbox`.
+
+Every MCP/API mutation must explicitly pass workspace slug `nf-qa-sandbox` and the intended project identifier or UUID. A missing, different, or ambiguous workspace value aborts the operation.
+
+### Test-data ownership
+
+All created names begin with:
+
+```text
+QA E2E <run-id>
+```
+
+`run-id` contains a UTC timestamp plus a worker-safe random suffix. Each created entity is recorded in an in-memory cleanup ledger with its type, workspace, project, identifier, and exact name.
+
+Cleanup may operate only on ledger entries whose name still starts with `QA E2E` and whose workspace is still `nf-qa-sandbox`. Tests never discover arbitrary objects by a broad prefix and delete them in bulk. Cleanup runs in `finally` or suite teardown and reports residual IDs rather than widening its deletion scope after a failure.
+
+### External side effects
+
+Integration cards and OAuth launch behavior may be inspected through the provider handoff. The campaign does not connect personal Gmail, Outlook, Slack, Telegram, Discord, WhatsApp, Google, GitHub, GitLab, Linear, Jira, Trello, HubSpot, Salesforce, Zoom, Stripe, or Twilio accounts.
+
+No real invitation, password-reset, payment, outgoing email, chat message, calendar event, or third-party notification is sent unless a dedicated test destination is later provided. Validation and precondition handling remain in scope.
+
+### Existing data
+
+Pre-existing work items, processes, projects, teams, decisions, artifacts, integrations, wiki pages, and other records are read-only. Existing items such as `NFQAS-*` and `QA e2e process` are not considered owned by the new campaign because they were not registered in the current run's cleanup ledger.
+
+## Coverage architecture
+
+### Public Playwright project
+
+The public `nuanuflow` project remains independently runnable without credentials. It owns anonymous smoke, sign-in/sign-up, legal, routing, responsive, accessibility smoke, and anonymous API-contract checks.
+
+### Authenticated Playwright project
+
+Add a distinct `nuanuflow-auth` project for `tests/nuanuflow/authenticated/**`. It activates only when `NUANUFLOW_STORAGE_STATE` points to an approved gitignored state file. Its configuration supplies the same base URL but does not make public tests depend on authentication.
+
+Authenticated specs use serial execution for lifecycle tests. Read-only route and accessibility checks may run in parallel after proving session and workspace identity.
+
+### Browser recon
+
+Use the existing signed-in Chrome session for exploratory UI testing and flows that cannot yet run in headless Playwright. Browser recon records exact routes, accessible names, visible state transitions, console errors, failed first-party requests, and screenshots of suspected defects. Manual findings are not promoted to product bugs until independently reproduced and timing, hydration, locale, selector, rollout, and permission causes are excluded.
+
+### MCP and API layer
+
+Nuanu Flow MCP is used for:
+
+- verifying workspace and project identity;
+- creating, reading, updating, and deleting campaign-owned records when a matching capability exists;
+- comparing MCP-created data with UI rendering and UI-created data with MCP reads;
+- filing confirmed bugs only in `nuanu-flow-qa / NUANU`;
+- reading back issue metadata and attachments after filing.
+
+First-party HTTP contract tests verify anonymous authorization boundaries, authenticated response status and shape when auth is available, validation failures, and the absence of stack traces, internal hostnames, tokens, or raw database errors in error responses.
+
+## Functional coverage map
+
+### Workspace shell
+
+- Workspace switcher identity and navigation persistence.
+- Sidebar expand/collapse, project menu, quick actions, global command search, notifications entry, and responsive/mobile navigation.
+- Direct-route reload, browser back/forward, unknown authenticated route, expired-session behavior, and cross-workspace URL protection.
+- AI chat sidebar open/close, new topic, topic list, empty state, input validation, and attachment preconditions without sending sensitive content.
+
+### Home, Drafts, and Your work
+
+- Loading, empty/populated states, navigation cards, counts, filters, and stable reload.
+- Draft creation/cancel/resume where the UI supports local drafts, followed by cleanup.
+- Personal work filters and links without modifying pre-existing assignments.
+
+### Projects
+
+- Project list, search, create validation, create, edit, copy if available, archive eligibility, and delete of a campaign-owned project.
+- Project navigation, identifier uniqueness, invalid/duplicate inputs, cancel behavior, and persistence after reload.
+- Existing project `NF QA Sandbox` remains read-only and hosts all non-project-lifecycle test entities.
+
+### Work items
+
+- Create, view, edit title/description, assign supported fields, change state, priority and dates, copy link, duplicate, archive eligibility, and delete.
+- Board/list/grouping display modes, filters, search, sorting, pagination or infinite loading, counts, analytics entry, and empty results.
+- Comments, attachments, relations, sub-items, activity, and keyboard shortcuts when available, using only campaign-owned data.
+- Invalid required fields, overlong values, unsupported characters, rapid double-submit, cancel, stale update, reload persistence, and safe delete confirmation.
+
+### Cycles and Modules
+
+- Empty states; create, edit, add/remove campaign work items, complete/archive where supported, and delete.
+- Date validation, duplicate names, progress/count updates, filters, search, and reload persistence.
+- A work item removed from a cycle or module must remain otherwise intact unless the test explicitly owns and deletes it.
+
+### Views
+
+- Create a saved view from campaign-owned filters, reopen it, edit its definition, verify result parity, and delete it.
+- Invalid names, empty filters, duplicate behavior, visibility controls shown to the account, and direct-route reload.
+
+### Wiki
+
+- Empty state; create page, edit title/body, formatting controls, autosave/publish state, reload persistence, copy link, hierarchy if available, and delete.
+- Empty title/body rules, long text, special characters, cancel navigation, and unsaved-change handling.
+
+### Pulse and Automations
+
+- Route availability, empty states, dashboards, date/range filters, and graceful handling when no metrics exist.
+- Automation list, create/edit validation and trigger/action configuration using sandbox-safe actions.
+- Automation execution is limited to campaign-owned records and must not invoke an external integration. Disable/delete cleanup is mandatory.
+
+### Workspace Artifacts, project Artifacts, and Decisions
+
+- List/empty state, create where available, details, edit, filtering, direct links, persistence, and guarded delete.
+- Workspace-versus-project scoping is asserted so artifacts or decisions do not leak across scopes.
+- File uploads use synthetic files with no personal data and stay within documented size/type limits.
+
+### Marketplace and Integrations
+
+- All visible cards render with names, categories, state, and accessible actions.
+- Search/filter/category behavior and empty results where available.
+- `Connect` opens the expected first-party precondition or external provider handoff without completing OAuth.
+- Cancel/back from the handoff returns to Nuanu Flow without changing connection state.
+
+### Teams and settings
+
+- Team list, details, create/edit/delete of a campaign-owned team, validation, and membership UI without sending external invitations.
+- Profile, workspace, project, notification, and appearance settings render correctly.
+- Safe reversible preference changes may be tested only when their original values are captured and restored in `finally`.
+- Permission-gated and destructive settings must explain why they are unavailable rather than fail silently.
+
+### BPMN processes
+
+- Process list, create validation, plain and punctuation-rich names, open editor, edit metadata, copy, status, archive eligibility, and delete.
+- BPMN palette coverage for start/end events, Human Task, supported gateways and connections.
+- Rename elements, edit properties, undo/redo, autosave indication, reload persistence, invalid graph handling, and navigation with unsaved work.
+- Run/start behavior, run status transitions, history/log details, and failure recovery using a minimal campaign-owned graph.
+- `NUANU-8` remains an expected-failure regression until a deployed fix makes the correct-behavior assertion unexpectedly pass.
+
+### Meetings and transcription
+
+- Manual transcript creation, required-field and date validation, participants, multiline content, completed detail, edit/delete if available, and reload persistence.
+- Instant meeting preconditions with disconnected calendar/meet integrations.
+- Synthetic audio uploads for valid MP3, supported alternative format, empty file, unsupported extension, oversize boundary where safe, duplicate upload, and cancel.
+- Status transitions from upload through processing to completion or actionable failure; transcript fidelity, speaker labels, punctuation, detail view, and reload persistence.
+- No personal speech, credentials, or third-party meeting data is used.
+
+## Cross-cutting quality coverage
+
+### Accessibility
+
+- Accessible names, landmarks, heading hierarchy, labels, validation announcements, dialog focus trap and restoration, and keyboard-only operation.
+- Real Tab/Shift+Tab sequences replace direct `.focus()` as the proof of keyboard reachability.
+- An automated accessibility scanner covers representative public and authenticated pages. Findings are triaged manually because an automated clean result is not a complete WCAG 2.2 AA audit.
+
+### Responsive and browser coverage
+
+- Representative authenticated pages are checked at 320, 375, 768, 1024, and 1440 pixels for overflow, usable dialogs, sidebar behavior, sticky controls, and touch-sized actions.
+- Chromium remains the required daily browser. Firefox and WebKit run for a focused release matrix when their Playwright engines are installed. A mobile device profile supplements viewport-only checks.
+
+### Reliability and performance
+
+- Route readiness uses semantic elements or specific responses, not arbitrary sleeps or global `networkidle`.
+- Suspicious failures run at least ten targeted repetitions before product-bug classification.
+- Capture navigation timing, largest-content render approximation where available, cumulative layout shift, long tasks, failed resources, and unusually large first-party payloads as observations. Performance becomes a defect only against an explicit budget or a severe reproducible regression.
+
+### Security and privacy observations
+
+- Protected routes reject anonymous contexts.
+- Error bodies and visible errors must not expose stack traces, secrets, internal hosts, raw queries, or private identifiers beyond normal product IDs.
+- Screenshots, uploads, logs, and committed files are scanned for tokens, credentials, storage state, personal data, and unrelated user content.
+
+## Test components
+
+The implementation should introduce focused components rather than one large authenticated spec:
+
+```text
+tests/nuanuflow/
+  fixtures/
+    authenticated.fixture.ts
+    sandbox-data.ts
+  pages/
+    workspace.page.ts
+    work-items.page.ts
+    project-features.page.ts
+    processes.page.ts
+    meetings.page.ts
+  authenticated/
+    workspace.spec.ts
+    work-items.spec.ts
+    project-lifecycle.spec.ts
+    cycles-modules.spec.ts
+    views-wiki.spec.ts
+    pulse-automations.spec.ts
+    artifacts-decisions.spec.ts
+    teams-settings.spec.ts
+    marketplace-integrations.spec.ts
+    processes.spec.ts
+    meetings-transcription.spec.ts
+    accessibility-responsive.spec.ts
+    api-contracts.spec.ts
+```
+
+Page objects contain selectors and actions. Assertions remain in specs. The fixture owns session validation, exact workspace guarding, unique `QA E2E` naming, cleanup ledger registration, and teardown.
+
+## Bug triage and filing
+
+Every suspicious behavior follows this sequence:
+
+1. Reproduce in the authenticated Chrome session or a fresh Playwright context as applicable.
+2. Confirm workspace, permissions, hydration, request completion, locale, selector uniqueness, and rollout state.
+3. Repeat flaky-looking cases ten times.
+4. Capture a redacted screenshot and exact console/network evidence.
+5. File only a confirmed product defect through Nuanu Flow MCP in workspace `nuanu-flow-qa`, project `NUANU`, state `Backlog`.
+6. Apply `Bug` plus a product-area label and severity-mapped priority.
+7. Read the created issue and attachment list back through MCP.
+8. Add a regression asserting the correct behavior with `test.fail(true, 'NUANU-<id>: <symptom>')`.
+
+Existing sandbox issues are evidence sources only; this campaign does not edit or close them. QA closes a tracker issue only after the deployed fix is independently verified and its expected-failure regression flips.
+
+## Reporting and artifacts
+
+The private living matrix at `docs/local/nuanuflow/TEST-CASES.md` records every case as automated, manual, blocked with reason, confirmed defect, or observation. It includes created and residual test-data IDs, run commands, result counts, and the distinction between product failures and test-infrastructure failures.
+
+Playwright reports, videos, traces, storage state, synthetic uploads, and raw screenshots remain gitignored. Only test code, configuration, reusable documentation, and redacted evidence intended for a confirmed tracker issue are committed or attached.
+
+## Completion criteria
+
+The deep campaign is complete when:
+
+1. Every module in the functional coverage map has a recorded happy path, negative path, persistence check, and cleanup result or a concrete blocked reason.
+2. Existing sandbox records remain unchanged.
+3. All mutable records created by the run begin with `QA E2E`, are ledgered, and are deleted or reported by exact residual ID.
+4. The public project runs independently and green.
+5. Authenticated automated cases run green or as documented expected failures when approved storage state is present; otherwise the same areas have authenticated Chrome evidence and conditional specs.
+6. Type checking, test listing, full applicable suites, targeted repetition, secret scanning, and diff review pass.
+7. Every confirmed bug exists only in `nuanu-flow-qa / NUANU`, has verified metadata and screenshot evidence, and has a `test.fail()` correct-behavior regression.
+8. The final report distinguishes passed, failed, expected-failed, skipped, manual, blocked, and inconclusive visual-baseline results.

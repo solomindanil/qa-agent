@@ -1,0 +1,29 @@
+{
+  "providerPayloadShapes": [
+    { "rawEvents": [{ "synthetic": true }] },
+    { "persons": [{ "synthetic": true }] },
+    { "sessionReplay": { "synthetic": true } },
+    { "exports": [{ "synthetic": true }] }
+  ],
+  "identityAndLocationShapes": [
+    { "exactUrl": "https://synthetic.invalid/path?synthetic=value" },
+    { "queryValue": "synthetic-query-value" },
+    { "distinctId": "synthetic-distinct-id" },
+    { "sessionId": "synthetic-session-id" },
+    { "deviceId": "synthetic-device-id" },
+    { "ipAddress": "192.0.2.1" },
+    { "latitude": 0.1 },
+    { "longitude": 0.2 },
+    { "email": "synthetic@example.invalid" },
+    { "phone": "+00000000000" },
+    { "searchText": "synthetic-search-text" }
+  ],
+  "exceptionAndTransportShapes": [
+    { "exceptionMessage": "synthetic exception detail" },
+    { "stackTrace": "synthetic stack detail" },
+    { "codeVariables": { "synthetic": "value" } },
+    { "requestHeaders": { "x-synthetic": "value" } },
+    { "requestBody": { "synthetic": true } },
+    { "responseBody": { "synthetic": true } }
+  ]
+}

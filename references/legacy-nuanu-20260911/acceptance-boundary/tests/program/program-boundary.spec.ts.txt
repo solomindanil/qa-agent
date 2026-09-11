@@ -1,0 +1,61 @@
+import { expect, test } from '@playwright/test';
+
+import {
+  assertAllowedAcceptanceDependency,
+  assertReleaseInput,
+  type ProductReleaseInput,
+} from '../../src/program/boundary.js';
+
+const validReleaseInput: ProductReleaseInput = {
+  baseUrl: 'https://staging.example.test',
+  environmentId: 'staging-us-1',
+  gitSha: '2056c9a8ce2864fc3c7a56812b1fd7ef582645e2',
+  buildId: 'build-20260801.1',
+  capabilitiesDigest: 'sha256:7f83b1657ff1fc53b92dc18148a1d65dfa135014',
+};
+
+test('release handshake rejects missing or invalid required fields', () => {
+  expect(assertReleaseInput(validReleaseInput)).toEqual(validReleaseInput);
+
+  for (const field of Object.keys(validReleaseInput) as Array<keyof ProductReleaseInput>) {
+    const incomplete = { ...validReleaseInput } as Record<string, unknown>;
+    delete incomplete[field];
+    expect(() => assertReleaseInput(incomplete)).toThrow();
+  }
+
+  for (const field of Object.keys(validReleaseInput) as Array<keyof ProductReleaseInput>) {
+    for (const invalidValue of [42, '', '   ']) {
+      expect(() =>
+        assertReleaseInput({ ...validReleaseInput, [field]: invalidValue }),
+      ).toThrow();
+    }
+  }
+});
+
+test('release handshake rejects data outside its declared five fields', () => {
+  expect(() =>
+    assertReleaseInput({
+      ...validReleaseInput,
+      productInternalPayload: { source: 'product-internal' },
+    }),
+  ).toThrow();
+});
+
+test('acceptance dependency contract permits only deployed or official MCP boundaries', () => {
+  for (const dependency of [
+    'deployed-ui',
+    'deployed-api',
+    'official-nuanu-flow-mcp',
+  ]) {
+    expect(assertAllowedAcceptanceDependency(dependency)).toBe(dependency);
+  }
+
+  for (const forbiddenDependency of [
+    'direct-database',
+    'django-shell',
+    'product-source',
+    'private-engine-diagnostics',
+  ]) {
+    expect(() => assertAllowedAcceptanceDependency(forbiddenDependency)).toThrow();
+  }
+});

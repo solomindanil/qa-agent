@@ -1,0 +1,58 @@
+schema_version: nuanu.qa-project-profile.v1
+project_key: paydemo
+repository:
+  allowed_origin: https://github.com/solomindanil/NuanuFlowQA.git
+environment:
+  strategy: none
+checks:
+  code: [git, diff, --check, HEAD]
+  api: [node, scripts/qah/adapters/paydemo.mjs, api]
+  ui: [node, scripts/qah/adapters/paydemo.mjs, ui]
+  domain: [node, scripts/qah/adapters/paydemo.mjs, domain]
+outcome_codes:
+  code:
+    pass: [COMMAND_PASSED]
+    fail: [COMMAND_FAILED]
+    infra: [ENVIRONMENT_NOT_READY, ENVIRONMENT_VERIFICATION_FAILED, TRANSPORT_FAILURE]
+    skipped: [NOT_APPLICABLE]
+  api:
+    pass: [API_CONTRACT_VERIFIED, AMOUNT_REJECTED]
+    fail: [API_CONTRACT_VIOLATION, AMOUNT_MISMATCH_ACCEPTED]
+    infra: [ENVIRONMENT_NOT_READY, ENVIRONMENT_VERIFICATION_FAILED, ADAPTER_EXIT_FAILURE, INVALID_ADAPTER_OUTPUT, TRANSPORT_FAILURE, AMOUNT_PROBE_UNAVAILABLE]
+    skipped: [NOT_APPLICABLE]
+  ui:
+    pass: [UI_FLOW_VERIFIED, BANK_TRANSFER_CONFIRMED]
+    fail: [BANK_SHOWN_AS_CARD, BANK_UI_CONTRACT_VIOLATION]
+    infra: [ENVIRONMENT_NOT_READY, ENVIRONMENT_VERIFICATION_FAILED, ADAPTER_EXIT_FAILURE, INVALID_ADAPTER_OUTPUT, TRANSPORT_FAILURE, UI_PROBE_UNAVAILABLE]
+    skipped: [NOT_APPLICABLE]
+  domain:
+    pass: [DOMAIN_RULE_VERIFIED, IDEMPOTENT_REPLAY]
+    fail: [DUPLICATE_PAYMENT_IDS, IDEMPOTENCY_CONTRACT_VIOLATION]
+    infra: [ENVIRONMENT_NOT_READY, ENVIRONMENT_VERIFICATION_FAILED, ADAPTER_EXIT_FAILURE, INVALID_ADAPTER_OUTPUT, TRANSPORT_FAILURE, IDEMPOTENCY_PROBE_UNAVAILABLE]
+    skipped: [NOT_APPLICABLE]
+safety:
+  mutation_mode: sandbox_only
+  irreversible_actions: deny
+  secret_output: deny
+  allowed_origins: [http://127.0.0.1:4173]
+execution:
+  shell: false
+  environment: minimal
+  timeout_ms: 300000
+  max_output_bytes: 1048576
+test_data:
+  profiles: [default, payment_sandbox]
+areas:
+  ui:
+    paths: [apps/paydemo/public/**, tests/**/ui/**]
+    labels: [ui, frontend]
+  api:
+    paths: [apps/paydemo/server.mjs, tests/**/api/**]
+    labels: [api, backend]
+  domain:
+    paths: [apps/paydemo/**/payment*, tests/**/domain/**]
+    labels: [payments, auth, data]
+risk:
+  high_keywords: [payment, authentication, authorization, pii, webhook]
+  critical_keywords: [real-money, production-migration]
+  confidence_threshold: 0.95

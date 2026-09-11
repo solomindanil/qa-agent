@@ -1,0 +1,823 @@
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+} from '@playwright/test';
+import {
+  AUTOMATION_ACTION_NAMES,
+  AUTOMATION_TRIGGER_NAMES,
+  INTEGRATION_CARD_NAMES,
+  PULSE_SUMMARY_SECTION_NAMES,
+  PULSE_SUMMARY_TYPE_NAMES,
+  WORKSPACE_OPERATION_PATHS,
+  WORKSPACE_OPERATIONS_SANDBOX_ID,
+  WORKSPACE_OPERATIONS_SELF_LEAD_ID,
+  WorkspaceOperationsPage,
+  type CreatedTeam,
+  assertExactTeamCleanupTarget,
+  assertExactTeamCreatePayload,
+  captureWorkspaceTeamPosts,
+  cleanupCapturedTeamBatch,
+  extractWorkspaceOperationResponseIdentity,
+  parseCreatedTeam,
+  runRestoredSandboxSetting,
+} from './pages/workspace-operations.page';
+import { SANDBOX } from './fixtures/sandbox-data';
+
+const IDS = Object.freeze({
+  team: '11111111-1111-4111-8111-111111111111',
+  other: '22222222-2222-4222-8222-222222222222',
+});
+
+const TEAM_NAME = 'QA E2E synthetic team';
+const TEAM_DESCRIPTION = 'Synthetic QA team with no invitations or members.';
+const SYNTHETIC_ORIGIN = 'https://qa.invalid';
+const SYNTHETIC_TEAM_ENDPOINT = `${SYNTHETIC_ORIGIN}/teams/`;
+
+const teamBody = (overrides: Record<string, unknown> = {}) => ({
+  id: IDS.team,
+  name: TEAM_NAME,
+  description: TEAM_DESCRIPTION,
+  workspace: WORKSPACE_OPERATIONS_SANDBOX_ID,
+  lead_id: WORKSPACE_OPERATIONS_SELF_LEAD_ID,
+  logo_props: {},
+  ...overrides,
+});
+
+const syntheticResponse = (status: number, body: unknown = undefined) => ({
+  status: () => status,
+  json: async () => body,
+});
+
+const nestedErrorMessages = (error: unknown): string[] => {
+  if (!(error instanceof Error)) return [String(error)];
+  return [
+    error.message,
+    ...(error instanceof AggregateError
+      ? error.errors.flatMap(nestedErrorMessages)
+      : []),
+  ];
+};
+
+const teamCleanupHarness = async (
+  page: Page,
+  options: {
+    detailStatus?: Partial<Record<string, number>>;
+    deleteStatus?: Partial<Record<string, number>>;
+    extraCollectionRows?: Record<string, unknown>[];
+  } = {},
+) => {
+  const secondName = TEAM_NAME;
+  const created: CreatedTeam[] = [
+    parseCreatedTeam(teamBody(), TEAM_NAME),
+    parseCreatedTeam(
+      teamBody({ id: IDS.other, name: secondName }),
+      secondName,
+    ),
+  ];
+  const exists = new Set(created.map(({ id }) => id));
+  const calls: string[] = [];
+  const collectionEndpoint = 'https://qa.invalid/teams/';
+  const uiPath = 'https://qa.invalid/team-ui/';
+  const detailEndpoint = (id: string) => `${collectionEndpoint}${id}/`;
+
+  const requestContext = {
+    get: async (url: string) => {
+      if (url === collectionEndpoint) {
+        calls.push('GET collection');
+        return syntheticResponse(
+          200,
+          [
+            ...created
+              .filter(({ id }) => exists.has(id))
+              .map(({ id, name }) => teamBody({ id, name })),
+            ...(options.extraCollectionRows ?? []),
+          ],
+        );
+      }
+      const entity = created.find(({ id }) => detailEndpoint(id) === url);
+      if (!entity) throw new Error(`Unexpected Team GET: ${url}`);
+      calls.push(`GET ${entity.id}`);
+      const status =
+        options.detailStatus?.[entity.id] ??
+        (exists.has(entity.id) ? 200 : 404);
+      return syntheticResponse(
+        status,
+        teamBody({ id: entity.id, name: entity.name }),
+      );
+    },
+    delete: async (url: string) => {
+      const entity = created.find(({ id }) => detailEndpoint(id) === url);
+      if (!entity) throw new Error(`Unexpected Team DELETE: ${url}`);
+      calls.push(`DELETE ${entity.id}`);
+      const status = options.deleteStatus?.[entity.id] ?? 204;
+      if (status === 204) exists.delete(entity.id);
+      return syntheticResponse(status);
+    },
+  };
+  await page.route(uiPath, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: created
+        .filter(({ id }) => exists.has(id))
+        .map(({ id, name }) => `<div>${id}</div><div>${name}</div>`)
+        .join(''),
+    });
+  });
+  return {
+    calls,
+    created,
+    exists,
+    collectionEndpoint,
+    uiPath,
+    detailEndpoint,
+    requestContext: requestContext as unknown as APIRequestContext,
+  };
+};
+
+const openSyntheticTeamPage = async (page: Page) => {
+  await page.route(SYNTHETIC_ORIGIN, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<main>synthetic workspace operations</main>',
+    });
+  });
+  await page.goto(SYNTHETIC_ORIGIN);
+};
+
+test('workspace-operation route and visible-card inventories remain exact', () => {
+  expect(WORKSPACE_OPERATION_PATHS).toEqual({
+    pulse:
+      `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/pulse/`,
+    automations:
+      `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/automations/`,
+    teams: `/${SANDBOX.workspaceSlug}/teams/`,
+    account: `/${SANDBOX.workspaceSlug}/settings/account/`,
+    preferences:
+      `/${SANDBOX.workspaceSlug}/settings/account/preferences/`,
+    notifications:
+      `/${SANDBOX.workspaceSlug}/settings/account/notifications/`,
+    workspaceSettings: `/${SANDBOX.workspaceSlug}/settings/`,
+    projectSettings:
+      `/${SANDBOX.workspaceSlug}/settings/projects/${SANDBOX.projectId}/`,
+    projectAutomationSettings:
+      `/${SANDBOX.workspaceSlug}/settings/projects/${SANDBOX.projectId}/automations/`,
+    marketplace: `/${SANDBOX.workspaceSlug}/marketplace/`,
+    integrations: `/${SANDBOX.workspaceSlug}/integrations/`,
+  });
+  expect(PULSE_SUMMARY_SECTION_NAMES).toEqual([
+    'Previous Week Summary',
+    'Goals of This Week',
+    'Retrospective',
+  ]);
+  expect(PULSE_SUMMARY_TYPE_NAMES).toEqual([
+    'Meeting Review',
+    'Day Review',
+    'Week Review',
+    'Sprint Review',
+    'Project Health',
+    'Team Standup',
+    'Milestone',
+  ]);
+  expect(AUTOMATION_TRIGGER_NAMES).toEqual([
+    'Issue Created',
+    'Issue Updated',
+    'Issue State Changed',
+    'Issue Assignee Changed',
+    'Issue Priority Changed',
+    'Comment Added',
+    'Cycle Started',
+    'Cycle Ended',
+    'Webhook',
+  ]);
+  expect(AUTOMATION_ACTION_NAMES).toEqual([
+    'Agent Prompt',
+    'Create Issue',
+    'Webhook',
+  ]);
+  expect(INTEGRATION_CARD_NAMES).toEqual([
+    'Gmail',
+    'Outlook',
+    'Slack',
+    'Telegram',
+    'Discord',
+    'WhatsApp',
+    'Google Calendar',
+    'Google Drive',
+    'Google Sheets',
+    'Google Docs',
+    'Notion',
+    'GitHub',
+    'GitLab',
+    'Linear',
+    'Jira',
+    'Trello',
+    'HubSpot',
+    'Salesforce',
+    'Zoom',
+    'Stripe',
+    'Twilio',
+  ]);
+});
+
+test('workspace-operation POM scopes repeated controls and dialogs', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <button>Add Pulse</button><button>Add Pulse</button>
+    <button>Add Automation</button><button>Add Automation</button>
+    <button>Add team</button><button>Add team</button>
+    <div role="dialog" aria-label="Create Pulse">
+      <h2>Create Pulse</h2><button>Cancel</button>
+    </div>
+    <main><input type="checkbox" aria-label="Enabled"></main>
+    <div role="dialog" aria-label="Create Team">
+      <h2>Create team</h2><button>Cancel</button>
+    </div>
+  `);
+  const operations = new WorkspaceOperationsPage(page);
+
+  await expect(operations.addPulseButtons).toHaveCount(2);
+  await expect(operations.addAutomationButtons).toHaveCount(2);
+  await expect(operations.addTeamButtons).toHaveCount(2);
+  await expect(operations.createPulseDialog).toContainText('Create Pulse');
+  await expect(operations.createAutomationSurface).toBeVisible();
+  await expect(operations.createTeamDialog).toContainText('Create team');
+});
+
+test('accepts only an exact response-owned team with the sanctioned self lead', () => {
+  expect(parseCreatedTeam(teamBody(), TEAM_NAME)).toEqual({
+    kind: 'team',
+    id: IDS.team,
+    name: TEAM_NAME,
+    description: TEAM_DESCRIPTION,
+    workspaceId: WORKSPACE_OPERATIONS_SANDBOX_ID,
+    leadId: WORKSPACE_OPERATIONS_SELF_LEAD_ID,
+  });
+  expect(extractWorkspaceOperationResponseIdentity(teamBody())).toEqual({
+    observedId: IDS.team,
+    exactId: IDS.team,
+  });
+
+  expect(() =>
+    parseCreatedTeam(
+      teamBody({ workspace: IDS.other }),
+      TEAM_NAME,
+    ),
+  ).toThrow(/workspace/);
+  expect(() =>
+    parseCreatedTeam(
+      teamBody({ name: 'Existing team' }),
+      TEAM_NAME,
+    ),
+  ).toThrow(/identity/);
+  expect(() =>
+    parseCreatedTeam(
+      teamBody({ lead_id: IDS.other }),
+      TEAM_NAME,
+    ),
+  ).toThrow(/membership/);
+});
+
+test('admits only an exact owned Team payload with the sanctioned self lead', () => {
+  expect(
+    assertExactTeamCreatePayload(
+      {
+        name: TEAM_NAME,
+        description: TEAM_DESCRIPTION,
+        logo_props: {},
+        lead_id: WORKSPACE_OPERATIONS_SELF_LEAD_ID,
+      },
+      TEAM_NAME,
+      TEAM_DESCRIPTION,
+    ),
+  ).toEqual({
+    name: TEAM_NAME,
+    description: TEAM_DESCRIPTION,
+    logo_props: {},
+    lead_id: WORKSPACE_OPERATIONS_SELF_LEAD_ID,
+  });
+
+  expect(() =>
+    assertExactTeamCreatePayload(
+      {
+        name: TEAM_NAME,
+        description: TEAM_DESCRIPTION,
+        logo_props: {},
+        lead_id: IDS.other,
+      },
+      TEAM_NAME,
+      TEAM_DESCRIPTION,
+    ),
+  ).toThrow(/lead/);
+  expect(() =>
+    assertExactTeamCreatePayload(
+      {
+        name: TEAM_NAME,
+        description: TEAM_DESCRIPTION,
+        logo_props: {},
+        lead_id: WORKSPACE_OPERATIONS_SELF_LEAD_ID,
+        members: [IDS.other],
+      },
+      TEAM_NAME,
+      TEAM_DESCRIPTION,
+    ),
+  ).toThrow(/exact/);
+  expect(() =>
+    assertExactTeamCreatePayload(
+      {
+        name: 'Existing team',
+        description: TEAM_DESCRIPTION,
+        logo_props: {},
+        lead_id: WORKSPACE_OPERATIONS_SELF_LEAD_ID,
+      },
+      TEAM_NAME,
+      TEAM_DESCRIPTION,
+    ),
+  ).toThrow(/owned/);
+});
+
+test('cleanup guard refuses an ID, name, workspace, or lead mismatch', () => {
+  const created = parseCreatedTeam(teamBody(), TEAM_NAME);
+
+  expect(assertExactTeamCleanupTarget(teamBody(), created)).toEqual(
+    expect.objectContaining({
+      id: IDS.team,
+      name: TEAM_NAME,
+      workspace: WORKSPACE_OPERATIONS_SANDBOX_ID,
+      lead_id: WORKSPACE_OPERATIONS_SELF_LEAD_ID,
+    }),
+  );
+  expect(() =>
+    assertExactTeamCleanupTarget(teamBody({ id: IDS.other }), created),
+  ).toThrow(/ownership/);
+  expect(() =>
+    assertExactTeamCleanupTarget(
+      teamBody({ name: 'Existing team' }),
+      created,
+    ),
+  ).toThrow(/ownership/);
+  expect(() =>
+    assertExactTeamCleanupTarget(
+      teamBody({ workspace: IDS.other }),
+      created,
+    ),
+  ).toThrow(/ownership/);
+  expect(() =>
+    assertExactTeamCleanupTarget(
+      teamBody({ lead_id: IDS.other }),
+      created,
+    ),
+  ).toThrow(/ownership/);
+});
+
+test('registers restoration before mutation and restores the exact original value', async () => {
+  const events: string[] = [];
+  let value = false;
+  let registeredRestore: (() => Promise<void>) | undefined;
+
+  await runRestoredSandboxSetting({
+    next: true,
+    assertSandbox: async () => {
+      events.push('guard');
+    },
+    read: async () => {
+      events.push(`read:${value}`);
+      return value;
+    },
+    mutate: async (next) => {
+      events.push(`mutate:${next}`);
+      value = next;
+    },
+    verify: async (expected) => {
+      events.push(`verify:${expected}`);
+      expect(value).toBe(expected);
+    },
+    registerRestoration: (restore) => {
+      events.push('register');
+      registeredRestore = restore;
+    },
+  });
+
+  expect(value).toBe(false);
+  expect(events).toEqual([
+    'read:false',
+    'register',
+    'guard',
+    'mutate:true',
+    'verify:true',
+    'guard',
+    'mutate:false',
+    'verify:false',
+  ]);
+  expect(registeredRestore).toBeDefined();
+  await registeredRestore?.();
+  expect(events).toHaveLength(8);
+});
+
+test('restores the original setting when changed-value verification fails', async () => {
+  const events: string[] = [];
+  let value = 'original';
+
+  await expect(
+    runRestoredSandboxSetting({
+      next: 'changed',
+      assertSandbox: async () => {
+        events.push('guard');
+      },
+      read: async () => value,
+      mutate: async (next) => {
+        events.push(`mutate:${next}`);
+        value = next;
+      },
+      verify: async (expected) => {
+        events.push(`verify:${expected}`);
+        if (expected === 'changed') {
+          throw new Error('synthetic changed-value mismatch');
+        }
+        expect(value).toBe(expected);
+      },
+      registerRestoration: () => {
+        events.push('register');
+      },
+    }),
+  ).rejects.toThrow(/changed-value mismatch/);
+
+  expect(value).toBe('original');
+  expect(events).toEqual([
+    'register',
+    'guard',
+    'mutate:changed',
+    'verify:changed',
+    'guard',
+    'mutate:original',
+    'verify:original',
+  ]);
+});
+
+test('reports both the action and exact restoration failure', async () => {
+  let mutationCount = 0;
+
+  await expect(
+    runRestoredSandboxSetting({
+      next: true,
+      assertSandbox: async () => {},
+      read: async () => false,
+      mutate: async () => {
+        mutationCount += 1;
+        if (mutationCount === 2) {
+          throw new Error('synthetic restoration failure');
+        }
+      },
+      verify: async () => {
+        if (mutationCount === 1) {
+          throw new Error('synthetic action failure');
+        }
+      },
+      registerRestoration: () => {},
+    }),
+  ).rejects.toMatchObject({
+    message: expect.stringMatching(/action and restoration/),
+    errors: [
+      expect.objectContaining({ message: 'synthetic action failure' }),
+      expect.objectContaining({ message: 'synthetic restoration failure' }),
+    ],
+  });
+});
+
+test('batch cleanup deletes same-name Teams by exact ID before shared absence checks', async ({
+  page,
+}) => {
+  const harness = await teamCleanupHarness(page);
+  const guardCalls: string[] = [];
+
+  await cleanupCapturedTeamBatch({
+    page,
+    requestContext: harness.requestContext,
+    assertSandbox: async () => {
+      guardCalls.push('guard');
+    },
+    created: harness.created,
+    detailEndpoint: harness.detailEndpoint,
+    collectionEndpoint: harness.collectionEndpoint,
+    uiPath: harness.uiPath,
+  });
+
+  expect(harness.exists.size).toBe(0);
+  expect(guardCalls).toEqual(['guard', 'guard']);
+  expect(harness.calls).toEqual([
+    `GET ${IDS.team}`,
+    `GET ${IDS.other}`,
+    `DELETE ${IDS.other}`,
+    `DELETE ${IDS.team}`,
+    'GET collection',
+  ]);
+});
+
+test('batch cleanup continues after one Team ownership GET error', async ({
+  page,
+}) => {
+  const harness = await teamCleanupHarness(page, {
+    detailStatus: { [IDS.team]: 500 },
+  });
+  let caught: unknown;
+
+  try {
+    await cleanupCapturedTeamBatch({
+      page,
+      requestContext: harness.requestContext,
+      assertSandbox: async () => {},
+      created: harness.created,
+      detailEndpoint: harness.detailEndpoint,
+      collectionEndpoint: harness.collectionEndpoint,
+      uiPath: harness.uiPath,
+    });
+  } catch (error) {
+    caught = error;
+  }
+
+  const messages = nestedErrorMessages(caught);
+  expect(messages.some((message) => message.includes(IDS.team))).toBe(true);
+  expect(messages.some((message) => message.includes(IDS.other))).toBe(false);
+  expect(harness.exists.has(IDS.team)).toBe(true);
+  expect(harness.exists.has(IDS.other)).toBe(false);
+  expect(harness.calls).toContain(`DELETE ${IDS.other}`);
+});
+
+test('batch cleanup continues after one Team DELETE error', async ({
+  page,
+}) => {
+  const harness = await teamCleanupHarness(page, {
+    deleteStatus: { [IDS.other]: 500 },
+  });
+  let caught: unknown;
+
+  try {
+    await cleanupCapturedTeamBatch({
+      page,
+      requestContext: harness.requestContext,
+      assertSandbox: async () => {},
+      created: harness.created,
+      detailEndpoint: harness.detailEndpoint,
+      collectionEndpoint: harness.collectionEndpoint,
+      uiPath: harness.uiPath,
+    });
+  } catch (error) {
+    caught = error;
+  }
+
+  const messages = nestedErrorMessages(caught);
+  expect(messages.some((message) => message.includes(IDS.other))).toBe(true);
+  expect(messages.some((message) => message.includes(IDS.team))).toBe(false);
+  expect(harness.exists.has(IDS.other)).toBe(true);
+  expect(harness.exists.has(IDS.team)).toBe(false);
+  expect(harness.calls).toContain(`DELETE ${IDS.team}`);
+});
+
+test('batch cleanup reports the exact ID of an uncaptured same-name Team residual', async ({
+  page,
+}) => {
+  const thirdId = '33333333-3333-4333-8333-333333333333';
+  const harness = await teamCleanupHarness(page, {
+    extraCollectionRows: [
+      teamBody({
+        id: thirdId,
+        name: TEAM_NAME,
+      }),
+    ],
+  });
+
+  await expect(
+    cleanupCapturedTeamBatch({
+      page,
+      requestContext: harness.requestContext,
+      assertSandbox: async () => {},
+      created: harness.created,
+      detailEndpoint: harness.detailEndpoint,
+      collectionEndpoint: harness.collectionEndpoint,
+      uiPath: harness.uiPath,
+    }),
+  ).rejects.toThrow(new RegExp(thirdId));
+
+  expect(harness.calls).not.toContain(`DELETE ${thirdId}`);
+});
+
+test('collector drains duplicate same-name Team 201 responses in request order', async ({
+  page,
+}) => {
+  await openSyntheticTeamPage(page);
+  let requestOrdinal = 0;
+  let confirmSecondAdmission = () => {};
+  const secondAdmission = new Promise<void>((resolve) => {
+    confirmSecondAdmission = resolve;
+  });
+  let releaseSecondResponse = () => {};
+  const secondResponse = new Promise<void>((resolve) => {
+    releaseSecondResponse = resolve;
+  });
+  await page.route(SYNTHETIC_TEAM_ENDPOINT, async (route) => {
+    const ordinal = requestOrdinal++;
+    if (ordinal === 1) {
+      confirmSecondAdmission();
+      await secondResponse;
+    }
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        teamBody({ id: ordinal === 0 ? IDS.team : IDS.other }),
+      ),
+    });
+  });
+  const registered: string[] = [];
+
+  const settling = captureWorkspaceTeamPosts({
+    page,
+    endpoint: SYNTHETIC_TEAM_ENDPOINT,
+    requestedName: TEAM_NAME,
+    register: async (created) => {
+      registered.push(created.id);
+    },
+    recoverRegistrationFailure: async () => {},
+    recoverRejectedExactId: async () => {},
+    quietMs: 30,
+    maxAdmissionMs: 500,
+    action: async () => {
+      await page.evaluate((endpoint) => {
+        void fetch(endpoint, { method: 'POST' });
+        void fetch(endpoint, { method: 'POST' });
+      }, SYNTHETIC_TEAM_ENDPOINT);
+    },
+  });
+
+  await secondAdmission;
+  releaseSecondResponse();
+  const capture = await settling;
+
+  expect(capture.attemptCount).toBe(2);
+  expect(capture.responseCount).toBe(2);
+  expect(capture.createdEntries).toEqual([
+    { requestOrdinal: 0, created: expect.objectContaining({ id: IDS.team }) },
+    { requestOrdinal: 1, created: expect.objectContaining({ id: IDS.other }) },
+  ]);
+  expect(registered).toEqual([IDS.team, IDS.other]);
+});
+
+test('collector reconciles a malformed Team 201 by its recoverable canonical ID', async ({
+  page,
+}) => {
+  await openSyntheticTeamPage(page);
+  await page.route(SYNTHETIC_TEAM_ENDPOINT, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        teamBody({ workspace: IDS.other }),
+      ),
+    });
+  });
+  const recovered: Array<{ id: string; name: string }> = [];
+
+  const capture = await captureWorkspaceTeamPosts({
+    page,
+    endpoint: SYNTHETIC_TEAM_ENDPOINT,
+    requestedName: TEAM_NAME,
+    register: async () => {
+      throw new Error('Malformed response must not register.');
+    },
+    recoverRegistrationFailure: async () => {},
+    recoverRejectedExactId: async (id, name) => {
+      recovered.push({ id, name });
+    },
+    quietMs: 30,
+    maxAdmissionMs: 300,
+    action: async () => {
+      await page.evaluate(
+        (endpoint) => fetch(endpoint, { method: 'POST' }),
+        SYNTHETIC_TEAM_ENDPOINT,
+      );
+    },
+  });
+
+  expect(capture.created).toEqual([]);
+  expect(capture.contractErrors).toEqual([
+    expect.objectContaining({
+      requestOrdinal: 0,
+      observedId: IDS.team,
+      exactId: IDS.team,
+    }),
+  ]);
+  expect(recovered).toEqual([{ id: IDS.team, name: TEAM_NAME }]);
+});
+
+test('collector immediately recovers an exact Team when registration fails', async ({
+  page,
+}) => {
+  await openSyntheticTeamPage(page);
+  await page.route(SYNTHETIC_TEAM_ENDPOINT, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(teamBody()),
+    });
+  });
+  const events: string[] = [];
+
+  const capture = await captureWorkspaceTeamPosts({
+    page,
+    endpoint: SYNTHETIC_TEAM_ENDPOINT,
+    requestedName: TEAM_NAME,
+    register: async () => {
+      events.push('register');
+      throw new Error('synthetic registration failure');
+    },
+    recoverRegistrationFailure: async (created) => {
+      events.push(`recover:${created.id}`);
+    },
+    recoverRejectedExactId: async () => {},
+    quietMs: 30,
+    maxAdmissionMs: 300,
+    action: async () => {
+      await page.evaluate(
+        (endpoint) => fetch(endpoint, { method: 'POST' }),
+        SYNTHETIC_TEAM_ENDPOINT,
+      );
+    },
+  });
+
+  expect(events).toEqual(['register', `recover:${IDS.team}`]);
+  expect(capture.created).toEqual([]);
+  expect(capture.registrationErrors).toHaveLength(1);
+});
+
+test('collector fails closed with the exact Team ID when registration recovery fails', async ({
+  page,
+}) => {
+  await openSyntheticTeamPage(page);
+  await page.route(SYNTHETIC_TEAM_ENDPOINT, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(teamBody()),
+    });
+  });
+
+  await expect(
+    captureWorkspaceTeamPosts({
+      page,
+      endpoint: SYNTHETIC_TEAM_ENDPOINT,
+      requestedName: TEAM_NAME,
+      register: async () => {
+        throw new Error('synthetic registration failure');
+      },
+      recoverRegistrationFailure: async () => {
+        throw new Error('synthetic recovery failure');
+      },
+      recoverRejectedExactId: async () => {},
+      quietMs: 30,
+      maxAdmissionMs: 300,
+      action: async () => {
+        await page.evaluate(
+          (endpoint) => fetch(endpoint, { method: 'POST' }),
+          SYNTHETIC_TEAM_ENDPOINT,
+        );
+      },
+    }),
+  ).rejects.toThrow(new RegExp(IDS.team));
+});
+
+test('collector records a failed Team request after server admission', async ({
+  page,
+}) => {
+  await openSyntheticTeamPage(page);
+  await page.route(SYNTHETIC_TEAM_ENDPOINT, async (route) => {
+    await route.abort('failed');
+  });
+
+  const capture = await captureWorkspaceTeamPosts({
+    page,
+    endpoint: SYNTHETIC_TEAM_ENDPOINT,
+    requestedName: TEAM_NAME,
+    register: async () => {},
+    recoverRegistrationFailure: async () => {},
+    recoverRejectedExactId: async () => {},
+    quietMs: 30,
+    maxAdmissionMs: 300,
+    action: async () => {
+      await page.evaluate(
+        (endpoint) =>
+          fetch(endpoint, { method: 'POST' }).catch(() => undefined),
+        SYNTHETIC_TEAM_ENDPOINT,
+      );
+    },
+  });
+
+  expect(capture.attemptCount).toBe(1);
+  expect(capture.responseCount).toBe(0);
+  expect(capture.failedAttempts).toEqual([
+    { requestOrdinal: 0, url: SYNTHETIC_TEAM_ENDPOINT },
+  ]);
+});

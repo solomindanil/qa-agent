@@ -1,0 +1,68 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+const inputPath = argument("--input");
+const correctionsPath = argument("--corrections");
+const outputPath = argument("--output");
+if (!inputPath || !correctionsPath || !outputPath) {
+  throw new TypeError("--input, --corrections and --output are required");
+}
+
+let text = await readFile(resolve(inputPath), "utf8");
+const document = JSON.parse(await readFile(resolve(correctionsPath), "utf8"));
+const groups = new Map();
+for (const correction of document.corrections ?? []) {
+  if (!Array.isArray(correction.replacementTokens) || correction.replacementTokens.length === 0) continue;
+  const values = groups.get(correction.rawToken) ?? [];
+  values.push(correction.replacementTokens);
+  groups.set(correction.rawToken, values);
+}
+
+const conflicts = [];
+const replacements = [];
+const uniqueGroups = [];
+for (const [rawToken, values] of [...groups].sort((left, right) => right[0].length - left[0].length)) {
+  const unique = [...new Map(values.map(value => [JSON.stringify(value), value])).values()];
+  if (unique.length !== 1) {
+    conflicts.push({ rawToken, replacements: unique });
+    continue;
+  }
+  const replacement = unique[0].join("; ");
+  uniqueGroups.push({ rawToken, replacementTokens: unique[0], replacement });
+  const pattern = new RegExp(`(?<![A-Za-z0-9_./-])${escapeRegExp(rawToken)}(?![A-Za-z0-9_./-])`, "g");
+  const count = [...text.matchAll(pattern)].length;
+  if (count > 0) {
+    text = text.replace(pattern, replacement);
+    replacements.push({ rawToken, replacement, count });
+  }
+}
+for (const group of uniqueGroups) {
+  const range = group.rawToken.match(/:(\d+(?:[-–]\d+)?)$/)?.[1];
+  if (!range) continue;
+  const lines = text.split("\n");
+  let changed = 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    const shorthand = new RegExp(`,${escapeRegExp(range)}\\+?`);
+    if (!shorthand.test(lines[index])) continue;
+    const filename = group.rawToken.replace(/:\d+(?:[-–]\d+)?$/, "").split("/").at(-1);
+    const replacementAlreadyPresent = group.replacementTokens.some(token => lines[index].includes(token));
+    if (!replacementAlreadyPresent && !lines[index].includes(filename)) continue;
+    lines[index] = lines[index].replace(shorthand, replacementAlreadyPresent ? "" : `; ${group.replacement}`);
+    changed += 1;
+  }
+  if (changed) {
+    text = lines.join("\n");
+    replacements.push({ rawToken: `${group.rawToken} (shorthand)`, replacement: group.replacement, count: changed });
+  }
+}
+await writeFile(resolve(outputPath), text, { mode: 0o600 });
+process.stdout.write(`${JSON.stringify({ replacements, conflicts }, null, 2)}\n`);
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}

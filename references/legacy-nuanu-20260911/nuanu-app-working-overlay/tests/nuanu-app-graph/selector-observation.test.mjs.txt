@@ -1,0 +1,582 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import test from "node:test";
+
+import {
+  assertSelectorObservation,
+} from "../../tools/nuanu-app-graph/runtime-contract.mjs";
+import {
+  produceSelectorObservation,
+} from "../../tools/nuanu-app-graph/selector-observation.mjs";
+import { normalizeRuntimeObservation } from "../../tools/nuanu-app-graph/runtime.mjs";
+
+function canonical(value) {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]));
+}
+
+function digest(value) {
+  return createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
+}
+
+function recomputeRuntimeDigest(catalog) {
+  const semantic = structuredClone(catalog);
+  delete semantic.capturedAt;
+  delete semantic.runtimeDigest;
+  return digest(semantic);
+}
+
+function capturePlan() {
+  const plan = {
+    schemaVersion: 1,
+    productId: "nuanu-app",
+    baseUrl: "https://app.nuanu.com",
+    steps: [
+      {
+        kind: "observe",
+        state: "root",
+        postcondition: { role: "application", name: "Synthetic shell" },
+      },
+      {
+        kind: "activate",
+        fromState: "root",
+        toState: "places",
+        purpose: "open_places",
+        target: { role: "link", name: "Synthetic places entry" },
+        postcondition: { role: "region", name: "Synthetic places surface" },
+      },
+    ],
+  };
+  return { ...plan, capturePlanDigest: digest(plan) };
+}
+
+function runtimeCatalog() {
+  return normalizeRuntimeObservation({
+    capturedAt: "2026-08-26T00:10:00.000Z",
+    routes: ["/", "/__napp_runtime_probe__"],
+    rootCandidates: { state: "root", route: "/", surfaces: [], controls: [], taxonomy: [] },
+    settle: {
+      status: "STABLE_EMPTY",
+      sampleCount: 2,
+      initialSnapshotEmpty: true,
+      candidateSnapshotDigest: "0d1bafc8d75bdc4d79b35ffd5265ff96270bf8d02fe2c88eb7b453d2574e398c",
+    },
+    probe: { route: "/__napp_runtime_probe__", status: 404 },
+    apiHosts: [], dependencies: [], manifest: {},
+  });
+}
+
+function fakeChromium({
+  recordsByState,
+  failNavigation = false,
+  popupOnTransition = false,
+  escapeOnTransition = false,
+  popupOnClose = false,
+  escapeOnClose = false,
+  countOverrides = new Map(),
+} = {}) {
+  const events = [];
+  let routeHandler;
+  let state = "root";
+  let currentUrl = "about:blank";
+  let activePages = [];
+  const pageListeners = [];
+  const mainFrame = {};
+  const blocked = [];
+  const transitions = new Map([
+    ["link\u0000Synthetic places entry", "places"],
+  ]);
+  const context = {
+    on(event, listener) {
+      assert.equal(event, "page");
+      pageListeners.push(listener);
+    },
+    pages() {
+      return [...activePages];
+    },
+    async route(pattern, handler) {
+      events.push(`guard:${pattern}`);
+      routeHandler = handler;
+    },
+    async newPage() {
+      events.push("new-page");
+      activePages = [page];
+      return page;
+    },
+  };
+  const page = {
+    context: () => context,
+    mainFrame: () => mainFrame,
+    async goto(url) {
+      events.push(`goto:${url}`);
+      if (failNavigation) throw new Error("synthetic navigation failure");
+      currentUrl = url;
+      for (const [method, rawUrl] of [
+        ["POST", "https://app.nuanu.com/write?token=not-retained"],
+        ["POST", "https://app.nuanu.com/%2574oken%253Dnot-retained"],
+        ["POST", `https://app.nuanu.com/${"a".repeat(64)}`],
+        ["POST", "https://app.nuanu.com/%ZZ"],
+        ["REPORT", "https://app.nuanu.com/method-evidence"],
+        ["tokenMethod", "https://app.nuanu.com/method-evidence"],
+        ["abcdefgh.abcdefgh.abcdefgh", "https://app.nuanu.com/method-evidence"],
+        ["a".repeat(64), "https://app.nuanu.com/method-evidence"],
+        ["QWxhZGRpbjpvcGVuIHNlc2FtZTEyMzQ1Njc4OTA=", "https://app.nuanu.com/method-evidence"],
+        ["POST\u0000secret", "https://app.nuanu.com/method-evidence"],
+      ]) {
+        const request = { method: () => method, url: () => rawUrl };
+        await routeHandler({
+          request: () => request,
+          abort: async () => blocked.push(`${method} ${rawUrl}`),
+          continue: async () => { throw new Error("unsafe write continued"); },
+        });
+      }
+    },
+    url: () => currentUrl,
+    getByRole(role, options) {
+      assert.deepEqual(Object.keys(options), ["name", "exact"]);
+      assert.equal(options.exact, true);
+      const key = `${role}\u0000${options.name}`;
+      return {
+        async count() {
+          events.push(`count:${state}:${key}`);
+          const overrideKey = `${state}\u0000${key}`;
+          if (countOverrides.has(overrideKey)) return countOverrides.get(overrideKey);
+          return (recordsByState[state] ?? []).filter(
+            (record) => record.role === role && record.name === options.name,
+          ).length;
+        },
+        async click() {
+          events.push(`click:${state}:${key}`);
+          const next = transitions.get(key);
+          if (!next) throw new Error("unreviewed synthetic transition");
+          if (popupOnTransition) {
+            const popup = {
+              async close() {
+                events.push("popup-close");
+                activePages = activePages.filter((candidate) => candidate !== popup);
+              },
+            };
+            activePages.push(popup);
+            for (const listener of pageListeners) listener(popup);
+          }
+          if (escapeOnTransition) {
+            const request = {
+              method: () => "GET",
+              url: () => "https://outside.invalid/escape?credential=not-retained",
+              isNavigationRequest: () => true,
+              frame: () => mainFrame,
+            };
+            await routeHandler({
+              request: () => request,
+              abort: async () => blocked.push("GET https://outside.invalid/escape"),
+              continue: async () => { currentUrl = request.url(); },
+            });
+          }
+          state = next;
+        },
+      };
+    },
+  };
+  const browser = {
+    async newContext(options) {
+      events.push(`context:${JSON.stringify(options)}`);
+      return context;
+    },
+    async close() {
+      if (popupOnClose) {
+        const popup = {
+          async close() {
+            events.push("shutdown-popup-close");
+            activePages = activePages.filter((candidate) => candidate !== popup);
+          },
+        };
+        activePages.push(popup);
+        for (const listener of pageListeners) listener(popup);
+      }
+      if (escapeOnClose) {
+        const request = {
+          method: () => "GET",
+          url: () => "https://outside.invalid/shutdown-escape?credential=not-retained",
+          isNavigationRequest: () => true,
+          frame: () => mainFrame,
+        };
+        await routeHandler({
+          request: () => request,
+          abort: async () => blocked.push("GET https://outside.invalid/shutdown-escape"),
+          continue: async () => { currentUrl = request.url(); },
+        });
+      }
+      events.push("close");
+    },
+  };
+  return {
+    chromium: { async launch() { events.push("launch"); return browser; } },
+    events,
+    blocked,
+    readAccessibleRecords: async () => structuredClone(recordsByState[state] ?? []),
+  };
+}
+
+const singletonRecords = {
+  root: [
+    { role: "application", name: "Synthetic shell" },
+    { role: "searchbox", name: "Synthetic search" },
+    { role: "link", name: "Synthetic places entry" },
+  ],
+  places: [
+    { role: "region", name: "Synthetic places surface" },
+    { role: "article", name: "Synthetic place card" },
+  ],
+};
+
+test("producer installs the guard before navigation and attributes records only after exact postconditions", async () => {
+  const fake = fakeChromium({ recordsByState: singletonRecords });
+  const catalog = runtimeCatalog();
+  const plan = capturePlan();
+  const observation = await produceSelectorObservation({
+    chromium: fake.chromium,
+    catalog,
+    capturePlan: plan,
+    now: () => new Date("2026-08-26T00:15:00.000Z"),
+    readAccessibleRecords: fake.readAccessibleRecords,
+  });
+
+  assert.equal(fake.events.indexOf("guard:**/*") < fake.events.indexOf("goto:https://app.nuanu.com/"), true);
+  assert.equal(fake.events.at(-1), "close");
+  assert.equal(fake.blocked.length, 10);
+  assert.equal(fake.events.indexOf("count:root:application\u0000Synthetic shell") <
+    fake.events.indexOf("count:root:link\u0000Synthetic places entry"), true);
+  assert.deepEqual(observation.states.map((entry) => entry.state), ["places", "root"]);
+  assert.equal(observation.mutationLedger.records[0].originAndPath, "https://app.nuanu.com/write");
+  assert.deepEqual(observation.mutationLedger.records.slice(1).map((record) => record.originAndPath), [
+    "https://app.nuanu.com/[redacted]",
+    "https://app.nuanu.com/[redacted]",
+    "https://app.nuanu.com/[redacted]",
+    "https://app.nuanu.com/method-evidence",
+  ]);
+  assert.deepEqual(observation.mutationLedger.records.map((record) => record.method), [
+    "POST", "POST", "POST", "POST", "OTHER",
+  ]);
+  assert.equal(JSON.stringify(observation).includes("token="), false);
+  assert.equal(JSON.stringify(observation).includes("%2574oken"), false);
+  assert.equal(JSON.stringify(observation).includes("a".repeat(64)), false);
+  assert.equal(JSON.stringify(observation).includes("tokenMethod"), false);
+  assert.equal(JSON.stringify(observation).includes("abcdefgh.abcdefgh.abcdefgh"), false);
+  assert.equal(JSON.stringify(observation).includes("QWxhZGRpb"), false);
+  assertSelectorObservation(observation, {
+    catalog,
+    capturePlan: plan,
+    now: new Date("2026-08-26T00:20:00.000Z"),
+  });
+});
+
+test("duplicate state postcondition yields explicit ambiguity and no verified state", async () => {
+  const duplicate = structuredClone(singletonRecords);
+  duplicate.root.push({ role: "application", name: "Synthetic shell" });
+  const fake = fakeChromium({ recordsByState: duplicate });
+  const catalog = runtimeCatalog();
+  const plan = capturePlan();
+  const observation = await produceSelectorObservation({
+    chromium: fake.chromium,
+    catalog,
+    capturePlan: plan,
+    now: () => new Date("2026-08-26T00:15:00.000Z"),
+    readAccessibleRecords: fake.readAccessibleRecords,
+  });
+
+  assert.deepEqual(observation.states, []);
+  assert.equal(observation.ambiguities.length, 1);
+  assert.equal(observation.ambiguities[0].matchCount, 2);
+  assert.deepEqual(observation.limitations, [{
+    state: "root",
+    reason: "AMBIGUOUS_ROLE_NAME",
+    evidenceId: observation.ambiguities[0].evidenceId,
+    matchCount: 2,
+  }]);
+  assert.equal(fake.events.some((event) => event.startsWith("click:")), false);
+
+  const singleton = fakeChromium({ recordsByState: singletonRecords });
+  const accepted = await produceSelectorObservation({
+    chromium: singleton.chromium,
+    catalog,
+    capturePlan: plan,
+    now: () => new Date("2026-08-26T00:15:00.000Z"),
+    readAccessibleRecords: singleton.readAccessibleRecords,
+  });
+  assert.notEqual(observation.ambiguities[0].evidenceId, accepted.states[1].postcondition.evidenceId);
+  assert.notEqual(observation.observationDigest, accepted.observationDigest);
+});
+
+test("zero postcondition yields STATE_NOT_OBSERVED without state-bound candidates", async () => {
+  const missing = structuredClone(singletonRecords);
+  missing.root = missing.root.filter((record) => record.role !== "application");
+  const fake = fakeChromium({ recordsByState: missing });
+  const observation = await produceSelectorObservation({
+    chromium: fake.chromium,
+    catalog: runtimeCatalog(),
+    capturePlan: capturePlan(),
+    now: () => new Date("2026-08-26T00:15:00.000Z"),
+    readAccessibleRecords: fake.readAccessibleRecords,
+  });
+
+  assert.deepEqual(observation.states, []);
+  assert.deepEqual(observation.ambiguities, []);
+  assert.deepEqual(observation.limitations, [{ state: "root", reason: "STATE_NOT_OBSERVED" }]);
+});
+
+test("capture plan rejects prohibited purposes and names before browser launch", async () => {
+  for (const mutate of [
+    (plan) => { plan.steps[1].purpose = "submit_registration"; },
+    (plan) => { plan.steps[1].target.name = "Synthetic payment submission"; },
+    (plan) => { delete plan.steps[1].postcondition; },
+  ]) {
+    const plan = capturePlan();
+    mutate(plan);
+    plan.capturePlanDigest = digest(Object.fromEntries(Object.entries(plan).filter(([key]) => key !== "capturePlanDigest")));
+    const fake = fakeChromium({ recordsByState: singletonRecords });
+    await assert.rejects(
+      () => produceSelectorObservation({
+        chromium: fake.chromium,
+        catalog: runtimeCatalog(),
+        capturePlan: plan,
+        readAccessibleRecords: fake.readAccessibleRecords,
+      }),
+      { code: "RUNTIME_CONTRACT_SCHEMA_MISMATCH" },
+    );
+    assert.deepEqual(fake.events, []);
+  }
+});
+
+test("capture plan rejects destructive action verb variants before browser launch", async () => {
+  for (const name of [
+    "Pay now",
+    "Purchase",
+    "Checkout",
+    "Book now",
+    "Reserve now",
+    "Delete account",
+    "Account deletion",
+    "Remove account",
+    "Account removal",
+    "Save profile",
+    "Profile save",
+    "Update profile",
+    "Profile update",
+    "Submit sign-up",
+    "Sign-up submission",
+  ]) {
+    const plan = capturePlan();
+    plan.steps[1].target.name = name;
+    plan.capturePlanDigest = digest(Object.fromEntries(
+      Object.entries(plan).filter(([key]) => key !== "capturePlanDigest"),
+    ));
+    const fake = fakeChromium({ recordsByState: singletonRecords });
+    await assert.rejects(
+      () => produceSelectorObservation({
+        chromium: fake.chromium,
+        catalog: runtimeCatalog(),
+        capturePlan: plan,
+        readAccessibleRecords: fake.readAccessibleRecords,
+      }),
+      { code: "RUNTIME_CONTRACT_SCHEMA_MISMATCH" },
+    );
+    assert.deepEqual(fake.events, []);
+  }
+});
+
+test("capture plan enforces one initial root observation and a linear current-state transition chain", async () => {
+  const invalidPlans = [
+    (plan) => {
+      plan.steps.push({
+        kind: "observe",
+        state: "places",
+        postcondition: { role: "region", name: "Synthetic places surface" },
+      });
+    },
+    (plan) => {
+      plan.steps.push({
+        kind: "activate",
+        fromState: "root",
+        toState: "map",
+        purpose: "open_map",
+        target: { role: "link", name: "Synthetic map entry" },
+        postcondition: { role: "region", name: "Synthetic map surface" },
+      });
+    },
+    (plan) => {
+      plan.steps[0].postcondition.name = "Synthetic payment state";
+    },
+  ];
+
+  for (const mutate of invalidPlans) {
+    const plan = capturePlan();
+    mutate(plan);
+    plan.capturePlanDigest = digest(Object.fromEntries(
+      Object.entries(plan).filter(([key]) => key !== "capturePlanDigest"),
+    ));
+    const fake = fakeChromium({ recordsByState: singletonRecords });
+    await assert.rejects(
+      () => produceSelectorObservation({
+        chromium: fake.chromium,
+        catalog: runtimeCatalog(),
+        capturePlan: plan,
+        readAccessibleRecords: fake.readAccessibleRecords,
+      }),
+      { code: "RUNTIME_CONTRACT_SCHEMA_MISMATCH" },
+    );
+    assert.deepEqual(fake.events, []);
+  }
+});
+
+test("producer rejects sparse unknown nested-malformed or digest-drifted catalogs before browser launch", async () => {
+  const cases = [
+    {
+      catalog: {
+        productId: "nuanu-app",
+        capturedAt: "2026-08-26T00:10:00.000Z",
+        runtimeDigest: digest({ productId: "nuanu-app" }),
+      },
+      code: "RUNTIME_CONTRACT_SCHEMA_MISMATCH",
+    },
+    {
+      catalog: (() => {
+        const value = runtimeCatalog();
+        value.unknown = true;
+        value.runtimeDigest = recomputeRuntimeDigest(value);
+        return value;
+      })(),
+      code: "RUNTIME_CONTRACT_SCHEMA_MISMATCH",
+    },
+    {
+      catalog: (() => {
+        const value = runtimeCatalog();
+        value.deployment.unknown = true;
+        value.runtimeDigest = recomputeRuntimeDigest(value);
+        return value;
+      })(),
+      code: "RUNTIME_CONTRACT_SCHEMA_MISMATCH",
+    },
+    {
+      catalog: (() => {
+        const value = runtimeCatalog();
+        value.runtimeDigest = "f".repeat(64);
+        return value;
+      })(),
+      code: "RUNTIME_CONTRACT_DIGEST_MISMATCH",
+    },
+  ];
+  for (const { catalog, code } of cases) {
+    const fake = fakeChromium({ recordsByState: singletonRecords });
+    await assert.rejects(
+      () => produceSelectorObservation({
+        chromium: fake.chromium,
+        catalog,
+        capturePlan: capturePlan(),
+        readAccessibleRecords: fake.readAccessibleRecords,
+      }),
+      { code },
+    );
+    assert.deepEqual(fake.events, []);
+  }
+});
+
+test("transition target count must be a safe integer inside the bounded domain", async () => {
+  for (const invalidCount of [-1, 1.5, 65536, Number.NaN]) {
+    const key = "root\u0000link\u0000Synthetic places entry";
+    const fake = fakeChromium({
+      recordsByState: singletonRecords,
+      countOverrides: new Map([[key, invalidCount]]),
+    });
+    await assert.rejects(
+      () => produceSelectorObservation({
+        chromium: fake.chromium,
+        catalog: runtimeCatalog(),
+        capturePlan: capturePlan(),
+        readAccessibleRecords: fake.readAccessibleRecords,
+      }),
+      { code: "RUNTIME_SELECTOR_OBSERVATION_MISMATCH" },
+    );
+    assert.equal(fake.events.at(-1), "close");
+  }
+});
+
+test("producer immediately closes and rejects every popup or additional page before attributing the transition", async () => {
+  const fake = fakeChromium({
+    recordsByState: singletonRecords,
+    popupOnTransition: true,
+  });
+
+  await assert.rejects(
+    () => produceSelectorObservation({
+      chromium: fake.chromium,
+      catalog: runtimeCatalog(),
+      capturePlan: capturePlan(),
+      readAccessibleRecords: fake.readAccessibleRecords,
+    }),
+    { code: "RUNTIME_SELECTOR_OBSERVATION_MISMATCH" },
+  );
+
+  assert.ok(fake.events.includes("popup-close"));
+  assert.equal(fake.events.some((event) =>
+    event === "count:places:region\u0000Synthetic places surface"), false);
+  assert.equal(fake.events.at(-1), "close");
+});
+
+test("producer aborts and rejects a safe-method main-frame origin escape even when the main page URL stays approved", async () => {
+  const fake = fakeChromium({
+    recordsByState: singletonRecords,
+    escapeOnTransition: true,
+  });
+
+  await assert.rejects(
+    () => produceSelectorObservation({
+      chromium: fake.chromium,
+      catalog: runtimeCatalog(),
+      capturePlan: capturePlan(),
+      readAccessibleRecords: fake.readAccessibleRecords,
+    }),
+    { code: "RUNTIME_SELECTOR_OBSERVATION_MISMATCH" },
+  );
+
+  assert.ok(fake.blocked.includes("GET https://outside.invalid/escape"));
+  assert.equal(fake.events.some((event) =>
+    event === "count:places:region\u0000Synthetic places surface"), false);
+  assert.equal(fake.events.at(-1), "close");
+});
+
+test("producer rejects popup and main-frame origin escape signals delivered during browser shutdown", async () => {
+  const fake = fakeChromium({
+    recordsByState: singletonRecords,
+    popupOnClose: true,
+    escapeOnClose: true,
+  });
+
+  await assert.rejects(
+    () => produceSelectorObservation({
+      chromium: fake.chromium,
+      catalog: runtimeCatalog(),
+      capturePlan: capturePlan(),
+      readAccessibleRecords: fake.readAccessibleRecords,
+    }),
+    { code: "RUNTIME_SELECTOR_OBSERVATION_MISMATCH" },
+  );
+
+  assert.ok(fake.events.includes("shutdown-popup-close"));
+  assert.ok(fake.blocked.includes("GET https://outside.invalid/shutdown-escape"));
+  assert.equal(fake.events.at(-1), "close");
+});
+
+test("producer closes the browser on navigation failure", async () => {
+  const fake = fakeChromium({ recordsByState: singletonRecords, failNavigation: true });
+  await assert.rejects(
+    () => produceSelectorObservation({
+      chromium: fake.chromium,
+      catalog: runtimeCatalog(),
+      capturePlan: capturePlan(),
+      readAccessibleRecords: fake.readAccessibleRecords,
+    }),
+    /synthetic navigation failure/,
+  );
+  assert.equal(fake.events.at(-1), "close");
+});

@@ -1,0 +1,124 @@
+import { expect, test } from '@playwright/test';
+import type { ReviewedRuntimeContract, RuntimeSelectorKey } from '../../../tools/nuanu-app-graph/runtime-contract.mjs';
+import { collectEligibleAccessibleRecords } from '../../../tools/nuanu-app-graph/selector-observation.mjs';
+import { DiscoveryPage } from '../pages/discovery.page';
+
+const unavailable = {
+  status: 'UNVERIFIED',
+  reason: 'STATE_NOT_OBSERVED',
+} as const;
+
+const selectors: ReviewedRuntimeContract['selectors'] = {
+  applicationShell: { status: 'AVAILABLE', role: 'application', name: 'Synthetic shell', evidenceId: '1'.repeat(64), matchCount: 1 },
+  searchInput: { status: 'AVAILABLE', role: 'searchbox', name: 'Synthetic search', evidenceId: '2'.repeat(64), matchCount: 1 },
+  openNowControl: { status: 'AVAILABLE', role: 'checkbox', name: 'Synthetic open control', evidenceId: '3'.repeat(64), matchCount: 1 },
+  placesNavigation: { status: 'AVAILABLE', role: 'link', name: 'Synthetic places entry', evidenceId: '4'.repeat(64), matchCount: 1 },
+  mapNavigation: { status: 'AVAILABLE', role: 'link', name: 'Synthetic map entry', evidenceId: '5'.repeat(64), matchCount: 1 },
+  profileNavigation: { status: 'AVAILABLE', role: 'link', name: 'Synthetic profile entry', evidenceId: '6'.repeat(64), matchCount: 1 },
+  mapSurface: { status: 'AVAILABLE', role: 'region', name: 'Synthetic map surface', evidenceId: '7'.repeat(64), matchCount: 1 },
+  mapMarker: { status: 'AVAILABLE', role: 'button', name: 'Synthetic map marker', evidenceId: '8'.repeat(64), matchCount: 1 },
+  placeList: unavailable,
+  placeCard: { status: 'AVAILABLE', role: 'article', name: 'Synthetic place card', evidenceId: '9'.repeat(64), matchCount: 1 },
+  categoryGroup: unavailable,
+  collectionGroup: unavailable,
+  placeDetail: unavailable,
+  placeDetailClose: unavailable,
+  showOnMapAction: unavailable,
+  callAction: unavailable,
+  authEntry: unavailable,
+  updatePrompt: unavailable,
+  signUpAction: unavailable,
+  signInAction: unavailable,
+  emailInput: unavailable,
+  passwordInput: unavailable,
+  forgotPasswordAction: unavailable,
+  appleProviderAction: unavailable,
+  googleProviderAction: unavailable,
+  privacyAction: unavailable,
+};
+
+const contract: ReviewedRuntimeContract = {
+  schemaVersion: 1,
+  productId: 'nuanu-app',
+  baseUrl: 'https://app.nuanu.com',
+  observedAt: '2026-08-26T00:10:00.000Z',
+  observationDigest: 'a'.repeat(64),
+  selectorEvidence: {
+    observedAt: '2026-08-26T00:10:00.000Z',
+    observationDigest: 'b'.repeat(64),
+    capturePlanDigest: 'c'.repeat(64),
+    bindingDigest: 'd'.repeat(64),
+  },
+  selectors,
+  inventory: { categories: [], collections: [] },
+};
+
+test('NAPP-CONTRACT-001 synthetic runtime contract drives unique exact role-name discovery locators without network', async ({ page }) => {
+  let escapedRequests = 0;
+  await page.route('**/*', async (route) => {
+    escapedRequests += 1;
+    await route.abort('blockedbyclient');
+  });
+  await page.setContent(`
+    <main role="application" aria-label="Synthetic shell">
+      <label for="synthetic-search">Synthetic search</label>
+      <input id="synthetic-search" role="searchbox" />
+      <label><input type="checkbox" />Synthetic open control</label>
+      <a href="#places">Synthetic places entry</a>
+      <a href="#map">Synthetic map entry</a>
+      <a href="#profile">Synthetic profile entry</a>
+      <section role="region" aria-label="Synthetic map surface"></section>
+      <button aria-label="Synthetic map marker"></button>
+      <article aria-label="Synthetic place card"></article>
+    </main>
+  `);
+
+  const discovery = new DiscoveryPage(page, contract);
+  const readyKeys: RuntimeSelectorKey[] = [
+    'applicationShell', 'searchInput', 'openNowControl', 'placesNavigation',
+    'mapNavigation', 'profileNavigation', 'mapSurface', 'mapMarker', 'placeCard',
+  ];
+  for (const key of readyKeys) {
+    const gate = await discovery.unique(key);
+    expect(gate.status).toBe('READY');
+    if (gate.status === 'READY') await expect(gate.locator).toHaveCount(1);
+  }
+
+  await page.getByRole('application', { name: 'Synthetic shell', exact: true }).evaluate((shell) => {
+    const duplicate = document.createElement('button');
+    duplicate.setAttribute('aria-label', 'Synthetic map marker');
+    shell.append(duplicate);
+  });
+  expect(await discovery.unique('mapMarker')).toEqual({
+    status: 'UNVERIFIED',
+    reason: 'RUNTIME_SELECTOR_DUPLICATE',
+  });
+  expect(await discovery.unique('privacyAction')).toEqual({
+    status: 'UNVERIFIED',
+    reason: 'RUNTIME_SELECTOR_UNAVAILABLE',
+  });
+
+  await page.setContent(`
+    <main role="application" aria-label="Synthetic shell">
+      <button aria-label="Synthetic eligible candidate"></button>
+      <button aria-label="Synthetic hidden candidate" hidden></button>
+      <div aria-hidden="true"><button aria-label="Synthetic hidden descendant"></button></div>
+      <div role="presentation" aria-label="Synthetic presentation candidate"></div>
+      <button role="heading" aria-label="Synthetic conflicting candidate"></button>
+    </main>
+  `);
+  expect(await collectEligibleAccessibleRecords(page)).toEqual([
+    { role: 'application', name: 'Synthetic shell', matchCount: 1 },
+    { role: 'button', name: 'Synthetic eligible candidate', matchCount: 1 },
+  ]);
+  await page.getByRole('application', { name: 'Synthetic shell', exact: true }).evaluate((shell) => {
+    const duplicate = document.createElement('button');
+    duplicate.setAttribute('aria-label', 'Synthetic eligible candidate');
+    shell.append(duplicate);
+  });
+  expect(await collectEligibleAccessibleRecords(page)).toEqual([
+    { role: 'application', name: 'Synthetic shell', matchCount: 1 },
+    { role: 'button', name: 'Synthetic eligible candidate', matchCount: 2 },
+  ]);
+  expect(escapedRequests).toBe(0);
+});

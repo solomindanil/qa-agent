@@ -1,0 +1,14 @@
+import { scanSensitive, validateRepository, verifySnapshot, verifyViews } from "../src/repository.mjs";
+
+const root = process.cwd();
+const sourceRoot = argument("--source-root");
+const validation = await validateRepository(root, sourceRoot ? { sourceRoot } : undefined);
+const snapshot = await verifySnapshot(root);
+const views = await verifyViews(root);
+const sensitive = await scanSensitive(root);
+process.stdout.write(`${JSON.stringify({ ok: true, validation, snapshot, views, sensitive })}\n`);
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}

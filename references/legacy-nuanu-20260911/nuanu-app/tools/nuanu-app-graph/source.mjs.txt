@@ -1,0 +1,316 @@
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import { lstat, readdir, readFile, realpath } from "node:fs/promises";
+import { isAbsolute, relative, resolve, sep } from "node:path";
+import { promisify } from "node:util";
+
+import { PRODUCT_ID } from "./model.mjs";
+
+const execFileAsync = promisify(execFile);
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+const COMMIT_SHA = /^[0-9a-f]{40}$/;
+const GLOB_CHARACTERS = /[*?\[\]{}]|[!+@*?]\(/;
+const EDGE_KINDS = new Set([
+  "implements",
+  "renders",
+  "exposes",
+  "traverses",
+  "calls",
+  "requires",
+  "guarded_by",
+  "has_risk",
+  "verifies",
+  "supports",
+  "affects",
+]);
+
+function sourceError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function validationError(code, path, message) {
+  return { code, path, message };
+}
+
+function compareCodeUnits(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function isObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isProductId(value) {
+  return typeof value === "string" && value.startsWith(`${PRODUCT_ID}:`);
+}
+
+function hasForeignNamespace(value) {
+  if (typeof value !== "string") return false;
+  const match = /^([a-z][a-z0-9-]*):/i.exec(value);
+  return Boolean(match && match[1] !== PRODUCT_ID);
+}
+
+function isRepositoryRelativePath(value) {
+  if (typeof value !== "string" || !value || isAbsolute(value) || value.includes("\\")) return false;
+  if (GLOB_CHARACTERS.test(value)) return false;
+  const segments = value.split("/");
+  return !segments.some((segment) => !segment || segment === "." || segment === "..");
+}
+
+function isWithinPath(path, root) {
+  return path === root || path.startsWith(`${root}/`);
+}
+
+function validateMappingPath(value, path, sourceRoots, errors, requireSourceRoot = true) {
+  if (!isRepositoryRelativePath(value)) {
+    errors.push(validationError("INVALID_MAPPING_PATH", path, "Path must be an exact repository-relative path"));
+    return;
+  }
+  if (requireSourceRoot && !sourceRoots.some((root) => isWithinPath(value, root))) {
+    errors.push(validationError("FOREIGN_MAPPING_PATH", path, "Path must be under a declared source root"));
+  }
+}
+
+function validateProductId(value, path, errors, code) {
+  if (hasForeignNamespace(value)) {
+    errors.push(validationError("FOREIGN_PRODUCT_NAMESPACE", path, `ID must use the ${PRODUCT_ID} namespace`));
+  } else if (!isProductId(value)) {
+    errors.push(validationError(code, path, `ID must use the ${PRODUCT_ID} namespace`));
+  }
+}
+
+function resolveCatalogPaths(sourceRoots) {
+  if (!Array.isArray(sourceRoots) || sourceRoots.length === 0) return null;
+  const normalized = [];
+  for (const sourceRoot of sourceRoots) {
+    if (!isRepositoryRelativePath(sourceRoot)) return null;
+    normalized.push(sourceRoot);
+  }
+  return [...new Set(normalized)].sort(compareCodeUnits);
+}
+
+function validateEdges(edges, path, errors) {
+  if (!Array.isArray(edges)) {
+    errors.push(validationError("INVALID_MAPPING_EDGES", path, "edges must be an array"));
+    return;
+  }
+  edges.forEach((edge, index) => {
+    const edgePath = `${path}[${index}]`;
+    if (!isObject(edge)) {
+      errors.push(validationError("INVALID_MAPPING_EDGE", edgePath, "Edge must be an object"));
+      return;
+    }
+    validateProductId(edge.source, `${edgePath}.source`, errors, "INVALID_NODE_ID");
+    validateProductId(edge.target, `${edgePath}.target`, errors, "INVALID_NODE_ID");
+    if (!EDGE_KINDS.has(edge.kind)) {
+      errors.push(validationError("INVALID_EDGE_KIND", `${edgePath}.kind`, "Edge kind is not allowed"));
+    }
+  });
+}
+
+async function git(repoPath, args) {
+  try {
+    const { stdout } = await execFileAsync("git", args, { cwd: repoPath });
+    return stdout.trim();
+  } catch (error) {
+    throw sourceError("GIT_INSPECTION_FAILED", `Unable to inspect Git checkout: ${error.message}`);
+  }
+}
+
+function isContained(realPath, realRoot) {
+  const result = relative(realRoot, realPath);
+  return result === "" || (!result.startsWith(`..${sep}`) && result !== ".." && !isAbsolute(result));
+}
+
+async function resolveSourceRoots(repoPath, sourceRoots) {
+  if (!Array.isArray(sourceRoots) || sourceRoots.length === 0) {
+    throw sourceError("INVALID_SOURCE_ROOT", "At least one source root is required");
+  }
+
+  const realRepositoryPath = await realpath(repoPath);
+  const roots = [];
+  for (const sourceRoot of [...new Set(sourceRoots)].sort(compareCodeUnits)) {
+    if (!isRepositoryRelativePath(sourceRoot)) {
+      throw sourceError("INVALID_SOURCE_ROOT", "Source roots must be exact repository-relative paths");
+    }
+    const resolvedRoot = resolve(realRepositoryPath, sourceRoot);
+    let realSourceRoot;
+    try {
+      realSourceRoot = await realpath(resolvedRoot);
+    } catch (error) {
+      throw sourceError("INVALID_SOURCE_ROOT", `Cannot resolve source root ${sourceRoot}: ${error.message}`);
+    }
+    if (!isContained(realSourceRoot, realRepositoryPath)) {
+      throw sourceError("INVALID_SOURCE_ROOT", "Source root resolves outside the repository");
+    }
+    roots.push({ sourceRoot, realSourceRoot });
+  }
+  return { realRepositoryPath, roots: roots.sort((left, right) => compareCodeUnits(left.sourceRoot, right.sourceRoot)) };
+}
+
+async function collectRegularFiles(rootPath, repositoryPath) {
+  const entry = await lstat(rootPath);
+  if (entry.isFile()) return [rootPath];
+  if (!entry.isDirectory()) return [];
+
+  const files = [];
+  const entries = await readdir(rootPath, { withFileTypes: true });
+  for (const child of entries) {
+    const childPath = resolve(rootPath, child.name);
+    if (child.isFile()) {
+      files.push(childPath);
+    } else if (child.isDirectory()) {
+      files.push(...await collectRegularFiles(childPath, repositoryPath));
+    }
+  }
+  return files.filter((filePath) => isContained(filePath, repositoryPath));
+}
+
+async function contentDigest(roots, repositoryPath) {
+  const files = [];
+  for (const root of roots) files.push(...await collectRegularFiles(root.realSourceRoot, repositoryPath));
+  const uniqueFiles = [...new Set(files)]
+    .map((filePath) => ({
+      filePath,
+      repositoryRelativePath: relative(repositoryPath, filePath).split(sep).join("/"),
+    }))
+    .sort((left, right) => compareCodeUnits(left.repositoryRelativePath, right.repositoryRelativePath));
+  const digest = createHash("sha256");
+  for (const { filePath, repositoryRelativePath } of uniqueFiles) {
+    digest.update(repositoryRelativePath).update("\0").update(await readFile(filePath)).update("\0");
+  }
+  return digest.digest("hex");
+}
+
+/**
+ * Attest the exact local source files used to produce a Nuanu App graph.
+ */
+export async function buildSourceLock({
+  repoPath,
+  sourceRoots,
+  expectedRemote,
+  mappingDigest,
+  requireClean = true,
+} = {}) {
+  if (!SHA256_HEX.test(mappingDigest)) {
+    throw sourceError("INVALID_MAPPING_DIGEST", "mappingDigest must be a 64-character lowercase SHA-256 digest");
+  }
+  const { realRepositoryPath, roots } = await resolveSourceRoots(repoPath, sourceRoots);
+  const repositoryRoot = await git(repoPath, ["rev-parse", "--show-toplevel"]);
+  if (await realpath(repositoryRoot) !== realRepositoryPath) {
+    throw sourceError("INVALID_REPOSITORY_PATH", "repoPath must identify the repository root");
+  }
+  const commitSha = await git(repoPath, ["rev-parse", "HEAD"]);
+  if (!COMMIT_SHA.test(commitSha)) {
+    throw sourceError("INVALID_COMMIT_SHA", "Git HEAD must resolve to a full SHA-1 commit");
+  }
+  const repositoryUrl = await git(repoPath, ["remote", "get-url", "origin"]);
+  if (repositoryUrl !== expectedRemote) {
+    throw sourceError("UNEXPECTED_REMOTE", "Git origin does not match expectedRemote");
+  }
+  const clean = (await git(repoPath, [
+    "status",
+    "--porcelain",
+    "--untracked-files=all",
+    "--ignore-submodules=none",
+  ])).length === 0;
+  if (requireClean && !clean) {
+    throw sourceError("DIRTY_CHECKOUT", "Git checkout must be clean");
+  }
+
+  return {
+    productId: PRODUCT_ID,
+    repositoryUrl,
+    commitSha,
+    clean,
+    sourceRoots: roots.map((root) => root.sourceRoot),
+    contentDigest: await contentDigest(roots, realRepositoryPath),
+    mappingDigest,
+  };
+}
+
+/**
+ * Validate the reviewed, source-only mappings before they are digested and locked.
+ */
+export function validateMappings(mappings, catalogInput = {}) {
+  const errors = [];
+  const catalog = isObject(catalogInput) ? catalogInput : {};
+  if (!isObject(catalogInput)) {
+    errors.push(validationError("INVALID_CATALOG", "catalog", "Catalog must be an object"));
+  }
+  const { sourceRoots, automatedTestIds, runtimeNodeIds } = catalog;
+  const normalizedSourceRoots = resolveCatalogPaths(sourceRoots);
+  if (!normalizedSourceRoots) {
+    errors.push(validationError("INVALID_SOURCE_ROOT", "sourceRoots", "sourceRoots must be non-empty exact repository-relative paths"));
+  }
+  if (!Array.isArray(automatedTestIds)) {
+    errors.push(validationError("INVALID_AUTOMATED_TEST_CATALOG", "automatedTestIds", "automatedTestIds must be an array"));
+  }
+  if (!Array.isArray(runtimeNodeIds)) {
+    errors.push(validationError("INVALID_RUNTIME_NODE_CATALOG", "runtimeNodeIds", "runtimeNodeIds must be an array"));
+  }
+  if (!normalizedSourceRoots) {
+    return { ok: false, errors };
+  }
+  if (!isObject(mappings)) {
+    return { ok: false, errors: [validationError("INVALID_MAPPINGS", "$", "Mappings must be an object")] };
+  }
+  if (mappings.productId !== PRODUCT_ID) {
+    errors.push(validationError("INVALID_PRODUCT_ID", "productId", `productId must be ${PRODUCT_ID}`));
+  }
+  if (!Array.isArray(mappings.mappings)) {
+    errors.push(validationError("INVALID_MAPPINGS", "mappings", "mappings must be an array"));
+  }
+  if (!Array.isArray(mappings.no_product_impact)) {
+    errors.push(validationError("INVALID_NO_PRODUCT_IMPACT", "no_product_impact", "no_product_impact must be an array"));
+  }
+
+  const knownTests = new Set(Array.isArray(automatedTestIds) ? automatedTestIds : []);
+  const runtimeNodes = new Set(Array.isArray(runtimeNodeIds) ? runtimeNodeIds : []);
+  (Array.isArray(mappings.mappings) ? mappings.mappings : []).forEach((mapping, index) => {
+    const path = `mappings[${index}]`;
+    if (!isObject(mapping)) {
+      errors.push(validationError("INVALID_MAPPING", path, "Mapping must be an object"));
+      return;
+    }
+    validateMappingPath(mapping.sourcePath, `${path}.sourcePath`, normalizedSourceRoots, errors);
+    validateProductId(mapping.nodeId, `${path}.nodeId`, errors, "INVALID_NODE_ID");
+    validateEdges(mapping.edges, `${path}.edges`, errors);
+
+    if (!Array.isArray(mapping.automatedTestIds)) {
+      errors.push(validationError("INVALID_AUTOMATED_TEST_IDS", `${path}.automatedTestIds`, "automatedTestIds must be an array"));
+    } else {
+      mapping.automatedTestIds.forEach((testId, testIndex) => {
+        const testPath = `${path}.automatedTestIds[${testIndex}]`;
+        validateProductId(testId, testPath, errors, "INVALID_AUTOMATED_TEST_ID");
+        if (isProductId(testId) && !knownTests.has(testId)) {
+          errors.push(validationError("UNKNOWN_AUTOMATED_TEST_ID", testPath, "Automated test ID is not in the test catalog"));
+        }
+      });
+    }
+    const hasRuntimeNode = runtimeNodes.has(mapping.nodeId);
+    const expectedProvenance = hasRuntimeNode ? "source_and_runtime" : "source";
+    if (mapping.provenance !== expectedProvenance) {
+      errors.push(validationError("INVALID_MAPPING_PROVENANCE", `${path}.provenance`, `Mapping provenance must be ${expectedProvenance}`));
+    }
+    if (!hasRuntimeNode && !["NOT_DEPLOYED", "UNVERIFIED"].includes(mapping.coverageDisposition)) {
+      errors.push(validationError("SOURCE_MAPPING_LIVE_COVERAGE", `${path}.coverageDisposition`, "Source-only mappings require NOT_DEPLOYED or UNVERIFIED coverage"));
+    }
+  });
+
+  (Array.isArray(mappings.no_product_impact) ? mappings.no_product_impact : []).forEach((entry, index) => {
+    const path = `no_product_impact[${index}]`;
+    if (!isObject(entry)) {
+      errors.push(validationError("INVALID_NO_PRODUCT_IMPACT", path, "Entry must be an object"));
+      return;
+    }
+    validateMappingPath(entry.path, `${path}.path`, normalizedSourceRoots, errors, false);
+    if (typeof entry.reason !== "string" || !entry.reason.trim()) {
+      errors.push(validationError("INVALID_NO_PRODUCT_IMPACT_REASON", `${path}.reason`, "Reason must be non-empty"));
+    }
+  });
+
+  return { ok: errors.length === 0, errors };
+}

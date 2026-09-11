@@ -1,0 +1,3087 @@
+import { expect, test } from '@playwright/test';
+import { createRequire, syncBuiltinESMExports } from 'node:module';
+import {
+  NUANU_FLOW_MCP_ENDPOINT,
+  NuanuFlowMcpClient,
+  NuanuMcpError,
+  type AllowedOwnedMutation,
+  type AllowedReadRequest,
+  type FetchLike,
+  type SandboxWorkItemScope,
+  type SafeWorkItemProjection,
+} from './fixtures/mcp-client';
+
+test.use({ trace: 'off', screenshot: 'off', video: 'off' });
+
+const neverFetch = (): { fetchImpl: FetchLike; calls: () => number } => {
+  let callCount = 0;
+  return {
+    fetchImpl: async () => {
+      callCount += 1;
+      throw new Error('Synthetic fetch must not run.');
+    },
+    calls: () => callCount,
+  };
+};
+
+const SANDBOX_SCOPE = Object.freeze({
+  workspaceSlug: 'nf-qa-sandbox',
+  workspaceId: '8f081389-298d-4dc2-93d5-7cd80c5109da',
+  projectId: '2c2298c0-7bdc-42a5-a5f5-54ad2cb5d3cf',
+  projectIdentifier: 'NFQAS',
+}) satisfies SandboxWorkItemScope;
+
+const SYNTHETIC_WORK_ITEM = Object.freeze({
+  id: '11111111-1111-4111-8111-111111111111',
+  name: 'QA E2E 20260726T101112Z-w0-a1b2c3 policy fixture',
+  projectId: SANDBOX_SCOPE.projectId,
+  sequenceId: 17,
+  workspaceSlug: SANDBOX_SCOPE.workspaceSlug,
+  deleted: false,
+}) satisfies SafeWorkItemProjection;
+
+const VALID_READ = Object.freeze({
+  operation: 'workItem.get',
+  id: SYNTHETIC_WORK_ITEM.id,
+  sequenceId: SYNTHETIC_WORK_ITEM.sequenceId,
+  scope: SANDBOX_SCOPE,
+}) satisfies AllowedReadRequest;
+
+const VALID_CREATE = Object.freeze({
+  operation: 'workItem.create',
+  name: 'QA E2E 20260726T101112Z-w0-a1b2c3 MCP UI parity',
+  description: 'Synthetic QA record with no personal data.',
+  scope: SANDBOX_SCOPE,
+  clientCorrelationId: '22222222-2222-4222-8222-222222222222',
+}) satisfies AllowedOwnedMutation;
+
+const VALID_DELETE = Object.freeze({
+  operation: 'workItem.delete',
+  owned: SYNTHETIC_WORK_ITEM,
+  scope: SANDBOX_SCOPE,
+}) satisfies AllowedOwnedMutation;
+
+const responseAtEndpoint = (body: BodyInit | null, init: ResponseInit): Response => {
+  const response = new Response(body, init);
+  Object.defineProperty(response, 'url', {
+    configurable: false,
+    enumerable: false,
+    value: NUANU_FLOW_MCP_ENDPOINT,
+  });
+  return response;
+};
+
+const jsonRpcResponse = (
+  id: number,
+  result: unknown,
+  headers: Record<string, string> = {},
+) =>
+  responseAtEndpoint(JSON.stringify({ jsonrpc: '2.0', id, result }), {
+    status: 200,
+    headers: { 'content-type': 'application/json', ...headers },
+  });
+
+const sseResponse = (events: readonly string[]) =>
+  responseAtEndpoint(events.map((event) => `${event}\r\n\r\n`).join(''), {
+    status: 200,
+    headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+  });
+
+const syntheticProtocolFetch = (
+  searchResponse: (requestId: number) => Response,
+  initializeResponse?: (requestId: number) => Response,
+): FetchLike =>
+  async (input, init) => {
+    expect(String(input)).toBe(NUANU_FLOW_MCP_ENDPOINT);
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const id = body.id;
+    if (body.method === 'initialize' && typeof id === 'number') {
+      return (
+        initializeResponse?.(id) ??
+        jsonRpcResponse(
+          id,
+          {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+          },
+          { 'mcp-session-id': 'synthetic-session' },
+        )
+      );
+    }
+    if (body.method === 'notifications/initialized') {
+      return responseAtEndpoint(null, { status: 202 });
+    }
+    if (body.method === 'tools/call' && typeof id === 'number') {
+      return searchResponse(id);
+    }
+    throw new Error('Unexpected synthetic protocol request.');
+  };
+
+const withImmediateInternalTimers = async <T>(run: () => Promise<T>): Promise<T> => {
+  const nativeSetTimeout = globalThis.setTimeout;
+  const nativeClearTimeout = globalThis.clearTimeout;
+  globalThis.setTimeout = ((
+    handler: (...args: any[]) => void,
+    _delay?: number,
+    ...args: any[]
+  ) =>
+    nativeSetTimeout(handler, 0, ...args)) as typeof setTimeout;
+  let guard: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const pending = run();
+    return await Promise.race([
+      pending,
+      new Promise<T>((_, reject) => {
+        guard = nativeSetTimeout(
+          () => reject(new Error('synthetic-deadline-guard')),
+          250,
+        );
+      }),
+    ]);
+  } finally {
+    if (guard !== undefined) nativeClearTimeout(guard);
+    globalThis.setTimeout = nativeSetTimeout;
+  }
+};
+
+test('accepts only exact workspaces and rejects constructor overrides before fetch', () => {
+  const fake = neverFetch();
+  const tokenProvider = () => 'synthetic-token';
+
+  for (const workspace of ['nf-qa-sandbox', 'nuanu-flow-qa'] as const) {
+    expect(
+      () => new NuanuFlowMcpClient({ workspace, tokenProvider, fetchImpl: fake.fetchImpl }),
+    ).not.toThrow();
+  }
+
+  for (const workspace of [
+    '',
+    'NF-QA-SANDBOX',
+    ' nf-qa-sandbox',
+    'nuanu-flow-qa ',
+    'https://flow.nuanu.com',
+    'other-workspace',
+  ]) {
+    expect(
+      () =>
+        new NuanuFlowMcpClient({
+          workspace,
+          tokenProvider,
+          fetchImpl: fake.fetchImpl,
+        } as never),
+    ).toThrow(/WORKSPACE_REFUSED/);
+  }
+
+  expect(
+    () =>
+      new NuanuFlowMcpClient({
+        workspace: 'nf-qa-sandbox',
+        tokenProvider,
+        fetchImpl: fake.fetchImpl,
+        endpoint: 'https://attacker.invalid/mcp',
+      } as never),
+  ).toThrow(/ARGUMENT_REFUSED/);
+  expect(
+    () =>
+      new NuanuFlowMcpClient({
+        workspace: 'nf-qa-sandbox',
+        tokenProvider,
+        fetchImpl: fake.fetchImpl,
+        token: 'constructor-secret',
+      } as never),
+  ).toThrow(/ARGUMENT_REFUSED/);
+
+  expect(NUANU_FLOW_MCP_ENDPOINT).toBe('https://flow.nuanu.com/mcp-server/mcp');
+  expect(fake.calls()).toBe(0);
+});
+
+test('normalizes hostile constructor inputs into local safe errors', () => {
+  const fake = neverFetch();
+  const tokenProvider = () => 'synthetic-token';
+  const accessor = Object.create(null) as Record<string, unknown>;
+  Object.defineProperties(accessor, {
+    workspace: { enumerable: true, value: 'nf-qa-sandbox' },
+    tokenProvider: {
+      enumerable: true,
+      get: () => {
+        throw new Error('constructor-accessor-sentinel');
+      },
+    },
+  });
+  const reflectionProxy = new Proxy(
+    {},
+    {
+      ownKeys: () => {
+        throw new Error('constructor-proxy-sentinel');
+      },
+    },
+  );
+  const symbolKey = {
+    workspace: 'nf-qa-sandbox',
+    tokenProvider,
+    [Symbol('secret')]: true,
+  };
+
+  for (const options of [
+    null,
+    7,
+    [],
+    new Date(0),
+    accessor,
+    reflectionProxy,
+    symbolKey,
+    { workspace: 'nf-qa-sandbox', tokenProvider, logger: () => {} },
+    { workspace: 'nf-qa-sandbox', tokenProvider, headers: {} },
+    { workspace: 'nf-qa-sandbox', tokenProvider, proxy: 'https://proxy.invalid' },
+  ]) {
+    let captured: unknown;
+    try {
+      new NuanuFlowMcpClient(options as never);
+    } catch (error) {
+      captured = error;
+    }
+    expect(captured).toBeInstanceOf(NuanuMcpError);
+    expect(captured).toMatchObject({ code: 'ARGUMENT_REFUSED' });
+    expect(String(captured)).not.toMatch(/constructor-(?:accessor|proxy)-sentinel/);
+  }
+  expect(fake.calls()).toBe(0);
+});
+
+test('exposes only the closed typed work-item operation surface', () => {
+  const fake = neverFetch();
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: fake.fetchImpl,
+  });
+
+  if (false) {
+    // @ts-expect-error arbitrary logical read operations are not in the API
+    void client.executeReadTool({ operation: 'issue.get', id: SYNTHETIC_WORK_ITEM.id, scope: SANDBOX_SCOPE });
+    // @ts-expect-error updates are intentionally absent from the mutation union
+    void client.mutateOwnedTool({ operation: 'workItem.update', scope: SANDBOX_SCOPE });
+    // @ts-expect-error callers cannot invoke discovered remote tools directly
+    void client.callTool('create_issue', {});
+  }
+
+  expect(client).not.toHaveProperty('callTool');
+  expect(client).not.toHaveProperty('executeTool');
+  expect(fake.calls()).toBe(0);
+});
+
+test('fails every valid sandbox read/create/delete closed before token or fetch', async () => {
+  const fake = neverFetch();
+  let tokenCalls = 0;
+  let registerCalls = 0;
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => {
+      tokenCalls += 1;
+      return 'synthetic-token';
+    },
+    fetchImpl: fake.fetchImpl,
+  });
+
+  await expect(client.executeReadTool(VALID_READ)).rejects.toMatchObject({
+    code: 'SCHEMA_RECON_REQUIRED',
+    operation: 'workItem.get',
+  });
+  await expect(
+    client.mutateOwnedTool(VALID_CREATE, () => {
+      registerCalls += 1;
+    }),
+  ).rejects.toMatchObject({
+    code: 'SCHEMA_RECON_REQUIRED',
+    operation: 'workItem.create',
+  });
+  await expect(client.mutateOwnedTool(VALID_DELETE)).rejects.toMatchObject({
+    code: 'SCHEMA_RECON_REQUIRED',
+    operation: 'workItem.delete',
+  });
+
+  expect({ tokenCalls, fetchCalls: fake.calls(), registerCalls }).toEqual({
+    tokenCalls: 0,
+    fetchCalls: 0,
+    registerCalls: 0,
+  });
+});
+
+test('recursively rejects malformed, foreign, and name-only work-item requests locally', async () => {
+  const fake = neverFetch();
+  let tokenCalls = 0;
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => {
+      tokenCalls += 1;
+      return 'synthetic-token';
+    },
+    fetchImpl: fake.fetchImpl,
+  });
+  const accessorRequest = Object.create(null) as Record<string, unknown>;
+  Object.defineProperties(accessorRequest, {
+    operation: { enumerable: true, value: 'workItem.get' },
+    id: {
+      enumerable: true,
+      get: () => {
+        throw new Error('request-accessor-sentinel');
+      },
+    },
+    scope: { enumerable: true, value: SANDBOX_SCOPE },
+  });
+  const foreignPrototype = Object.assign(Object.create({ inherited: true }), VALID_READ);
+  const protoKey = { ...VALID_READ } as Record<string, unknown>;
+  Object.defineProperty(protoKey, '__proto__', { enumerable: true, value: 'pollute' });
+  const scopeAccessor = Object.create(null) as Record<string, unknown>;
+  Object.defineProperties(scopeAccessor, {
+    workspaceSlug: { enumerable: true, value: SANDBOX_SCOPE.workspaceSlug },
+    workspaceId: { enumerable: true, value: SANDBOX_SCOPE.workspaceId },
+    projectId: {
+      enumerable: true,
+      get: () => {
+        throw new Error('scope-accessor-sentinel');
+      },
+    },
+    projectIdentifier: { enumerable: true, value: SANDBOX_SCOPE.projectIdentifier },
+  });
+  const cases: Array<{ value: unknown; code: string; label: string }> = [
+    {
+      label: 'unknown operation',
+      value: { ...VALID_READ, operation: 'workItem.list' },
+      code: 'TOOL_REFUSED',
+    },
+    {
+      label: 'extra key',
+      value: { ...VALID_READ, remoteToolName: 'get_issue' },
+      code: 'ARGUMENT_REFUSED',
+    },
+    { label: 'request accessor', value: accessorRequest, code: 'ARGUMENT_REFUSED' },
+    { label: 'foreign prototype', value: foreignPrototype, code: 'ARGUMENT_REFUSED' },
+    { label: 'prototype pollution key', value: protoKey, code: 'ARGUMENT_REFUSED' },
+    {
+      label: 'name-only read',
+      value: { operation: 'workItem.get', name: SYNTHETIC_WORK_ITEM.name, scope: SANDBOX_SCOPE },
+      code: 'ARGUMENT_REFUSED',
+    },
+    {
+      label: 'malformed UUID',
+      value: { ...VALID_READ, id: 'NFQAS-17' },
+      code: 'ARGUMENT_REFUSED',
+    },
+    {
+      label: 'nonpositive sequence',
+      value: { ...VALID_READ, sequenceId: 0 },
+      code: 'ARGUMENT_REFUSED',
+    },
+    {
+      label: 'scope accessor',
+      value: { ...VALID_READ, scope: scopeAccessor },
+      code: 'ARGUMENT_REFUSED',
+    },
+    {
+      label: 'foreign workspace',
+      value: {
+        ...VALID_READ,
+        scope: { ...SANDBOX_SCOPE, workspaceSlug: 'nuanu-flow-qa' },
+      },
+      code: 'WORKSPACE_REFUSED',
+    },
+    {
+      label: 'foreign project',
+      value: {
+        ...VALID_READ,
+        scope: { ...SANDBOX_SCOPE, projectIdentifier: 'NUANU' },
+      },
+      code: 'PROJECT_REFUSED',
+    },
+  ];
+
+  for (const scenario of cases) {
+    let captured: unknown;
+    try {
+      await client.executeReadTool(scenario.value as AllowedReadRequest);
+    } catch (error) {
+      captured = error;
+    }
+    expect(captured, scenario.label).toMatchObject({ code: scenario.code });
+    expect(String(captured), scenario.label).not.toMatch(/(?:accessor|pollute)-sentinel/);
+  }
+  expect({ tokenCalls, fetchCalls: fake.calls() }).toEqual({
+    tokenCalls: 0,
+    fetchCalls: 0,
+  });
+});
+
+test('rejects malformed create/delete ownership inputs before catalog, token, or fetch', async () => {
+  const fake = neverFetch();
+  let tokenCalls = 0;
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => {
+      tokenCalls += 1;
+      return 'synthetic-token';
+    },
+    fetchImpl: fake.fetchImpl,
+  });
+  const ownedAccessor = Object.create(null) as Record<string, unknown>;
+  Object.defineProperties(ownedAccessor, {
+    id: { enumerable: true, value: SYNTHETIC_WORK_ITEM.id },
+    name: {
+      enumerable: true,
+      get: () => {
+        throw new Error('owned-accessor-sentinel');
+      },
+    },
+    projectId: { enumerable: true, value: SANDBOX_SCOPE.projectId },
+    sequenceId: { enumerable: true, value: 17 },
+    workspaceSlug: { enumerable: true, value: SANDBOX_SCOPE.workspaceSlug },
+    deleted: { enumerable: true, value: false },
+  });
+  const cases: Array<{ value: unknown; code: string; label: string }> = [
+    {
+      label: 'unknown mutation',
+      value: { operation: 'workItem.update', scope: SANDBOX_SCOPE },
+      code: 'TOOL_REFUSED',
+    },
+    {
+      label: 'extra discovered tool',
+      value: { ...VALID_CREATE, toolName: 'create_issue' },
+      code: 'ARGUMENT_REFUSED',
+    },
+    {
+      label: 'incomplete name',
+      value: { ...VALID_CREATE, name: 'QA E2E not-a-current-run name' },
+      code: 'ARGUMENT_REFUSED',
+    },
+    {
+      label: 'nonsynthetic description',
+      value: { ...VALID_CREATE, description: 'real customer payload' },
+      code: 'ARGUMENT_REFUSED',
+    },
+    {
+      label: 'invalid correlation UUID',
+      value: { ...VALID_CREATE, clientCorrelationId: 'retry-by-name' },
+      code: 'ARGUMENT_REFUSED',
+    },
+    {
+      label: 'owned accessor',
+      value: { operation: 'workItem.delete', owned: ownedAccessor, scope: SANDBOX_SCOPE },
+      code: 'ARGUMENT_REFUSED',
+    },
+    {
+      label: 'foreign owned project',
+      value: {
+        ...VALID_DELETE,
+        owned: { ...SYNTHETIC_WORK_ITEM, projectId: '33333333-3333-4333-8333-333333333333' },
+      },
+      code: 'PROJECT_REFUSED',
+    },
+    {
+      label: 'name-only delete',
+      value: { operation: 'workItem.delete', name: SYNTHETIC_WORK_ITEM.name, scope: SANDBOX_SCOPE },
+      code: 'ARGUMENT_REFUSED',
+    },
+  ];
+
+  for (const scenario of cases) {
+    let captured: unknown;
+    try {
+      await client.mutateOwnedTool(scenario.value as AllowedOwnedMutation);
+    } catch (error) {
+      captured = error;
+    }
+    expect(captured, scenario.label).toMatchObject({ code: scenario.code });
+    expect(String(captured), scenario.label).not.toContain('owned-accessor-sentinel');
+  }
+  await expect(
+    client.mutateOwnedTool(VALID_CREATE, 'not-a-registration-callback' as never),
+  ).rejects.toMatchObject({ code: 'ARGUMENT_REFUSED' });
+  expect({ tokenCalls, fetchCalls: fake.calls() }).toEqual({
+    tokenCalls: 0,
+    fetchCalls: 0,
+  });
+});
+
+test('refuses every tracker read and mutation category before touching caller data or token', async () => {
+  const fake = neverFetch();
+  let tokenCalls = 0;
+  let operationReads = 0;
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nuanu-flow-qa',
+    tokenProvider: () => {
+      tokenCalls += 1;
+      return 'synthetic-token';
+    },
+    fetchImpl: fake.fetchImpl,
+  });
+
+  await expect(client.executeReadTool(VALID_READ)).rejects.toMatchObject({
+    code: 'TOOL_REFUSED',
+  });
+  for (const operation of [
+    'issue.create',
+    'issue.update',
+    'issue.delete',
+    'label.create',
+    'state.update',
+    'comment.create',
+    'attachment.create',
+    'invitation.create',
+    'email.send',
+    'calendar.create',
+    'payment.create',
+    'oauth.connect',
+    'integration.connect',
+    'automation.publish',
+    'http.execute',
+    'sql.execute',
+  ]) {
+    const hostile = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(hostile, 'operation', {
+      enumerable: true,
+      get: () => {
+        operationReads += 1;
+        return operation;
+      },
+    });
+    await expect(
+      client.mutateOwnedTool(hostile as AllowedOwnedMutation),
+      operation,
+    ).rejects.toMatchObject({ code: 'TRACKER_MUTATION_REFUSED' });
+  }
+  expect({ tokenCalls, fetchCalls: fake.calls(), operationReads }).toEqual({
+    tokenCalls: 0,
+    fetchCalls: 0,
+    operationReads: 0,
+  });
+});
+
+test('rejects missing, blank, oversized, and control-character tokens before fetch', async () => {
+  for (const token of ['', '   ', 'x'.repeat(8_193), 'line\nbreak', 'nul\0byte']) {
+    const fake = neverFetch();
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => token,
+      fetchImpl: fake.fetchImpl,
+    });
+
+    await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+      code: token.trim() === '' ? 'TOKEN_REQUIRED' : 'TOKEN_INVALID',
+    });
+    expect(fake.calls()).toBe(0);
+  }
+});
+
+test('poisons a client when the current per-request token is reflected in session, tool name, or schema key', async () => {
+  const reflectedToken = `plane_api_${'ab'.repeat(20)}`;
+  const consoleCalls: unknown[][] = [];
+  const originalConsole = {
+    debug: console.debug,
+    error: console.error,
+    info: console.info,
+    log: console.log,
+    warn: console.warn,
+  };
+  for (const method of Object.keys(originalConsole) as Array<keyof typeof originalConsole>) {
+    console[method] = ((...args: unknown[]) => {
+      consoleCalls.push(args);
+    }) as never;
+  }
+  try {
+    for (const reflection of [
+      'session',
+      'session-prefixed',
+      'name',
+      'name-prefixed',
+      'key',
+      'key-prefixed',
+    ] as const) {
+      let fetchCalls = 0;
+      let tokenCalls = 0;
+      const fallback = syntheticProtocolFetch(
+        (id) =>
+          jsonRpcResponse(id, {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  tools: [
+                    {
+                      name:
+                        reflection === 'name'
+                          ? reflectedToken
+                          : reflection === 'name-prefixed'
+                            ? `tool_${reflectedToken}`
+                            : 'get_work_item',
+                      inputSchema: {
+                        type: 'object',
+                        properties:
+                          reflection === 'key' || reflection === 'key-prefixed'
+                            ? {
+                                [reflection === 'key'
+                                  ? reflectedToken
+                                  : `field_${reflectedToken}`]: { type: 'string' },
+                              }
+                            : {},
+                        required:
+                          reflection === 'key' || reflection === 'key-prefixed'
+                            ? [
+                                reflection === 'key'
+                                  ? reflectedToken
+                                  : `field_${reflectedToken}`,
+                              ]
+                            : [],
+                      },
+                    },
+                  ],
+                }),
+              },
+            ],
+            isError: false,
+          }),
+        (id) =>
+          jsonRpcResponse(
+            id,
+            {
+              protocolVersion: '2025-06-18',
+              capabilities: {},
+              serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+            },
+            reflection === 'session' || reflection === 'session-prefixed'
+              ? {
+                  'mcp-session-id':
+                    reflection === 'session'
+                      ? reflectedToken
+                      : `sid_${reflectedToken}`,
+                }
+              : { 'mcp-session-id': 'synthetic-session' },
+          ),
+      );
+      const client = new NuanuFlowMcpClient({
+        workspace: 'nf-qa-sandbox',
+        tokenProvider: () => {
+          tokenCalls += 1;
+          return reflectedToken;
+        },
+        fetchImpl: async (input, init) => {
+          fetchCalls += 1;
+          return fallback(input, init);
+        },
+      });
+
+      let captured: unknown;
+      try {
+        await client.searchTools('work-item-parity');
+      } catch (error) {
+        captured = error;
+      }
+      expect(captured, reflection).toMatchObject({
+        code: 'TOKEN_REFLECTION_REFUSED',
+      });
+      const callsAtRefusal = { fetchCalls, tokenCalls };
+      await expect(client.searchTools('work-item-parity'), reflection).rejects.toMatchObject({
+        code: 'TOKEN_REFLECTION_REFUSED',
+      });
+      expect({ fetchCalls, tokenCalls }, reflection).toEqual(callsAtRefusal);
+      expect(String(captured), reflection).not.toContain(reflectedToken);
+      expect(JSON.stringify(captured), reflection).not.toContain(reflectedToken);
+      expect(JSON.stringify(client), reflection).not.toContain(reflectedToken);
+    }
+  } finally {
+    Object.assign(console, originalConsole);
+  }
+  expect(consoleCalls).toEqual([]);
+});
+
+test('refuses a retained session that matches a freshly rotated request token before fetch', async () => {
+  const initialToken = `plane_api_${'11'.repeat(20)}`;
+  const rotatedToken = `plane_api_${'22'.repeat(20)}`;
+  const tokens = [initialToken, rotatedToken];
+  let tokenCalls = 0;
+  let fetchCalls = 0;
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => tokens[tokenCalls++] ?? rotatedToken,
+    fetchImpl: async (_input, init) => {
+      fetchCalls += 1;
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (body.method !== 'initialize' || typeof body.id !== 'number') {
+        throw new Error('rotated-session-must-be-refused-before-second-fetch');
+      }
+      return jsonRpcResponse(
+        body.id,
+        {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+        },
+        { 'mcp-session-id': rotatedToken },
+      );
+    },
+  });
+
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'TOKEN_REFLECTION_REFUSED',
+  });
+  expect({ tokenCalls, fetchCalls }).toEqual({ tokenCalls: 2, fetchCalls: 1 });
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'TOKEN_REFLECTION_REFUSED',
+  });
+  expect({ tokenCalls, fetchCalls }).toEqual({ tokenCalls: 2, fetchCalls: 1 });
+});
+
+test('poisons exact and prefixed reflections of prior rotated tokens', async () => {
+  const priorA = 'AlphaPrivateValue123';
+  const priorB = 'BetaPrivateValue456';
+  const currentC = 'GammaCurrentValue789';
+  for (const reflected of [priorA, `tool_${priorA}`, priorB, `tool_${priorB}`]) {
+    let tokenCalls = 0;
+    let fetchCalls = 0;
+    const tokens = [priorA, priorB, currentC];
+    const fallback = syntheticProtocolFetch(
+      (id) =>
+        jsonRpcResponse(id, {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                tools: [
+                  {
+                    name: reflected,
+                    inputSchema: { type: 'object', properties: {}, required: [] },
+                  },
+                ],
+              }),
+            },
+          ],
+          isError: false,
+        }),
+      (id) =>
+        jsonRpcResponse(
+          id,
+          {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+          },
+          { 'mcp-session-id': 'opaqueMcpSession' },
+        ),
+    );
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => tokens[tokenCalls++] ?? currentC,
+      fetchImpl: async (input, init) => {
+        fetchCalls += 1;
+        return fallback(input, init);
+      },
+    });
+
+    let captured: unknown;
+    try {
+      await client.searchTools('work-item-parity');
+    } catch (error) {
+      captured = error;
+    }
+    expect(captured, reflected).toMatchObject({ code: 'TOKEN_REFLECTION_REFUSED' });
+    const callsAtRefusal = { tokenCalls, fetchCalls };
+    await expect(client.searchTools('work-item-parity'), reflected).rejects.toMatchObject({
+      code: 'TOKEN_REFLECTION_REFUSED',
+    });
+    expect({ tokenCalls, fetchCalls }, reflected).toEqual(callsAtRefusal);
+    expect(JSON.stringify({ captured, client }), reflected).not.toContain(reflected);
+  }
+});
+
+test('caps distinct lifetime token fingerprints before a sixty-fifth fetch', async () => {
+  let tokenCalls = 0;
+  let fetchCalls = 0;
+  const fallback = syntheticProtocolFetch((id) =>
+    jsonRpcResponse(id, {
+      content: [{ type: 'text', text: JSON.stringify({ tools: [] }) }],
+      isError: false,
+    }),
+  );
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => `RotatingPrivateValue${tokenCalls++}`,
+    fetchImpl: async (input, init) => {
+      fetchCalls += 1;
+      return fallback(input, init);
+    },
+  });
+
+  await client.searchTools('work-item-parity');
+  for (let index = 0; index < 61; index += 1) {
+    await client.searchTools('work-item-parity');
+  }
+  expect({ tokenCalls, fetchCalls }).toEqual({ tokenCalls: 64, fetchCalls: 64 });
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'RESPONSE_LIMIT',
+  });
+  expect({ tokenCalls, fetchCalls }).toEqual({ tokenCalls: 65, fetchCalls: 64 });
+});
+
+test('shares a bounded HMAC work budget across a max-schema projection', async () => {
+  test.setTimeout(8_000);
+  let tokenCalls = 0;
+  let fetchCalls = 0;
+  const tokenAt = (index: number) => {
+    const length = 16 + (index % 4);
+    const prefix = `Q${index.toString(36).padStart(3, '0')}`;
+    return prefix.padEnd(length, 'z');
+  };
+  const maxTools = Array.from({ length: 32 }, (_, toolIndex) => ({
+    name: `tool_${toolIndex}`,
+    inputSchema: {
+      type: 'object',
+      properties: Object.fromEntries(
+        Array.from({ length: 64 }, (_, keyIndex) => [
+          `field_${toolIndex}_${keyIndex}_`.padEnd(64, 'a'),
+          { type: 'string' },
+        ]),
+      ),
+      required: [],
+    },
+  }));
+  const fallback = syntheticProtocolFetch((id) =>
+    jsonRpcResponse(id, {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ tools: fetchCalls === 65 ? maxTools : [] }),
+        },
+      ],
+      isError: false,
+    }),
+  );
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => {
+      const index = tokenCalls;
+      tokenCalls += 1;
+      return index < 64 ? tokenAt(index) : tokenAt(0);
+    },
+    fetchImpl: async (input, init) => {
+      fetchCalls += 1;
+      return fallback(input, init);
+    },
+  });
+
+  await client.searchTools('work-item-parity');
+  for (let index = 0; index < 61; index += 1) {
+    await client.searchTools('work-item-parity');
+  }
+  expect({ tokenCalls, fetchCalls }).toEqual({ tokenCalls: 64, fetchCalls: 64 });
+  const startedAt = performance.now();
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'RESPONSE_LIMIT',
+  });
+  expect(performance.now() - startedAt).toBeLessThan(1_500);
+  expect({ tokenCalls, fetchCalls }).toEqual({ tokenCalls: 65, fetchCalls: 65 });
+});
+
+test('poisons exact and prefixed private-session reflections in descriptor names and keys', async () => {
+  const privateSession = 'opaqueMcpSession12345';
+  for (const reflection of ['name', 'name-prefixed', 'key', 'key-prefixed'] as const) {
+    let fetchCalls = 0;
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: async (input, init) => {
+        fetchCalls += 1;
+        const fallback = syntheticProtocolFetch(
+          (id) =>
+            jsonRpcResponse(id, {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({
+                    tools: [
+                      {
+                        name:
+                          reflection === 'name'
+                            ? privateSession
+                            : reflection === 'name-prefixed'
+                              ? `tool_${privateSession}`
+                              : 'get_work_item',
+                        inputSchema: {
+                          type: 'object',
+                          properties:
+                            reflection === 'key' || reflection === 'key-prefixed'
+                              ? {
+                                  [reflection === 'key'
+                                    ? privateSession
+                                    : `field_${privateSession}`]: { type: 'string' },
+                                }
+                              : {},
+                          required: [],
+                        },
+                      },
+                    ],
+                  }),
+                },
+              ],
+              isError: false,
+            }),
+          (id) =>
+            jsonRpcResponse(
+              id,
+              {
+                protocolVersion: '2025-06-18',
+                capabilities: {},
+                serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+              },
+              { 'mcp-session-id': privateSession },
+            ),
+        );
+        return fallback(input, init);
+      },
+    });
+    let captured: unknown;
+    try {
+      await client.searchTools('work-item-parity');
+    } catch (error) {
+      captured = error;
+    }
+    expect(captured, reflection).toMatchObject({
+      code: 'SESSION_REFLECTION_REFUSED',
+    });
+    const callsAtRefusal = fetchCalls;
+    await expect(client.searchTools('work-item-parity'), reflection).rejects.toMatchObject({
+      code: 'SESSION_REFLECTION_REFUSED',
+    });
+    expect(fetchCalls, reflection).toBe(callsAtRefusal);
+    expect(JSON.stringify({ captured, client }), reflection).not.toContain(privateSession);
+  }
+});
+
+test('rejects credential-like descriptor identifiers even when they are not the current token', async () => {
+  for (const name of [
+    'plane_api_backup',
+    'api_key',
+    'apikey',
+    'x_plane_session',
+  ]) {
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-current-token',
+      fetchImpl: syntheticProtocolFetch((id) =>
+        jsonRpcResponse(id, {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                tools: [
+                  {
+                    name,
+                    inputSchema: { type: 'object', properties: {}, required: [] },
+                  },
+                ],
+              }),
+            },
+          ],
+          isError: false,
+        }),
+      ),
+    });
+    await expect(client.searchTools('work-item-parity'), name).rejects.toMatchObject({
+      code: 'RESULT_SCHEMA_MISMATCH',
+    });
+  }
+});
+
+test('uses the fixed endpoint and a fresh token for every exact protocol POST', async () => {
+  const observed: Array<{
+    body: Record<string, unknown>;
+    headers: Array<[string, string]>;
+    input: string;
+    method?: string;
+    redirect?: RequestRedirect;
+  }> = [];
+  let tokenOrdinal = 0;
+  const fetchImpl: FetchLike = async (input, init) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const headers = [...new Headers(init?.headers).entries()];
+    observed.push({
+      body,
+      headers,
+      input: String(input),
+      method: init?.method,
+      redirect: init?.redirect,
+    });
+    const id = body.id;
+    if (body.method === 'initialize' && typeof id === 'number') {
+      return jsonRpcResponse(
+        id,
+        {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+        },
+        { 'mcp-session-id': 'synthetic-session' },
+      );
+    }
+    if (body.method === 'notifications/initialized') {
+      return responseAtEndpoint(null, { status: 202 });
+    }
+    if (body.method === 'tools/call' && typeof id === 'number') {
+      return jsonRpcResponse(id, {
+        content: [{ type: 'text', text: JSON.stringify({ tools: [] }) }],
+        isError: false,
+      });
+    }
+    throw new Error('Unexpected synthetic request.');
+  };
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => `synthetic-token-${++tokenOrdinal}`,
+    fetchImpl,
+  });
+
+  await expect(client.searchTools('work-item-parity')).resolves.toEqual([]);
+
+  expect(observed).toHaveLength(3);
+  expect(observed.map(({ input }) => input)).toEqual([
+    NUANU_FLOW_MCP_ENDPOINT,
+    NUANU_FLOW_MCP_ENDPOINT,
+    NUANU_FLOW_MCP_ENDPOINT,
+  ]);
+  expect(observed.map(({ method }) => method)).toEqual(['POST', 'POST', 'POST']);
+  expect(observed.map(({ redirect }) => redirect)).toEqual([
+    'manual',
+    'manual',
+    'manual',
+  ]);
+  expect(
+    observed.map(({ headers }) =>
+      Object.fromEntries(headers)['x-plane-user-token'],
+    ),
+  ).toEqual(['synthetic-token-1', 'synthetic-token-2', 'synthetic-token-3']);
+  expect(observed[0]?.headers).toEqual([
+    ['accept', 'application/json, text/event-stream'],
+    ['content-type', 'application/json'],
+    ['x-plane-user-token', 'synthetic-token-1'],
+    ['x-plane-workspace', 'nf-qa-sandbox'],
+  ]);
+  for (const request of observed.slice(1)) {
+    expect(request.headers).toContainEqual(['mcp-session-id', 'synthetic-session']);
+    expect(request.headers).toHaveLength(5);
+  }
+  expect(observed.map(({ body }) => body)).toEqual([
+    {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        clientInfo: { name: 'nuanuflow-qa-e2e', version: '1.0.0' },
+      },
+    },
+    { jsonrpc: '2.0', method: 'notifications/initialized' },
+    {
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: {
+        name: 'search_tools',
+        arguments: {
+          query: 'work item create get delete exact id project sequence schema',
+        },
+      },
+    },
+  ]);
+});
+
+test('accepts case-insensitive JSON and SSE MIME base tokens', async () => {
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: syntheticProtocolFetch(
+      (id) => {
+        const response = sseResponse([
+          `data: ${JSON.stringify({
+            jsonrpc: '2.0',
+            id,
+            result: {
+              content: [{ type: 'text', text: JSON.stringify({ tools: [] }) }],
+              isError: false,
+            },
+          })}`,
+        ]);
+        response.headers.set('content-type', 'Text/Event-Stream; Charset=UTF-8');
+        return response;
+      },
+      (id) =>
+        responseAtEndpoint(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id,
+            result: {
+              protocolVersion: '2025-06-18',
+              capabilities: {},
+              serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'Application/JSON' } },
+        ),
+    ),
+  });
+
+  await expect(client.searchTools('work-item-parity')).resolves.toEqual([]);
+});
+
+test('treats the synthetic initialize shape as an exact unverified bootstrap candidate', async () => {
+  const cases: Array<{ name: string; result: unknown }> = [
+    {
+      name: 'missing capabilities',
+      result: {
+        protocolVersion: '2025-06-18',
+        serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+      },
+    },
+    {
+      name: 'nonempty unverified capabilities',
+      result: {
+        protocolVersion: '2025-06-18',
+        capabilities: { tools: {} },
+        serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+      },
+    },
+    {
+      name: 'missing server identity',
+      result: { protocolVersion: '2025-06-18', capabilities: {} },
+    },
+    {
+      name: 'malformed server identity',
+      result: {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        serverInfo: { name: 7, version: '1.0.0' },
+      },
+    },
+    {
+      name: 'extra server identity field',
+      result: {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        serverInfo: {
+          name: 'synthetic-server',
+          version: '1.0.0',
+          websiteUrl: 'https://unverified.invalid',
+        },
+      },
+    },
+    {
+      name: 'extra result field',
+      result: {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+        instructions: 'unverified',
+      },
+    },
+  ];
+
+  for (const scenario of cases) {
+    let fetchCalls = 0;
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: syntheticProtocolFetch(
+        () => {
+          throw new Error('search-must-not-run-after-invalid-bootstrap');
+        },
+        (id) => {
+          fetchCalls += 1;
+          return jsonRpcResponse(id, scenario.result);
+        },
+      ),
+    });
+    await expect(
+      client.searchTools('work-item-parity'),
+      scenario.name,
+    ).rejects.toMatchObject({ code: 'RESULT_SCHEMA_MISMATCH' });
+    expect(fetchCalls, scenario.name).toBe(1);
+  }
+});
+
+test('normalizes a session-fingerprint entropy failure after clearing initialization state', async () => {
+  const nodeRequire = createRequire(import.meta.url);
+  const crypto = nodeRequire('node:crypto') as typeof import('node:crypto');
+  const nativeRandomBytes = crypto.randomBytes;
+  let randomBytesCalls = 0;
+  let fetchCalls = 0;
+  crypto.randomBytes = ((size: number) => {
+    randomBytesCalls += 1;
+    if (randomBytesCalls === 3) {
+      throw new Error('session-fingerprint-entropy-sentinel');
+    }
+    return nativeRandomBytes(size);
+  }) as typeof crypto.randomBytes;
+  syncBuiltinESMExports();
+
+  let captured: unknown;
+  try {
+    const fallback = syntheticProtocolFetch(() => {
+      throw new Error('search-must-not-run-after-entropy-failure');
+    });
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: async (input, init) => {
+        fetchCalls += 1;
+        return fallback(input, init);
+      },
+    });
+    captured = await client
+      .searchTools('work-item-parity')
+      .catch((error: unknown) => error);
+    await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+      code: 'RESULT_SCHEMA_MISMATCH',
+      operation: 'client.initialize',
+    });
+  } finally {
+    crypto.randomBytes = nativeRandomBytes;
+    syncBuiltinESMExports();
+  }
+
+  expect(captured).toMatchObject({
+    code: 'RESULT_SCHEMA_MISMATCH',
+    operation: 'client.initialize',
+  });
+  expect({ randomBytesCalls, fetchCalls }).toEqual({
+    randomBytesCalls: 3,
+    fetchCalls: 1,
+  });
+  expect(String(captured)).not.toContain('session-fingerprint-entropy-sentinel');
+  expect(JSON.stringify(captured)).not.toContain(
+    'session-fingerprint-entropy-sentinel',
+  );
+});
+
+test('selects one matching SSE terminal response between progress notifications', async () => {
+  const fetchImpl = syntheticProtocolFetch((id) =>
+    sseResponse([
+      'event: message\r\ndata: {"jsonrpc":"2.0","method":"notifications/progress","params":{"progress":1}}',
+      [
+        'event: message',
+        'data: {"jsonrpc":"2.0",',
+        `data: "id":${id},"result":{"content":[{"type":"text","text":"{\\"tools\\":[]}"}],"isError":false}}`,
+      ].join('\r\n'),
+      'event: message\r\ndata: {"jsonrpc":"2.0","method":"notifications/progress","params":{"progress":2}}',
+    ]),
+  );
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl,
+  });
+
+  await expect(client.searchTools('work-item-parity')).resolves.toEqual([]);
+});
+
+test('rejects missing/mismatched IDs, invalid JSON-RPC, malformed JSON, batches, and ambiguous terminals', async () => {
+  const cases: Array<{
+    name: string;
+    response: (id: number) => Response;
+    code: string;
+  }> = [
+    {
+      name: 'duplicate SSE terminal',
+      response: (id) =>
+        sseResponse([
+          `data: ${JSON.stringify({ jsonrpc: '2.0', id, result: { content: [], isError: false } })}`,
+          `data: ${JSON.stringify({ jsonrpc: '2.0', id, result: { content: [], isError: false } })}`,
+        ]),
+      code: 'RESULT_SCHEMA_MISMATCH',
+    },
+    {
+      name: 'missing id',
+      response: () =>
+        responseAtEndpoint(
+          JSON.stringify({ jsonrpc: '2.0', result: {} }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      code: 'JSON_RPC_ID_MISMATCH',
+    },
+    {
+      name: 'mismatched id',
+      response: (id) => jsonRpcResponse(id + 1, {}),
+      code: 'JSON_RPC_ID_MISMATCH',
+    },
+    {
+      name: 'invalid jsonrpc',
+      response: (id) =>
+        responseAtEndpoint(
+          JSON.stringify({ jsonrpc: '1.0', id, result: {} }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      code: 'JSON_RPC_ID_MISMATCH',
+    },
+    {
+      name: 'malformed JSON',
+      response: () =>
+        responseAtEndpoint('{"jsonrpc":"2.0",', {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      code: 'RESULT_SCHEMA_MISMATCH',
+    },
+    {
+      name: 'deep malformed opener flood',
+      response: () =>
+        responseAtEndpoint('['.repeat(512 * 1_024), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      code: 'RESPONSE_LIMIT',
+    },
+    {
+      name: 'batch',
+      response: (id) =>
+        responseAtEndpoint(
+          JSON.stringify([{ jsonrpc: '2.0', id, result: {} }]),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      code: 'RESULT_SCHEMA_MISMATCH',
+    },
+    {
+      name: 'result plus error',
+      response: (id) =>
+        responseAtEndpoint(
+          JSON.stringify({ jsonrpc: '2.0', id, result: {}, error: {} }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      code: 'RESULT_SCHEMA_MISMATCH',
+    },
+    {
+      name: 'JSON node count',
+      response: (id) =>
+        jsonRpcResponse(id, Array.from({ length: 10_001 }, () => null)),
+      code: 'RESPONSE_LIMIT',
+    },
+  ];
+
+  for (const scenario of cases) {
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: syntheticProtocolFetch(scenario.response),
+    });
+    await expect(
+      client.searchTools('work-item-parity'),
+      scenario.name,
+    ).rejects.toMatchObject({ code: scenario.code });
+  }
+});
+
+test('rejects duplicate JSON object keys before last-wins parsing in JSON and SSE', async () => {
+  const validResult = JSON.stringify({
+    content: [{ type: 'text', text: JSON.stringify({ tools: [] }) }],
+    isError: false,
+  });
+  const innerDuplicateResult = JSON.stringify({
+    content: [
+      {
+        type: 'text',
+        text: '{"tools":[],"to\\u006fls":[]}',
+      },
+    ],
+    isError: false,
+  });
+  const rawCases = (id: number) => [
+    `{"jsonrpc":"2.0","id":999,"id":${id},"result":${validResult}}`,
+    `{"jsonrpc":"2.0","id":999,"i\\u0064":${id},"result":${validResult}}`,
+    `{"jsonrpc":"1.0","jsonrpc":"2.0","id":${id},"result":${validResult}}`,
+    `{"jsonrpc":"2.0","id":${id},"result":null,"result":${validResult}}`,
+    `{"jsonrpc":"2.0","id":${id},"result":{"content":[],"isError":true,"isError":false}}`,
+    `{"jsonrpc":"2.0","id":${id},"result":${innerDuplicateResult}}`,
+  ];
+
+  for (const framing of ['json', 'sse'] as const) {
+    for (const [index, raw] of rawCases(2).entries()) {
+      const client = new NuanuFlowMcpClient({
+        workspace: 'nf-qa-sandbox',
+        tokenProvider: () => 'synthetic-token',
+        fetchImpl: syntheticProtocolFetch((id) => {
+          const body = raw.replaceAll('"id":2', `"id":${id}`);
+          return framing === 'json'
+            ? responseAtEndpoint(body, {
+                status: 200,
+                headers: { 'content-type': 'application/json' },
+              })
+            : responseAtEndpoint(`data: ${body}\r\n\r\n`, {
+                status: 200,
+                headers: { 'content-type': 'text/event-stream' },
+              });
+        }),
+      });
+      await expect(
+        client.searchTools('work-item-parity'),
+        `${framing}-${index}`,
+      ).rejects.toMatchObject({ code: 'RESULT_SCHEMA_MISMATCH' });
+    }
+  }
+});
+
+test('refuses every redirect class, changed final URL, and redirected response before body reads', async () => {
+  const cases: Array<{
+    status: number;
+    url: string;
+    redirected?: boolean;
+    type?: ResponseType;
+  }> = [
+    { status: 0, url: NUANU_FLOW_MCP_ENDPOINT },
+    { status: 301, url: NUANU_FLOW_MCP_ENDPOINT },
+    { status: 302, url: NUANU_FLOW_MCP_ENDPOINT },
+    { status: 307, url: NUANU_FLOW_MCP_ENDPOINT },
+    { status: 308, url: NUANU_FLOW_MCP_ENDPOINT },
+    { status: 200, url: 'https://attacker.invalid/mcp' },
+    { status: 200, url: NUANU_FLOW_MCP_ENDPOINT, redirected: true },
+    {
+      status: 200,
+      url: NUANU_FLOW_MCP_ENDPOINT,
+      type: 'opaqueredirect',
+    },
+  ];
+
+  for (const scenario of cases) {
+    let cancelCalls = 0;
+    let readCalls = 0;
+    const response = new Response(null, {
+      status: scenario.status === 0 ? 200 : scenario.status,
+      headers: { 'content-type': 'application/json' },
+    });
+    Object.defineProperties(response, {
+      status: { value: scenario.status },
+      url: { value: scenario.url },
+      redirected: { value: scenario.redirected ?? false },
+      type: { value: scenario.type ?? 'default' },
+      body: {
+        value: {
+          cancel: async () => {
+            cancelCalls += 1;
+          },
+          getReader: () => {
+            readCalls += 1;
+            throw new Error('redirect-body-must-not-be-read');
+          },
+        },
+      },
+    });
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: async () => response,
+    });
+
+    await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+      code: 'REDIRECT_REFUSED',
+    });
+    expect({ cancelCalls, readCalls }).toEqual({ cancelCalls: 1, readCalls: 0 });
+  }
+
+  let headerGetterCalls = 0;
+  let cancelCalls = 0;
+  const redirect = new Response(null, { status: 302 });
+  Object.defineProperties(redirect, {
+    url: { value: NUANU_FLOW_MCP_ENDPOINT },
+    headers: {
+      get: () => {
+        headerGetterCalls += 1;
+        throw new Error('redirect-location-must-not-be-read');
+      },
+    },
+    body: {
+      value: {
+        cancel: async () => {
+          cancelCalls += 1;
+        },
+      },
+    },
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async () => redirect,
+  });
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'REDIRECT_REFUSED',
+  });
+  expect({ headerGetterCalls, cancelCalls }).toEqual({
+    headerGetterCalls: 0,
+    cancelCalls: 1,
+  });
+});
+
+test('normalizes hostile response metadata getters and cancels an already snapshotted body', async () => {
+  for (const property of ['status', 'type', 'redirected', 'url', 'headers'] as const) {
+    let bodyGetterCalls = 0;
+    let cancelCalls = 0;
+    const response = new Response(null, {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+    Object.defineProperty(response, 'url', {
+      configurable: true,
+      value: NUANU_FLOW_MCP_ENDPOINT,
+    });
+    const body = {
+      cancel: async () => {
+        cancelCalls += 1;
+      },
+    };
+    Object.defineProperty(response, 'body', {
+      get: () => {
+        bodyGetterCalls += 1;
+        return body;
+      },
+    });
+    Object.defineProperty(response, property, {
+      get: () => {
+        throw new Error(`response-${property}-sentinel`);
+      },
+    });
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: async () => response,
+    });
+
+    let captured: unknown;
+    try {
+      await client.searchTools('work-item-parity');
+    } catch (error) {
+      captured = error;
+    }
+    expect(captured, property).toMatchObject({ code: 'HTTP_FAILURE' });
+    expect(String(captured), property).not.toContain(`response-${property}-sentinel`);
+    expect(JSON.stringify(captured), property).not.toContain(
+      `response-${property}-sentinel`,
+    );
+    expect({ bodyGetterCalls, cancelCalls }, property).toEqual({
+      bodyGetterCalls: 1,
+      cancelCalls: 1,
+    });
+  }
+
+  const response = responseAtEndpoint(null, { status: 200 });
+  Object.defineProperty(response, 'body', {
+    get: () => {
+      throw new Error('response-body-sentinel');
+    },
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async () => response,
+  });
+  let captured: unknown;
+  try {
+    await client.searchTools('work-item-parity');
+  } catch (error) {
+    captured = error;
+  }
+  expect(captured).toMatchObject({ code: 'HTTP_FAILURE' });
+  expect(String(captured)).not.toContain('response-body-sentinel');
+});
+
+test('uses the captured native header reader for every response header lookup', async () => {
+  const nativeGet = Headers.prototype.get;
+  let hostileGetCalls = 0;
+  let fetchCalls = 0;
+  Headers.prototype.get = function () {
+    hostileGetCalls += 1;
+    throw new Error('hostile-header-get-sentinel');
+  };
+
+  let captured: unknown;
+  try {
+    const fallback = syntheticProtocolFetch((id) =>
+      jsonRpcResponse(id, {
+        content: [{ type: 'text', text: JSON.stringify({ tools: [] }) }],
+        isError: false,
+      }),
+    );
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: async (input, init) => {
+        fetchCalls += 1;
+        return fallback(input, init);
+      },
+    });
+    captured = await client
+      .searchTools('work-item-parity')
+      .catch((error: unknown) => error);
+  } finally {
+    Headers.prototype.get = nativeGet;
+  }
+
+  expect(captured).toEqual([]);
+  expect({ hostileGetCalls, fetchCalls }).toEqual({
+    hostileGetCalls: 0,
+    fetchCalls: 3,
+  });
+  expect(String(captured)).not.toContain('hostile-header-get-sentinel');
+});
+
+test('keeps provider, header, body, descriptor, and caller sentinels out of output and console', async () => {
+  const sentinels = {
+    provider: 'provider-private-sentinel',
+    header: 'header-private-sentinel',
+    body: 'body-private-sentinel',
+    name: 'remote_name-private-sentinel_token',
+    key: 'api_key_remote-key-private-sentinel',
+    caller: 'caller-private-sentinel',
+  } as const;
+  const captured: unknown[] = [];
+  const clients: NuanuFlowMcpClient[] = [];
+  const consoleCalls: unknown[][] = [];
+  const originalConsole = {
+    debug: console.debug,
+    error: console.error,
+    info: console.info,
+    log: console.log,
+    warn: console.warn,
+  };
+  for (const method of Object.keys(originalConsole) as Array<keyof typeof originalConsole>) {
+    console[method] = ((...args: unknown[]) => consoleCalls.push(args)) as never;
+  }
+  try {
+    const providerClient = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => {
+        throw new Error(sentinels.provider);
+      },
+      fetchImpl: neverFetch().fetchImpl,
+    });
+    clients.push(providerClient);
+    captured.push(
+      await providerClient.searchTools('work-item-parity').catch((error: unknown) => error),
+    );
+
+    const hostileHeaders = responseAtEndpoint(null, { status: 200 });
+    Object.defineProperty(hostileHeaders, 'headers', {
+      get: () => {
+        throw new Error(sentinels.header);
+      },
+    });
+    const headerClient = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: async () => hostileHeaders,
+    });
+    clients.push(headerClient);
+    captured.push(
+      await headerClient.searchTools('work-item-parity').catch((error: unknown) => error),
+    );
+
+    for (const descriptor of [
+      { name: sentinels.name, properties: {} },
+      {
+        name: 'get_work_item',
+        properties: { [sentinels.key]: { type: 'string' } },
+      },
+    ]) {
+      const descriptorClient = new NuanuFlowMcpClient({
+        workspace: 'nf-qa-sandbox',
+        tokenProvider: () => 'synthetic-token',
+        fetchImpl: syntheticProtocolFetch((id) =>
+          jsonRpcResponse(id, {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  tools: [
+                    {
+                      name: descriptor.name,
+                      inputSchema: {
+                        type: 'object',
+                        properties: descriptor.properties,
+                        required: [],
+                      },
+                    },
+                  ],
+                }),
+              },
+            ],
+            isError: false,
+          }),
+        ),
+      });
+      clients.push(descriptorClient);
+      captured.push(
+        await descriptorClient
+          .searchTools('work-item-parity')
+          .catch((error: unknown) => error),
+      );
+    }
+
+    const bodyClient = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: syntheticProtocolFetch((id) =>
+        responseAtEndpoint(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id,
+            error: { code: -32_000, message: sentinels.body, data: sentinels.body },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    });
+    clients.push(bodyClient);
+    captured.push(
+      await bodyClient.searchTools('work-item-parity').catch((error: unknown) => error),
+    );
+
+    const callerClient = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => sentinels.caller,
+      fetchImpl: neverFetch().fetchImpl,
+    });
+    clients.push(callerClient);
+    captured.push(
+      await callerClient
+        .executeReadTool({
+          ...VALID_READ,
+          [sentinels.caller]: sentinels.caller,
+        } as AllowedReadRequest)
+        .catch((error: unknown) => error),
+    );
+  } finally {
+    Object.assign(console, originalConsole);
+  }
+
+  const serialized = JSON.stringify({ captured, clients, consoleCalls });
+  for (const sentinel of Object.values(sentinels)) {
+    expect(serialized).not.toContain(sentinel);
+  }
+  expect(consoleCalls).toEqual([]);
+});
+
+test('applies one deadline before awaiting the token provider', async () => {
+  const fake = neverFetch();
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => new Promise<string>(() => {}),
+    fetchImpl: fake.fetchImpl,
+  });
+
+  const outcome = await withImmediateInternalTimers(() =>
+    client.searchTools('work-item-parity').catch((error: unknown) => error),
+  );
+  expect(outcome).toMatchObject({ code: 'DEADLINE_EXCEEDED' });
+  expect(fake.calls()).toBe(0);
+});
+
+test('removes the token from captured request headers before a fetch promise can stall', async () => {
+  let capturedHeaders: Headers | undefined;
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-stalled-fetch-token',
+    fetchImpl: (_input, init) => {
+      capturedHeaders = init?.headers as Headers;
+      Object.defineProperty(capturedHeaders, 'delete', {
+        value: () => {
+          throw new Error('hostile-header-delete-sentinel');
+        },
+      });
+      return new Promise<Response>(() => {});
+    },
+  });
+
+  const outcome = await withImmediateInternalTimers(() =>
+    client.searchTools('work-item-parity').catch((error: unknown) => error),
+  );
+  expect(outcome).toMatchObject({ code: 'DEADLINE_EXCEEDED' });
+  expect(capturedHeaders).toBeDefined();
+  expect(capturedHeaders?.get('x-plane-user-token')).toBeNull();
+});
+
+test('removes both sensitive headers before a post-initialization fetch can stall', async () => {
+  let capturedHeaders: Headers | undefined;
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (body.method === 'initialize' && typeof body.id === 'number') {
+        return jsonRpcResponse(
+          body.id,
+          {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+          },
+          { 'mcp-session-id': 'synthetic-private-session' },
+        );
+      }
+      if (body.method === 'notifications/initialized') {
+        return responseAtEndpoint(null, { status: 202 });
+      }
+      capturedHeaders = init?.headers as Headers;
+      return new Promise<Response>(() => {});
+    },
+  });
+
+  const outcome = await withImmediateInternalTimers(() =>
+    client.searchTools('work-item-parity').catch((error: unknown) => error),
+  );
+  expect(outcome).toMatchObject({ code: 'DEADLINE_EXCEEDED' });
+  expect(capturedHeaders).toBeDefined();
+  expect(capturedHeaders?.get('x-plane-user-token')).toBeNull();
+  expect(capturedHeaders?.get('mcp-session-id')).toBeNull();
+});
+
+test('never fetches when a token provider resolves after the deadline', async () => {
+  let resolveProvider = (_token: string) => {};
+  const providerResult = new Promise<string>((resolve) => {
+    resolveProvider = resolve;
+  });
+  const fake = neverFetch();
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => providerResult,
+    fetchImpl: fake.fetchImpl,
+  });
+
+  const outcome = await withImmediateInternalTimers(() =>
+    client.searchTools('work-item-parity').catch((error: unknown) => error),
+  );
+  expect(outcome).toMatchObject({ code: 'DEADLINE_EXCEEDED' });
+  expect(fake.calls()).toBe(0);
+
+  resolveProvider('synthetic-token-after-deadline');
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  expect(fake.calls()).toBe(0);
+});
+
+test('keeps the deadline active through body reads and cancels a stalled reader', async () => {
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const stalledReader = {
+    cancel: async () => {
+      cancelCalls += 1;
+    },
+    read: () => new Promise<ReadableStreamReadResult<Uint8Array>>(() => {}),
+    releaseLock: () => {
+      releaseCalls += 1;
+    },
+  };
+  const response = responseAtEndpoint(null, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  Object.defineProperty(response, 'body', {
+    value: { getReader: () => stalledReader },
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async () => response,
+  });
+
+  const outcome = await withImmediateInternalTimers(() =>
+    client.searchTools('work-item-parity').catch((error: unknown) => error),
+  );
+  expect(outcome).toMatchObject({ code: 'DEADLINE_EXCEEDED' });
+  await expect.poll(() => ({ cancelCalls, releaseCalls })).toEqual({
+    cancelCalls: 1,
+    releaseCalls: 1,
+  });
+});
+
+test('cancels and releases a reader after a body read failure without leaking its error', async () => {
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const failedReader = {
+    cancel: async () => {
+      cancelCalls += 1;
+    },
+    read: async () => {
+      throw new Error('remote-reader-sentinel');
+    },
+    releaseLock: () => {
+      releaseCalls += 1;
+    },
+  };
+  const response = responseAtEndpoint(null, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  Object.defineProperty(response, 'body', {
+    value: { getReader: () => failedReader },
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async () => response,
+  });
+
+  let captured: unknown;
+  try {
+    await client.searchTools('work-item-parity');
+  } catch (error) {
+    captured = error;
+  }
+  expect(captured).toMatchObject({ code: 'HTTP_FAILURE' });
+  expect(String(captured)).not.toContain('remote-reader-sentinel');
+  expect({ cancelCalls, releaseCalls }).toEqual({ cancelCalls: 1, releaseCalls: 1 });
+});
+
+test('rejects a hostile non-Uint8Array body chunk before concatenation', async () => {
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  let readCalls = 0;
+  const hostileChunk = {
+    byteLength: 1,
+    get length() {
+      throw new Error('hostile-chunk-sentinel');
+    },
+  };
+  const reader = {
+    cancel: async () => {
+      cancelCalls += 1;
+    },
+    read: async () => {
+      readCalls += 1;
+      return readCalls === 1
+        ? { done: false, value: hostileChunk as unknown as Uint8Array }
+        : { done: true, value: undefined };
+    },
+    releaseLock: () => {
+      releaseCalls += 1;
+    },
+  };
+  const response = responseAtEndpoint(null, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  Object.defineProperty(response, 'body', {
+    value: { getReader: () => reader },
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async () => response,
+  });
+
+  let captured: unknown;
+  try {
+    await client.searchTools('work-item-parity');
+  } catch (error) {
+    captured = error;
+  }
+  expect(captured).toMatchObject({ code: 'HTTP_FAILURE' });
+  expect(String(captured)).not.toContain('hostile-chunk-sentinel');
+  expect(JSON.stringify(captured)).not.toContain('hostile-chunk-sentinel');
+  expect({ cancelCalls, releaseCalls, readCalls }).toEqual({
+    cancelCalls: 1,
+    releaseCalls: 1,
+    readCalls: 1,
+  });
+});
+
+test('poisons initialization after a non-empty acknowledgement without reading its body', async () => {
+  let fetchCalls = 0;
+  let acknowledgementCancelCalls = 0;
+  const fetchImpl: FetchLike = async (_input, init) => {
+    fetchCalls += 1;
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.method === 'initialize' && typeof body.id === 'number') {
+      return jsonRpcResponse(
+        body.id,
+        {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+        },
+        { 'mcp-session-id': 'session-must-be-cleared' },
+      );
+    }
+    if (body.method === 'notifications/initialized') {
+      const response = responseAtEndpoint(null, {
+        status: 202,
+        headers: { 'content-length': '1' },
+      });
+      Object.defineProperty(response, 'body', {
+        value: {
+          cancel: async () => {
+            acknowledgementCancelCalls += 1;
+          },
+        },
+      });
+      return response;
+    }
+    throw new Error('Initialization should stay poisoned.');
+  };
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl,
+  });
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+      code: 'RESULT_SCHEMA_MISMATCH',
+    });
+  }
+  expect(fetchCalls).toBe(2);
+  expect(acknowledgementCancelCalls).toBe(1);
+  expect(JSON.stringify(client)).not.toContain('session-must-be-cleared');
+});
+
+test('accepts a typical non-null zero-byte acknowledgement stream and snapshots its body once', async () => {
+  let bodyGetterCalls = 0;
+  const acknowledgement = responseAtEndpoint('', { status: 202 });
+  const acknowledgementBody = acknowledgement.body;
+  Object.defineProperty(acknowledgement, 'body', {
+    get: () => {
+      bodyGetterCalls += 1;
+      return acknowledgementBody;
+    },
+  });
+  const fallback = syntheticProtocolFetch((id) =>
+    jsonRpcResponse(id, {
+      content: [{ type: 'text', text: JSON.stringify({ tools: [] }) }],
+      isError: false,
+    }),
+  );
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async (input, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return body.method === 'notifications/initialized'
+        ? acknowledgement
+        : fallback(input, init);
+    },
+  });
+
+  await expect(client.searchTools('work-item-parity')).resolves.toEqual([]);
+  expect(bodyGetterCalls).toBe(1);
+});
+
+test('rejects and cancels an acknowledgement at its first nonzero byte', async () => {
+  let bodyGetterCalls = 0;
+  let readCalls = 0;
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const acknowledgement = responseAtEndpoint(null, { status: 202 });
+  const body = {
+    getReader: () => ({
+      read: async () => {
+        readCalls += 1;
+        return { done: false, value: new Uint8Array([1]) };
+      },
+      cancel: async () => {
+        cancelCalls += 1;
+      },
+      releaseLock: () => {
+        releaseCalls += 1;
+      },
+    }),
+    cancel: async () => {
+      throw new Error('outer-cancel-must-not-run');
+    },
+  };
+  Object.defineProperty(acknowledgement, 'body', {
+    get: () => {
+      bodyGetterCalls += 1;
+      return body;
+    },
+  });
+  const fallback = syntheticProtocolFetch(() => {
+    throw new Error('search-must-not-run');
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async (input, init) => {
+      const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return request.method === 'notifications/initialized'
+        ? acknowledgement
+        : fallback(input, init);
+    },
+  });
+
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'RESULT_SCHEMA_MISMATCH',
+    operation: 'client.initialized',
+  });
+  expect({ bodyGetterCalls, readCalls, cancelCalls, releaseCalls }).toEqual({
+    bodyGetterCalls: 1,
+    readCalls: 1,
+    cancelCalls: 1,
+    releaseCalls: 1,
+  });
+});
+
+test('cancels an oversized Content-Length response without reading bytes', async () => {
+  let cancelCalls = 0;
+  let getReaderCalls = 0;
+  const response = responseAtEndpoint(null, {
+    status: 200,
+    headers: {
+      'content-length': String(1_024 * 1_024 + 1),
+      'content-type': 'application/json',
+    },
+  });
+  Object.defineProperty(response, 'body', {
+    value: {
+      cancel: async () => {
+        cancelCalls += 1;
+      },
+      getReader: () => {
+        getReaderCalls += 1;
+        throw new Error('body-bytes-must-not-be-read');
+      },
+    },
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async () => response,
+  });
+
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'RESPONSE_LIMIT',
+  });
+  expect({ cancelCalls, getReaderCalls }).toEqual({
+    cancelCalls: 1,
+    getReaderCalls: 0,
+  });
+});
+
+test('stops a streamed response at the byte limit and cancels the same reader', async () => {
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  let readOrdinal = 0;
+  const chunks = [
+    new Uint8Array(700_000),
+    new Uint8Array(400_000),
+    new Uint8Array([1]),
+  ];
+  const reader = {
+    cancel: async () => {
+      cancelCalls += 1;
+    },
+    read: async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
+      const value = chunks[readOrdinal];
+      readOrdinal += 1;
+      return value === undefined ? { done: true, value: undefined } : { done: false, value };
+    },
+    releaseLock: () => {
+      releaseCalls += 1;
+    },
+  };
+  const response = responseAtEndpoint(null, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  Object.defineProperty(response, 'body', {
+    value: { getReader: () => reader },
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async () => response,
+  });
+
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'RESPONSE_LIMIT',
+  });
+  expect({ cancelCalls, readOrdinal, releaseCalls }).toEqual({
+    cancelCalls: 1,
+    readOrdinal: 2,
+    releaseCalls: 1,
+  });
+});
+
+test('refuses one oversized typed-array chunk before response-buffer copying', async () => {
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  let readCalls = 0;
+  const reader = {
+    cancel: async () => {
+      cancelCalls += 1;
+    },
+    read: async () => {
+      readCalls += 1;
+      return { done: false, value: new Uint8Array(1_024 * 1_024 + 1) };
+    },
+    releaseLock: () => {
+      releaseCalls += 1;
+    },
+  };
+  const response = responseAtEndpoint(null, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  Object.defineProperty(response, 'body', {
+    value: { getReader: () => reader },
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async () => response,
+  });
+
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'RESPONSE_LIMIT',
+  });
+  expect({ cancelCalls, releaseCalls, readCalls }).toEqual({
+    cancelCalls: 1,
+    releaseCalls: 1,
+    readCalls: 1,
+  });
+});
+
+test('does not let a nonsettling reader cancellation replace the read failure', async () => {
+  let cancelCalls = 0;
+  let releaseCalls = 0;
+  const reader = {
+    cancel: () => {
+      cancelCalls += 1;
+      return new Promise<void>(() => {});
+    },
+    read: async () => {
+      throw new Error('hostile-read-sentinel');
+    },
+    releaseLock: () => {
+      releaseCalls += 1;
+    },
+  };
+  const response = responseAtEndpoint(null, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  Object.defineProperty(response, 'body', {
+    value: { getReader: () => reader },
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async () => response,
+  });
+
+  const outcome = await withImmediateInternalTimers(() =>
+    client.searchTools('work-item-parity').catch((error: unknown) => error),
+  );
+  expect(outcome).toMatchObject({ code: 'HTTP_FAILURE' });
+  expect(String(outcome)).not.toContain('hostile-read-sentinel');
+  expect({ cancelCalls, releaseCalls }).toEqual({ cancelCalls: 1, releaseCalls: 1 });
+});
+
+test('normalizes a hostile releaseLock failure into the original local error', async () => {
+  const reader = {
+    cancel: async () => {},
+    read: async () => {
+      throw new Error('hostile-read-sentinel');
+    },
+    releaseLock: () => {
+      throw new Error('hostile-release-sentinel');
+    },
+  };
+  const response = responseAtEndpoint(null, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  Object.defineProperty(response, 'body', {
+    value: { getReader: () => reader },
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async () => response,
+  });
+
+  let captured: unknown;
+  try {
+    await client.searchTools('work-item-parity');
+  } catch (error) {
+    captured = error;
+  }
+  expect(captured).toMatchObject({ code: 'HTTP_FAILURE' });
+  expect(String(captured)).not.toMatch(/hostile-(?:read|release)-sentinel/);
+});
+
+test('single-flights concurrent initialization and assigns unique monotonic call IDs', async () => {
+  let releaseInitialization = () => {};
+  const initializationGate = new Promise<void>((resolve) => {
+    releaseInitialization = resolve;
+  });
+  let tokenOrdinal = 0;
+  const requests: Array<{
+    body: Record<string, unknown>;
+    session: string | null;
+    token: string | null;
+  }> = [];
+  const fetchImpl: FetchLike = async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    const headers = new Headers(init?.headers);
+    requests.push({
+      body,
+      session: headers.get('mcp-session-id'),
+      token: headers.get('x-plane-user-token'),
+    });
+    if (body.method === 'initialize' && typeof body.id === 'number') {
+      await initializationGate;
+      return jsonRpcResponse(
+        body.id,
+        {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+        },
+        { 'mcp-session-id': 'single-flight-session' },
+      );
+    }
+    if (body.method === 'notifications/initialized') {
+      return responseAtEndpoint(null, { status: 202 });
+    }
+    if (body.method === 'tools/call' && typeof body.id === 'number') {
+      return jsonRpcResponse(body.id, {
+        content: [{ type: 'text', text: JSON.stringify({ tools: [] }) }],
+        isError: false,
+      });
+    }
+    throw new Error('Unexpected concurrent synthetic request.');
+  };
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => `concurrent-token-${++tokenOrdinal}`,
+    fetchImpl,
+  });
+
+  const first = client.searchTools('work-item-parity');
+  const second = client.searchTools('work-item-parity');
+  await expect.poll(() => requests.length).toBe(1);
+  releaseInitialization();
+  await expect(Promise.all([first, second])).resolves.toEqual([[], []]);
+
+  expect(requests.map(({ body }) => body.method)).toEqual([
+    'initialize',
+    'notifications/initialized',
+    'tools/call',
+    'tools/call',
+  ]);
+  expect(requests.map(({ body }) => body.id)).toEqual([1, undefined, 2, 3]);
+  expect(requests.map(({ token }) => token)).toEqual([
+    'concurrent-token-1',
+    'concurrent-token-2',
+    'concurrent-token-3',
+    'concurrent-token-4',
+  ]);
+  expect(requests.map(({ session }) => session)).toEqual([
+    null,
+    'single-flight-session',
+    'single-flight-session',
+    'single-flight-session',
+  ]);
+});
+
+test('keeps one failed concurrent handshake permanently poisoned', async () => {
+  let fetchCalls = 0;
+  let providerCalls = 0;
+  const fetchImpl: FetchLike = async (_input, init) => {
+    fetchCalls += 1;
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.method !== 'initialize' || typeof body.id !== 'number') {
+      throw new Error('Only one initialize request is permitted.');
+    }
+    return jsonRpcResponse(body.id + 1, {});
+  };
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => {
+      providerCalls += 1;
+      return 'synthetic-token';
+    },
+    fetchImpl,
+  });
+
+  const results = await Promise.allSettled([
+    client.searchTools('work-item-parity'),
+    client.searchTools('work-item-parity'),
+  ]);
+  expect(results).toHaveLength(2);
+  for (const result of results) {
+    expect(result.status).toBe('rejected');
+    if (result.status === 'rejected') {
+      expect(result.reason).toMatchObject({ code: 'JSON_RPC_ID_MISMATCH' });
+    }
+  }
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'JSON_RPC_ID_MISMATCH',
+  });
+  expect({ fetchCalls, providerCalls }).toEqual({ fetchCalls: 1, providerCalls: 1 });
+});
+
+test('rejects tokens that native Headers would normalize or encode', async () => {
+  for (const token of [
+    new String('boxed-token'),
+    ' leading-token',
+    'trailing-token ',
+    'embedded space',
+    'unicode-雪',
+    'unicode-é',
+  ]) {
+    const fake = neverFetch();
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => token as string,
+      fetchImpl: fake.fetchImpl,
+    });
+    await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+      code: 'TOKEN_INVALID',
+    });
+    expect(fake.calls()).toBe(0);
+  }
+});
+
+test('takes one constructor descriptor snapshot with no later TOCTOU reads', () => {
+  const tokenProvider = () => 'synthetic-token';
+  const lateSymbol = Symbol('late-constructor-secret');
+  let ownKeyCalls = 0;
+  const options = new Proxy(
+    { workspace: 'nf-qa-sandbox', tokenProvider },
+    {
+      ownKeys: () => {
+        ownKeyCalls += 1;
+        return ownKeyCalls === 1
+          ? ['workspace', 'tokenProvider']
+          : ['workspace', 'tokenProvider', lateSymbol];
+      },
+      getOwnPropertyDescriptor: (target, property) => {
+        if (property === lateSymbol) {
+          return { configurable: true, enumerable: true, value: 'hidden' };
+        }
+        return Object.getOwnPropertyDescriptor(target, property);
+      },
+    },
+  );
+
+  expect(
+    () => new NuanuFlowMcpClient(options as ConstructorParameters<typeof NuanuFlowMcpClient>[0]),
+  ).not.toThrow();
+  expect(ownKeyCalls).toBe(1);
+});
+
+test('returns a frozen minimal descriptor projection with conservative hint defaults', async () => {
+  const tools = [
+    {
+      name: 'get_work_item',
+      description: 'Read one sandbox work item.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', examples: ['not-returned'] },
+          sequence_id: { type: 'number', default: 1 },
+          include_deleted: { type: 'boolean' },
+        },
+        required: ['id'],
+      },
+      annotations: { readOnlyHint: true, destructiveHint: false },
+    },
+    {
+      name: 'delete_work_item',
+      inputSchema: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+        required: ['id'],
+      },
+    },
+    {
+      name: 'create_issue',
+      description: 'Issue-like discovery remains observational only.',
+      inputSchema: { type: 'object', properties: {}, required: [] },
+    },
+    {
+      name: 'generic_http_request',
+      description: 'Generic-looking discovery remains observational only.',
+      inputSchema: { type: 'object', properties: {}, required: [] },
+    },
+  ];
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: syntheticProtocolFetch((id) =>
+      jsonRpcResponse(id, {
+        content: [{ type: 'text', text: JSON.stringify({ tools }) }],
+        isError: false,
+      }),
+    ),
+  });
+
+  const descriptors = await client.searchTools('work-item-parity');
+  expect(descriptors).toEqual([
+    {
+      name: 'get_work_item',
+      inputProperties: {
+        id: 'string',
+        sequence_id: 'number',
+        include_deleted: 'boolean',
+      },
+      required: ['id'],
+      readOnly: true,
+      destructive: false,
+    },
+    {
+      name: 'delete_work_item',
+      inputProperties: { id: 'string' },
+      required: ['id'],
+      readOnly: false,
+      destructive: true,
+    },
+    {
+      name: 'create_issue',
+      inputProperties: {},
+      required: [],
+      readOnly: false,
+      destructive: true,
+    },
+    {
+      name: 'generic_http_request',
+      inputProperties: {},
+      required: [],
+      readOnly: false,
+      destructive: true,
+    },
+  ]);
+  expect(Object.isFrozen(descriptors)).toBe(true);
+  for (const descriptor of descriptors) {
+    expect(Object.isFrozen(descriptor)).toBe(true);
+    expect(Object.isFrozen(descriptor.inputProperties)).toBe(true);
+    expect(Object.isFrozen(descriptor.required)).toBe(true);
+  }
+  expect(JSON.stringify(descriptors)).not.toMatch(
+    /examples|default|Read one sandbox|observational only/,
+  );
+});
+
+test('rejects near-limit oversized descriptor identifiers before substring fingerprint work', async () => {
+  test.setTimeout(8_000);
+  const oversized = 'a'.repeat(700_000);
+  for (const location of ['name', 'key'] as const) {
+    const startedAt = performance.now();
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'x',
+      fetchImpl: syntheticProtocolFetch((id) =>
+        jsonRpcResponse(id, {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                tools: [
+                  {
+                    name: location === 'name' ? oversized : 'get_work_item',
+                    inputSchema: {
+                      type: 'object',
+                      properties:
+                        location === 'key'
+                          ? { [oversized]: { type: 'string' } }
+                          : {},
+                      required: [],
+                    },
+                  },
+                ],
+              }),
+            },
+          ],
+          isError: false,
+        }),
+      ),
+    });
+    await expect(client.searchTools('work-item-parity'), location).rejects.toMatchObject({
+      code: 'RESULT_SCHEMA_MISMATCH',
+    });
+    expect(performance.now() - startedAt, location).toBeLessThan(1_500);
+  }
+});
+
+test('omits remote descriptor descriptions without echoing sensitive text', async () => {
+  const remoteSentinel = 'Bearer remote-sensitive-sentinel';
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: syntheticProtocolFetch((id) =>
+      jsonRpcResponse(id, {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              tools: [
+                {
+                  name: 'get_work_item',
+                  description: remoteSentinel,
+                  inputSchema: { type: 'object', properties: {}, required: [] },
+                },
+              ],
+            }),
+          },
+        ],
+        isError: false,
+      }),
+    ),
+  });
+
+  const descriptors = await client.searchTools('work-item-parity');
+  expect(descriptors).toEqual([
+    {
+      name: 'get_work_item',
+      inputProperties: {},
+      required: [],
+      readOnly: false,
+      destructive: true,
+    },
+  ]);
+  expect(JSON.stringify(descriptors)).not.toContain(remoteSentinel);
+});
+
+test('rejects hostile descriptor keys and annotations without echoing them', async () => {
+  const cases = [
+    {
+      name: 'oversized property key',
+      tool: {
+        name: 'get_work_item',
+        inputSchema: {
+          type: 'object',
+          properties: { [`${'x'.repeat(65)}-remote-sensitive-sentinel`]: { type: 'string' } },
+          required: [],
+        },
+      },
+    },
+    {
+      name: 'credential property key',
+      tool: {
+        name: 'get_work_item',
+        inputSchema: {
+          type: 'object',
+          properties: { bearer_token: { type: 'string' } },
+          required: ['bearer_token'],
+        },
+      },
+    },
+    {
+      name: 'malformed annotation',
+      tool: {
+        name: 'get_work_item',
+        inputSchema: { type: 'object', properties: {}, required: [] },
+        annotations: { readOnlyHint: 'yes', destructiveHint: false },
+      },
+    },
+  ];
+
+  for (const scenario of cases) {
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: syntheticProtocolFetch((id) =>
+        jsonRpcResponse(id, {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ tools: [scenario.tool] }),
+            },
+          ],
+          isError: false,
+        }),
+      ),
+    });
+    let captured: unknown;
+    try {
+      await client.searchTools('work-item-parity');
+    } catch (error) {
+      captured = error;
+    }
+    expect(captured, scenario.name).toMatchObject({
+      code: 'RESULT_SCHEMA_MISMATCH',
+    });
+    expect(String(captured)).not.toContain('remote-sensitive-sentinel');
+    expect(JSON.stringify(captured)).not.toContain('remote-sensitive-sentinel');
+  }
+});
+
+test('cancels a response that arrives after the deadline without reading it', async () => {
+  let resolveFetch = (_response: Response) => {};
+  const deferredFetch = new Promise<Response>((resolve) => {
+    resolveFetch = resolve;
+  });
+  let cancelCalls = 0;
+  let getReaderCalls = 0;
+  const lateResponse = responseAtEndpoint(null, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  Object.defineProperty(lateResponse, 'body', {
+    value: {
+      cancel: async () => {
+        cancelCalls += 1;
+      },
+      getReader: () => {
+        getReaderCalls += 1;
+        throw new Error('late-body-must-not-be-read');
+      },
+    },
+  });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: () => deferredFetch,
+  });
+
+  const outcome = await withImmediateInternalTimers(() =>
+    client.searchTools('work-item-parity').catch((error: unknown) => error),
+  );
+  expect(outcome).toMatchObject({ code: 'DEADLINE_EXCEEDED' });
+
+  resolveFetch(lateResponse);
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  expect({ cancelCalls, getReaderCalls }).toEqual({ cancelCalls: 1, getReaderCalls: 0 });
+});
+
+test('cancels unread bodies on every early transport or acknowledgement refusal', async () => {
+  const scenarios: Array<{
+    name: string;
+    status: number;
+    headers: HeadersInit | undefined;
+    expected: string;
+  }> = [
+    { name: 'redirect', status: 307, headers: {}, expected: 'REDIRECT_REFUSED' },
+    { name: 'http', status: 500, headers: {}, expected: 'HTTP_FAILURE' },
+    {
+      name: 'content type',
+      status: 200,
+      headers: { 'content-type': 'text/plain' },
+      expected: 'CONTENT_TYPE_REFUSED',
+    },
+  ];
+  for (const scenario of scenarios) {
+    let cancelCalls = 0;
+    let getReaderCalls = 0;
+    const response = responseAtEndpoint(null, {
+      status: scenario.status,
+      headers: scenario.headers,
+    });
+    Object.defineProperty(response, 'body', {
+      value: {
+        cancel: () => {
+          cancelCalls += 1;
+          return new Promise<void>(() => {});
+        },
+        getReader: () => {
+          getReaderCalls += 1;
+          throw new Error('early-refusal-body-must-not-be-read');
+        },
+      },
+    });
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: async () => response,
+    });
+    await expect(client.searchTools('work-item-parity'), scenario.name).rejects.toMatchObject({
+      code: scenario.expected,
+    });
+    expect({ cancelCalls, getReaderCalls }, scenario.name).toEqual({
+      cancelCalls: 1,
+      getReaderCalls: 0,
+    });
+  }
+
+  let acknowledgementCancelCalls = 0;
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (body.method === 'initialize' && typeof body.id === 'number') {
+        return jsonRpcResponse(
+          body.id,
+          {
+            protocolVersion: '2025-06-18',
+            capabilities: {},
+            serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+          },
+          { 'mcp-session-id': 'synthetic-session' },
+        );
+      }
+      const response = responseAtEndpoint(null, {
+        status: 202,
+        headers: { 'content-length': '1' },
+      });
+      Object.defineProperty(response, 'body', {
+        value: {
+          cancel: () => {
+            acknowledgementCancelCalls += 1;
+            return new Promise<void>(() => {});
+          },
+        },
+      });
+      return response;
+    },
+  });
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'RESULT_SCHEMA_MISMATCH',
+  });
+  expect(acknowledgementCancelCalls).toBe(1);
+});
+
+test('caps a zero-byte chunk flood and cancels its reader', async () => {
+  let cancelCalls = 0;
+  let readCalls = 0;
+  let releaseCalls = 0;
+  const reader = {
+    cancel: async () => {
+      cancelCalls += 1;
+    },
+    read: async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
+      readCalls += 1;
+      return { done: false, value: new Uint8Array(0) };
+    },
+    releaseLock: () => {
+      releaseCalls += 1;
+    },
+  };
+  const response = responseAtEndpoint(null, {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  Object.defineProperty(response, 'body', { value: { getReader: () => reader } });
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: async () => response,
+  });
+
+  await expect(client.searchTools('work-item-parity')).rejects.toMatchObject({
+    code: 'RESPONSE_LIMIT',
+  });
+  expect(readCalls).toBeLessThanOrEqual(4_097);
+  expect({ cancelCalls, releaseCalls }).toEqual({ cancelCalls: 1, releaseCalls: 1 });
+});
+
+test('matches 20 concurrent calls by ID across reversed response waves without reinitializing', async () => {
+  const pending: Array<{ id: number; resolve: (response: Response) => void }> = [];
+  let initializeCalls = 0;
+  let notificationCalls = 0;
+  const fetchImpl: FetchLike = async (_input, init) => {
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    if (body.method === 'initialize' && typeof body.id === 'number') {
+      initializeCalls += 1;
+      return jsonRpcResponse(
+        body.id,
+        {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          serverInfo: { name: 'synthetic-server', version: '1.0.0' },
+        },
+        { 'mcp-session-id': 'stress-session' },
+      );
+    }
+    if (body.method === 'notifications/initialized') {
+      notificationCalls += 1;
+      return responseAtEndpoint(null, { status: 202 });
+    }
+    if (body.method === 'tools/call' && typeof body.id === 'number') {
+      return new Promise<Response>((resolve) => pending.push({ id: body.id as number, resolve }));
+    }
+    throw new Error('Unexpected stress request.');
+  };
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl,
+  });
+
+  const runWave = async (count: number) => {
+    const calls = Array.from({ length: count }, () =>
+      client.searchTools('work-item-parity'),
+    );
+    await expect.poll(() => pending.length).toBe(count);
+    const wave = pending.splice(0);
+    for (const entry of [...wave].reverse()) {
+      entry.resolve(
+        jsonRpcResponse(entry.id, {
+          content: [{ type: 'text', text: JSON.stringify({ tools: [] }) }],
+          isError: false,
+        }),
+      );
+    }
+    await expect(Promise.all(calls)).resolves.toEqual(
+      Array.from({ length: count }, () => []),
+    );
+    return wave.map(({ id }) => id);
+  };
+
+  expect(await runWave(16)).toEqual(Array.from({ length: 16 }, (_, index) => index + 2));
+  expect(await runWave(4)).toEqual([18, 19, 20, 21]);
+  expect({ initializeCalls, notificationCalls }).toEqual({
+    initializeCalls: 1,
+    notificationCalls: 1,
+  });
+});
+
+test('validates the complete SSE stream before classifying a terminal error', async () => {
+  const remoteSentinel = 'remote-error-data-sentinel';
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: syntheticProtocolFetch((id) =>
+      sseResponse([
+        `data: ${JSON.stringify({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32_000, message: 'remote failure', data: remoteSentinel },
+        })}`,
+        `data: ${JSON.stringify({ jsonrpc: '2.0', id, result: {} })}`,
+      ]),
+    ),
+  });
+
+  let captured: unknown;
+  try {
+    await client.searchTools('work-item-parity');
+  } catch (error) {
+    captured = error;
+  }
+  expect(captured).toMatchObject({ code: 'RESULT_SCHEMA_MISMATCH' });
+  expect(String(captured)).not.toContain(remoteSentinel);
+  expect(JSON.stringify(captured)).not.toContain(remoteSentinel);
+});
+
+test('returns one safe JSON_RPC_ERROR only after a complete bounded SSE stream', async () => {
+  const remoteSentinel = 'remote-error-data-sentinel';
+  const client = new NuanuFlowMcpClient({
+    workspace: 'nf-qa-sandbox',
+    tokenProvider: () => 'synthetic-token',
+    fetchImpl: syntheticProtocolFetch((id) =>
+      sseResponse([
+        `data: ${JSON.stringify({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32_000, message: 'remote failure', data: remoteSentinel },
+        })}`,
+        'data: {"jsonrpc":"2.0","method":"notifications/progress","params":{"progress":1}}',
+      ]),
+    ),
+  });
+
+  let captured: unknown;
+  try {
+    await client.searchTools('work-item-parity');
+  } catch (error) {
+    captured = error;
+  }
+  expect(captured).toMatchObject({ code: 'JSON_RPC_ERROR' });
+  expect(String(captured)).not.toContain(remoteSentinel);
+  expect(JSON.stringify(captured)).not.toContain(remoteSentinel);
+});
+
+test('enforces SSE event, line, actual-byte, depth, and termination bounds', async () => {
+  let nested: Record<string, unknown> = {};
+  for (let depth = 0; depth < 40; depth += 1) nested = { next: nested };
+  const exactMatchingTerminal = (id: number) =>
+    `data: ${JSON.stringify({ jsonrpc: '2.0', id, result: {} })}`;
+  const oversizedDataLine =
+    `data: ${JSON.stringify('x'.repeat(256 * 1_024 - 10))}`;
+  expect(new TextEncoder().encode(`${oversizedDataLine}\r\n\r\n`).byteLength).toBe(
+    256 * 1_024 + 2,
+  );
+
+  const scenarios: Array<{
+    name: string;
+    response: (id: number) => Response;
+    code: string;
+  }> = [
+    {
+      name: '65 events',
+      response: (id) =>
+        sseResponse([
+          ...Array.from(
+            { length: 64 },
+            (_, index) =>
+              `data: ${JSON.stringify({
+                jsonrpc: '2.0',
+                method: 'notifications/progress',
+                params: { progress: index },
+              })}`,
+          ),
+          exactMatchingTerminal(id),
+        ]),
+      code: 'RESPONSE_LIMIT',
+    },
+    {
+      name: '1025 lines',
+      response: (id) =>
+        sseResponse([
+          `${Array.from({ length: 1_025 }, () => ': keepalive').join('\r\n')}\r\n${exactMatchingTerminal(id)}`,
+        ]),
+      code: 'RESPONSE_LIMIT',
+    },
+    {
+      name: 'actual CRLF event bytes',
+      response: () =>
+        responseAtEndpoint(`${oversizedDataLine}\r\n\r\n`, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        }),
+      code: 'RESPONSE_LIMIT',
+    },
+    {
+      name: 'unterminated oversized event',
+      response: () =>
+        responseAtEndpoint(`data: ${'x'.repeat(256 * 1_024)}`, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        }),
+      code: 'RESPONSE_LIMIT',
+    },
+    {
+      name: 'JSON depth',
+      response: (id) =>
+        sseResponse([
+          `data: ${JSON.stringify({ jsonrpc: '2.0', id, result: nested })}`,
+        ]),
+      code: 'RESPONSE_LIMIT',
+    },
+    {
+      name: 'unterminated event',
+      response: (id) =>
+        responseAtEndpoint(exactMatchingTerminal(id), {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        }),
+      code: 'RESULT_SCHEMA_MISMATCH',
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const client = new NuanuFlowMcpClient({
+      workspace: 'nf-qa-sandbox',
+      tokenProvider: () => 'synthetic-token',
+      fetchImpl: syntheticProtocolFetch(scenario.response),
+    });
+    await expect(
+      client.searchTools('work-item-parity'),
+      scenario.name,
+    ).rejects.toMatchObject({ code: scenario.code });
+  }
+});
+
+if (false) {
+  const tokenProvider = () => 'synthetic-token';
+  // @ts-expect-error Constructor token strings are intentionally impossible.
+  new NuanuFlowMcpClient({ workspace: 'nf-qa-sandbox', token: 'nope' });
+  // @ts-expect-error Endpoint overrides are intentionally impossible.
+  new NuanuFlowMcpClient({ workspace: 'nf-qa-sandbox', tokenProvider, endpoint: 'https://attacker.invalid' });
+  const client = new NuanuFlowMcpClient({ workspace: 'nf-qa-sandbox', tokenProvider });
+  // @ts-expect-error Generic tool execution is intentionally absent.
+  void client.callTool('anything', {});
+}

@@ -1,0 +1,229 @@
+import { defineConfig, devices, type Project } from '@playwright/test';
+import 'dotenv/config';
+import { existsSync, realpathSync } from 'node:fs';
+import {
+  basename,
+  dirname,
+  extname,
+  isAbsolute,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+const REPOSITORY_ROOT = dirname(fileURLToPath(import.meta.url));
+const NUANUFLOW_AUTH_STATE_DIR = resolve(REPOSITORY_ROOT, 'playwright/.auth');
+
+const resolvesInside = (parentPath: string, candidatePath: string): boolean => {
+  const relativePath = relative(parentPath, candidatePath);
+  return (
+    relativePath !== '' &&
+    relativePath !== '..' &&
+    !relativePath.startsWith(`..${sep}`) &&
+    !isAbsolute(relativePath)
+  );
+};
+
+const resolveRealPathOrNearestExistingAncestor = (candidatePath: string): string => {
+  let existingAncestor = candidatePath;
+  const unresolvedSegments: string[] = [];
+
+  while (!existsSync(existingAncestor)) {
+    const parentPath = dirname(existingAncestor);
+    if (parentPath === existingAncestor) {
+      throw new Error('Unable to resolve Nuanu Flow authenticated state path.');
+    }
+    unresolvedSegments.unshift(basename(existingAncestor));
+    existingAncestor = parentPath;
+  }
+
+  return resolve(realpathSync(existingAncestor), ...unresolvedSegments);
+};
+
+const validateNuanuFlowStorageState = (storageState: string): string => {
+  const resolvedStorageState = isAbsolute(storageState)
+    ? resolve(storageState)
+    : resolve(REPOSITORY_ROOT, storageState);
+  const isInsideAuthStateDirectory = resolvesInside(
+    NUANUFLOW_AUTH_STATE_DIR,
+    resolvedStorageState,
+  );
+
+  const realRepositoryRoot = realpathSync(REPOSITORY_ROOT);
+  const realAuthStateDirectory = resolveRealPathOrNearestExistingAncestor(
+    NUANUFLOW_AUTH_STATE_DIR,
+  );
+  const expectedRealAuthStateDirectory = resolve(
+    realRepositoryRoot,
+    'playwright/.auth',
+  );
+  const realStorageState = resolveRealPathOrNearestExistingAncestor(
+    resolvedStorageState,
+  );
+
+  if (
+    !isInsideAuthStateDirectory ||
+    extname(resolvedStorageState) !== '.json' ||
+    realAuthStateDirectory !== expectedRealAuthStateDirectory ||
+    !resolvesInside(realAuthStateDirectory, realStorageState)
+  ) {
+    throw new Error(
+      'NUANUFLOW_STORAGE_STATE must be a .json file inside playwright/.auth/.',
+    );
+  }
+
+  return resolvedStorageState;
+};
+
+// One Playwright project per product under test. A project is registered only
+// when its <PRODUCT>_BASE_URL env var is set, so cloning the repo without any
+// configured product still yields a valid (empty) test run.
+// Run a single product with: npx playwright test --project=<name>
+//
+// Options:
+//   authSetup: adds "<name>-setup" (tests/<name>/auth.setup.ts) that logs in once
+//              and saves storageState for authenticated specs to reuse.
+//   browsers:  device list for a cross-browser matrix, e.g.
+//              ['Desktop Chrome', 'Desktop Firefox', 'Desktop Safari', 'Pixel 5'].
+//              Defaults to Desktop Chrome only. With several browsers, projects
+//              are named "<name>-desktop-chrome", "<name>-desktop-firefox", …
+//              (install engines first: npx playwright install firefox webkit).
+const product = (
+  name: string,
+  baseURL: string | undefined,
+  options: { authSetup?: boolean; browsers?: string[] } = {},
+): Project[] => {
+  if (!baseURL) return [];
+  const browsers = options.browsers ?? ['Desktop Chrome'];
+  const projects: Project[] = [];
+  if (options.authSetup) {
+    projects.push({
+      name: `${name}-setup`,
+      testDir: `./tests/${name}`,
+      testMatch: /auth\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'], baseURL },
+    });
+  }
+  for (const browser of browsers) {
+    const suffix =
+      browsers.length > 1 ? `-${browser.toLowerCase().replace(/\s+/g, '-')}` : '';
+    projects.push({
+      name: `${name}${suffix}`,
+      testDir: `./tests/${name}`,
+      testIgnore: /auth\.setup\.ts/,
+      ...(options.authSetup ? { dependencies: [`${name}-setup`] } : {}),
+      use: { ...devices[browser], baseURL },
+    });
+  }
+  return projects;
+};
+
+const NUANUFLOW_RELEASE_PUBLIC_MATCH =
+  /[\\/]tests[\\/]nuanuflow[\\/](?:accessibility|auth|legal|responsive|routing|smoke)\.spec\.ts$/;
+const NUANUFLOW_RELEASE_AUTH_MATCH =
+  /[\\/]tests[\\/]nuanuflow[\\/]authenticated[\\/]accessibility-responsive\.spec\.ts$/;
+
+export const nuanuFlowProjects = (
+  baseURL: string | undefined,
+  storageState: string | undefined,
+  fullBrowserMatrix: string | undefined,
+): Project[] => {
+  if (!baseURL) return [];
+
+  const sharedUse = { ...devices['Desktop Chrome'], baseURL };
+  const projects: Project[] = [
+    {
+      name: 'nuanuflow',
+      testDir: './tests/nuanuflow',
+      testIgnore: [/authenticated\//, /auth\.setup\.ts/],
+      use: sharedUse,
+    },
+  ];
+
+  if (storageState) {
+    const validatedStorageState = validateNuanuFlowStorageState(storageState);
+
+    projects.push({
+      name: 'nuanuflow-auth',
+      testDir: './tests/nuanuflow',
+      testMatch: /authenticated\/.*\.spec\.ts/,
+      fullyParallel: false,
+      use: { ...sharedUse, storageState: validatedStorageState },
+    });
+  }
+
+  if (fullBrowserMatrix === '1') {
+    for (const [name, deviceName] of [
+      ['firefox', 'Desktop Firefox'],
+      ['webkit', 'Desktop Safari'],
+      ['pixel-5', 'Pixel 5'],
+    ] as const) {
+      projects.push({
+        name: `nuanuflow-release-${name}`,
+        testDir: './tests/nuanuflow',
+        testMatch: NUANUFLOW_RELEASE_PUBLIC_MATCH,
+        use: { ...devices[deviceName], baseURL },
+      });
+      if (storageState) {
+        projects.push({
+          name: `nuanuflow-auth-release-${name}`,
+          testDir: './tests/nuanuflow',
+          testMatch: NUANUFLOW_RELEASE_AUTH_MATCH,
+          fullyParallel: true,
+          use: {
+            ...devices[deviceName],
+            baseURL,
+            storageState: validateNuanuFlowStorageState(storageState),
+          },
+        });
+      }
+    }
+  }
+
+  return projects;
+};
+
+export default defineConfig({
+  testDir: './tests',
+  timeout: DEFAULT_TIMEOUT_MS,
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  reporter: process.env.CI
+    ? [
+        ['html', { open: 'never' }],
+        ['junit', { outputFile: 'playwright-results.xml' }],
+        ['list'],
+      ]
+    : [['html', { open: 'never' }], ['list']],
+  use: {
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    actionTimeout: 10_000,
+    navigationTimeout: 30_000,
+  },
+  // Testing a locally built product instead of a deployed URL? Start it here:
+  // webServer: {
+  //   command: 'npm run dev',
+  //   url: 'http://localhost:3000',
+  //   reuseExistingServer: !process.env.CI,
+  //   timeout: 120_000,
+  // },
+  projects: [
+    ...product('freeland', process.env.FREELAND_BASE_URL, { authSetup: true }),
+    ...product('magicpay', process.env.MAGICPAY_BASE_URL),
+    ...nuanuFlowProjects(
+      process.env.NUANUFLOW_BASE_URL,
+      process.env.NUANUFLOW_STORAGE_STATE,
+      process.env.NUANUFLOW_FULL_BROWSER_MATRIX,
+    ),
+    // Add your product here:
+    // ...product('myproduct', process.env.MYPRODUCT_BASE_URL, {
+    //   authSetup: true,
+    //   browsers: ['Desktop Chrome', 'Desktop Firefox', 'Desktop Safari'],
+    // }),
+  ],
+});

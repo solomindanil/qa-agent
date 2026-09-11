@@ -1,0 +1,85 @@
+import { expect, test, type TestInfo } from '@playwright/test';
+import { NUANU_APP_BASE_URL_ENV } from '../fixtures/env';
+import { attachObservation, observeBrowser } from '../fixtures/evidence';
+import {
+  annotateRuntimeCase,
+  loadReviewedRuntimeContract,
+  type RuntimeContractGate,
+  type RuntimeSelectorKey,
+} from '../fixtures/runtime';
+import { attachMutationLedger, blockUnsafeRequests } from '../fixtures/safety';
+import { DiscoveryPage, type RuntimeLocatorGate } from '../pages/discovery.page';
+
+function requireBaseUrl(): URL {
+  const value = process.env[NUANU_APP_BASE_URL_ENV];
+  if (!value) throw new Error(`${NUANU_APP_BASE_URL_ENV} is required`);
+  const url = new URL(value);
+  if (url.origin !== 'https://app.nuanu.com' || url.pathname !== '/' || url.search || url.hash) {
+    throw new Error(`${NUANU_APP_BASE_URL_ENV} must be exactly https://app.nuanu.com/`);
+  }
+  return url;
+}
+
+function skipContractGate(testInfo: TestInfo, gate: Exclude<RuntimeContractGate, { status: 'READY' }>): never {
+  annotateRuntimeCase(testInfo, gate.status, gate.reason);
+  test.skip(true, `${gate.status}:${gate.reason}`);
+  throw new Error('unreachable after test.skip');
+}
+
+function skipLocatorGate(testInfo: TestInfo, gate: Exclude<RuntimeLocatorGate, { status: 'READY' }>): never {
+  annotateRuntimeCase(testInfo, 'UNVERIFIED', gate.reason);
+  test.skip(true, `UNVERIFIED:${gate.reason}`);
+  throw new Error('unreachable after test.skip');
+}
+
+test('NAPP-PUB-001 homepage returns HTML and renders an application shell', async ({ page }, testInfo) => {
+  const baseUrl = requireBaseUrl();
+  const ledger = await blockUnsafeRequests(page);
+  const observation = observeBrowser(page, baseUrl.origin);
+
+  try {
+    const gate = await loadReviewedRuntimeContract();
+    if (gate.status !== 'READY') skipContractGate(testInfo, gate);
+    const discovery = new DiscoveryPage(page, gate.contract);
+    const response = await discovery.goto();
+
+    expect(page.url(), 'root navigation escaped the approved origin').toBe(baseUrl.href);
+    expect(response, 'root navigation returned no response').not.toBeNull();
+    expect(response!.status(), 'root must not return a client/server error').toBeLessThan(400);
+    const shell = await discovery.unique('applicationShell');
+    if (shell.status !== 'READY') skipLocatorGate(testInfo, shell);
+    await expect(shell.locator).toBeVisible();
+  } finally {
+    await attachObservation(testInfo, observation);
+    await attachMutationLedger(testInfo, ledger);
+  }
+});
+
+test('NAPP-PUB-002 reviewed discovery controls map marker and place card are reachable', async ({ page }, testInfo) => {
+  const baseUrl = requireBaseUrl();
+  const ledger = await blockUnsafeRequests(page);
+  const observation = observeBrowser(page, baseUrl.origin);
+  const selectorKeys: RuntimeSelectorKey[] = [
+    'searchInput', 'openNowControl', 'placesNavigation', 'mapNavigation',
+    'profileNavigation', 'mapSurface', 'mapMarker', 'placeCard',
+  ];
+
+  try {
+    const gate = await loadReviewedRuntimeContract();
+    if (gate.status !== 'READY') skipContractGate(testInfo, gate);
+    const discovery = new DiscoveryPage(page, gate.contract);
+    const response = await discovery.goto();
+    expect(response, 'root navigation returned no response').not.toBeNull();
+    expect(response!.status(), 'root must not return a client/server error').toBeLessThan(400);
+    expect(new URL(page.url()).origin).toBe(baseUrl.origin);
+
+    for (const key of selectorKeys) {
+      const locator = await discovery.unique(key);
+      if (locator.status !== 'READY') skipLocatorGate(testInfo, locator);
+      await expect(locator.locator).toBeVisible();
+    }
+  } finally {
+    await attachObservation(testInfo, observation);
+    await attachMutationLedger(testInfo, ledger);
+  }
+});

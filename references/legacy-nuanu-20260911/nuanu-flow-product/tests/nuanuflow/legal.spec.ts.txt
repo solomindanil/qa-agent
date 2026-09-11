@@ -1,0 +1,37 @@
+import { expect, test } from '@playwright/test';
+
+const LEGAL_READY_TIMEOUT_MS = 15_000;
+
+const legalPages = [
+  {
+    path: '/legals/terms-and-conditions/',
+    title: /Terms of Service - Nuanu Flow/i,
+    heading: 'Terms of Service',
+  },
+  {
+    path: '/legals/privacy-policy/',
+    title: /Privacy Policy - Nuanu Flow/i,
+    heading: 'Privacy Policy',
+  },
+];
+
+test.describe('Nuanu Flow legal pages', () => {
+  for (const legalPage of legalPages) {
+    test(`${legalPage.heading} loads and returns to sign in`, async ({ page }) => {
+      const response = await page.goto(legalPage.path, {
+        waitUntil: 'domcontentloaded',
+      });
+      expect(response).not.toBeNull();
+      expect(response!.status()).toBeLessThan(400);
+      await expect(
+        page.getByRole('heading', { name: legalPage.heading }),
+      ).toBeVisible({ timeout: LEGAL_READY_TIMEOUT_MS });
+      await expect(page).toHaveTitle(legalPage.title);
+      const back = page.getByRole('link', { name: 'Back to sign in' });
+      await expect(back).toBeVisible();
+      await back.click();
+      await expect(page).toHaveURL(/\/$/);
+      await expect(page.getByRole('textbox', { name: 'Email' })).toBeVisible();
+    });
+  }
+});

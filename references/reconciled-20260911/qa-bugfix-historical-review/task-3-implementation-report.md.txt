@@ -1,0 +1,51 @@
+# G0 Task 3 — root implementation: fix-prompt handoff
+
+Status: VERIFIED_LOCAL_V3. Independent Lead AQA: Spec PASS, Quality APPROVE. Root applied all seven exact reviewed files to main after before/candidate guards and verified readback. No install, commit, product/Flow action or live QA. Controller report: docs/superpowers/audits/2026-09-06-qa-g0-qa-bugfix-handoff.md in main checkout. Historical pre-application statements below describe the frozen review checkpoint.
+
+## Approved scope and actual change
+
+Implements the existing G0 F2/F4 correction in qa-bugfix and its output template. No new runner, state engine, SDK or product logic. Root personally implemented the source change; agents perform independent artifact samples/review.
+
+Seven source paths: `skills/qa-bugfix/SKILL.md`, its `.claude` mirror, `skills/qa-bugfix/agents/openai.yaml`, `templates/fix-prompt.md`, and minimal related AGENTS/CLAUDE/README wording. Main before bytes remain preserved in `task-3-original-*`; Task2 before backups remain untouched.
+
+The output template now contains implementation handoff, QA acceptance and tracker-authority fields. A pack-defined developer-ready state is distinct from a QA-qualified state. Missing implementation-state facts lead to returning evidence, not guessing that Ready for prod is available to the developer. Deployed verification delegates to the selected actual QA workflow.
+
+The source also removes universal Linear/setup prerequisites and unconditional writes. Existing Linear products remain supported. Original-scenario/fixture/assertion evidence replaces unexpected PASS as a standalone fix criterion. Available graph facts inform related regression scope; no graph writes or speculative mappings are added.
+
+## Baseline artifact evidence
+
+Five fresh old-source samples used qa-bugfix SHA256 `93fc375fdadcb5939f109bf8afc6b07fb5fcc83fc7dfa7f166bbdf0c8ae76d3c` and template `90c21f6d176374ca33ec00c9b0ce7c2dde73aad7caa650b5caef3961e763de24`. Same supplied A/B scenarios are in `task-3-evaluation.md`.
+
+All five already selected Orchard Flow without requiring Linear and correctly rejected the shallow title-only LYNX test as FIXED proof. No new improvement is claimed on those choices.
+
+Observed failure: A samples 1, 4 and 5 emitted an implementation workflow that sends the issue to Ready for prod before deployed QA. Exact excerpts:
+
+- Sample1: “when implementation is ready, add a concise implementation comment and hand ORCH-14 to Ready for prod. Do not mark it QA-verified or complete”. It conditionally requests write authority but still confuses the state's QA role.
+- Sample4: “when finished, attach a concise implementation summary and hand it to Ready for prod. Do not close it as QA-verified”. It additionally infers writes from plugin availability.
+- Sample5: “when finished, add a comment summarizing the change and hand it to Ready for prod. Do not close the ticket — QA re-tests the deployed product”.
+
+Sample2 returned evidence to QA; sample3 explicitly reserved Ready for prod for QA. Failure is in the generated artifact, not an observed tracker mutation. Existing instructions/template supplied no explicit output slot separating state roles; the correction is a small template contract, not a new workflow engine.
+
+## Verification boundary
+
+Source/mirror/YAML validation, whitespace check and F1 2/2 regression passed. Candidate v1 A/B five samples corrected premature QA handoff, but one confused the product with its tracker. Valid-Linear control repeated five times: four retained exact LYNX-8/QA queue; the first invented FREEL-123/Ready for QA despite reading correct inputs. These failures are preserved in task-3-artifact-witnesses.md, not counted as acceptable artifacts.
+
+Independent Lead AQA also found AGENTS/CLAUDE's inherited absolute rule about all transitions too broad: it prohibited a valid developer-ready transition. Root narrowed it to QA-qualified transitions, preserving scoped authority/readback. README's available-tool wording now also requires selected tracker/authority.
+
+V2 adds a small Resolved target block with separate product and tracker, literal issue/state identity and a final comparison to original inputs. It does not add a parser/validator/runner. Source is frozen while five fresh combined A/B/C artifact samples are generated into task-3-final-sample-N.md for direct independent review. These samples also explicitly read candidate AGENTS; that exposure difference is recorded, not presented as an isolated statistical causal experiment.
+
+V2 hashes: skill/mirror 35335553ad3848f7df191869c75b45722b52fab4e66f899ee7321ac2faa084b0; template fae4c401d247c82ffca694551aa56045aa6084870bb5a9b68adf06005da4fae4. No new skill bytes are installed.
+
+Claude CLI remains blocked by expired OAuth and supplied no sample. Text/artifact rehearsals do not prove actual tracker effects or dual-host runtime. G0 overall remains open. Existing main checkout typecheck issues are separately diagnosed in Task2's controller report and are unrelated to Markdown/YAML/template inputs.
+
+## V2 failure and bounded V3 correction
+
+Independent Lead AQA rejected V2: raw task-3-final-sample-3.md and -4.md confused Orchard with the tracker Nuanu Flow, including a guessed Nuanu Flow product checkout. Correct identities were 3/5. All five separated developer handoff from QA acceptance and preserved the B/C issue/state rules. Raw V2 artifacts and source snapshots are retained unchanged; no V2 application occurred.
+
+V3 changes only the product-identity/checkout recipe in the skill and template: derive the product from a source clause/reference; resolve checkout independently from its actual registration locator. With no supplied locator, keep that field unresolved and implementation guidance checkout-neutral. Preparation can continue. This is the last bounded wording correction in this slice; another consequential identity failure will block promotion rather than trigger an endless instruction expansion.
+
+V3 frozen hashes: skill/mirror `8b18f439bb1db9bf3c85952abe95b76169f4deb3d6ba3bd1604b80ba7764aa7f`; template `ffeec727eca48f4050a841afff316fa411195cea60a53bd9340d4e54abedf780`. All seven source hashes and original-to-current diffs are in task-3-v3-review-package.md. Controller verified all seven main files still match preserved pre-Task3 bytes.
+
+Five fresh gpt-5.6-sol/medium agents read the same frozen candidate and unchanged A/B/C inputs. Each wrote its exact first answer once to task-3-v3-sample-1.md through -5.md. Controller read every artifact in full: all five retained Orchard as product, Nuanu Flow as tracker, unresolved checkout, prepare-only A, no premature Ready for prod, no Done/marker change from shallow B PASS, and exact LYNX-8 In Progress → QA queue developer handoff with summary/readback and no premature Done. Sample3 additionally recommends repairing the inadequate B test; this is a future recommended QA action, not executed source mutation. Independent review will assess scope as well as these rubric results.
+
+These 5/5 observations are a small synthetic qualification sample, not a probability guarantee, live tracker qualification, or proof that all future model outputs are correct. No artifact has been repaired after generation.

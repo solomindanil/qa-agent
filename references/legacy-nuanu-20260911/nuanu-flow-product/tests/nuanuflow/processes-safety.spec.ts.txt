@@ -1,0 +1,3229 @@
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+  type Request,
+} from '@playwright/test';
+import { QA_PREFIX, SANDBOX } from './fixtures/sandbox-data';
+import {
+  PROCESS_SANDBOX_WORKSPACE_ID,
+  PROCESS_PATHS,
+  ProcessEditorPage,
+  ProcessesPage,
+  type CreatedProcess,
+  type ProcessMetadataPatch,
+  assertExactProcessNameAbsent,
+  assertExactInertBpmnAutosavePayload,
+  assertExactInertBpmnAutosaveResponse,
+  assertExactInertExclusiveGatewayGraph,
+  assertExactInertHumanTaskGraph,
+  assertExactProcessCreatePayload,
+  assertExactProcessMetadataPayload,
+  captureExactProcessMutations,
+  captureExactProcessMetadataUpdate,
+  captureExactProcessSaves,
+  extractProcessCreateResponseIdentity,
+  assertExactProcessCleanupTarget,
+  cleanupCapturedProcessBatch,
+  classifyNuanu8ProcessOutcome,
+  parseCreatedProcess,
+  parseCreatedProcessRun,
+  preauthorizeProcessRename,
+  reconcileRejectedProcessExactId,
+  reconcileRejectedProcessExactIds,
+  requireNuanu8KnownBugFailure,
+  runGuardedProcessMutation,
+  verifyExactProcessRunCascade,
+  withBlockedProcessMutations,
+} from './pages/processes.page';
+
+const IDS = Object.freeze({
+  process: '11111111-1111-4111-8111-111111111111',
+  process2: '22222222-2222-4222-8222-222222222222',
+  run: '33333333-3333-4333-8333-333333333333',
+  foreign: '44444444-4444-4444-8444-444444444444',
+});
+
+const PROCESS_NAME = `${QA_PREFIX} synthetic-run plain process`;
+const RENAMED_PROCESS_NAME =
+  `${QA_PREFIX} synthetic-run renamed plain process`;
+const SYNTHETIC_ORIGIN = 'https://qa.invalid';
+const SYNTHETIC_CREATE_ENDPOINT =
+  `${SYNTHETIC_ORIGIN}/process-templates/`;
+const SYNTHETIC_RUN_ENDPOINT =
+  `${SYNTHETIC_ORIGIN}/process-templates/${IDS.process}/runs/`;
+const syntheticProcessDetailEndpoint = (id: string) =>
+  new URL(PROCESS_PATHS.detailApi(id), SYNTHETIC_ORIGIN).href;
+
+const IMMUTABLE_OWNERSHIP_MUTATIONS: ReadonlyArray<{
+  label: string;
+  mutate: (created: CreatedProcess) => void;
+  routeId?: string;
+  responseOverrides?: Record<string, unknown>;
+  allowedNames?: readonly string[];
+}> = [
+  {
+    label: 'canonical ID',
+    mutate: (created) => {
+      created.id = IDS.foreign;
+    },
+    routeId: IDS.foreign,
+    responseOverrides: { id: IDS.foreign },
+  },
+  {
+    label: 'workspace',
+    mutate: (created) => {
+      created.workspaceId = IDS.foreign;
+    },
+    responseOverrides: { workspace_id: IDS.foreign },
+  },
+  {
+    label: 'project relation',
+    mutate: (created) => {
+      created.projectId = SANDBOX.projectId;
+    },
+    responseOverrides: { project_id: SANDBOX.projectId },
+  },
+  {
+    label: 'request ordinal',
+    mutate: (created) => {
+      created.requestOrdinal = 7;
+    },
+  },
+  {
+    label: 'full current-run name without metadata authorization',
+    mutate: (created) => {
+      created.name = RENAMED_PROCESS_NAME;
+    },
+    allowedNames: [PROCESS_NAME, RENAMED_PROCESS_NAME],
+  },
+  {
+    label: 'description without metadata authorization',
+    mutate: (created) => {
+      created.description = 'Uncontrolled description drift.';
+    },
+  },
+  {
+    label: 'category without metadata authorization',
+    mutate: (created) => {
+      created.category = 'service';
+    },
+  },
+  {
+    label: 'inactive lifecycle',
+    mutate: (created) => {
+      created.isActive = true;
+    },
+  },
+];
+
+const openSyntheticProcessPage = async (page: Page) => {
+  await page.route(`${SYNTHETIC_ORIGIN}/`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<main>synthetic process safety</main>',
+    });
+  });
+  await page.goto(SYNTHETIC_ORIGIN);
+};
+
+const openSyntheticOwnedProcessPage = async (
+  page: Page,
+  processId: string = IDS.process,
+) => {
+  const url = `${SYNTHETIC_ORIGIN}${PROCESS_PATHS.detail(processId)}`;
+  await page.route(url, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<main>synthetic owned process editor</main>',
+    });
+  });
+  await page.goto(url);
+};
+
+const processBody = (overrides: Record<string, unknown> = {}) => ({
+  id: IDS.process,
+  name: PROCESS_NAME,
+  description: 'Synthetic inert BPMN process.',
+  category: 'operational',
+  is_active: false,
+  workspace_id: PROCESS_SANDBOX_WORKSPACE_ID,
+  ...overrides,
+});
+
+const parseProcess = (
+  body: unknown,
+  overrides: Partial<{
+    requestedName: string;
+    requestOrdinal: number;
+    projectId: string;
+  }> = {},
+) =>
+  parseCreatedProcess(body, {
+    requestedName: overrides.requestedName ?? PROCESS_NAME,
+    requestOrdinal: overrides.requestOrdinal ?? 0,
+    workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+    projectId: overrides.projectId,
+    expectedDescription: 'Synthetic inert BPMN process.',
+    expectedCategory: 'operational',
+    expectedIsActive: false,
+  });
+
+test('accepts only the exact observed process-create response schema', () => {
+  expect(parseProcess(processBody())).toEqual({
+    kind: 'process',
+    id: IDS.process,
+    name: PROCESS_NAME,
+    description: 'Synthetic inert BPMN process.',
+    category: 'operational',
+    isActive: false,
+    workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+    requestOrdinal: 0,
+  });
+
+  const rejected: unknown[] = [
+    processBody({ id: 'not-a-canonical-id' }),
+    processBody({ name: `${QA_PREFIX} synthetic-run` }),
+    processBody({ workspace_id: IDS.foreign }),
+    processBody({ project_id: IDS.foreign }),
+    processBody({ id: undefined, data: { id: IDS.process } }),
+    processBody({ description: 'Changed response description.' }),
+    processBody({ category: 'service' }),
+    processBody({ is_active: true }),
+    processBody({ data: { id: IDS.foreign } }),
+    processBody({ payload: { id: IDS.foreign } }),
+    processBody({ template: { uuid: IDS.foreign } }),
+    processBody({
+      envelope: {
+        records: [{ process_id: IDS.foreign }],
+      },
+    }),
+    processBody({
+      metadata: [{ unrelatedValue: IDS.foreign }],
+    }),
+    processBody({
+      payload: { workspace_id: PROCESS_SANDBOX_WORKSPACE_ID },
+    }),
+    processBody({ payload: { nested_id: 'not-canonical' } }),
+    [processBody()],
+  ];
+  for (const body of rejected) {
+    expect(() => parseProcess(body)).toThrow();
+  }
+  expect(() =>
+    parseProcess(processBody({ project_id: SANDBOX.projectId }), {
+      projectId: IDS.foreign,
+    }),
+  ).toThrow();
+
+  expect(
+    parseProcess(
+      processBody({ project_id: SANDBOX.projectId }),
+      { projectId: SANDBOX.projectId },
+    ),
+  ).toEqual(
+    expect.objectContaining({
+      id: IDS.process,
+      workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+      projectId: SANDBOX.projectId,
+    }),
+  );
+});
+
+test('rejects an initially invalid process response request ordinal before branding', () => {
+  for (const requestOrdinal of [
+    -1,
+    0.5,
+    Number.MAX_SAFE_INTEGER + 1,
+  ]) {
+    expect(() =>
+      parseProcess(processBody(), { requestOrdinal }),
+    ).toThrow(/request ordinal/i);
+  }
+});
+
+test('rejects an unexpected process-create success status before parsing', () => {
+  expect(() =>
+    parseCreatedProcess(processBody(), {
+      requestedName: PROCESS_NAME,
+      requestOrdinal: 0,
+      workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+      responseStatus: 200,
+      expectedStatus: 201,
+      expectedDescription: 'Synthetic inert BPMN process.',
+      expectedCategory: 'operational',
+      expectedIsActive: false,
+    }),
+  ).toThrow(/status/i);
+});
+
+test('refuses to parse a created run until its POST success contract is observed', () => {
+  const observedReadBody = {
+    id: IDS.run,
+    template_id: IDS.process,
+    workspace_id: PROCESS_SANDBOX_WORKSPACE_ID,
+    status: 'created',
+  };
+  expect(() =>
+    parseCreatedProcessRun(observedReadBody, {
+      processId: IDS.process,
+      requestOrdinal: 2,
+      workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+    }),
+  ).toThrow(/POST success contract is unproven/i);
+});
+
+test('cleanup requires exact ID, preauthorized name, workspace, category, and lifecycle', () => {
+  const created = parseProcess(processBody());
+  const allowedNames = new Set([PROCESS_NAME]);
+  expect(
+    assertExactProcessCleanupTarget(
+      processBody(),
+      created,
+      allowedNames,
+    ),
+  ).toEqual(processBody());
+
+  for (const body of [
+    processBody({ id: IDS.foreign }),
+    processBody({ name: RENAMED_PROCESS_NAME }),
+    processBody({ workspace_id: IDS.foreign }),
+    processBody({ category: 'service' }),
+    processBody({ is_active: true }),
+  ]) {
+    expect(() =>
+      assertExactProcessCleanupTarget(body, created, allowedNames),
+    ).toThrow();
+  }
+  expect(() =>
+    assertExactProcessCleanupTarget(
+      processBody(),
+      { ...created, id: 'bad-id' },
+      allowedNames,
+    ),
+  ).toThrow();
+});
+
+test('cleanup rejects a matching response after its branded process ID drifts', () => {
+  const created = parseProcess(processBody());
+  created.id = IDS.foreign;
+
+  expect(() =>
+    assertExactProcessCleanupTarget(
+      processBody({ id: IDS.foreign }),
+      created,
+      new Set([PROCESS_NAME]),
+    ),
+  ).toThrow(/response-owned identity/i);
+});
+
+test('a rename is preauthorized only for an exact current-run name', () => {
+  const allowedNames = new Set([PROCESS_NAME]);
+  preauthorizeProcessRename(RENAMED_PROCESS_NAME, allowedNames);
+  expect(allowedNames).toEqual(
+    new Set([PROCESS_NAME, RENAMED_PROCESS_NAME]),
+  );
+  expect(() =>
+    preauthorizeProcessRename('foreign process', allowedNames),
+  ).toThrow();
+  expect(() =>
+    preauthorizeProcessRename(`${QA_PREFIX} other-run renamed`, allowedNames, {
+      requiredRunToken: 'synthetic-run',
+    }),
+  ).toThrow();
+});
+
+test('process metadata payload permits one exact observed inert field only', () => {
+  expect(
+    assertExactProcessMetadataPayload(
+      { name: RENAMED_PROCESS_NAME },
+      { name: RENAMED_PROCESS_NAME },
+    ),
+  ).toEqual({ name: RENAMED_PROCESS_NAME });
+  expect(
+    assertExactProcessMetadataPayload(
+      { description: 'Renamed synthetic inert BPMN process.' },
+      { description: 'Renamed synthetic inert BPMN process.' },
+    ),
+  ).toEqual({
+    description: 'Renamed synthetic inert BPMN process.',
+  });
+  expect(
+    assertExactProcessMetadataPayload(
+      { category: 'service' },
+      { category: 'service' },
+    ),
+  ).toEqual({ category: 'service' });
+
+  for (const [body, expected] of [
+    [
+      { name: 'foreign process' },
+      { name: 'foreign process' },
+    ],
+    [
+      {
+        name: RENAMED_PROCESS_NAME,
+        description: 'unexpected second field',
+      },
+      { name: RENAMED_PROCESS_NAME },
+    ],
+    [
+      { category: 'Operational' },
+      { category: 'operational' },
+    ],
+    [
+      { description: 'changed', integration_id: IDS.foreign },
+      { description: 'changed' },
+    ],
+  ] as const) {
+    expect(() =>
+      assertExactProcessMetadataPayload(body, expected),
+    ).toThrow();
+  }
+});
+
+test('metadata capture rejects branded ID drift before action and backend', async ({
+  page,
+}) => {
+  const endpoint = syntheticProcessDetailEndpoint(IDS.foreign);
+  const familyPattern = `${SYNTHETIC_ORIGIN}/**/process-templates/**`;
+  const created = parseProcess(processBody());
+  created.id = IDS.foreign;
+  let sandboxGuards = 0;
+  let actionCalls = 0;
+  let backendWrites = 0;
+  await page.route(endpoint, async (route) => {
+    backendWrites += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        processBody({
+          id: IDS.foreign,
+          description: 'Changed through a foreign ID.',
+        }),
+      ),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  let rejected = false;
+  try {
+    await captureExactProcessMetadataUpdate({
+      page,
+      created,
+      allowedNames: new Set([PROCESS_NAME]),
+      endpoint,
+      familyPattern,
+      patch: { description: 'Changed through a foreign ID.' },
+      assertSandbox: async () => {
+        sandboxGuards += 1;
+      },
+      action: async () => {
+        actionCalls += 1;
+        await page.evaluate(
+          ({ requestEndpoint }) =>
+            fetch(requestEndpoint, {
+              method: 'PATCH',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                description: 'Changed through a foreign ID.',
+              }),
+            }),
+          { requestEndpoint: endpoint },
+        );
+      },
+      quietMs: 20,
+      maxAdmissionMs: 100,
+    });
+  } catch {
+    rejected = true;
+  }
+
+  expect({ rejected, sandboxGuards, actionCalls, backendWrites }).toEqual({
+    rejected: true,
+    sandboxGuards: 0,
+    actionCalls: 0,
+    backendWrites: 0,
+  });
+});
+
+test('metadata route revalidates ownership after its action mutates the branded object', async ({
+  page,
+}) => {
+  const endpoint = syntheticProcessDetailEndpoint(IDS.process);
+  const familyPattern = `${SYNTHETIC_ORIGIN}/**/process-templates/**`;
+  const created = parseProcess(processBody());
+  let actionCalls = 0;
+  let backendWrites = 0;
+  await page.route(endpoint, async (route) => {
+    backendWrites += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        processBody({ description: 'Authorized description transition.' }),
+      ),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  const result = await captureExactProcessMetadataUpdate({
+    page,
+    created,
+    allowedNames: new Set([PROCESS_NAME]),
+    endpoint,
+    familyPattern,
+    patch: { description: 'Authorized description transition.' },
+    assertSandbox: async () => {},
+    action: async () => {
+      actionCalls += 1;
+      created.id = IDS.foreign;
+      await page.evaluate(
+        ({ requestEndpoint }) =>
+          fetch(requestEndpoint, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              description: 'Authorized description transition.',
+            }),
+          }),
+        { requestEndpoint: endpoint },
+      );
+    },
+    quietMs: 20,
+    maxAdmissionMs: 100,
+  });
+
+  expect(actionCalls).toBe(1);
+  expect(backendWrites).toBe(0);
+  expect(
+    result.capture.actionError ??
+      result.capture.contractErrors[0]?.error ??
+      result.foreignWriteAttempts[0],
+  ).toBeDefined();
+});
+
+test('metadata capture guards then preauthorizes rename before exact PATCH and updates cleanup state', async ({
+  page,
+}) => {
+  const endpoint =
+    `${SYNTHETIC_ORIGIN}/process-templates/${IDS.process}/`;
+  const familyPattern = `${SYNTHETIC_ORIGIN}/process-templates/**`;
+  const allowedNames = new Set([PROCESS_NAME]);
+  const created = parseProcess(processBody());
+  const calls: string[] = [];
+  await page.route(endpoint, async (route) => {
+    calls.push('backend');
+    expect(allowedNames).toContain(RENAMED_PROCESS_NAME);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        processBody({
+          name: RENAMED_PROCESS_NAME,
+        }),
+      ),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  const result = await captureExactProcessMetadataUpdate({
+    page,
+    created,
+    allowedNames,
+    endpoint,
+    familyPattern,
+    patch: { name: RENAMED_PROCESS_NAME },
+    assertSandbox: async () => {
+      calls.push('guard');
+    },
+    action: async () => {
+      calls.push('action');
+      await page.evaluate(
+        async ({ requestEndpoint, requestedName }) => {
+          await fetch(requestEndpoint, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name: requestedName }),
+          });
+        },
+        {
+          requestEndpoint: endpoint,
+          requestedName: RENAMED_PROCESS_NAME,
+        },
+      );
+    },
+    quietMs: 20,
+    maxAdmissionMs: 100,
+  });
+
+  expect(calls).toEqual(['guard', 'action', 'backend']);
+  expect(allowedNames).toEqual(
+    new Set([PROCESS_NAME, RENAMED_PROCESS_NAME]),
+  );
+  expect(created).toEqual(
+    expect.objectContaining({
+      id: IDS.process,
+      name: RENAMED_PROCESS_NAME,
+      description: 'Synthetic inert BPMN process.',
+      category: 'operational',
+    }),
+  );
+  expect(result.capture.successfulEntries).toHaveLength(1);
+  expect(result.capture.contractErrors).toEqual([]);
+  expect(result.foreignWriteAttempts).toEqual([]);
+});
+
+test('planned metadata transitions preserve trusted ownership for later autosave and cleanup', async ({
+  page,
+}) => {
+  const endpoint = syntheticProcessDetailEndpoint(IDS.process);
+  const familyPattern = `${SYNTHETIC_ORIGIN}/**/process-templates/**`;
+  const allowedNames = new Set([PROCESS_NAME]);
+  const created = parseProcess(processBody());
+  const serverState = {
+    name: PROCESS_NAME,
+    description: 'Synthetic inert BPMN process.',
+    category: 'operational',
+  };
+  let backendWrites = 0;
+  await page.route(endpoint, async (route) => {
+    backendWrites += 1;
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    if (typeof body.name === 'string') serverState.name = body.name;
+    if (typeof body.description === 'string') {
+      serverState.description = body.description;
+    }
+    if (typeof body.category === 'string') {
+      serverState.category = body.category;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(processBody(serverState)),
+    });
+  });
+  await openSyntheticOwnedProcessPage(page);
+
+  const patches = [
+    { name: RENAMED_PROCESS_NAME },
+    { description: 'Authorized description transition.' },
+    { category: 'service' },
+  ] satisfies ProcessMetadataPatch[];
+  for (const patch of patches) {
+    const result = await captureExactProcessMetadataUpdate({
+      page,
+      created,
+      allowedNames,
+      endpoint,
+      familyPattern,
+      patch,
+      assertSandbox: async () => {},
+      action: () =>
+        page.evaluate(
+          ({ requestEndpoint, exactPatch }) =>
+            fetch(requestEndpoint, {
+              method: 'PATCH',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(exactPatch),
+            }),
+          { requestEndpoint: endpoint, exactPatch: patch },
+        ),
+      quietMs: 20,
+      maxAdmissionMs: 100,
+    });
+    expect(result.capture.successfulEntries).toHaveLength(1);
+    expect(result.capture.contractErrors).toEqual([]);
+  }
+
+  const autosave = await captureExactProcessSaves({
+    page,
+    created,
+    allowedNames,
+    assertSandbox: async () => {},
+    action: () =>
+      page.evaluate(
+        ({ requestEndpoint }) =>
+          fetch(requestEndpoint, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ bpmn_xml: '<definitions />' }),
+          }),
+        { requestEndpoint: endpoint },
+      ),
+    validatePayload: () => {},
+    quietMs: 20,
+    maxAdmissionMs: 100,
+  });
+
+  expect(created).toEqual(
+    expect.objectContaining({
+      id: IDS.process,
+      name: RENAMED_PROCESS_NAME,
+      description: 'Authorized description transition.',
+      category: 'service',
+      requestOrdinal: 0,
+    }),
+  );
+  expect(autosave.capture.successfulEntries).toHaveLength(1);
+  expect(() =>
+    assertExactProcessCleanupTarget(
+      processBody(serverState),
+      created,
+      allowedNames,
+    ),
+  ).not.toThrow();
+  expect(backendWrites).toBe(4);
+});
+
+test('metadata guard failure emits no PATCH and does not preauthorize rename', async ({
+  page,
+}) => {
+  const endpoint =
+    `${SYNTHETIC_ORIGIN}/process-templates/${IDS.process}/`;
+  const familyPattern = `${SYNTHETIC_ORIGIN}/process-templates/**`;
+  const allowedNames = new Set([PROCESS_NAME]);
+  const created = parseProcess(processBody());
+  let backendWrites = 0;
+  await page.route(endpoint, async (route) => {
+    backendWrites += 1;
+    await route.fulfill({ status: 200, body: '{}' });
+  });
+  await openSyntheticProcessPage(page);
+
+  const result = await captureExactProcessMetadataUpdate({
+    page,
+    created,
+    allowedNames,
+    endpoint,
+    familyPattern,
+    patch: { name: RENAMED_PROCESS_NAME },
+    assertSandbox: async () => {
+      throw new Error('wrong workspace');
+    },
+    action: async () => {
+      await page.evaluate(
+        ({ requestEndpoint }) =>
+          fetch(requestEndpoint, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name: 'should never be sent' }),
+          }),
+        { requestEndpoint: endpoint },
+      );
+    },
+    quietMs: 20,
+    maxAdmissionMs: 100,
+  });
+
+  expect(result.capture.actionError).toEqual(
+    expect.objectContaining({ message: 'wrong workspace' }),
+  );
+  expect(result.capture.attemptCount).toBe(0);
+  expect(allowedNames).toEqual(new Set([PROCESS_NAME]));
+  expect(backendWrites).toBe(0);
+});
+
+test('category metadata preauthorization keeps a committed malformed response cleanable', async ({
+  page,
+}) => {
+  const endpoint =
+    `${SYNTHETIC_ORIGIN}/process-templates/${IDS.process}/`;
+  const familyPattern = `${SYNTHETIC_ORIGIN}/process-templates/**`;
+  const allowedNames = new Set([PROCESS_NAME]);
+  const created = parseProcess(processBody());
+  await page.route(endpoint, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        processBody({
+          category: 'service',
+          description: undefined,
+        }),
+      ),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  const result = await captureExactProcessMetadataUpdate({
+    page,
+    created,
+    allowedNames,
+    endpoint,
+    familyPattern,
+    patch: { category: 'service' },
+    assertSandbox: async () => {},
+    action: async () => {
+      await page.evaluate(
+        ({ requestEndpoint }) =>
+          fetch(requestEndpoint, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ category: 'service' }),
+          }),
+        { requestEndpoint: endpoint },
+      );
+    },
+    quietMs: 20,
+    maxAdmissionMs: 100,
+  });
+
+  expect(result.capture.contractErrors).toHaveLength(1);
+  expect(created.category).toBe('operational');
+  expect(() =>
+    assertExactProcessCleanupTarget(
+      processBody({ category: 'service' }),
+      created,
+      allowedNames,
+    ),
+  ).not.toThrow();
+});
+
+test('every guarded process mutation asserts the sandbox immediately before action', async () => {
+  for (const kind of [
+    'create',
+    'update',
+    'archive',
+    'delete',
+    'run',
+  ] as const) {
+    const calls: string[] = [];
+    await runGuardedProcessMutation({
+      kind,
+      assertSandbox: async () => {
+        calls.push(`guard:${kind}`);
+      },
+      action: async () => {
+        calls.push(`action:${kind}`);
+      },
+    });
+    expect(calls).toEqual([`guard:${kind}`, `action:${kind}`]);
+  }
+});
+
+test('a rejected sandbox guard emits no process mutation', async () => {
+  let actionCalls = 0;
+  await expect(
+    runGuardedProcessMutation({
+      kind: 'create',
+      assertSandbox: async () => {
+        throw new Error('wrong workspace');
+      },
+      action: async () => {
+        actionCalls += 1;
+      },
+    }),
+  ).rejects.toThrow('wrong workspace');
+  expect(actionCalls).toBe(0);
+});
+
+test('editor context-pad mutations reassert the sandbox immediately before click', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <main>
+      <button class="djs-element" data-element-id="StartEvent_1">Start</button>
+      <button class="djs-element" data-element-id="Activity_1">Human</button>
+      <button title="Append Human Task">Append Human Task</button>
+      <button title="Append end event">Append end event</button>
+    </main>
+  `);
+  await page.evaluate(() => {
+    const instrumented = window as Window & {
+      __processEditorCalls?: string[];
+    };
+    instrumented.__processEditorCalls = [];
+    for (const element of document.querySelectorAll<HTMLElement>(
+      '.djs-element[data-element-id]',
+    )) {
+      element.addEventListener('click', () => {
+        instrumented.__processEditorCalls?.push(
+          `select:${element.dataset.elementId}`,
+        );
+      });
+    }
+    for (const title of [
+      'Append Human Task',
+      'Append end event',
+    ]) {
+      document
+        .querySelector<HTMLElement>(`[title="${title}"]`)
+        ?.addEventListener('click', () => {
+          instrumented.__processEditorCalls?.push(`mutate:${title}`);
+        });
+    }
+  });
+
+  const assertSandbox = async () => {
+    await page.evaluate(() => {
+      (
+        window as Window & { __processEditorCalls?: string[] }
+      ).__processEditorCalls?.push('guard');
+    });
+  };
+  const editor = new ProcessEditorPage(page, assertSandbox);
+  await editor.appendHumanTaskFrom('StartEvent_1');
+  await editor.appendEndEventFrom('Activity_1');
+
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          window as Window & { __processEditorCalls?: string[] }
+        ).__processEditorCalls ?? [],
+    ),
+  ).toEqual([
+    'guard',
+    'select:StartEvent_1',
+    'guard',
+    'mutate:Append Human Task',
+    'guard',
+    'select:Activity_1',
+    'guard',
+    'mutate:Append end event',
+  ]);
+});
+
+const parseRequestBody = (request: Request) => {
+  const body: unknown = request.postDataJSON();
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    Array.isArray(body) ||
+    (body as Record<string, unknown>).name !== PROCESS_NAME
+  ) {
+    throw new Error('Unexpected process-create payload.');
+  }
+};
+
+const captureCreate = (
+  page: Page,
+  action: () => Promise<unknown>,
+  options: {
+    register?: (created: CreatedProcess) => unknown;
+    quietMs?: number;
+    minAdmissionMs?: number;
+    maxAdmissionMs?: number;
+  } = {},
+) =>
+  captureExactProcessMutations<CreatedProcess>({
+    page,
+    method: 'POST',
+    endpoint: SYNTHETIC_CREATE_ENDPOINT,
+    successStatus: 201,
+    action,
+    validateRequest: parseRequestBody,
+    parse: (body, requestOrdinal, responseStatus) =>
+      parseCreatedProcess(body, {
+        requestedName: PROCESS_NAME,
+        requestOrdinal,
+        workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+        responseStatus,
+        expectedStatus: 201,
+        expectedDescription: 'Synthetic inert BPMN process.',
+        expectedCategory: 'operational',
+        expectedIsActive: false,
+      }),
+    extractResponseIdentity: extractProcessCreateResponseIdentity,
+    register: options.register ?? (() => {}),
+    quietMs: options.quietMs ?? 60,
+    minAdmissionMs: options.minAdmissionMs,
+    maxAdmissionMs: options.maxAdmissionMs ?? 250,
+  });
+
+test('captures immediate, delayed, and concurrent duplicate process successes in request order', async ({
+  page,
+}) => {
+  let responseOrdinal = 0;
+  await page.route(SYNTHETIC_CREATE_ENDPOINT, async (route) => {
+    const ordinal = responseOrdinal++;
+    if (ordinal === 1) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 80));
+    }
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        processBody({
+          id: ordinal === 0 ? IDS.process : IDS.process2,
+        }),
+      ),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  const capture = await captureCreate(page, async () => {
+    await Promise.all([
+      page.evaluate(
+        ({ endpoint, name }) =>
+          fetch(endpoint, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name }),
+          }),
+        { endpoint: SYNTHETIC_CREATE_ENDPOINT, name: PROCESS_NAME },
+      ),
+      page.evaluate(
+        ({ endpoint, name }) =>
+          fetch(endpoint, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name }),
+          }),
+        { endpoint: SYNTHETIC_CREATE_ENDPOINT, name: PROCESS_NAME },
+      ),
+    ]);
+  });
+
+  expect(capture.actionError).toBeUndefined();
+  expect(capture.attemptCount).toBe(2);
+  expect(capture.responseCount).toBe(2);
+  expect(
+    capture.successfulEntries.map(({ requestOrdinal, created }) => ({
+      requestOrdinal,
+      id: created.id,
+    })),
+  ).toEqual([
+    { requestOrdinal: 0, id: IDS.process },
+    { requestOrdinal: 1, id: IDS.process2 },
+  ]);
+  expect(capture.nonSuccessResponses).toEqual([]);
+  expect(capture.contractErrors).toEqual([]);
+  expect(capture.registrationErrors).toEqual([]);
+  expect(capture.requestFailedOutcomes).toEqual([]);
+});
+
+test('minimum admission window captures a mutation that starts after the default quiet period', async ({
+  page,
+}) => {
+  await page.route(SYNTHETIC_CREATE_ENDPOINT, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(processBody()),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  const capture = await captureCreate(
+    page,
+    async () => {
+      await page.evaluate(
+        ({ endpoint, name }) => {
+          window.setTimeout(() => {
+            void fetch(endpoint, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ name }),
+            });
+          }, 120);
+        },
+        {
+          endpoint: SYNTHETIC_CREATE_ENDPOINT,
+          name: PROCESS_NAME,
+        },
+      );
+    },
+    {
+      quietMs: 20,
+      minAdmissionMs: 180,
+      maxAdmissionMs: 300,
+    },
+  );
+
+  expect(capture.attemptCount).toBe(1);
+  expect(capture.successfulEntries).toHaveLength(1);
+});
+
+test('mutation collector aborts a wrong method and alternate family endpoint before backend', async ({
+  page,
+}) => {
+  const alternateEndpoint =
+    `${SYNTHETIC_ORIGIN}/process-templates/alternate/`;
+  let backendWrites = 0;
+  for (const endpoint of [
+    SYNTHETIC_CREATE_ENDPOINT,
+    alternateEndpoint,
+  ]) {
+    await page.route(endpoint, async (route) => {
+      backendWrites += 1;
+      await route.fulfill({ status: 201, body: '{}' });
+    });
+  }
+  await openSyntheticProcessPage(page);
+
+  const capture = await captureExactProcessMutations({
+    page,
+    method: 'POST',
+    endpoint: SYNTHETIC_CREATE_ENDPOINT,
+    guardPattern: `${SYNTHETIC_ORIGIN}/process-templates/**`,
+    successStatus: 201,
+    action: async () => {
+      await Promise.all([
+        page.evaluate(
+          ({ endpoint }) =>
+            fetch(endpoint, { method: 'PUT' }).catch(
+              () => undefined,
+            ),
+          { endpoint: SYNTHETIC_CREATE_ENDPOINT },
+        ),
+        page.evaluate(
+          ({ endpoint }) =>
+            fetch(endpoint, { method: 'POST' }).catch(
+              () => undefined,
+            ),
+          { endpoint: alternateEndpoint },
+        ),
+      ]);
+    },
+    validateRequest: () => {},
+    parse: () => {
+      throw new Error('Unexpected parser call.');
+    },
+    register: () => {},
+    quietMs: 40,
+    maxAdmissionMs: 150,
+  });
+
+  expect(capture.attemptCount).toBe(0);
+  expect(
+    capture.unexpectedMutationAttempts
+      .map(({ method, url }) => ({ method, url }))
+      .sort((left, right) => left.method.localeCompare(right.method)),
+  ).toEqual([
+    {
+      method: 'POST',
+      url: alternateEndpoint,
+    },
+    {
+      method: 'PUT',
+      url: SYNTHETIC_CREATE_ENDPOINT,
+    },
+  ]);
+  expect(backendWrites).toBe(0);
+});
+
+test('keeps a canonical process identity when registration fails and continues later responses', async ({
+  page,
+}) => {
+  let responseOrdinal = 0;
+  await page.route(SYNTHETIC_CREATE_ENDPOINT, async (route) => {
+    const ordinal = responseOrdinal++;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        processBody({
+          id: ordinal === 0 ? IDS.process : IDS.process2,
+        }),
+      ),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  const capture = await captureCreate(
+    page,
+    async () => {
+      await Promise.all([
+        page.evaluate(
+          ({ endpoint, name }) =>
+            fetch(endpoint, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ name }),
+            }),
+          { endpoint: SYNTHETIC_CREATE_ENDPOINT, name: PROCESS_NAME },
+        ),
+        page.evaluate(
+          ({ endpoint, name }) =>
+            fetch(endpoint, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ name }),
+            }),
+          { endpoint: SYNTHETIC_CREATE_ENDPOINT, name: PROCESS_NAME },
+        ),
+      ]);
+    },
+    {
+      register: ({ id }) => {
+        if (id === IDS.process) throw new Error('synthetic ledger failure');
+      },
+    },
+  );
+
+  expect(capture.successfulEntries).toHaveLength(2);
+  expect(capture.registrationErrors).toHaveLength(1);
+  expect(capture.registrationErrors[0]?.created.id).toBe(IDS.process);
+  expect(capture.successfulEntries[1]?.created.id).toBe(IDS.process2);
+});
+
+test('drains an admitted late success after the UI action errors', async ({
+  page,
+}) => {
+  await page.route(SYNTHETIC_CREATE_ENDPOINT, async (route) => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 120));
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(processBody()),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  const capture = await captureCreate(
+    page,
+    async () => {
+      await page.evaluate(
+        ({ endpoint, name }) => {
+          void fetch(endpoint, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name }),
+          });
+        },
+        { endpoint: SYNTHETIC_CREATE_ENDPOINT, name: PROCESS_NAME },
+      );
+      throw new Error('visible action timed out');
+    },
+    { quietMs: 20, maxAdmissionMs: 40 },
+  );
+
+  expect(capture.actionError).toEqual(
+    expect.objectContaining({ message: 'visible action timed out' }),
+  );
+  expect(capture.successfulEntries[0]?.created.id).toBe(IDS.process);
+  expect(capture.responseCount).toBe(1);
+});
+
+test('records requestfailed and non-success outcomes without hiding a later success', async ({
+  page,
+}) => {
+  await page.route(SYNTHETIC_CREATE_ENDPOINT, async (route) => {
+    const body = route.request().postDataJSON() as { mode: string };
+    if (body.mode === 'failed') {
+      await route.abort('connectionfailed');
+      return;
+    }
+    if (body.mode === 'server-error') {
+      await route.fulfill({ status: 500, body: 'synthetic failure' });
+      return;
+    }
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(processBody()),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  const capture = await captureCreate(page, async () => {
+    for (const mode of ['failed', 'server-error', 'success']) {
+      await page.evaluate(
+        ({ endpoint, name, mode: requestMode }) =>
+          fetch(endpoint, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name, mode: requestMode }),
+          }).catch(() => undefined),
+        {
+          endpoint: SYNTHETIC_CREATE_ENDPOINT,
+          name: PROCESS_NAME,
+          mode,
+        },
+      );
+    }
+  });
+
+  expect(capture.attemptCount).toBe(3);
+  expect(capture.requestFailedOutcomes).toHaveLength(1);
+  expect(capture.nonSuccessResponses).toEqual([
+    expect.objectContaining({ requestOrdinal: 1, status: 500 }),
+  ]);
+  expect(capture.successfulEntries[0]?.requestOrdinal).toBe(2);
+  expect(capture.successfulEntries[0]?.created.id).toBe(IDS.process);
+});
+
+test('preserves a recoverable top-level ID when success parsing fails', async ({
+  page,
+}) => {
+  await page.route(SYNTHETIC_CREATE_ENDPOINT, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        processBody({
+          payload: {
+            template: { id: IDS.foreign },
+            repeats: [
+              { uuid: IDS.foreign },
+              { template_id: IDS.foreign },
+            ],
+          },
+        }),
+      ),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  const capture = await captureCreate(page, async () => {
+    await page.evaluate(
+      ({ endpoint, name }) =>
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name }),
+        }),
+      { endpoint: SYNTHETIC_CREATE_ENDPOINT, name: PROCESS_NAME },
+    );
+  });
+
+  expect(capture.successfulEntries).toEqual([]);
+  expect(capture.contractErrors).toEqual([
+    expect.objectContaining({
+      requestOrdinal: 0,
+      observedId: IDS.process,
+      exactId: IDS.process,
+      exactIds: [IDS.process, IDS.foreign],
+    }),
+  ]);
+
+  const emergencyCleanupIds: string[] = [];
+  const inspectedIds: string[] = [];
+  await reconcileRejectedProcessExactIds({
+    rejections: capture.contractErrors,
+    requestedName: PROCESS_NAME,
+    workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+    inspect: async (id) => {
+      inspectedIds.push(id);
+      return id === IDS.process
+        ? { status: 200, body: processBody() }
+        : { status: 404 };
+    },
+    cleanup: async ({ id }) => {
+      emergencyCleanupIds.push(id);
+    },
+  });
+  expect(inspectedIds).toEqual([IDS.process, IDS.foreign]);
+  expect(emergencyCleanupIds).toEqual([IDS.process]);
+});
+
+test('recovers a nested canonical process candidate when the malformed success omits its top-level ID', async ({
+  page,
+}) => {
+  await page.route(SYNTHETIC_CREATE_ENDPOINT, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        processBody({
+          id: undefined,
+          envelope: {
+            payload: [{ template_id: IDS.process }],
+          },
+        }),
+      ),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  const capture = await captureCreate(page, async () => {
+    await page.evaluate(
+      ({ endpoint, name }) =>
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name }),
+        }),
+      { endpoint: SYNTHETIC_CREATE_ENDPOINT, name: PROCESS_NAME },
+    );
+  });
+
+  expect(capture.successfulEntries).toEqual([]);
+  expect(capture.contractErrors).toEqual([
+    expect.objectContaining({
+      requestOrdinal: 0,
+      exactId: IDS.process,
+      exactIds: [IDS.process],
+    }),
+  ]);
+
+  const inspectedIds: string[] = [];
+  const emergencyCleanupIds: string[] = [];
+  await reconcileRejectedProcessExactIds({
+    rejections: capture.contractErrors,
+    requestedName: PROCESS_NAME,
+    workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+    inspect: async (id) => {
+      inspectedIds.push(id);
+      return { status: 200, body: processBody({ id }) };
+    },
+    cleanup: async ({ id }) => {
+      emergencyCleanupIds.push(id);
+    },
+  });
+  expect(inspectedIds).toEqual([IDS.process]);
+  expect(emergencyCleanupIds).toEqual([IDS.process]);
+});
+
+test('preserves a recoverable canonical ID from an unexpected terminal status', async ({
+  page,
+}) => {
+  await page.route(SYNTHETIC_CREATE_ENDPOINT, async (route) => {
+    await route.fulfill({
+      status: 202,
+      contentType: 'application/json',
+      body: JSON.stringify(processBody()),
+    });
+  });
+  await openSyntheticProcessPage(page);
+
+  const capture = await captureCreate(page, async () => {
+    await page.evaluate(
+      ({ endpoint, name }) =>
+        fetch(endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name }),
+        }),
+      { endpoint: SYNTHETIC_CREATE_ENDPOINT, name: PROCESS_NAME },
+    );
+  });
+
+  expect(capture.nonSuccessResponses).toEqual([
+    expect.objectContaining({ requestOrdinal: 0, status: 202 }),
+  ]);
+  expect(capture.contractErrors).toEqual([
+    expect.objectContaining({
+      requestOrdinal: 0,
+      observedId: IDS.process,
+      exactId: IDS.process,
+    }),
+  ]);
+});
+
+test('blocks every invalid/cancel create and invalid-graph run request, including delayed retries', async ({
+  page,
+}) => {
+  let backendWrites = 0;
+  await page.route(`${SYNTHETIC_ORIGIN}/**`, async (route) => {
+    if (route.request().method() !== 'GET') backendWrites += 1;
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: '{}',
+    });
+  });
+  await page.goto(SYNTHETIC_ORIGIN);
+
+  for (const target of [
+    { method: 'POST' as const, endpoint: SYNTHETIC_CREATE_ENDPOINT },
+    { method: 'POST' as const, endpoint: SYNTHETIC_RUN_ENDPOINT },
+  ]) {
+    const blocked = await withBlockedProcessMutations({
+      page,
+      targets: [target],
+      action: async () => {
+        await page.evaluate(
+          ({ endpoint, method }) => {
+            void fetch(endpoint, {
+              method,
+              headers: { 'content-type': 'application/json' },
+              body: '{}',
+            }).catch(() => undefined);
+            setTimeout(() => {
+              void fetch(endpoint, {
+                method,
+                headers: { 'content-type': 'application/json' },
+                body: '{}',
+              }).catch(() => undefined);
+            }, 30);
+          },
+          target,
+        );
+      },
+      quietMs: 80,
+      maxAdmissionMs: 180,
+    });
+    expect(blocked.attemptCount).toBe(2);
+    expect(blocked.allowedCount).toBe(0);
+    expect(blocked.requestFailedOutcomes).toHaveLength(2);
+  }
+  expect(backendWrites).toBe(0);
+});
+
+test('blocked mutation minimum admission catches a request that starts after quiet', async ({
+  page,
+}) => {
+  let backendWrites = 0;
+  await page.route(SYNTHETIC_CREATE_ENDPOINT, async (route) => {
+    backendWrites += 1;
+    await route.fulfill({ status: 201, body: '{}' });
+  });
+  await openSyntheticProcessPage(page);
+
+  const blocked = await withBlockedProcessMutations({
+    page,
+    targets: [
+      { method: 'POST', endpoint: SYNTHETIC_CREATE_ENDPOINT },
+    ],
+    action: async () => {
+      await page.evaluate(
+        ({ endpoint }) => {
+          window.setTimeout(() => {
+            void fetch(endpoint, { method: 'POST' }).catch(
+              () => undefined,
+            );
+          }, 120);
+        },
+        { endpoint: SYNTHETIC_CREATE_ENDPOINT },
+      );
+    },
+    quietMs: 20,
+    minAdmissionMs: 180,
+    maxAdmissionMs: 300,
+  });
+
+  expect(blocked.attemptCount).toBe(1);
+  expect(blocked.requestFailedOutcomes).toHaveLength(1);
+  expect(backendWrites).toBe(0);
+});
+
+test('blocked mutation guard aborts wrong methods and alternate process-family endpoints', async ({
+  page,
+}) => {
+  const alternateEndpoint =
+    `${SYNTHETIC_ORIGIN}/process-templates/alternate/`;
+  let backendWrites = 0;
+  for (const endpoint of [
+    SYNTHETIC_CREATE_ENDPOINT,
+    alternateEndpoint,
+  ]) {
+    await page.route(endpoint, async (route) => {
+      backendWrites += 1;
+      await route.fulfill({ status: 201, body: '{}' });
+    });
+  }
+  await openSyntheticProcessPage(page);
+
+  const blocked = await withBlockedProcessMutations({
+    page,
+    targets: [
+      { method: 'POST', endpoint: SYNTHETIC_CREATE_ENDPOINT },
+    ],
+    action: async () => {
+      await Promise.all([
+        page.evaluate(
+          ({ endpoint }) =>
+            fetch(endpoint, { method: 'PUT' }).catch(
+              () => undefined,
+            ),
+          { endpoint: SYNTHETIC_CREATE_ENDPOINT },
+        ),
+        page.evaluate(
+          ({ endpoint }) =>
+            fetch(endpoint, { method: 'POST' }).catch(
+              () => undefined,
+            ),
+          { endpoint: alternateEndpoint },
+        ),
+      ]);
+    },
+    quietMs: 40,
+    maxAdmissionMs: 150,
+  });
+
+  expect(blocked.attemptCount).toBe(2);
+  expect(
+    blocked.requestFailedOutcomes
+      .map(({ method, url }) => ({ method, url }))
+      .sort((left, right) => left.method.localeCompare(right.method)),
+  ).toEqual([
+    { method: 'POST', url: alternateEndpoint },
+    { method: 'PUT', url: SYNTHETIC_CREATE_ENDPOINT },
+  ]);
+  expect(backendWrites).toBe(0);
+});
+
+const syntheticResponse = (status: number, body: unknown = undefined) => ({
+  status: () => status,
+  json: async () => body,
+});
+
+test('exact current-run process-name absence requires collection and hydrated UI agreement', async ({
+  page,
+}) => {
+  const uiPath = `${SYNTHETIC_ORIGIN}/process-list/`;
+  const requestContext = (
+    rows: unknown[],
+  ): Pick<APIRequestContext, 'get'> => ({
+    get: async () =>
+      syntheticResponse(200, rows) as never,
+  });
+
+  await page.route(uiPath, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<main><button>Create Process</button></main>',
+    });
+  });
+  await expect(
+    assertExactProcessNameAbsent({
+      page,
+      requestContext: requestContext([]),
+      assertSandbox: async () => {},
+      name: PROCESS_NAME,
+      collectionEndpoint: SYNTHETIC_CREATE_ENDPOINT,
+      uiPath,
+    }),
+  ).resolves.toBeUndefined();
+  await expect(
+    assertExactProcessNameAbsent({
+      page,
+      requestContext: requestContext([processBody()]),
+      assertSandbox: async () => {},
+      name: PROCESS_NAME,
+      collectionEndpoint: SYNTHETIC_CREATE_ENDPOINT,
+      uiPath,
+    }),
+  ).rejects.toThrow(IDS.process);
+
+  await page.unroute(uiPath);
+  await page.route(uiPath, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body:
+        '<main><button>Create Process</button>' +
+        `<span>${PROCESS_NAME}</span></main>`,
+    });
+  });
+  await expect(
+    assertExactProcessNameAbsent({
+      page,
+      requestContext: requestContext([]),
+      assertSandbox: async () => {},
+      name: PROCESS_NAME,
+      collectionEndpoint: SYNTHETIC_CREATE_ENDPOINT,
+      uiPath,
+    }),
+  ).rejects.toThrow(/UI retained/i);
+});
+
+test('create-name validation is actionable only when semantically associated with the invalid field', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <main>
+      <button>Create Process</button>
+      <div role="dialog">
+        <label for="process-name">Name *</label>
+        <input
+          id="process-name"
+          aria-invalid="true"
+          aria-errormessage="process-name-error"
+        />
+        <p id="process-name-error">Square brackets are not allowed.</p>
+        <p role="alert">Unrelated global warning.</p>
+      </div>
+    </main>
+  `);
+  const processes = new ProcessesPage(page, async () => {});
+
+  await expect(
+    processes.createNameValidationMessages(),
+  ).resolves.toEqual(['Square brackets are not allowed.']);
+
+  await processes.nameInput.evaluate((input) => {
+    input.removeAttribute('aria-invalid');
+    input.removeAttribute('aria-errormessage');
+  });
+  await expect(
+    processes.createNameValidationMessages(),
+  ).resolves.toEqual([]);
+});
+
+const nestedErrorMessages = (error: unknown): string[] => {
+  if (!(error instanceof Error)) return [String(error)];
+  return [
+    error.message,
+    ...(error instanceof AggregateError
+      ? error.errors.flatMap(nestedErrorMessages)
+      : []),
+  ];
+};
+
+const cleanupHarness = async (
+  page: Page,
+  options: {
+    detailStatus?: Partial<Record<string, number>>;
+    deleteStatus?: Partial<Record<string, number>>;
+    tombstoneIds?: ReadonlySet<string>;
+    retainedUiIds?: ReadonlySet<string>;
+    retainedCollectionIds?: ReadonlySet<string>;
+    foreignIds?: ReadonlySet<string>;
+    stickyAfterDeleteIds?: ReadonlySet<string>;
+  } = {},
+) => {
+  const created = [
+    parseProcess(processBody(), { requestOrdinal: 0 }),
+    parseProcess(processBody({ id: IDS.process2 }), {
+      requestOrdinal: 1,
+    }),
+  ];
+  const exists = new Set(created.map(({ id }) => id));
+  const calls: string[] = [];
+  const collectionEndpoint = `${SYNTHETIC_ORIGIN}/cleanup/process-templates/`;
+  const detailEndpoint = (id: string) =>
+    `${collectionEndpoint}${id}/`;
+  const uiPath = `${SYNTHETIC_ORIGIN}/cleanup/process-ui/`;
+  const bodyFor = (entity: CreatedProcess) =>
+    processBody({
+      id: entity.id,
+      name: entity.name,
+      description: entity.description,
+      category: entity.category,
+      is_active: entity.isActive,
+      workspace_id: options.foreignIds?.has(entity.id)
+        ? IDS.foreign
+        : PROCESS_SANDBOX_WORKSPACE_ID,
+      ...(entity.projectId === undefined
+        ? {}
+        : { project_id: entity.projectId }),
+    });
+
+  const requestContext = {
+    get: async (url: string) => {
+      if (url === collectionEndpoint) {
+        calls.push('GET collection');
+        return syntheticResponse(
+          200,
+          created
+            .filter(
+              ({ id }) =>
+                exists.has(id) ||
+                options.retainedCollectionIds?.has(id),
+            )
+            .map(bodyFor),
+        );
+      }
+      const entity = created.find(({ id }) => detailEndpoint(id) === url);
+      if (!entity) throw new Error(`Unexpected process GET: ${url}`);
+      calls.push(`GET ${entity.id}`);
+      if (options.tombstoneIds?.has(entity.id)) {
+        return syntheticResponse(200, { deleted: true });
+      }
+      const status =
+        options.detailStatus?.[entity.id] ??
+        (exists.has(entity.id) ? 200 : 404);
+      return syntheticResponse(status, bodyFor(entity));
+    },
+    delete: async (url: string) => {
+      const entity = created.find(({ id }) => detailEndpoint(id) === url);
+      if (!entity) throw new Error(`Unexpected process DELETE: ${url}`);
+      calls.push(`DELETE ${entity.id}`);
+      const status = options.deleteStatus?.[entity.id] ?? 204;
+      if (
+        status === 204 &&
+        !options.stickyAfterDeleteIds?.has(entity.id)
+      ) {
+        exists.delete(entity.id);
+      }
+      return syntheticResponse(status);
+    },
+  };
+  await page.route(uiPath, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body:
+        '<button>Create Process</button>' +
+        created
+          .filter(
+            ({ id }) =>
+              exists.has(id) || options.retainedUiIds?.has(id),
+          )
+          .map(
+            ({ id, name }) =>
+              `<a href="${PROCESS_PATHS.detail(id)}">${name}</a>`,
+          )
+          .join(''),
+    });
+  });
+  return {
+    calls,
+    created,
+    exists,
+    collectionEndpoint,
+    detailEndpoint,
+    uiPath,
+    requestContext: requestContext as unknown as APIRequestContext,
+    assertSandbox: async () => {
+      calls.push('assertSandbox');
+    },
+  };
+};
+
+test('batch cleanup inspects every exact ID, deletes same-name duplicates in LIFO order, then checks shared absence', async ({
+  page,
+}) => {
+  const harness = await cleanupHarness(page);
+  await cleanupCapturedProcessBatch({
+    page,
+    requestContext: harness.requestContext,
+    assertSandbox: harness.assertSandbox,
+    created: harness.created,
+    allowedNames: new Set([PROCESS_NAME]),
+    detailEndpoint: harness.detailEndpoint,
+    collectionEndpoint: harness.collectionEndpoint,
+    uiPath: harness.uiPath,
+  });
+
+  expect(harness.calls).toEqual([
+    `GET ${IDS.process}`,
+    `GET ${IDS.process2}`,
+    'assertSandbox',
+    `DELETE ${IDS.process2}`,
+    `GET ${IDS.process2}`,
+    'assertSandbox',
+    `DELETE ${IDS.process}`,
+    `GET ${IDS.process}`,
+    'GET collection',
+  ]);
+  expect(harness.exists).toEqual(new Set());
+});
+
+test('batch cleanup deduplicates one repeated identical response ID and still cleans every unique ID', async ({
+  page,
+}) => {
+  const harness = await cleanupHarness(page);
+  const repeated = parseProcess(processBody(), {
+    requestOrdinal: 3,
+  });
+  await cleanupCapturedProcessBatch({
+    page,
+    requestContext: harness.requestContext,
+    assertSandbox: harness.assertSandbox,
+    created: [...harness.created, repeated],
+    allowedNames: new Set([PROCESS_NAME]),
+    detailEndpoint: harness.detailEndpoint,
+    collectionEndpoint: harness.collectionEndpoint,
+    uiPath: harness.uiPath,
+  });
+
+  expect(
+    harness.calls.filter(
+      (call) => call === `DELETE ${IDS.process}`,
+    ),
+  ).toHaveLength(1);
+  expect(
+    harness.calls.filter(
+      (call) => call === `DELETE ${IDS.process2}`,
+    ),
+  ).toHaveLength(1);
+  expect(harness.exists).toEqual(new Set());
+});
+
+test('batch cleanup merges guarded metadata transitions across duplicate branded response IDs', async ({
+  page,
+}) => {
+  const harness = await cleanupHarness(page);
+  const updated = harness.created[0];
+  const other = harness.created[1];
+  expect(updated).toBeDefined();
+  expect(other).toBeDefined();
+  if (!updated || !other) {
+    throw new Error('Cleanup harness did not create both exact processes.');
+  }
+  const repeated = parseProcess(processBody(), {
+    requestOrdinal: 3,
+  });
+  const allowedNames = new Set([PROCESS_NAME]);
+  const endpoint = syntheticProcessDetailEndpoint(IDS.process);
+  const familyPattern = `${SYNTHETIC_ORIGIN}/**/process-templates/**`;
+  const serverState = {
+    name: PROCESS_NAME,
+    description: 'Synthetic inert BPMN process.',
+    category: 'operational',
+  };
+  await page.route(endpoint, async (route) => {
+    const patch = route.request().postDataJSON() as Record<string, unknown>;
+    if (typeof patch.name === 'string') serverState.name = patch.name;
+    if (typeof patch.category === 'string') {
+      serverState.category = patch.category;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(processBody(serverState)),
+    });
+  });
+  await openSyntheticOwnedProcessPage(page);
+
+  for (const patch of [
+    { name: RENAMED_PROCESS_NAME },
+    { category: 'service' },
+  ] satisfies ProcessMetadataPatch[]) {
+    const capture = await captureExactProcessMetadataUpdate({
+      page,
+      created: updated,
+      allowedNames,
+      endpoint,
+      familyPattern,
+      patch,
+      assertSandbox: async () => {},
+      action: () =>
+        page.evaluate(
+          ({ requestEndpoint, exactPatch }) =>
+            fetch(requestEndpoint, {
+              method: 'PATCH',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(exactPatch),
+            }),
+          { requestEndpoint: endpoint, exactPatch: patch },
+        ),
+      quietMs: 20,
+      maxAdmissionMs: 100,
+    });
+    expect(capture.capture.successfulEntries).toHaveLength(1);
+  }
+
+  await cleanupCapturedProcessBatch({
+    page,
+    requestContext: harness.requestContext,
+    assertSandbox: harness.assertSandbox,
+    created: [updated, repeated, other],
+    allowedNames,
+    detailEndpoint: harness.detailEndpoint,
+    collectionEndpoint: harness.collectionEndpoint,
+    uiPath: harness.uiPath,
+  });
+
+  expect(
+    harness.calls.filter((call) => call.startsWith('DELETE')),
+  ).toEqual([
+    `DELETE ${IDS.process}`,
+    `DELETE ${IDS.process2}`,
+  ]);
+  expect(harness.exists).toEqual(new Set());
+});
+
+test('batch cleanup continues after one ownership GET error and reports only that exact residual ID', async ({
+  page,
+}) => {
+  const harness = await cleanupHarness(page, {
+    detailStatus: { [IDS.process]: 500 },
+  });
+  const error = await cleanupCapturedProcessBatch({
+    page,
+    requestContext: harness.requestContext,
+    assertSandbox: harness.assertSandbox,
+    created: harness.created,
+    allowedNames: new Set([PROCESS_NAME]),
+    detailEndpoint: harness.detailEndpoint,
+    collectionEndpoint: harness.collectionEndpoint,
+    uiPath: harness.uiPath,
+  }).catch((caught: unknown) => caught);
+
+  const messages = nestedErrorMessages(error);
+  expect(messages.join('\n')).toContain(IDS.process);
+  expect(messages.join('\n')).not.toContain(
+    `residual ID: ${IDS.process2}`,
+  );
+  expect(harness.calls).toContain(`DELETE ${IDS.process2}`);
+});
+
+test('batch cleanup continues after one DELETE error and cleans the next safe exact ID', async ({
+  page,
+}) => {
+  const harness = await cleanupHarness(page, {
+    deleteStatus: { [IDS.process2]: 500 },
+  });
+  const error = await cleanupCapturedProcessBatch({
+    page,
+    requestContext: harness.requestContext,
+    assertSandbox: harness.assertSandbox,
+    created: harness.created,
+    allowedNames: new Set([PROCESS_NAME]),
+    detailEndpoint: harness.detailEndpoint,
+    collectionEndpoint: harness.collectionEndpoint,
+    uiPath: harness.uiPath,
+  }).catch((caught: unknown) => caught);
+
+  const messages = nestedErrorMessages(error);
+  expect(messages.join('\n')).toContain(IDS.process2);
+  expect(messages.join('\n')).not.toContain(
+    `residual ID: ${IDS.process}`,
+  );
+  expect(harness.calls).toContain(`DELETE ${IDS.process}`);
+  expect(harness.exists).toEqual(new Set([IDS.process2]));
+});
+
+test('a 204 DELETE remains residual when exact detail and UI href still retain the process', async ({
+  page,
+}) => {
+  const harness = await cleanupHarness(page, {
+    stickyAfterDeleteIds: new Set([IDS.process2]),
+  });
+  const error = await cleanupCapturedProcessBatch({
+    page,
+    requestContext: harness.requestContext,
+    assertSandbox: harness.assertSandbox,
+    created: harness.created,
+    allowedNames: new Set([PROCESS_NAME]),
+    detailEndpoint: harness.detailEndpoint,
+    collectionEndpoint: harness.collectionEndpoint,
+    uiPath: harness.uiPath,
+  }).catch((caught: unknown) => caught);
+
+  const messages = nestedErrorMessages(error).join('\n');
+  expect(messages).toContain(IDS.process2);
+  expect(
+    harness.calls.filter((call) => call === `GET ${IDS.process2}`),
+  ).toHaveLength(2);
+});
+
+test('exact cleanup is idempotent for 404 and an identity-free tombstone only with collection/UI absence', async ({
+  page,
+}) => {
+  const harness = await cleanupHarness(page, {
+    detailStatus: { [IDS.process]: 404 },
+    tombstoneIds: new Set([IDS.process2]),
+  });
+  harness.exists.clear();
+
+  await cleanupCapturedProcessBatch({
+    page,
+    requestContext: harness.requestContext,
+    assertSandbox: harness.assertSandbox,
+    created: harness.created,
+    allowedNames: new Set([PROCESS_NAME]),
+    detailEndpoint: harness.detailEndpoint,
+    collectionEndpoint: harness.collectionEndpoint,
+    uiPath: harness.uiPath,
+  });
+  expect(harness.calls.filter((call) => call.startsWith('DELETE'))).toEqual(
+    [],
+  );
+});
+
+test('identity-free tombstones fail closed when exact collection or UI absence disagrees', async ({
+  page,
+}) => {
+  for (const retained of ['collection', 'ui'] as const) {
+    const harness = await cleanupHarness(page, {
+      detailStatus: { [IDS.process]: 404 },
+      tombstoneIds: new Set([IDS.process2]),
+      ...(retained === 'collection'
+        ? { retainedCollectionIds: new Set([IDS.process2]) }
+        : { retainedUiIds: new Set([IDS.process2]) }),
+    });
+    harness.exists.clear();
+    const error = await cleanupCapturedProcessBatch({
+      page,
+      requestContext: harness.requestContext,
+      assertSandbox: harness.assertSandbox,
+      created: harness.created,
+      allowedNames: new Set([PROCESS_NAME]),
+      detailEndpoint: harness.detailEndpoint,
+      collectionEndpoint: harness.collectionEndpoint,
+      uiPath: harness.uiPath,
+    }).catch((caught: unknown) => caught);
+    expect(nestedErrorMessages(error).join('\n')).toContain(IDS.process2);
+  }
+});
+
+test('parser-rejected canonical process IDs recover only after a fresh exact ownership read', async () => {
+  const cleaned: string[] = [];
+  await reconcileRejectedProcessExactId({
+    id: IDS.process,
+    requestedName: PROCESS_NAME,
+    requestOrdinal: 3,
+    workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+    inspect: async () => ({
+      status: 200,
+      body: processBody(),
+    }),
+    cleanup: async ({ id }) => {
+      cleaned.push(id);
+    },
+  });
+  expect(cleaned).toEqual([IDS.process]);
+
+  const error = await reconcileRejectedProcessExactId({
+    id: IDS.process,
+    requestedName: PROCESS_NAME,
+    requestOrdinal: 3,
+    workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+    inspect: async () => ({
+      status: 200,
+      body: processBody({ workspace_id: IDS.foreign }),
+    }),
+    cleanup: async () => {},
+  }).catch((caught: unknown) => caught);
+  expect(nestedErrorMessages(error).join('\n')).toContain(IDS.process);
+});
+
+test('batch parser-rejected recovery continues after one refused ID and registers a later safe ID', async () => {
+  const recovered: string[] = [];
+  const error = await reconcileRejectedProcessExactIds({
+    rejections: [
+      { requestOrdinal: 0, exactId: IDS.process },
+      { requestOrdinal: 1, exactId: IDS.process2 },
+    ],
+    requestedName: PROCESS_NAME,
+    workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+    inspect: async (id) => ({
+      status: 200,
+      body:
+        id === IDS.process
+          ? processBody({
+              id,
+              workspace_id: IDS.foreign,
+            })
+          : processBody({ id }),
+    }),
+    cleanup: async ({ id }) => {
+      recovered.push(id);
+    },
+  }).catch((caught: unknown) => caught);
+
+  expect(recovered).toEqual([IDS.process2]);
+  expect(nestedErrorMessages(error).join('\n')).toContain(IDS.process);
+});
+
+test('run cascade proof requires exact run and history absence', async () => {
+  await verifyExactProcessRunCascade({
+    runId: IDS.run,
+    inspectRun: async () => ({ status: 404 }),
+    inspectHistory: async () => ({ status: 404 }),
+  });
+
+  const error = await verifyExactProcessRunCascade({
+    runId: IDS.run,
+    inspectRun: async () => ({ status: 200, body: { id: IDS.run } }),
+    inspectHistory: async () => ({ status: 404 }),
+  }).catch((caught: unknown) => caught);
+  expect(nestedErrorMessages(error).join('\n')).toContain(IDS.run);
+});
+
+test('NUANU-8 classification accepts only the narrow silent signature', () => {
+  const knownFailure = classifyNuanu8ProcessOutcome({
+    submitCompleted: true,
+    dialogVisible: true,
+    actionableValidation: false,
+    exactProcessVisible: false,
+    successfulProcessCount: 0,
+    exactNameAbsenceProven: true,
+    operationalErrors: [],
+    cleanupResidualIds: [],
+  });
+  expect(knownFailure).toEqual(
+    expect.objectContaining({
+      message: expect.stringContaining('NUANU-8 silent signature'),
+    }),
+  );
+  expect(() => requireNuanu8KnownBugFailure(knownFailure)).not.toThrow();
+
+  const correctResult = classifyNuanu8ProcessOutcome({
+    submitCompleted: true,
+    dialogVisible: false,
+    actionableValidation: false,
+    exactProcessVisible: true,
+    successfulProcessCount: 1,
+    exactNameAbsenceProven: false,
+    operationalErrors: [],
+    cleanupResidualIds: [],
+  });
+  expect(() => requireNuanu8KnownBugFailure(correctResult)).toThrow(
+    /unexpectedly passed/i,
+  );
+
+  const validationResult = classifyNuanu8ProcessOutcome({
+    submitCompleted: true,
+    dialogVisible: true,
+    actionableValidation: true,
+    exactProcessVisible: false,
+    successfulProcessCount: 0,
+    exactNameAbsenceProven: true,
+    operationalErrors: [],
+    cleanupResidualIds: [],
+  });
+  expect(() => requireNuanu8KnownBugFailure(validationResult)).toThrow(
+    /unexpectedly passed/i,
+  );
+});
+
+test('NUANU-8 classification cannot absorb operational, schema, cleanup, or selector failures', () => {
+  for (const operationalErrors of [
+    [new Error('auth expired')],
+    [new Error('selector setup failed')],
+    [new Error('unexpected endpoint')],
+    [new Error('unexpected status')],
+    [new Error('malformed recoverable response')],
+  ]) {
+    expect(() =>
+      classifyNuanu8ProcessOutcome({
+        submitCompleted: true,
+        dialogVisible: true,
+        actionableValidation: false,
+        exactProcessVisible: false,
+        successfulProcessCount: 0,
+        exactNameAbsenceProven: true,
+        operationalErrors,
+        cleanupResidualIds: [],
+      }),
+    ).toThrow(operationalErrors[0]);
+  }
+  expect(() =>
+    classifyNuanu8ProcessOutcome({
+      submitCompleted: true,
+      dialogVisible: true,
+      actionableValidation: false,
+      exactProcessVisible: false,
+      successfulProcessCount: 0,
+      exactNameAbsenceProven: true,
+      operationalErrors: [],
+      cleanupResidualIds: [IDS.process],
+    }),
+  ).toThrow(IDS.process);
+
+  expect(() =>
+    classifyNuanu8ProcessOutcome({
+      submitCompleted: true,
+      dialogVisible: true,
+      actionableValidation: false,
+      exactProcessVisible: false,
+      successfulProcessCount: 0,
+      exactNameAbsenceProven: false,
+      operationalErrors: [],
+      cleanupResidualIds: [],
+    }),
+  ).toThrow(/exact-name absence/i);
+});
+
+test('process and editor POMs expose the reconfirmed semantic controls without positional selectors', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <main>
+      <button>Create Process</button>
+      <a href="${PROCESS_PATHS.detail(IDS.process)}">${PROCESS_NAME}</a>
+      <button>Editor</button><button>Runs 0</button><button>Tasks</button>
+      <button aria-label="Undo"></button><button aria-label="Redo"></button>
+      <button role="switch" aria-label="Autosave" aria-checked="true"></button>
+      <span>Saved</span>
+      <button>No Issues</button>
+      <div title="Event — hover for options">Event</div>
+      <div title="Task — hover for options">Task</div>
+      <div title="Gateway — hover for options">Gateway</div>
+      <div data-action="create.group-gateway"></div>
+      <div data-action="create.group-event"></div>
+      <button>Exclusive</button><button>Inclusive</button>
+      <button>Parallel</button><button>Event-based</button>
+      <button>End</button>
+      <div title="Append Human Task">Append Human Task</div>
+      <div title="Append end event">Append end event</div>
+      <div title="Activate global connect tool" data-action="global-connect-tool">Connect</div>
+      <div class="djs-context-pad"><div data-action="connect">Connect from element</div></div>
+      <input aria-label="Process name" placeholder="Process name" value="${PROCESS_NAME}" />
+      <textarea aria-label="What does this process do?" placeholder="What does this process do?"></textarea>
+      <input aria-label="Task name (syncs to canvas label)..." placeholder="Task name (syncs to canvas label)..." />
+      <button>Deactivate</button><button>Start Run</button>
+      <button>Delete process</button>
+      <div class="djs-container">
+        <div class="djs-element djs-shape" data-element-id="StartEvent_1"></div>
+        <div class="djs-element djs-shape" data-element-id="Task_1"></div>
+      </div>
+    </main>
+    <div role="dialog" aria-label="Create Process">
+      <h3>Create Process</h3>
+      <label>Name *<input aria-label="Name *" /></label>
+      <label>Description<textarea aria-label="Description"></textarea></label>
+      <label>Category<select aria-label="Category"><option>Operational</option></select></label>
+      <button>Cancel</button><button>Create Process</button>
+    </div>
+  `);
+  const processes = new ProcessesPage(page, async () => {});
+  const editor = new ProcessEditorPage(page, async () => {});
+
+  await expect(processes.createButton).toBeVisible();
+  await expect(processes.createDialog).toBeVisible();
+  await expect(processes.nameInput).toBeVisible();
+  await expect(processes.descriptionInput).toBeVisible();
+  await expect(processes.categorySelect).toBeVisible();
+  await expect(processes.ownedProcessLink(IDS.process)).toHaveAttribute(
+    'href',
+    PROCESS_PATHS.detail(IDS.process),
+  );
+  await expect(editor.editorTab).toBeVisible();
+  await expect(editor.runsTab).toBeVisible();
+  await expect(editor.tasksTab).toBeVisible();
+  await expect(editor.undoButton).toBeVisible();
+  await expect(editor.redoButton).toBeVisible();
+  await expect(editor.autosaveSwitch).toBeChecked();
+  await expect(editor.savedIndicator).toBeVisible();
+  await expect(editor.validationIndicator).toBeVisible();
+  await expect(editor.zeroErrorsIndicator).toBeVisible();
+  await expect(editor.noIssuesIndicator).toBeVisible();
+  await expect(editor.eventPalette).toBeVisible();
+  await expect(editor.taskPalette).toBeVisible();
+  await expect(editor.gatewayPalette).toBeVisible();
+  await expect(editor.gatewayPaletteGroup).toHaveCount(1);
+  await expect(editor.eventPaletteGroup).toHaveCount(1);
+  await expect(editor.gatewayOptions).toHaveCount(4);
+  await expect(editor.exclusiveGatewayOption).toBeVisible();
+  await expect(editor.endEventOption).toBeVisible();
+  await expect(editor.appendHumanTaskAction).toBeVisible();
+  await expect(editor.appendEndEventAction).toBeVisible();
+  await expect(editor.globalConnectTool).toBeVisible();
+  await expect(editor.contextConnectAction).toBeVisible();
+  await expect(editor.canvas).toHaveCount(1);
+  await expect(editor.humanTaskNameInput).toBeVisible();
+  await expect(editor.processNameInput).toHaveValue(PROCESS_NAME);
+  await expect(editor.processDescriptionInput).toBeVisible();
+  await expect(editor.processCategorySelect).toBeVisible();
+  await expect(editor.elementById('Task_1')).toHaveCount(1);
+});
+
+test('editor keyboard undo and redo use platform-neutral ControlOrMeta semantics', async ({
+  page,
+}) => {
+  await page.setContent(`
+    <input id="target" autofocus />
+    <output id="keys"></output>
+    <script>
+      document.addEventListener('keydown', (event) => {
+        document.querySelector('#keys').textContent +=
+          [event.key.toLowerCase(), event.ctrlKey || event.metaKey, event.shiftKey].join(':') + ';';
+      });
+    </script>
+  `);
+  const editor = new ProcessEditorPage(page, async () => {});
+  await editor.undoByKeyboard();
+  await editor.redoByKeyboard();
+  await expect(page.locator('#keys')).toContainText('z:true:false');
+  await expect(page.locator('#keys')).toContainText('z:true:true');
+});
+
+for (const scenario of IMMUTABLE_OWNERSHIP_MUTATIONS) {
+  test(`autosave rejects branded ${scenario.label} drift before action and backend`, async ({
+    page,
+  }) => {
+    const routeId = scenario.routeId ?? IDS.process;
+    const endpoint = syntheticProcessDetailEndpoint(routeId);
+    const created = parseProcess(processBody());
+    scenario.mutate(created);
+    let sandboxGuards = 0;
+    let actionCalls = 0;
+    let backendWrites = 0;
+    await page.route(endpoint, async (route) => {
+      backendWrites += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          processBody(scenario.responseOverrides),
+        ),
+      });
+    });
+    await openSyntheticOwnedProcessPage(page, routeId);
+
+    let rejected = false;
+    try {
+      await captureExactProcessSaves({
+        page,
+        created,
+        allowedNames: new Set(
+          scenario.allowedNames ?? [PROCESS_NAME],
+        ),
+        assertSandbox: async () => {
+          sandboxGuards += 1;
+        },
+        action: async () => {
+          actionCalls += 1;
+          await page.evaluate(
+            ({ requestEndpoint }) =>
+              fetch(requestEndpoint, {
+                method: 'PATCH',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  bpmn_xml: '<definitions />',
+                }),
+              }),
+            { requestEndpoint: endpoint },
+          );
+        },
+        validatePayload: () => {},
+        quietMs: 20,
+        maxAdmissionMs: 100,
+      });
+    } catch {
+      rejected = true;
+    }
+
+    expect({ rejected, sandboxGuards, actionCalls, backendWrites }).toEqual({
+      rejected: true,
+      sandboxGuards: 0,
+      actionCalls: 0,
+      backendWrites: 0,
+    });
+  });
+}
+
+test('autosave revalidates immutable ownership after the immediate sandbox guard', async ({
+  page,
+}) => {
+  const endpoint = syntheticProcessDetailEndpoint(IDS.process);
+  const created = parseProcess(processBody());
+  let sandboxGuards = 0;
+  let actionCalls = 0;
+  let backendWrites = 0;
+  await page.route(endpoint, async (route) => {
+    backendWrites += 1;
+    await route.fulfill({ status: 200, body: '{}' });
+  });
+  await openSyntheticOwnedProcessPage(page);
+
+  const result = await captureExactProcessSaves({
+    page,
+    created,
+    allowedNames: new Set([PROCESS_NAME]),
+    assertSandbox: async () => {
+      sandboxGuards += 1;
+      if (sandboxGuards === 2) created.id = IDS.foreign;
+    },
+    action: async () => {
+      actionCalls += 1;
+      await page.evaluate(
+        ({ requestEndpoint }) =>
+          fetch(requestEndpoint, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ bpmn_xml: '<definitions />' }),
+          }),
+        { requestEndpoint: endpoint },
+      );
+    },
+    validatePayload: () => {},
+    quietMs: 20,
+    maxAdmissionMs: 100,
+  });
+
+  expect(result.capture.actionError).toEqual(
+    expect.objectContaining({
+      message: expect.stringMatching(/response-owned process/i),
+    }),
+  );
+  expect({ sandboxGuards, actionCalls, backendWrites }).toEqual({
+    sandboxGuards: 2,
+    actionCalls: 0,
+    backendWrites: 0,
+  });
+});
+
+test('autosave route revalidates ownership after its action mutates the branded object', async ({
+  page,
+}) => {
+  const endpoint = syntheticProcessDetailEndpoint(IDS.process);
+  const created = parseProcess(processBody());
+  let actionCalls = 0;
+  let backendWrites = 0;
+  await page.route(endpoint, async (route) => {
+    backendWrites += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(processBody()),
+    });
+  });
+  await openSyntheticOwnedProcessPage(page);
+
+  const result = await captureExactProcessSaves({
+    page,
+    created,
+    allowedNames: new Set([PROCESS_NAME]),
+    assertSandbox: async () => {},
+    action: async () => {
+      actionCalls += 1;
+      created.id = IDS.foreign;
+      await page.evaluate(
+        ({ requestEndpoint }) =>
+          fetch(requestEndpoint, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ bpmn_xml: '<definitions />' }),
+          }),
+        { requestEndpoint: endpoint },
+      );
+    },
+    validatePayload: () => {},
+    quietMs: 20,
+    maxAdmissionMs: 100,
+  });
+
+  expect(actionCalls).toBe(1);
+  expect(backendWrites).toBe(0);
+  expect(
+    result.capture.actionError ??
+      result.capture.contractErrors[0]?.error ??
+      result.foreignWriteAttempts[0],
+  ).toBeDefined();
+});
+
+test('autosave capture rejects forged or mismatched process ownership before action and backend', async ({
+  page,
+}) => {
+  const exactEndpoint =
+    syntheticProcessDetailEndpoint(IDS.process);
+  let backendWrites = 0;
+  await page.route(exactEndpoint, async (route) => {
+    backendWrites += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: IDS.process,
+        workspace_id: PROCESS_SANDBOX_WORKSPACE_ID,
+      }),
+    });
+  });
+  await openSyntheticOwnedProcessPage(page);
+
+  const parsed = parseProcess(processBody());
+  const foreignWorkspace = parseProcess(processBody());
+  foreignWorkspace.workspaceId = IDS.foreign;
+  const wrongName = parseProcess(processBody());
+  wrongName.name = 'not a current-run owned process';
+  const rejected = [
+    { ...parsed } as CreatedProcess,
+    foreignWorkspace,
+    wrongName,
+  ];
+  let actionCalls = 0;
+  let sandboxGuards = 0;
+
+  for (const created of rejected) {
+    const options = {
+      page,
+      created,
+      allowedNames: new Set([PROCESS_NAME]),
+      assertSandbox: async () => {
+        sandboxGuards += 1;
+      },
+      action: async () => {
+        actionCalls += 1;
+        await page.evaluate(
+          ({ endpoint }) =>
+            fetch(endpoint, {
+              method: 'PATCH',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ bpmn_xml: '<definitions />' }),
+            }),
+          { endpoint: exactEndpoint },
+        );
+      },
+      validatePayload: () => {},
+      quietMs: 20,
+      maxAdmissionMs: 100,
+    };
+
+    await expect(captureExactProcessSaves(options)).rejects.toThrow(
+      /response-owned process/i,
+    );
+  }
+
+  expect(sandboxGuards).toBe(0);
+  expect(actionCalls).toBe(0);
+  expect(backendWrites).toBe(0);
+});
+
+test('autosave capture rechecks the sandbox immediately before action and emits zero PATCHes when rejected', async ({
+  page,
+}) => {
+  const exactEndpoint =
+    syntheticProcessDetailEndpoint(IDS.process);
+  let backendWrites = 0;
+  await page.route(exactEndpoint, async (route) => {
+    backendWrites += 1;
+    await route.fulfill({ status: 200, body: '{}' });
+  });
+  await openSyntheticOwnedProcessPage(page);
+
+  let guardCalls = 0;
+  let actionCalls = 0;
+  const options = {
+    page,
+    created: parseProcess(processBody()),
+    allowedNames: new Set([PROCESS_NAME]),
+    assertSandbox: async () => {
+      guardCalls += 1;
+      if (guardCalls === 2) {
+        throw new Error('sandbox changed before autosave action');
+      }
+    },
+    action: async () => {
+      actionCalls += 1;
+      await page.evaluate(
+        ({ endpoint }) =>
+          fetch(endpoint, { method: 'PATCH' }),
+        { endpoint: exactEndpoint },
+      );
+    },
+    validatePayload: () => {},
+    quietMs: 20,
+    maxAdmissionMs: 100,
+  };
+
+  const result = await captureExactProcessSaves(options);
+
+  expect(guardCalls).toBe(2);
+  expect(result.capture.actionError).toEqual(
+    expect.objectContaining({
+      message: 'sandbox changed before autosave action',
+    }),
+  );
+  expect(result.capture.attemptCount).toBe(0);
+  expect(actionCalls).toBe(0);
+  expect(backendWrites).toBe(0);
+});
+
+test('autosave capture drains an admitted owned save after action failure', async ({
+  page,
+}) => {
+  const exactEndpoint =
+    syntheticProcessDetailEndpoint(IDS.process);
+  const callOrder: string[] = [];
+  await page.route(exactEndpoint, async (route) => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 120));
+    callOrder.push('backend');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: IDS.process,
+        workspace_id: PROCESS_SANDBOX_WORKSPACE_ID,
+      }),
+    });
+  });
+  await openSyntheticOwnedProcessPage(page);
+
+  const result = await captureExactProcessSaves({
+    page,
+    created: parseProcess(processBody()),
+    allowedNames: new Set([PROCESS_NAME]),
+    assertSandbox: async () => {
+      callOrder.push('guard');
+    },
+    action: async () => {
+      callOrder.push('action');
+      await page.evaluate(
+        ({ endpoint }) => {
+          void fetch(endpoint, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              bpmn_xml: '<definitions><process /></definitions>',
+            }),
+          });
+        },
+        { endpoint: exactEndpoint },
+      );
+      throw new Error('navigation interrupted visible save action');
+    },
+    validatePayload: (request) => {
+      const body = request.postDataJSON() as {
+        bpmn_xml?: unknown;
+      };
+      if (typeof body.bpmn_xml !== 'string') {
+        throw new Error('missing BPMN XML');
+      }
+    },
+    quietMs: 20,
+    maxAdmissionMs: 40,
+  });
+
+  expect(result.capture.actionError).toEqual(
+    expect.objectContaining({
+      message: 'navigation interrupted visible save action',
+    }),
+  );
+  expect(result.capture.successfulEntries).toEqual([
+    {
+      requestOrdinal: 0,
+      created: { processId: IDS.process, requestOrdinal: 0 },
+    },
+  ]);
+  expect(result.foreignWriteAttempts).toEqual([]);
+  expect(callOrder).toEqual([
+    'guard',
+    'guard',
+    'action',
+    'backend',
+  ]);
+});
+
+test('autosave capture validates the response against its exact request XML', async ({
+  page,
+}) => {
+  const exactEndpoint =
+    syntheticProcessDetailEndpoint(IDS.process);
+  const requestXml =
+    '<?xml version="1.0"?><bpmn:definitions><bpmn:process /></bpmn:definitions>\n';
+  let responseChecks = 0;
+  await page.route(exactEndpoint, async (route) => {
+    const payload = route.request().postDataJSON() as {
+      bpmn_xml: string;
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: IDS.process,
+        workspace_id: PROCESS_SANDBOX_WORKSPACE_ID,
+        bpmn_xml: payload.bpmn_xml.trimEnd(),
+      }),
+    });
+  });
+  await openSyntheticOwnedProcessPage(page);
+
+  const result = await captureExactProcessSaves({
+    page,
+    created: parseProcess(processBody()),
+    allowedNames: new Set([PROCESS_NAME]),
+    assertSandbox: async () => {},
+    action: async () => {
+      await page.evaluate(
+        ({ endpoint, xml }) =>
+          fetch(endpoint, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ bpmn_xml: xml }),
+          }),
+        { endpoint: exactEndpoint, xml: requestXml },
+      );
+    },
+    validatePayload: (request) => {
+      expect(request.postDataJSON()).toEqual({
+        bpmn_xml: requestXml,
+      });
+    },
+    validateResponse: (body, request) => {
+      responseChecks += 1;
+      const payload = request.postDataJSON() as {
+        bpmn_xml: string;
+      };
+      assertExactInertBpmnAutosaveResponse(body, {
+        processId: IDS.process,
+        workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+        requestXml: payload.bpmn_xml,
+      });
+    },
+    quietMs: 20,
+    maxAdmissionMs: 100,
+  });
+
+  expect(result.capture.contractErrors).toEqual([]);
+  expect(result.capture.successfulEntries).toHaveLength(1);
+  expect(responseChecks).toBe(1);
+});
+
+test('autosave capture rejects a wrong-workspace response even without an optional callback', async ({
+  page,
+}) => {
+  const exactEndpoint =
+    syntheticProcessDetailEndpoint(IDS.process);
+  await page.route(exactEndpoint, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: IDS.process,
+        workspace_id: IDS.foreign,
+      }),
+    });
+  });
+  await openSyntheticOwnedProcessPage(page);
+
+  const result = await captureExactProcessSaves({
+    page,
+    created: parseProcess(processBody()),
+    allowedNames: new Set([PROCESS_NAME]),
+    assertSandbox: async () => {},
+    action: async () => {
+      await page.evaluate(
+        ({ endpoint }) =>
+          fetch(endpoint, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ bpmn_xml: '<definitions />' }),
+          }),
+        { endpoint: exactEndpoint },
+      );
+    },
+    validatePayload: () => {},
+    quietMs: 20,
+    maxAdmissionMs: 100,
+  });
+
+  expect(result.capture.successfulEntries).toEqual([]);
+  expect(result.capture.contractErrors).toEqual([
+    expect.objectContaining({ requestOrdinal: 0 }),
+  ]);
+});
+
+test('autosave capture aborts a write to any foreign process before the backend', async ({
+  page,
+}) => {
+  const exactEndpoint =
+    syntheticProcessDetailEndpoint(IDS.process);
+  const foreignEndpoint =
+    syntheticProcessDetailEndpoint(IDS.foreign);
+  let foreignBackendWrites = 0;
+  let ownedBackendWrites = 0;
+  await page.route(exactEndpoint, async (route) => {
+    ownedBackendWrites += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: IDS.process,
+        workspace_id: PROCESS_SANDBOX_WORKSPACE_ID,
+      }),
+    });
+  });
+  await page.route(foreignEndpoint, async (route) => {
+    foreignBackendWrites += 1;
+    await route.fulfill({ status: 200, body: '{}' });
+  });
+  await openSyntheticOwnedProcessPage(page);
+
+  const result = await captureExactProcessSaves({
+    page,
+    created: parseProcess(processBody()),
+    allowedNames: new Set([PROCESS_NAME]),
+    assertSandbox: async () => {},
+    action: async () => {
+      await Promise.all([
+        page.evaluate(
+          ({ endpoint }) =>
+            fetch(endpoint, {
+              method: 'PATCH',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                bpmn_xml: '<definitions />',
+              }),
+            }).catch(() => undefined),
+          { endpoint: foreignEndpoint },
+        ),
+        page.evaluate(
+          ({ endpoint }) =>
+            fetch(endpoint, {
+              method: 'PUT',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({
+                bpmn_xml: '<definitions />',
+              }),
+            }).catch(() => undefined),
+          { endpoint: exactEndpoint },
+        ),
+      ]);
+      await page.evaluate(
+        ({ endpoint }) =>
+          fetch(endpoint, {
+            method: 'PATCH',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              bpmn_xml: '<definitions />',
+            }),
+          }),
+        { endpoint: exactEndpoint },
+      );
+    },
+    validatePayload: () => {},
+    quietMs: 60,
+    maxAdmissionMs: 150,
+  });
+
+  expect(result.capture.attemptCount).toBe(1);
+  expect(result.capture.successfulEntries).toEqual([
+    {
+      requestOrdinal: 0,
+      created: {
+        processId: IDS.process,
+        requestOrdinal: 0,
+      },
+    },
+  ]);
+  expect(result.capture.unexpectedMutationAttempts).toEqual([
+    {
+      requestOrdinal: 0,
+      method: 'PUT',
+      url: exactEndpoint,
+    },
+  ]);
+  expect(result.foreignWriteAttempts).toEqual([
+    {
+      method: 'PATCH',
+      url: foreignEndpoint,
+      processId: IDS.foreign,
+    },
+  ]);
+  expect(foreignBackendWrites).toBe(0);
+  expect(ownedBackendWrites).toBe(1);
+});
+
+test('BPMN autosave permits only sole-key inert XML and trimEnd response normalization', () => {
+  const taskLabel =
+    `${QA_PREFIX} synthetic-run inert human task`;
+  const requestXml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:plane="http://plane.so/schema/bpmn/plane">
+  <bpmn:process id="Process_1" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" name="Start">
+      <bpmn:outgoing>Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:userTask id="Activity_1" name="${taskLabel}">
+      <bpmn:extensionElements>
+        <plane:taskConfig name="${taskLabel}" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Flow_2</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="Event_1">
+      <bpmn:incoming>Flow_2</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_1" sourceRef="StartEvent_1" targetRef="Activity_1" />
+    <bpmn:sequenceFlow id="Flow_2" sourceRef="Activity_1" targetRef="Event_1" />
+  </bpmn:process>
+</bpmn:definitions>
+`;
+  expect(
+    assertExactInertBpmnAutosavePayload(
+      { bpmn_xml: requestXml },
+      {
+        requiredElementIds: [
+          'StartEvent_1',
+          'Activity_1',
+          'Event_1',
+          'Flow_1',
+          'Flow_2',
+        ],
+        requiredLabel: taskLabel,
+      },
+    ),
+  ).toBe(requestXml);
+  expect(
+    assertExactInertHumanTaskGraph(requestXml, {
+      taskLabel,
+      expectedStartId: 'StartEvent_1',
+    }),
+  ).toEqual({
+    startId: 'StartEvent_1',
+    humanTaskId: 'Activity_1',
+    endId: 'Event_1',
+    startToTaskFlowId: 'Flow_1',
+    taskToEndFlowId: 'Flow_2',
+    taskLabel,
+  });
+  expect(
+    assertExactInertBpmnAutosaveResponse(
+      {
+        id: IDS.process,
+        workspace_id: PROCESS_SANDBOX_WORKSPACE_ID,
+        bpmn_xml: requestXml.trimEnd(),
+      },
+      {
+        processId: IDS.process,
+        workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+        requestXml,
+      },
+    ),
+  ).toBe(requestXml.trimEnd());
+
+  for (const body of [
+    { bpmn_xml: requestXml, graph: {} },
+    { bpmn_xml: requestXml.replace('userTask', 'serviceTask') },
+    {
+      bpmn_xml: requestXml.replace(
+        '</bpmn:process>',
+        '<bpmn:sendTask id="Send_1" /></bpmn:process>',
+      ),
+    },
+    {
+      bpmn_xml: requestXml.replace(
+        '</bpmn:process>',
+        '<bpmn:messageEventDefinition /></bpmn:process>',
+      ),
+    },
+    {
+      bpmn_xml: requestXml.replace(
+        '</bpmn:process>',
+        '<plane:automationConfig url="https://example.invalid" /></bpmn:process>',
+      ),
+    },
+    {
+      bpmn_xml: requestXml.replace(
+        'id="Flow_2"',
+        'id="Flow_missing"',
+      ),
+    },
+  ]) {
+    expect(() =>
+      assertExactInertBpmnAutosavePayload(body, {
+        requiredElementIds: [
+          'StartEvent_1',
+          'Activity_1',
+          'Event_1',
+          'Flow_1',
+          'Flow_2',
+        ],
+        requiredLabel: taskLabel,
+      }),
+    ).toThrow();
+  }
+
+  for (const xml of [
+    requestXml.replace(
+      '<bpmn:endEvent id="Event_1">',
+      '<bpmn:endEvent id="Event_2" /><bpmn:endEvent id="Event_1">',
+    ),
+    requestXml.replace(
+      'sourceRef="StartEvent_1" targetRef="Activity_1"',
+      'sourceRef="Event_1" targetRef="Activity_1"',
+    ),
+    requestXml.replace(
+      'sourceRef="Activity_1" targetRef="Event_1"',
+      'sourceRef="StartEvent_1" targetRef="Event_1"',
+    ),
+    requestXml.replace(
+      '</bpmn:process>',
+      '<bpmn:exclusiveGateway id="Gateway_1" /></bpmn:process>',
+    ),
+  ]) {
+    expect(() =>
+      assertExactInertHumanTaskGraph(xml, {
+        taskLabel,
+        expectedStartId: 'StartEvent_1',
+      }),
+    ).toThrow();
+  }
+
+  for (const body of [
+    {
+      id: IDS.foreign,
+      workspace_id: PROCESS_SANDBOX_WORKSPACE_ID,
+      bpmn_xml: requestXml.trimEnd(),
+    },
+    {
+      id: IDS.process,
+      workspace_id: IDS.foreign,
+      bpmn_xml: requestXml.trimEnd(),
+    },
+    {
+      id: IDS.process,
+      workspace_id: PROCESS_SANDBOX_WORKSPACE_ID,
+      bpmn_xml: requestXml,
+    },
+  ]) {
+    expect(() =>
+      assertExactInertBpmnAutosaveResponse(body, {
+        processId: IDS.process,
+        workspaceId: PROCESS_SANDBOX_WORKSPACE_ID,
+        requestXml,
+      }),
+    ).toThrow();
+  }
+});
+
+test('exclusive gateway graph requires one exact inert Start → Gateway → End path', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL">
+  <bpmn:process id="Process_1" isExecutable="true">
+    <bpmn:startEvent id="StartEvent_1" name="Start">
+      <bpmn:outgoing>Flow_Start</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gateway_1">
+      <bpmn:incoming>Flow_Start</bpmn:incoming>
+      <bpmn:outgoing>Flow_End</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="Event_1">
+      <bpmn:incoming>Flow_End</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Flow_Start" sourceRef="StartEvent_1" targetRef="Gateway_1" />
+    <bpmn:sequenceFlow id="Flow_End" sourceRef="Gateway_1" targetRef="Event_1" />
+  </bpmn:process>
+</bpmn:definitions>
+`;
+  expect(
+    assertExactInertExclusiveGatewayGraph(xml, {
+      expectedStartId: 'StartEvent_1',
+    }),
+  ).toEqual({
+    startId: 'StartEvent_1',
+    gatewayId: 'Gateway_1',
+    endId: 'Event_1',
+    startToGatewayFlowId: 'Flow_Start',
+    gatewayToEndFlowId: 'Flow_End',
+  });
+
+  for (const invalid of [
+    xml.replace('exclusiveGateway', 'parallelGateway'),
+    xml.replace(
+      'sourceRef="Gateway_1" targetRef="Event_1"',
+      'sourceRef="StartEvent_1" targetRef="Event_1"',
+    ),
+    xml.replace(
+      '<bpmn:endEvent id="Event_1">',
+      '<bpmn:endEvent id="Event_2" /><bpmn:endEvent id="Event_1">',
+    ),
+    xml.replace(
+      '</bpmn:process>',
+      '<bpmn:userTask id="Activity_1" /></bpmn:process>',
+    ),
+  ]) {
+    expect(() =>
+      assertExactInertExclusiveGatewayGraph(invalid, {
+        expectedStartId: 'StartEvent_1',
+      }),
+    ).toThrow();
+  }
+});
+
+test('process create payload permits only the exact observed inert UI schema', () => {
+  expect(
+    assertExactProcessCreatePayload(
+      {
+        name: PROCESS_NAME,
+        description: 'Synthetic inert BPMN process.',
+        category: 'operational',
+        logo_props: {},
+      },
+      {
+        name: PROCESS_NAME,
+        description: 'Synthetic inert BPMN process.',
+        category: 'operational',
+      },
+    ),
+  ).toEqual({
+    name: PROCESS_NAME,
+    description: 'Synthetic inert BPMN process.',
+    category: 'operational',
+    logo_props: {},
+  });
+
+  for (const body of [
+    {
+      name: `${QA_PREFIX} foreign-run process`,
+      description: 'Synthetic inert BPMN process.',
+      category: 'operational',
+      logo_props: {},
+    },
+    {
+      name: PROCESS_NAME,
+      description: 'changed',
+      category: 'operational',
+      logo_props: {},
+    },
+    {
+      name: PROCESS_NAME,
+      description: 'Synthetic inert BPMN process.',
+      category: 'Operational',
+      logo_props: {},
+    },
+    {
+      name: PROCESS_NAME,
+      description: 'Synthetic inert BPMN process.',
+      category: 'operational',
+      logo_props: {},
+      integration_id: IDS.foreign,
+    },
+    {
+      name: PROCESS_NAME,
+      description: 'Synthetic inert BPMN process.',
+      category: 'operational',
+      logo_props: { url: 'https://example.invalid/logo.png' },
+    },
+  ]) {
+    expect(() =>
+      assertExactProcessCreatePayload(body, {
+        name: PROCESS_NAME,
+        description: 'Synthetic inert BPMN process.',
+        category: 'operational',
+      }),
+    ).toThrow();
+  }
+});
+
+test('ProcessesPage create collector guards the sandbox and registers the exact observed 201', async ({
+  page,
+}) => {
+  const listUrl = `${SYNTHETIC_ORIGIN}${PROCESS_PATHS.list}`;
+  const createEndpoint =
+    `${SYNTHETIC_ORIGIN}${PROCESS_PATHS.collectionApi}`;
+  const calls: string[] = [];
+  await page.route(listUrl, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: `
+        <main><button id="open">Create Process</button></main>
+        <div role="dialog" aria-label="Create Process">
+          <label>Name *<input aria-label="Name *" /></label>
+          <textarea placeholder="Describe this process..."></textarea>
+          <label>Category<select aria-label="Category">
+            <option>Operational</option><option>Service</option>
+          </select></label>
+          <button>Cancel</button>
+          <button id="submit">Create Process</button>
+        </div>
+        <script>
+          document.querySelector('#submit').addEventListener('click', () => {
+            const name = document.querySelector('[aria-label="Name *"]').value;
+            const description = document.querySelector('textarea').value;
+            const category = document.querySelector('select').value.toLowerCase();
+            void fetch('${createEndpoint}', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ name, description, category, logo_props: {} }),
+            });
+          });
+        </script>
+      `,
+    });
+  });
+  await page.route(createEndpoint, async (route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify(processBody()),
+    });
+  });
+  await page.goto(listUrl);
+  const processes = new ProcessesPage(page, async () => {
+    calls.push('assertSandbox');
+  });
+  const registered: string[] = [];
+
+  const capture = await processes.createOwned({
+    name: PROCESS_NAME,
+    description: 'Synthetic inert BPMN process.',
+    category: 'Operational',
+    register: ({ id }) => {
+      registered.push(id);
+    },
+    quietMs: 30,
+    maxAdmissionMs: 100,
+  });
+
+  expect(calls).toEqual(['assertSandbox']);
+  expect(registered).toEqual([IDS.process]);
+  expect(capture.successfulEntries[0]?.created.id).toBe(IDS.process);
+  expect(capture.contractErrors).toEqual([]);
+  expect(capture.registrationErrors).toEqual([]);
+});

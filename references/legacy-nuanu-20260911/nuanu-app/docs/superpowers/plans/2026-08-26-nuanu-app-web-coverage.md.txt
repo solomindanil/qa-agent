@@ -1,0 +1,2970 @@
+# Nuanu App Web/PWA Coverage Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Expand the Nuanu App foundation into evidence-backed public,
+authenticated-state, API, PWA, responsive, accessibility, and manual
+iPhone/Android web coverage, then run the first safe baseline and file only
+confirmed defects.
+
+**Architecture:** Runtime-confirmed public surfaces become deterministic
+Playwright contracts behind product-local page objects and a mutation guard.
+Dynamic business claims remain UNVERIFIED until an approved oracle exists.
+Graph validation and dry-run planning precede execution; candidate findings
+become Bugs only after fresh-context reproduction, deduplication, regression
+coverage, and Flow read-back. Optional privacy-normalized PostHog signals may
+only add safe tests or triage priority; their status is reported separately and
+never changes deterministic verdicts.
+
+**Tech Stack:** TypeScript, Playwright, @axe-core/playwright, Node.js graph CLI,
+Nuanu Flow control plane.
+
+**Spec:** `docs/superpowers/specs/2026-08-26-nuanu-app-qa-project-design.md`
+
+## Global Constraints
+
+- Execute after the QA foundation plan. Execute Flow-dependent steps only
+  after the Flow control-plane plan has created and verified NAPP.
+- V1 covers `app.nuanu.com` web/PWA only. Physical iPhone/Android checks are
+  manual evidence lanes; native apps are out of scope.
+- Install the mutation guard before any public interaction. Do not click
+  location permission, Call, Apple/Google provider handoff, reset delivery,
+  consent mutation, booking, payment, profile mutation, or account deletion.
+- Do not hard-code transient counts, hours, prices, rankings, or place
+  availability as product truth.
+- Test IDs are stable and begin `NAPP-`. Every case has PASS, FAIL,
+  EXPECTED_FAIL, FLAKY, MANUAL, BLOCKED, UNVERIFIED, NOT_DEPLOYED, or
+  INCONCLUSIVE status.
+- A candidate bug is not a Flow item. Require clean-context reproduction,
+  deterministic oracle, evidence, duplicate search, and action-time batch
+  confirmation before external creation.
+- WebKit/Chromium emulation never closes a physical-device case.
+- Screenshots, traces, videos, console, and request evidence must be sanitized.
+- Execute the standalone PostHog telemetry plan when approved access exists.
+  If telemetry is BLOCKED, NOT_INSTRUMENTED, UNAVAILABLE, or SUPPRESSED,
+  continue the deterministic safe campaign and report that status.
+- Never consume raw analytics events, persons, replay, identifiers, exact URLs
+  or query values, search text, exception details, headers, or bodies. Only the
+  reviewed aggregate signal file may enter planning.
+- Treat telemetry as BLOCKED unless the effective capability matrix is read
+  back, one digest-bound schema preflight contains all nine metric statuses and
+  is at most 30 minutes old, every metric has the fresh exact
+  `app.nuanu.com` equality predicate,
+  and a separate scoped host-secret transport or approved connector exists.
+  A displayed role, `readOnly` flag, dedicated-project name, or invite browser
+  session is not sufficient.
+- Accept only recursively validated code-owned `TrendsQuery`/`FunnelsQuery`
+  structures. `HogQLQuery`, text query, raw table/column/person/replay/event
+  nodes, joins, and unknown fields select no tests.
+- Require the explicit immutable canonical 24-hour UTC adapter window and its
+  window-dependent approved hashes; never derive a telemetry window from the
+  current clock. Accept production evidence only after the bounded connector
+  envelope is read back; UNVERIFIED compatibility keeps telemetry BLOCKED.
+- For non-p75 metrics, consume sample size only from the code-owned total,
+  ordered rate denominator, or first funnel step. A response/row/bucket/array
+  length is never a population.
+- Consume p75 LCP/CLS/INP only with an independently queried total-count
+  companion over the identical window, host, filters, and breakdown. Pair by
+  immutable metric ID and dimensions, never result order/length or quantile
+  shape; missing, mismatched, ambiguous, or unsupported count evidence makes
+  only that p75 metric UNAVAILABLE.
+- Consume only the standalone lane's exact catalog wrapper and tagged unions.
+  Its standalone telemetry Task 2 owns raw coordinate joins; web tasks inspect
+  structural normalized evidence only and continue when telemetry is unavailable.
+- Consume exception groups only from the dedicated mutually exclusive
+  fingerprint query with fresh provider-opacity proof; `FIELD_NOT_PROVEN`
+  retains only aggregate exception evidence.
+- Preserve shared dirty files; stage only owned paths.
+
+---
+
+## File Structure
+
+~~~text
+tests/nuanu-app/
+  fixtures/runtime.ts
+  fixtures/run-context.ts
+  fixtures/oracles.ts
+  fixtures/a11y-baseline.json
+  offline/runtime-contract.spec.ts
+  offline/api-contract.spec.ts
+  offline/routes-contract.spec.ts
+  offline/pwa-contract.spec.ts
+  offline/responsive-contract.spec.ts
+  offline/a11y-contract.spec.ts
+  offline/auth-contract.spec.ts
+  offline/performance-privacy-contract.spec.ts
+  pages/discovery.page.ts
+  pages/auth-entry.page.ts
+  public/smoke.spec.ts
+  public/places.spec.ts
+  public/search-filters.spec.ts
+  public/routes-seo.spec.ts
+  public/auth-entry.spec.ts
+  api/public-content.spec.ts
+  pwa/manifest.spec.ts
+  pwa/lifecycle.spec.ts
+  accessibility/public-a11y.spec.ts
+  responsive/public-layout.spec.ts
+  auth/storage-state.spec.ts
+
+docs/nuanu-app/
+  TEST-CASES.md
+  MANUAL-DEVICE-CASES.md
+  ORACLES.md
+  BASELINE-RUNBOOK.md
+
+docs/local/nuanu-app/evidence/${RUN_ID}/
+  run-report.json
+  test-results/
+  manual/
+
+docs/local/nuanu-app/product-graph/
+  mappings.v1.json
+  selector-capture-plan.v1.json
+  selector-bindings.v1.json
+  current/runtime-catalog.json
+  current/runtime-selector-observation.v1.json
+  current/runtime-contract.candidate.v1.json
+  current/runtime-contract.v1.json
+
+docs/local/nuanu-app/telemetry/
+  access-lock.v1.json
+  query-manifest.v1.json
+  structured-query-catalog.json
+  telemetry-signals.json
+  baselines/${RUN_ID}/aggregate-baseline.json
+
+tools/nuanu-app-graph/
+  runtime-contract.mjs
+  runtime-contract.d.mts
+  selector-observation.mjs
+
+tools/nuanu-app-evidence/
+  run-context.mjs
+
+tests/nuanu-app-graph/
+  runtime-contract.test.mjs
+  selector-observation.test.mjs
+
+tests/nuanu-app-evidence/
+  run-context.test.mjs
+~~~
+
+`${RUN_ID}` above is notation, not an environment-variable or directory claim.
+Task 10 implements the only writer allowed to create a durable run directory.
+It creates a UTC ID with exact format `YYYYMMDDTHHMMSSZ-napp-baseline`, writes
+the fixed private pointer `docs/local/nuanu-app/evidence/current-run.json`, and
+creates the matching private directory atomically. Tests and reports load that
+pointer through a module-derived fixed path; they do not accept an evidence
+path or run ID from an argument or environment variable. The graph CLI does
+not claim to reuse the run ID. Root/probe deployment observation is represented
+by sanitized `runtime-catalog.json`; reviewed stateful role/name evidence is
+represented separately by the bounded, separately digested
+`runtime-selector-observation.v1.json`. There is no unsupported raw DOM or
+network observation copy.
+
+## Locked Runtime Interfaces
+
+Tracked code contains only stable mechanics and the following closed schema.
+All current accessible names and taxonomy values remain in reviewed private
+evidence/contract files. CSS selectors, class names, DOM indexes, transient
+counts, slugs/query values, and adaptive selector fallback are forbidden.
+
+~~~ts
+export const runtimeMechanics = {
+  root: '/',
+  placeQueryParam: 'place',
+} as const;
+
+export type RuntimeSelectorKey =
+  | 'applicationShell'
+  | 'searchInput'
+  | 'openNowControl'
+  | 'placesNavigation'
+  | 'mapNavigation'
+  | 'profileNavigation'
+  | 'mapSurface'
+  | 'mapMarker'
+  | 'placeList'
+  | 'placeCard'
+  | 'categoryGroup'
+  | 'collectionGroup'
+  | 'placeDetail'
+  | 'placeDetailClose'
+  | 'showOnMapAction'
+  | 'callAction'
+  | 'authEntry'
+  | 'updatePrompt'
+  | 'signUpAction'
+  | 'signInAction'
+  | 'emailInput'
+  | 'passwordInput'
+  | 'forgotPasswordAction'
+  | 'appleProviderAction'
+  | 'googleProviderAction'
+  | 'privacyAction';
+
+export type RuntimeRole =
+  | 'application' | 'article' | 'banner' | 'button' | 'checkbox'
+  | 'combobox' | 'dialog' | 'group' | 'img' | 'link' | 'list'
+  | 'listitem' | 'main' | 'navigation' | 'option' | 'region'
+  | 'search' | 'searchbox' | 'switch' | 'tab' | 'tabpanel' | 'textbox';
+
+export type RuntimeSelector =
+  | Readonly<{
+      status: 'AVAILABLE';
+      role: RuntimeRole;
+      name: string;
+      evidenceId: string;
+      matchCount: 1;
+    }>
+  | Readonly<{
+      status: 'UNVERIFIED';
+      reason:
+        | 'ACCESSIBLE_ROLE_NAME_UNAVAILABLE'
+        | 'STATE_NOT_OBSERVED'
+        | 'AMBIGUOUS_ROLE_NAME'
+        | 'PROHIBITED_INTERACTION_REQUIRED';
+    }>;
+
+export type RuntimeInventoryItem = Readonly<{
+  role: RuntimeRole;
+  name: string;
+  evidenceId: string;
+  matchCount: 1;
+}>;
+
+export type ReviewedRuntimeContract = Readonly<{
+  schemaVersion: 1;
+  productId: 'nuanu-app';
+  baseUrl: 'https://app.nuanu.com';
+  observedAt: string;
+  observationDigest: string;
+  selectorEvidence: Readonly<{
+    observedAt: string;
+    observationDigest: string;
+    capturePlanDigest: string;
+    bindingDigest: string;
+  }>;
+  selectors: Readonly<Record<RuntimeSelectorKey, RuntimeSelector>>;
+  inventory: Readonly<{
+    categories: readonly RuntimeInventoryItem[];
+    collections: readonly RuntimeInventoryItem[];
+  }>;
+}>;
+
+export type RuntimeContractGate =
+  | Readonly<{ status: 'READY'; contract: ReviewedRuntimeContract }>
+  | Readonly<{
+      status: 'BLOCKED';
+      reason:
+        | 'RUNTIME_CONTRACT_MISSING'
+        | 'RUNTIME_CONTRACT_UNREADABLE';
+    }>
+  | Readonly<{
+      status: 'UNVERIFIED';
+      reason:
+        | 'RUNTIME_CONTRACT_MALFORMED_JSON'
+        | 'RUNTIME_CONTRACT_SCHEMA_MISMATCH'
+        | 'RUNTIME_SELECTOR_MISSING'
+        | 'RUNTIME_CONTRACT_DIGEST_MISMATCH'
+        | 'RUNTIME_CONTRACT_TIME_MISMATCH'
+        | 'RUNTIME_SELECTOR_OBSERVATION_MISSING'
+        | 'RUNTIME_SELECTOR_OBSERVATION_STALE'
+        | 'RUNTIME_SELECTOR_OBSERVATION_MISMATCH';
+    }>;
+
+export type RuntimeCaseGateReason =
+  | 'RUNTIME_CONTRACT_MISSING'
+  | 'RUNTIME_CONTRACT_UNREADABLE'
+  | 'RUNTIME_CONTRACT_MALFORMED_JSON'
+  | 'RUNTIME_CONTRACT_SCHEMA_MISMATCH'
+  | 'RUNTIME_SELECTOR_MISSING'
+  | 'RUNTIME_CONTRACT_DIGEST_MISMATCH'
+  | 'RUNTIME_CONTRACT_TIME_MISMATCH'
+  | 'RUNTIME_SELECTOR_OBSERVATION_MISSING'
+  | 'RUNTIME_SELECTOR_OBSERVATION_STALE'
+  | 'RUNTIME_SELECTOR_OBSERVATION_MISMATCH'
+  | 'RUNTIME_SELECTOR_UNAVAILABLE'
+  | 'RUNTIME_SELECTOR_DUPLICATE';
+
+export function loadReviewedRuntimeContract(): Promise<RuntimeContractGate>;
+export function annotateRuntimeCase(
+  testInfo: TestInfo,
+  status: 'BLOCKED' | 'UNVERIFIED',
+  reason: RuntimeCaseGateReason,
+): void;
+~~~
+
+The top-level keys, two `inventory` keys, `selectorEvidence` keys, and all 26
+`selectors` keys are exact; unknown or missing keys fail closed. An AVAILABLE
+selector has exactly `status`, `role`, `name`, `evidenceId`, and
+`matchCount: 1`; an UNVERIFIED selector has exactly `status` and one
+enumerated `reason`. Category and collection entries are typed
+`{role,name,evidenceId,matchCount:1}` records, not strings. Names are
+normalized non-empty accessible names of at most 200 characters, contain no
+control characters or secret/token-like material, and every AVAILABLE
+`(role,name)` and every `evidenceId` is unique in its scope. The
+validator recursively rejects secret-like unknown keys and values, requires
+all digests to be exactly 64 lowercase hex characters, and requires both times
+to be canonical UTC ISO instants. No current name, taxonomy value, count,
+class, slug, or query value is copied into tracked fixtures or test titles.
+
+The root/probe `runtime-catalog.json` does **not** prove detail, auth, update,
+marker, card, category, or collection selectors. It proves only the deployment
+capture bound by the contract's top-level fields: `observedAt` must byte-equal
+`runtime-catalog.json.capturedAt`, and `observationDigest` must byte-equal
+`runtime-catalog.json.runtimeDigest`. Selector claims are independently bound
+to a bounded reviewed observation.
+
+All producer paths are fixed and module-derived:
+
+~~~text
+docs/local/nuanu-app/product-graph/selector-capture-plan.v1.json
+docs/local/nuanu-app/product-graph/selector-bindings.v1.json
+docs/local/nuanu-app/product-graph/current/runtime-catalog.json
+docs/local/nuanu-app/product-graph/current/runtime-selector-observation.v1.json
+docs/local/nuanu-app/product-graph/current/runtime-contract.candidate.v1.json
+docs/local/nuanu-app/product-graph/current/runtime-contract.v1.json
+~~~
+
+`selector-capture-plan.v1.json` has exactly `schemaVersion`, `productId`,
+`baseUrl`, `steps`, and `capturePlanDigest`; the first three values are
+`1`, `nuanu-app`, and `https://app.nuanu.com`, and the final value is the
+canonical SHA-256 of every preceding semantic field. It has at most 12 ordered
+steps. An observe step is exactly
+`{kind:"observe",state,postcondition:{role,name}}` for one enumerated state
+(`root`, `places`, `map`, `place_detail`, `auth_entry`, `update_prompt`). An
+activate step is exactly
+`{kind:"activate",fromState,toState,purpose,target:{role,name},postcondition:{role,name}}`,
+with both states enumerated, one reviewed exact accessible target, one reviewed
+state-specific exact accessible postcondition for `toState`, and one purpose
+from `open_places`, `open_map`, `open_profile_entry`, `open_place_detail`,
+`close_place_detail`, or `show_on_map`. Every step for the same resulting state
+must use a byte-identical postcondition, and the same `(role,name)`
+postcondition cannot certify two different states. The postcondition is part
+of `capturePlanDigest`; missing/unknown postcondition keys fail before browser
+launch. At most eight activate steps are allowed. The private plan may contain
+reviewed accessible names, but no current postcondition/target name is copied
+to tracked code, fixtures, titles, or mappings. The plan cannot name Call,
+reset delivery,
+Apple/Google provider, location permission, consent mutation, booking,
+payment, registration submission, profile mutation, or account deletion.
+Unknown states, purposes, fields, repeated/cyclic transitions, or duplicate
+role/name targets are rejected before browser launch.
+
+The mutation-guarded producer observes only the states actually reached by
+those reviewed transitions. Before navigation it installs the same bounded
+request guard used by tests. After initial navigation and before attributing
+any root records, it requires exactly one visible exact observe postcondition.
+Before each activation it requires exactly one visible exact target; after the
+activation it first requires the exact app origin and then exactly one visible
+exact `toState` postcondition. Only after that ordered check may it create the
+state entry or attribute accessible records to `toState`. Zero postcondition
+matches records `STATE_NOT_OBSERVED`; two or more record explicit
+`AMBIGUOUS_ROLE_NAME` evidence. Either outcome leaves the state and all of its
+selectors/inventory UNVERIFIED, with no state-bound candidate records. It
+never types, submits, grants permission, clicks a prohibited control, follows
+provider/Call handoffs, reads input values, or uses CSS/text/ordinal fallback.
+
+`runtime-selector-observation.v1.json` has exactly `schemaVersion`,
+`productId`, `baseUrl`, `observedAt`, `runtimeDigest`, `capturePlanDigest`,
+`states`, `ambiguities`, `mutationLedger`, `limitations`, and
+`observationDigest`. It is capped at six verified states, 64 total accessible
+match records across `states` and `ambiguities`, 25 blocked mutation records,
+and 64 KiB serialized size. `states` is a sorted unique list of exact
+`{state,postcondition,records}` objects. `postcondition` is exact
+`{role,name,evidenceId,matchCount:1}`: its role/name projection must
+byte-equal the reviewed plan value and its evidence ID must reference the
+same singleton in that state's `records`. Each
+`records` member is a sorted unique
+`{evidenceId,state,role,name,matchCount}` record; its nested `state` must equal
+the owner and `matchCount` is the exact integer returned for that exact
+role/name locator, bounded to `1..65535`. One record represents one unique
+`(state,role,name)` tuple; duplicate DOM matches increase `matchCount` and are
+never collapsed into a certifiable singleton. `evidenceId` is the canonical
+SHA-256 of exact `{state,role,name,matchCount}`, so changing only the count
+changes both evidence identity and the enclosing observation digest.
+
+`ambiguities` is a sorted unique list of exact
+`{evidenceId,attemptedState,role,name,matchCount}` records with
+`matchCount` in `2..65535`. It captures duplicate accessible matches,
+including a duplicate state postcondition when no state entry may be written;
+it is evidence only and cannot be referenced by selectors, inventory, or
+bindings. Every state record with `matchCount > 1` has a byte-consistent
+ambiguity record, and every ambiguity has a matching exact
+`AMBIGUOUS_ROLE_NAME` limitation. If any exact count exceeds 65535 or the
+record/file cap, the producer fails closed with the attempted capture
+UNVERIFIED and creates no promotable candidate; it never truncates a count to
+the bound.
+
+`mutationLedger` is exactly
+`{records:[{method,originAndPath}],overflowed}`. `limitations` is a sorted
+unique list of exact records. Non-ambiguity variants are exactly
+`{state,reason}` with `ACCESSIBLE_ROLE_NAME_UNAVAILABLE`,
+`STATE_NOT_OBSERVED`, or `PROHIBITED_INTERACTION_REQUIRED`; the ambiguity
+variant is exactly
+`{state,reason:"AMBIGUOUS_ROLE_NAME",evidenceId,matchCount}` and must reference
+the byte-consistent ambiguity record. Unknown nested keys fail validation.
+`observationDigest` is the canonical SHA-256 of every preceding semantic
+field, including every postcondition, match count, ambiguity, and time.
+Evidence IDs are observation identities, not DOM IDs. Evidence contains no
+generic DOM text,
+classes/IDs, query/fragment, URL values beyond origin+pathname, request/response
+headers or bodies, cookies/storage/input values, coordinates, screenshots,
+traces, or video.
+
+After independent review, `selector-bindings.v1.json` has exactly
+`schemaVersion`, `productId`, `baseUrl`, `observationDigest`,
+`capturePlanDigest`, `selectors`, `inventory`, and `bindingDigest`.
+`bindingDigest` is the canonical SHA-256 of every preceding semantic field.
+Its `selectors` object has all and only the 26 selector keys, each mapped
+either to exact `{status:"AVAILABLE",evidenceId,matchCount:1}` or exact
+`{status:"UNVERIFIED",reason}` with an enumerated RuntimeSelector reason. Its
+`inventory` has exactly `categories` and `collections`, each a sorted unique
+list of exact `{evidenceId,matchCount:1}` records whose referenced verified
+state records carry the item role, accessible name, and exact count one; each
+list is capped at 50 and the bindings file at 64 KiB. Unknown keys,
+unreferenced/ambiguous IDs, any count other than one, or an
+observation/capture-plan digest mismatch fails validation. The offline
+`contract-candidate` command resolves
+those references, computes `bindingDigest`, and writes the closed candidate.
+It never infers by name or array order. Promotion to
+`runtime-contract.v1.json` is a separate reviewed private-file action, not an
+automatic command.
+
+The loader accepts no path and derives the contract, runtime catalog, selector
+observation, capture plan, and bindings from those fixed paths. A selector
+contract is READY only when:
+
+- the top-level time/digest match the current runtime catalog exactly;
+- `selectorEvidence.observedAt` equals the selector observation's
+  `observedAt`; its other three fields match the separately recomputed
+  observation, capture-plan, and binding digests exactly;
+- the selector observation's `runtimeDigest` equals the current catalog's
+  semantic `runtimeDigest` and is no more than 30 minutes old;
+- every AVAILABLE selector/inventory record resolves from a verified state,
+  has `matchCount: 1`, and byte-equals its referenced observation entry; no
+  ambiguity evidence is promotable;
+- every verified state's recorded postcondition role/name byte-equals its
+  reviewed plan postcondition, references a same-state record with
+  `matchCount: 1`, and was observed before the remaining state records were
+  attributed.
+
+`nuanu-app:graph validate` owns the same durable attestation before writing
+`graph.json`, and the Playwright loader repeats it at execution time. Missing
+contract/evidence is BLOCKED; malformed fields, stale/mismatched evidence,
+missing selector, or digest/time mismatch is UNVERIFIED. A valid selector slot
+with `status: "UNVERIFIED"` marks only dependent cases UNVERIFIED. If canvas,
+marker, or card behavior has no accessible role/name, the reviewer records
+that state and opens a reviewed accessibility/schema amendment; the page
+object never falls back to CSS, classes, text scanning, ordinal selection,
+`.first()`, or a role union.
+
+## Task 1B Semantic-Settle Amendment — Bounded Root Capture
+
+This amendment is approved only to replace the empty-root-candidate capture
+mechanic. It does not authorize a live capture, selector observation, contract
+promotion, mapping update, graph build, dry run, or Playwright campaign. A
+fresh independent review must pass before the first runtime command that uses
+the changed observer.
+
+### Closed behavior and catalog schema
+
+`networkidle`, fixed sleeps, `waitForTimeout`, selector racing, source names,
+raw DOM/text, and direct query/fragment retention are prohibited in the
+semantic-settle reducer.
+
+Let `t0` be the injected monotonic-clock reading immediately after the initial
+same-origin `domcontentloaded` check and successful first candidate sample.
+Take sample zero at `t0`, then request each later sample from the injected
+absolute-deadline scheduler at `t0 + n * 250 ms` for `n = 1..19`. A sample
+must complete before the hard `t0 + 5000 ms` deadline; it may not start at or
+after that deadline. The scheduler may be a production timer adapter, but
+production code must not call a fixed Playwright sleep. A snapshot collection
+that cannot finish before its absolute deadline is terminal and writes no
+catalog.
+
+**Session/collector boundary (normative):** `async function observePublicRuntimeSession({ context, rootUrl, now,
+clock, scheduler })` is the only BrowserContext→Page lifecycle owner. It
+creates the Page, installs all Page/context guards and listeners before
+navigation, performs the root navigation, origin checks, settle orchestration,
+manifest request/check, fixed probe, and shutdown checks, then releases the
+Page. The Page never escapes that function: it is neither returned, placed in
+an object/array, retained in a callback result, nor passed anywhere except the
+direct call `publicSnapshot(page)` and a private zero-argument collector closure
+used only during that session. `publicSnapshot(page)` is the sole raw DOM/CSS
+extraction boundary; it returns only a bounded sanitized snapshot plus
+metadata/overflow flags. It may use the fixed structural `locator("html")`
+evaluation and only the reviewed DOM mechanics needed to derive the closed
+native/ARIA role set and permitted accessible-name sources (`aria-label`,
+associated label, non-secret `title`, and button/link text): `document.title`,
+`document.querySelector`, `document.querySelectorAll`,
+`document.getElementById`, `globalThis.CSS.escape`, `tagName`, `labels`,
+`children`, `isContentEditable`, `hasAttribute`, `getAttribute`,
+`querySelector`, and `textContent`. It cannot emit selectors, IDs, classes,
+generic DOM text, source names, or raw DOM objects. No code outside
+`publicSnapshot` may read, call, alias, destructure, return, pass, or
+computed-access DOM globals (`document`, `window`, `globalThis`) or their
+derivatives. No code outside `observePublicRuntimeSession` may operate on a
+BrowserContext or Page lifecycle; `publicSnapshot` may use only its passed Page
+for the reviewed extraction. The reducer receives neither a Page, BrowserContext,
+DOM node, locator, CSS selector, nor source text.
+
+The session returns this data-only result, and no Page, BrowserContext,
+Browser, locator, callback, or raw DOM value may occur in it:
+
+```ts
+type RuntimeObservationSessionResult = Readonly<{
+  root: Readonly<{
+    projection: AccessibleCandidateSnapshot;
+    settle: RuntimeSettle;
+    metadata: RuntimeMetadata;
+  }>;
+  manifest: RuntimePwa;
+  probe: Readonly<{ route: "/__napp_runtime_probe__"; status: number }>;
+  requestEvidence: Readonly<{ apiHosts: readonly string[]; dependencies: readonly string[] }>;
+  overflow: Readonly<{ candidateRecords: boolean; snapshotBytes: boolean }>;
+}>;
+```
+
+Any true overflow is terminal and produces no runtime catalog. The outer
+`observePublicRuntime` may only launch/close the Browser, create the Context,
+call this session, and normalize its data-only result. Production passes the
+private zero-argument collector closure and installed guard check to
+`settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot,
+assertBoundary })`; tests inject a fake collector instead.
+
+Each snapshot is the canonical UTF-8 JSON bytes of the already-normalized,
+sorted, deduplicated projection with exactly these keys in this order:
+
+```ts
+type AccessibleCandidateSnapshot = Readonly<{
+  surfaces: readonly RuntimeRoleName[];
+  controls: readonly RuntimeRoleName[];
+  taxonomy: readonly string[];
+}>;
+```
+
+It has at most 64 total candidate records and at most 16,384 serialized bytes.
+The observer compares the canonical bytes, not object identity, locator state,
+or a semantic approximation. It retains no historical snapshots. The selected
+stable projection is written once as the existing `rootCandidates` values; the
+only additional durable record is exactly:
+
+```ts
+type RuntimeSettle = Readonly<{
+  status: 'STABLE_NONEMPTY' | 'STABLE_EMPTY' | 'LATE_HYDRATION' | 'NEVER_SETTLES';
+  sampleCount: number; // integer 2..20
+  initialSnapshotEmpty: boolean;
+  candidateSnapshotDigest: string | null; // SHA-256 of selected canonical bytes
+}>;
+```
+
+`runtime-catalog.json` has an exact new top-level `settle` key. Its validator,
+normalizer, `RuntimeCatalog` declaration, canonical catalog reconstruction,
+and `runtimeDigest` all include the record. `capturedAt` remains non-semantic;
+`settle.status`, `sampleCount`, `initialSnapshotEmpty`, the selected
+projection, and `candidateSnapshotDigest` are semantic. A `null` digest is
+valid only for `NEVER_SETTLES`; every other status requires one lower-case
+64-hex digest equal to the selected projection's canonical-byte hash.
+`initialSnapshotEmpty` always reports whether sample zero was empty. It is
+false for `STABLE_NONEMPTY`, true for `LATE_HYDRATION`, and either truthful
+value for `STABLE_EMPTY` and `NEVER_SETTLES`; nonempty → empty → empty is
+therefore `STABLE_EMPTY` with `initialSnapshotEmpty: false`. `sampleCount`
+counts completed snapshots, including both members of the stable pair.
+
+The result table is exact:
+
+| Condition | `settle.status` | Persisted root candidates | Planning consequence |
+| --- | --- | --- | --- |
+| First equal adjacent pair is nonempty and sample zero is nonempty | `STABLE_NONEMPTY` | second pair snapshot | may be reviewed as a root candidate input; never self-promoted |
+| First equal adjacent pair is empty | `STABLE_EMPTY` | closed empty projection | candidate-dependent cases `UNVERIFIED`; no selector plan execution |
+| Sample zero is empty, a later sample is nonempty, then the first equal adjacent nonempty pair occurs | `LATE_HYDRATION` | second nonempty pair snapshot | may be independently reviewed; it is not a hydration PASS |
+| No byte-identical adjacent pair by the deadline | `NEVER_SETTLES` | closed empty projection | candidate-dependent cases `UNVERIFIED`; no selector plan execution |
+
+If an empty sample later changes, it is not stable empty. If a nonempty sample
+later changes, it is not stable nonempty. In both cases the observer continues
+only on its absolute schedule until it finds the required pair or reaches the
+deadline. It stops immediately once the required pair completes. A guard
+violation, popup/additional page, origin escape, escaped unsafe request,
+snapshot exception, candidate/byte overflow, or browser-close failure is not
+`NEVER_SETTLES`: it fails closed, returns no catalog, and leaves the current
+private catalog untouched.
+
+### Task 1B implementation boundary
+
+The semantic-settle implementation may modify only these tracked files:
+
+```text
+tools/nuanu-app-graph/runtime.mjs
+tools/nuanu-app-graph/runtime-contract.mjs
+tools/nuanu-app-graph/runtime-contract.d.mts
+tools/nuanu-app-graph/cli.mjs
+tests/nuanu-app-graph/runtime.test.mjs
+tests/nuanu-app-graph/runtime-contract.test.mjs
+tests/nuanu-app-graph/cli.test.mjs
+tests/nuanu-app-graph/selector-observation.test.mjs
+```
+
+It may create only this tracked test file:
+
+```text
+tests/nuanu-app-graph/semantic-settle.test.mjs
+```
+
+`tests/nuanu-app-graph/cli.test.mjs` and
+`tests/nuanu-app-graph/selector-observation.test.mjs` are allowlisted only as
+integration-test fixture builders for the existing raw runtime-observation
+shapes. They may add the exact mandatory `settle` record and no other
+assertion, fixture, command, or behavioral change. Missing `settle` data must
+remain fail-closed, and the production normalizer must not add backward
+compatibility for pre-`settle` shapes.
+
+`tools/nuanu-app-graph/cli.mjs` is allowlisted for exactly one production
+change: inside `normalizeObservedCatalog`, add the exact property
+`settle: source.settle` to the object passed to
+`normalizeRuntimeObservation`, immediately after `rootCandidates`. No other
+CLI import, token, control flow, command grammar, error mapping, I/O path,
+attestation rule, or behavior may change. The CLI must not synthesize, default,
+transform, repair, or omit `settle`; missing, malformed, or digest-mismatched
+data remains rejected by the existing runtime normalizer and catalog
+attestation. This exception provides mandatory property threading only and
+adds no backward compatibility.
+
+Before that one-line implementation, run
+`node --test --test-name-pattern="runtime normalizes injected observation and writes only the private runtime catalog" tests/nuanu-app-graph/cli.test.mjs`
+and require its missing-catalog RED. After the line is added, rerun the same
+command and require GREEN before the broader CLI/selector command below.
+
+Except for the exact one-property `normalizeObservedCatalog` exception above,
+Task 1B may not modify the CLI implementation, selector-observation producer,
+selector bindings, private mappings, public Playwright cases, shared
+configuration, source checkout, or any other tracked file. It may not write
+private files during RED/GREEN. The only allowed non-tracked output during
+implementation is the ignored
+`.superpowers/sdd/2026-08-26-nuanu-app-web-coverage/semantic-settle-amendment-report.md`;
+synthetic tests use injected in-memory I/O and fake browser/DOM objects.
+
+`semantic-settle.test.mjs` must inject a monotonic clock, absolute scheduler,
+and fake DOM/snapshot collector. It must prove the four table outcomes,
+including exactly two samples for immediate stable outcomes and exactly 20
+samples for a deadline-only never-settles run. It must also prove one empty
+sample followed by a nonempty stable pair, byte-different snapshots that look
+equivalent after a hypothetical reordering, nonempty → empty → empty with its
+truthful false `initialSnapshotEmpty`, exact 64-record and 16,384-byte
+acceptance, record 65 and byte 16,385 rejection, no retained snapshot history,
+and no raw DOM/text/CSS/source-name query surface in the reducer. It must make
+the guards observable and assert their installation precedes navigation, their
+checks run before and after every sampling tick, and popup/origin/shutdown
+failures close the browser and return no catalog. It must explicitly cover the
+absolute-deadline begin/finish boundaries so there is no ambiguous extra sample
+past the 20-sample limit. `runtime.test.mjs` covers the production wiring and
+catalog normalization, including fail-closed rejection on missing `settle`
+data. `runtime-contract.test.mjs` covers the closed `settle` key, enum, bounds,
+null-digest rule, digest equality, explicit digest-mismatch rejection, and
+runtime-digest attestation. All tests must run with no wall-clock wait and no
+network.
+
+**RED acceptance:** Create the pure reducer test and the whole-source boundary
+test first. Run the Node test command below before implementation. Expected:
+FAIL because `settleRootCandidateSnapshots` does not exist and the new
+semantic-settle cases cannot resolve it. The RED test must use the already
+installed `typescript` parser, not marker slicing, regular expressions, or
+brace counting. Parse `runtime.mjs` as JavaScript with
+`ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true,
+ts.ScriptKind.JS)` and reject any parse diagnostic. Find exactly one
+`FunctionDeclaration` each named `observePublicRuntimeSession`,
+`publicSnapshot`, and `settleRootCandidateSnapshots`; absence or multiplicity
+is a hard failure.
+
+This is a positive type-and-scope capability proof, not a claim that a
+blacklist is complete. Find exactly one `FunctionDeclaration` each for
+`observePublicRuntimeSession`, `publicSnapshot`, and
+`settleRootCandidateSnapshots`. The source test creates an in-memory
+TypeScript `Program` containing `runtime.mjs` and a minimal virtual Playwright
+declaration module, obtains its `TypeChecker`, and resolves the `Page`,
+`BrowserContext`, and `Browser` symbols by identity. It also builds lexical
+scopes for `VariableDeclaration`, `Parameter`, `BindingElement`,
+`CatchClause`, `FunctionDeclaration`, and assignment aliases. Type identity
+provides capability seeds; the scope graph propagates them through JavaScript
+aliases that the checker cannot infer. Task 1B must add checked-JS JSDoc
+`@typedef {import("playwright").Page|BrowserContext|Browser}` annotations for
+the outer observer, exact session signature, and collector parameter/result so
+the real-source `TypeChecker` has capability identities rather than relying on
+variable names. The proof must be genuine symbol-and-scope evidence from the
+real-source `TypeChecker` plus the scope graph, not a string-name, text-match,
+or marker-slice surrogate; the virtual declaration module makes this
+deterministic in the offline test.
+
+The approved session is the only node permitted to operate on a
+`BrowserContext` or a `Page` lifecycle: it may create a Page, install
+listeners/guards, navigate, perform URL/frame checks, call
+`publicSnapshot(page)`, and close the session Page. `publicSnapshot(page)` is
+the only node permitted to resolve a DOM-global capability or perform the
+reviewed raw DOM/CSS extraction through its passed Page. The
+outer `observePublicRuntime` may only operate on the Browser to launch, create
+the Context, invoke the session, and close; no other top-level or helper
+function may operate on a Context. The verifier rejects a Context or Page
+property/element access, call, listener callback, binding, or alias outside
+the session with `PAGE_OR_CONTEXT_OUTSIDE_SESSION`; it rejects any Page return,
+array/object placement, argument (other than the direct
+`publicSnapshot(page)` call), or callback result with `PAGE_ESCAPE`.
+
+Seed Page taint from every Page-producing API, whether spelled directly or via
+a resolved alias: `BrowserContext.newPage()`, `BrowserContext.pages()` followed
+by indexed/destructured extraction, `BrowserContext.waitForEvent("page")`,
+the Page argument of a `BrowserContext` `"page"` event listener, and
+`Browser.newPage()`. Seed BrowserContext taint from `Browser.newContext()` and
+all typed Context parameters/returns. Propagate Page and Context taint through
+assignment, computed element access, `const alias = page`, destructuring,
+parameter/argument flow, and returns. A computed member never clears its
+receiver taint, so `page['locator']()`, `page['$']()`, and `page.content()`
+are handled without a property-name blacklist. For DOM globals, taint unbound
+`document`, `window`, and `globalThis`, and all of their aliases/destructures/
+arguments/returns/computed accesses; any such use outside `publicSnapshot`
+fails with `RAW_DOM_OUTSIDE_PUBLIC_SNAPSHOT`, and use in the settle reducer
+also fails with `SEMANTIC_SETTLE_RAW_DOM_FORBIDDEN`.
+
+The source-boundary test must include these in-memory synthetic RED negatives
+in addition to the real `runtime.mjs` assertion. Each fragment is appended to
+a known-good complete fixture that declares the other two required functions,
+uses the same virtual Playwright declarations, and must assert its named
+diagnostic without a browser, filesystem mutation, network, or private
+artifact:
+
+```js
+async function observePublicRuntimeSession({ context }) {
+  const page = context.pages()[0];
+  return { page };
+}
+```
+
+```js
+async function observePublicRuntimeSession({ context }) {
+  const page = await context.waitForEvent('page');
+  return page;
+}
+```
+
+```js
+async function observePublicRuntimeSession({ context }) {
+  const [page] = context.pages();
+  consume(page);
+}
+```
+
+The first two must fail `PAGE_ESCAPE`; the third must fail `PAGE_ESCAPE` for
+the argument. A helper that evaluates `document.body` outside
+`publicSnapshot` must fail `RAW_DOM_OUTSIDE_PUBLIC_SNAPSHOT`, and
+`window.document.body` in `settleRootCandidateSnapshots` must fail
+`SEMANTIC_SETTLE_RAW_DOM_FORBIDDEN`. This typed helper is a fourth fragment and
+must fail `PAGE_OR_CONTEXT_OUTSIDE_SESSION`, even though it need not return or
+navigate the Page:
+
+```js
+/** @param {import('playwright').BrowserContext} context */
+function helper(context) {
+  const page = context.pages()[0];
+  const alias = page;
+  const [destructured] = [alias];
+  page.content();
+  page['locator']('html');
+  page['$']('main');
+  return destructured;
+}
+```
+
+The positive fixture must prove that the direct
+`publicSnapshot(page)` call and the session-private zero-argument collector
+closure are accepted while their result contains no capability taint.
+
+**GREEN acceptance:** Implement only the allowlisted files, then rerun the
+Node test command. Expected: PASS with deterministic fake-clock/scheduler/DOM
+evidence for every settle outcome and the whole-module session/collector
+capability proof. Before the real-source assertion, run every synthetic source
+above as RED checks and assert its named diagnostic; then accept the real
+source only when the Browser, Context, Page, DOM-global, and result-taint
+invariants all pass.
+
+**Static acceptance:** Run both commands below after GREEN. Expected: the
+whole-file command exits 0 and `git diff --check` exits 0. A result that scans
+only added diff lines, only the reducer, only marker-delimited text, or only
+`locator("html").evaluate` is not acceptable.
+
+Run exactly these offline GREEN/static checks before independent review:
+
+```bash
+node --test tests/nuanu-app-graph/semantic-settle.test.mjs tests/nuanu-app-graph/runtime.test.mjs tests/nuanu-app-graph/runtime-contract.test.mjs
+node --test --test-name-pattern="AST session and collector capability boundaries" tests/nuanu-app-graph/semantic-settle.test.mjs
+node --test tests/nuanu-app-graph/cli.test.mjs tests/nuanu-app-graph/selector-observation.test.mjs
+git diff --check
+```
+
+The test and AST whole-file capability-boundary commands must pass. The latter
+parses the entire `runtime.mjs`, not only added diff lines, and proves the
+positive whole-module invariant: Browser lifecycle is limited to the outer
+observer, Context/Page lifecycle to the one session, raw DOM/CSS to the one
+collector, and no capability taints the returned data-only session result. It
+does not make a blacklist-completeness assertion. An independent reviewer must
+inspect the exact RED failure, GREEN/static output, and diff before any
+staging, commit, or live command. Before independent `APPROVE`, do not stage or
+commit. After `APPROVE`, one local commit containing only the exact Task 1B
+allowlisted code/tests is permitted; do not push and do not run a production
+browser command under this amendment.
+
+### Freshness and graph flow after review
+
+After the independent code/test review, a later explicitly authorized runtime
+capture may replace the catalog. Read it back before any other action and
+verify all of: the exact `settle` schema, a recomputed snapshot digest, the
+closed status meaning, catalog `runtimeDigest`, `capturedAt`, and the
+deployment identity disposition. The branch is then fixed:
+
+1. `STABLE_EMPTY` or `NEVER_SETTLES`: stop. Record root candidate discovery
+   `UNVERIFIED`; do not write a selector capture plan, invoke
+   `selector-observe`, promote a contract, validate a graph, or execute a
+   live test.
+2. `STABLE_NONEMPTY` or `LATE_HYDRATION`: a reviewer independently inspects
+   the sanitized catalog and authors the bounded private capture plan. The
+   normal action-time authorization for the separate selector producer still
+   applies; semantic settling grants no interaction authority.
+3. After selector evidence is captured and independently bound, repeat a
+   runtime capture immediately before graph validation. The selector
+   observation's `runtimeDigest` must byte-equal the fresh catalog's digest,
+   its observation age must remain at most 30 minutes, and the accepted
+   contract must rebind `observedAt=capturedAt` plus
+   `observationDigest=runtimeDigest` exactly. A changed settle status,
+   snapshot digest, or candidate projection is ordinary runtime drift: stop,
+   re-review/re-capture selector evidence, then restart the runtime step.
+4. Only the re-attested catalog, reviewed selector evidence/bindings, source
+   lock, `validate`, and an accepted `plan --runtime-only --dry-run` may reach
+   the separate live-execution authorization. Neither stable status is a PASS,
+   deployment-to-source proof, graph validation, or live-test approval.
+   After concurrent Flow Task 2 is GREEN, rerun only
+   `node --test tests/nuanu-app-graph/*.test.mjs` as the immediate combined
+   offline gate. `validate` and `plan --runtime-only --dry-run` remain gated
+   until a separately authorized fresh runtime capture and independently
+   reviewed selector observation/capture-plan/bindings/runtime-contract chain
+   exist; then run `validate` alone and `plan --runtime-only --dry-run` alone.
+
+## Offline/Live Execution Gate
+
+Tasks 1A and 2–10 perform RED/GREEN work only against synthetic data,
+`page.setContent`, intercepted same-origin fixture responses, Node tests,
+typecheck, or Playwright `--list`. They do not navigate the live product.
+Task 1B is the separately reviewed selector-capture/acceptance stage. Task 12
+is the first broad live campaign.
+
+Every live Playwright command, including reruns and candidate reproduction,
+uses six non-collapsible gates. Commands from different gates must never share
+one shell block or copy/paste transaction.
+
+Gate 1 — capture runtime, alone:
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+Gate 2 — mandatory human review/rebind checkpoint: read the newly written
+catalog, confirm selector-observation `runtimeDigest` still matches and remains
+within 30 minutes, then set contract `observedAt` exactly to catalog
+`capturedAt` and contract `observationDigest` exactly to catalog
+`runtimeDigest`. Do not run another command until a reviewer accepts those
+exact equalities. If selector evidence is absent/stale/mismatched, stop,
+execute Task 1B's separately authorized producer, and restart at Gate 1.
+
+Gate 3 — validate, alone:
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+Read and accept the exact graph/contract/selector-evidence attestations before
+continuing.
+
+Gate 4 — build the dry-run plan, alone:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+Gate 5 — mandatory plan checkpoint: inspect exact selected IDs, typed reasons,
+blocked/manual/unverified/not-deployed buckets, graph/impact/plan digests, and
+optional telemetry overlay. Record explicit acceptance of this exact plan; a
+successful command alone is not acceptance.
+
+Gate 6 — only in a separately authorized later checklist step and a separate
+shell block, run the exact live Playwright command selected by that accepted
+plan. Never append it to the plan command. If tests, mappings, or source inputs
+changed, refresh canonical `mappings.v1.json` and `source-lock` before Gate 1.
+Missing reviewed contract/evidence/plan means no live test. Intermediate task
+commands that use the public base URL are offline fixture or `--list` commands
+and must not navigate production.
+
+No live test may call `page.goto` before the mutation guard is installed. Use
+only exact `https://app.nuanu.com` origin and reject redirects/origin escape.
+Never use sleeps, `networkidle`, selector racing, adaptive “first match,” or
+fixed business-data counts. Wait on one reviewed deterministic mechanic with
+`expect`/`expect.poll`. A first-party 5xx is a candidate, not an automatic Bugs
+item: attach its sanitized origin+pathname/status, reproduce in three fresh
+contexts, distinguish product impact from rollout/environment failure, and
+classify FAIL, FLAKY, or INCONCLUSIVE before dedupe. Third-party failures do
+not satisfy a first-party oracle.
+
+The current foundation passes an unbounded caller-owned mutation array and
+does not attach it in smoke. It is not approved for durable live use. Task 1A
+must replace it with a guard-owned ledger capped at 25 sanitized
+`{method, originAndPath}` records plus one `overflowed` boolean, and attach
+`mutation-ledger.json` in every live test's `finally` block. No request body,
+query, headers, cookies, storage values, DOM text, screenshots, traces, or
+video may enter this attachment.
+
+Status ownership is exact:
+
+- absent/unreadable reviewed runtime contract or absent supplied auth state is
+  BLOCKED;
+- malformed contract, missing/duplicate/inaccessible selector, sibling
+  time/digest mismatch, absent business oracle, or unreviewed locale/policy is
+  UNVERIFIED;
+- a deterministic product-oracle mismatch after environment/test causes are
+  excluded is FAIL; only a confirmed Flow-backed regression may become
+  EXPECTED_FAIL;
+- browser-emulated iPhone/Android coverage is automated evidence only;
+  physical-device, GPS permission/accuracy, safe-area/keyboard, install,
+  provider, and Call pre-handoff checks remain MANUAL until human evidence;
+- reset delivery, real provider callback, missing controlled auth fixture, or
+  unavailable engine remains BLOCKED; irreversible send/call/booking/payment/
+  consent/account mutations are not executed and remain MANUAL/BLOCKED under
+  their named prerequisite;
+- rollout/network ambiguity after bounded reproduction is INCONCLUSIVE or
+  FLAKY, never PASS and never an automatic Bugs item.
+
+### Task 1A: Implement and Review the Offline Runtime Contract/POM
+
+**Files:**
+- Create: `tools/nuanu-app-graph/runtime-contract.mjs`
+- Create: `tools/nuanu-app-graph/runtime-contract.d.mts`
+- Create: `tools/nuanu-app-graph/selector-observation.mjs`
+- Create: `tests/nuanu-app-graph/runtime-contract.test.mjs`
+- Create: `tests/nuanu-app-graph/selector-observation.test.mjs`
+- Create: `tests/nuanu-app-graph/fixtures/selector-capture-plan.synthetic.json`
+- Create: `tests/nuanu-app-graph/fixtures/selector-observation.synthetic.json`
+- Create: `tests/nuanu-app-graph/fixtures/selector-bindings.synthetic.json`
+- Create: `tests/nuanu-app/fixtures/runtime.ts`
+- Create: `tests/nuanu-app/pages/discovery.page.ts`
+- Create: `tests/nuanu-app/offline/runtime-contract.spec.ts`
+- Modify: `tools/nuanu-app-graph/runtime.mjs`
+- Modify: `tests/nuanu-app-graph/runtime.test.mjs`
+- Modify: `tools/nuanu-app-graph/cli.mjs`
+- Modify: `tests/nuanu-app-graph/cli.test.mjs`
+- Modify: `tests/nuanu-app/fixtures/safety.ts`
+- Modify: `tests/nuanu-app/fixtures/evidence.ts`
+- Modify: `tests/nuanu-app/public/safety-contract.spec.ts`
+- Modify: `tests/nuanu-app/public/smoke.spec.ts`
+
+**Interfaces:**
+- Consumes: the canonical runtime catalog, reviewed selector capture
+  plan/bindings, and foundation safety/evidence code.
+- Produces: one shared closed validator, fixed-path loader, exact role/name
+  page object, bounded selector-observation producer, attached mutation
+  ledger, and two stable public IDs.
+
+- [ ] **Step 1: Write the failing closed-contract and graph tests**
+
+Cover exact-key success plus rejection of unknown/missing top-level,
+inventory, selector, AVAILABLE, and UNVERIFIED fields; every non-enumerated
+role/reason; missing, zero, negative, fractional, or over-bound `matchCount`;
+an AVAILABLE/binding/inventory count other than literal `1`; duplicate
+promotable `(role,name)` pairs; control characters; secret-like keys/values;
+token/JWT/credential-shaped values; invalid URL/time/digest;
+missing/malformed/unreadable files; and mismatched sibling time/digest.
+Add synthetic observer cases proving native controls normalize to the closed
+accessible roles, `aria-label`/associated label/title/button/link names are
+captured without input values, and unsupported/canvas-only mechanics are not
+invented. No real current label/name appears in the fixture.
+Add producer tests for exact capture-plan grammar, mandatory exact
+postconditions on every observe/activate step, byte-identical checks for a
+reused state, six-state/12-step/eight-activation/64-record/64-KiB bounds,
+guard-before-navigation ordering, exact origin before the postcondition, and
+postcondition-before-state-record ordering plus the same-state singleton
+evidence reference. Prove that zero or two
+postcondition matches creates no verified state or state-bound candidates.
+Create a fake DOM with two elements sharing the same exact role/name and prove
+the producer emits one record with `matchCount: 2`, a separately referenced
+`AMBIGUOUS_ROLE_NAME` record/limitation, a different evidence ID/digest than
+the singleton fixture, and no AVAILABLE selector, inventory, or binding.
+Also cover prohibited purpose/name rejection, write blocking, browser close
+on every failure, deterministic evidence IDs/digests, typed
+category/collection binding, candidate resolution by evidence ID only,
+stale/mismatched runtime digest, and zero raw/query/header/body/input/
+screenshot evidence.
+`validate` must reject missing contract with `MISSING_RUNTIME_CONTRACT` and
+stale/malformed contracts with stable non-sensitive codes before writing a
+graph. Its synthetic bootstrap creates both siblings and proves that no
+private absolute path or contract value reaches stdout/stderr.
+
+The offline Playwright spec title is exactly:
+
+~~~text
+NAPP-CONTRACT-001 synthetic runtime contract drives unique exact role-name discovery locators without network
+~~~
+
+It injects a synthetic contract object and semantic HTML with
+`page.setContent`, proves each locator has count one, and asserts that a
+duplicate or unavailable selector produces UNVERIFIED rather than choosing the
+first element. It registers a route canary that fails if any request escapes.
+
+- [ ] **Step 2: Run exact RED commands**
+
+~~~bash
+node --test tests/nuanu-app-graph/runtime-contract.test.mjs tests/nuanu-app-graph/selector-observation.test.mjs
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/runtime-contract.spec.ts
+~~~
+
+Expected: module/import failure. The Playwright command registers the project
+but uses only `page.setContent`; zero navigation/request canary hits are
+required.
+
+- [ ] **Step 3: Implement one pure validator and fixed loader**
+
+`runtime-contract.mjs` owns the exact enums and structural validator.
+`runtime-contract.d.mts` exposes the locked TypeScript types without a second
+implementation. `runtime.ts` imports that validator, derives both fixed sibling
+paths from `import.meta.url`, reads them without accepting arguments/env path,
+and returns the exact gate union. Never catch a schema/digest error as
+BLOCKED.
+
+Harden `runtime.mjs` so the private catalog emits only the closed normalized
+accessible roles for explicit roles and standard native elements. Accessible
+names may come only from `aria-label`, a resolved associated label,
+non-secret `title`, or bounded button/link text; input values, placeholders,
+generic DOM text, classes, IDs, coordinates, and counts are excluded. A
+mechanic without a normalized role/name is absent from observation and later
+becomes an UNVERIFIED selector slot; the observer never guesses it.
+
+Implement `selector-observation.mjs` as two bounded operations behind strict
+CLI verbs. `selector-observe --url https://app.nuanu.com` reads only the fixed
+private capture plan/current runtime catalog, installs the production mutation
+guard before navigation, executes only enumerated transitions, closes Chromium
+in `finally`, and atomically writes only
+`runtime-selector-observation.v1.json`. `contract-candidate` launches no
+browser, reads only the fixed catalog/observation/plan/bindings, resolves exact
+evidence IDs, and atomically writes only `runtime-contract.candidate.v1.json`.
+Neither command promotes the accepted contract. Tests inject a fake browser,
+clock, and temporary private I/O; Task 1A performs no live navigation.
+
+`cli.mjs validate` reads and attests the catalog, selector observation,
+capture-plan/bindings, and accepted contract before graph creation. Add
+the exact NAPP-CONTRACT-001 and NAPP-PUB-002 IDs to test discovery fixtures and
+starter mappings without changing the existing NAPP-PUB-001 string. Existing
+private mappings are not silently rewritten; Task 1B reviews them.
+
+- [ ] **Step 4: Harden the mutation guard before any durable live run**
+
+Replace the caller-owned array interface with:
+
+~~~ts
+export type MutationLedger = Readonly<{
+  blocked: readonly Readonly<{ method: string; originAndPath: string }>[];
+  overflowed: boolean;
+}>;
+export async function blockUnsafeRequests(page: Page): Promise<MutationLedger>;
+export function assertMutationGuardInstalled(page: Page): void;
+export async function attachMutationLedger(
+  testInfo: TestInfo,
+  ledger: MutationLedger,
+): Promise<void>;
+~~~
+
+The implementation owns mutable internal state, exposes a read-only snapshot,
+caps records at 25, sets `overflowed` on the 26th, and records only uppercase
+method plus sanitized origin+pathname. Mark guarded pages in a module-private
+`WeakSet<Page>`. `DiscoveryPage.goto()` calls
+`assertMutationGuardInstalled(page)` before `page.goto('/')`; it never installs
+the guard itself. Update safety tests for exact-boundary 25/26 behavior,
+secret rejection, pre-navigation ordering, and the attachment schema.
+
+Replace the current string-only server-error list with the following exact
+bounded observation so 5xx triage retains status without header/body/text:
+
+~~~ts
+export type BrowserObservation = Readonly<{
+  consoleErrorMarkers: readonly 'console-error'[];
+  failedRequests: readonly string[];
+  firstPartyServerErrors: readonly Readonly<{
+    status: number;
+    originAndPath: string;
+  }>[];
+  overflowed: Readonly<{
+    consoleErrorMarkers: boolean;
+    failedRequests: boolean;
+    firstPartyServerErrors: boolean;
+  }>;
+}>;
+~~~
+
+Each list is capped at 25 and each URL is sanitized before storage. Only exact
+500–599 responses whose URL origin equals the supplied approved first-party
+origin enter `firstPartyServerErrors`. The attachment has exactly these four
+keys and never contains console text, failure text, query, headers, or body.
+Tests cover 499/500/599/600, third-party 5xx, 25/26 overflow, and secret-shaped
+URLs.
+
+- [ ] **Step 5: Implement exact deterministic public cases without running live**
+
+Keep this existing title byte-for-byte because `STARTER_MAPPINGS` already owns
+its complete ID:
+
+~~~text
+NAPP-PUB-001 homepage returns HTML and renders an application shell
+~~~
+
+Add this stable title:
+
+~~~text
+NAPP-PUB-002 reviewed discovery controls map marker and place card are reachable
+~~~
+
+PUB-001 keeps the response-below-400/body-shell oracle and exact-origin check;
+it does not absorb search/filter assertions. PUB-002 consumes only READY
+`searchInput`, `openNowControl`, `placesNavigation`, `mapNavigation`,
+`profileNavigation`, `mapSurface`, `mapMarker`, and `placeCard` slots. Every
+locator is exactly `page.getByRole(selector.role, {name: selector.name,
+exact: true})` and must have count one. It asserts visibility/reachability, not
+current inventory count or business content. Both install the guard before
+the POM, observe bounded first-party evidence, and attach both observation and
+mutation ledger in `finally`.
+
+Missing/unreadable contract annotates and skips the affected case BLOCKED.
+Malformed JSON, missing selector, duplicate live match, selector UNVERIFIED,
+or sibling time/digest mismatch annotates and skips it UNVERIFIED. Neither
+branch becomes PASS. Do not add CSS, `.first()`, `.or()`, regex names, fixed
+timeouts, `networkidle`, or live-text fallback.
+
+Use the exact helper before `test.skip`, for example:
+
+~~~ts
+annotateRuntimeCase(testInfo, 'UNVERIFIED', 'RUNTIME_SELECTOR_DUPLICATE');
+~~~
+
+It writes `{type:'qa-status', description:'UNVERIFIED:RUNTIME_SELECTOR_DUPLICATE'}`.
+The registry/report parser reads this annotation; ordinary Playwright
+`skipped` alone is never interpreted as BLOCKED or UNVERIFIED.
+
+- [ ] **Step 6: Run exact GREEN/static commands without live navigation**
+
+~~~bash
+node --test tests/nuanu-app-graph/runtime-contract.test.mjs tests/nuanu-app-graph/selector-observation.test.mjs tests/nuanu-app-graph/runtime.test.mjs tests/nuanu-app-graph/cli.test.mjs
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/runtime-contract.spec.ts tests/nuanu-app/public/safety-contract.spec.ts
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app --grep "NAPP-(CONTRACT-001|PUB-00[12])"
+npm run typecheck
+rg -n "\.first\(|\.or\(|networkidle|waitForTimeout|setTimeout\(|locator\(['\"]|getByText" tests/nuanu-app/fixtures/runtime.ts tests/nuanu-app/pages/discovery.page.ts tests/nuanu-app/public/smoke.spec.ts
+git diff --check
+~~~
+
+Expected: Node and offline Playwright tests PASS; list output contains the
+three exact titles once per enabled project; typecheck/diff pass; `rg` exits 1
+with no forbidden fallback. Review this task independently before any private
+contract creation or live navigation.
+
+- [ ] **Step 7: Commit the reviewed offline unit**
+
+~~~bash
+git add tools/nuanu-app-graph/runtime-contract.mjs tools/nuanu-app-graph/runtime-contract.d.mts tools/nuanu-app-graph/selector-observation.mjs tools/nuanu-app-graph/runtime.mjs tools/nuanu-app-graph/cli.mjs tests/nuanu-app-graph/runtime-contract.test.mjs tests/nuanu-app-graph/selector-observation.test.mjs tests/nuanu-app-graph/runtime.test.mjs tests/nuanu-app-graph/cli.test.mjs tests/nuanu-app-graph/fixtures/selector-capture-plan.synthetic.json tests/nuanu-app-graph/fixtures/selector-observation.synthetic.json tests/nuanu-app-graph/fixtures/selector-bindings.synthetic.json tests/nuanu-app/fixtures/runtime.ts tests/nuanu-app/fixtures/safety.ts tests/nuanu-app/fixtures/evidence.ts tests/nuanu-app/pages/discovery.page.ts tests/nuanu-app/offline/runtime-contract.spec.ts tests/nuanu-app/public/safety-contract.spec.ts tests/nuanu-app/public/smoke.spec.ts
+git diff --cached --check
+git commit -m "test: lock Nuanu App runtime discovery contract"
+~~~
+
+### Task 1B: Capture, Review, Bind, and Accept Live Selectors
+
+**Files:**
+- Private create/update:
+  `docs/local/nuanu-app/product-graph/selector-capture-plan.v1.json`
+- Private create/update:
+  `docs/local/nuanu-app/product-graph/selector-bindings.v1.json`
+- Private create/update:
+  `docs/local/nuanu-app/product-graph/current/runtime-contract.v1.json`
+- Generated private:
+  `docs/local/nuanu-app/product-graph/current/runtime-selector-observation.v1.json`
+- Generated private:
+  `docs/local/nuanu-app/product-graph/current/runtime-contract.candidate.v1.json`
+- Private update: `docs/local/nuanu-app/product-graph/mappings.v1.json`
+- Generated private files only under
+  `docs/local/nuanu-app/product-graph/current`
+
+**Interfaces:**
+- Consumes: independently reviewed Task 1A, exact root/probe runtime catalog,
+  reviewed bounded capture plan/bindings, and a user-supplied read-only source
+  checkout.
+- Produces: separately digested selector evidence and contract candidate,
+  reviewed accepted contract, refreshed mapping/source/graph/plan
+  attestations, and a separately authorized two-case live acceptance result.
+
+- [ ] **Step 1: Initialize private graph paths without observing production**
+
+~~~bash
+npm run nuanu-app:graph -- init
+~~~
+
+- [ ] **Step 2: Capture the normalized root/probe catalog alone**
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+The runtime command is the bounded preflight observer, not a product verdict.
+It accepts only the exact app origin, writes only `runtime-catalog.json`, and
+rejects origin escape. Confirm the root route, sanitized controls/surfaces,
+`capturedAt`, `runtimeDigest`, and unknown deployment identity. Do not create a
+raw DOM/text/network evidence copy.
+
+- [ ] **Step 3: Author and approve the bounded selector capture plan**
+
+Use exact root role/name entries from the catalog plus, only where a later
+state is not represented there, a separately reviewed private source/previous-
+observation candidate; if neither exists, omit that state and mark its cases
+UNVERIFIED. Include only necessary observe/allowlisted activate steps, with no
+guessed detail/auth target. Every observe step must carry its reviewed exact
+state postcondition and every activate step its reviewed exact `toState`
+postcondition. Keep these live names only in the private plan. Review exact
+transitions, postconditions, bounds, origin, prohibited-purpose scan, and
+expected private writes. Immediately
+before execution, obtain action-time authorization for the consequence: a
+fresh public browser will perform only the listed read-only UI transitions,
+the mutation guard will abort every non-GET/HEAD/OPTIONS request, and one
+sanitized private selector-observation file will be replaced. This bounded
+preflight producer is the sole exception to the normal graph-plan prerequisite
+because it creates the evidence required for that prerequisite.
+
+- [ ] **Step 4: Execute the authorized selector producer alone**
+
+~~~bash
+npm run nuanu-app:graph -- selector-observe --url https://app.nuanu.com
+~~~
+
+Read back the fixed observation. Require matching runtime digest, exact
+capture-plan digest, byte-identical unique postconditions with same-state
+singleton evidence references for every recorded state, exact bounded
+`matchCount` on every record, explicit ambiguity records, bounds, mutation
+ledger, stable limitations, and absence of prohibited evidence. A missing/
+duplicate postcondition, blocked transition, inaccessible mechanic, or count
+above the bound becomes UNVERIFIED and yields no state-bound candidate; do not
+retry with text/CSS/ordinal selectors or broaden the plan without a new review
+and authorization.
+
+- [ ] **Step 5: Bind exact evidence IDs and create the offline candidate**
+
+Write all 26 selector bindings as exact
+`{status:"AVAILABLE",evidenceId,matchCount:1}` or an enumerated UNVERIFIED
+reason. Populate category/collection inventory only as typed
+`{evidenceId,matchCount:1}` lists referencing verified states; never copy a
+bare string or reference ambiguity evidence. Review the bindings, then run the
+offline command alone:
+
+~~~bash
+npm run nuanu-app:graph -- contract-candidate
+~~~
+
+Independently verify every resolved
+`{role,name,evidenceId,matchCount:1}`, both inventory lists, verified-state
+postconditions, absence of ambiguity references, catalog time/digest,
+selector-observation/capture-plan/binding digests, and secret scan. Promote the
+candidate to `runtime-contract.v1.json` only as a separate reviewed
+private-file action. The root catalog binding does not prove selector
+semantics; `selectorEvidence` does.
+
+- [ ] **Step 6: Refresh canonical mappings and source attestation**
+
+Preserve this exact existing test ID in private mappings:
+
+~~~text
+nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-001 homepage returns HTML and renders an application shell
+~~~
+
+Add the exact NAPP-PUB-002 and NAPP-CONTRACT-001 discovered IDs. Map PUB-002
+only to actual runtime node IDs from the sibling catalog and map CONTRACT-001
+to the read-only runtime-contract invariant; never invent a node. Then run:
+
+~~~bash
+npm run nuanu-app:graph -- source-lock --repo "$NUANU_APP_SOURCE_REPO"
+~~~
+
+If the reviewed read-only checkout is absent, stop with live acceptance
+BLOCKED. Do not fetch, clone, write, or push upstream.
+
+- [ ] **Step 7: Start the mandatory acceptance sequence with runtime alone**
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+- [ ] **Step 8: Review and rebind the exact fresh catalog**
+
+Confirm the accepted selector observation is no more than 30 minutes old and
+its `runtimeDigest` equals the new catalog. Then set contract `observedAt`
+exactly to catalog `capturedAt` and contract `observationDigest` exactly to
+catalog `runtimeDigest`. A reviewer must read back both equalities. If the
+selector evidence is stale/mismatched, stop, repeat Steps 3–5, and restart at
+Step 7. No guessed digest repair is allowed.
+
+- [ ] **Step 9: Validate alone**
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+- [ ] **Step 10: Accept the validation attestation**
+
+Read back the catalog, selector-observation, capture-plan, bindings, accepted
+contract, mapping/source-lock, graph digest, and discovered test IDs. Any
+missing contract/evidence is BLOCKED; malformed, inaccessible, duplicate,
+stale, or mismatched evidence is UNVERIFIED and stops live execution.
+
+- [ ] **Step 11: Build the dry-run plan alone**
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+- [ ] **Step 12: Inspect and explicitly accept this exact plan**
+
+Require typed reasons for both public IDs, exact graph/impact/plan digests, and
+distinct blocked/manual/unverified/not-deployed buckets. Record acceptance of
+this exact plan before requesting live execution. Command success is not plan
+acceptance.
+
+- [ ] **Step 13: Separately authorize and run the selected live acceptance**
+
+State the consequence immediately before execution: two read-only public
+cases will navigate `app.nuanu.com`, all non-safe requests will be blocked and
+recorded, and bounded private Playwright attachments will be written. Only
+after that action-time authorization, run this later block:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/public/smoke.spec.ts --grep "NAPP-PUB-00[12]" --retries=0
+~~~
+
+Require exact origin, no forbidden request escaping the guard, bounded
+observation and mutation-ledger attachments, and no screenshot/trace/video.
+PUB-002 may remain UNVERIFIED when accessible marker/card mechanics are not
+available; that outcome requires a reviewed schema/accessibility amendment and
+does not authorize CSS fallback. Triage any first-party 5xx under the common
+fresh-context rule before calling it a product failure.
+
+- [ ] **Step 14: Review-only handoff**
+
+Task 1B creates private evidence only and makes no tracked commit. Record the
+exact catalog/selector-observation/capture-plan/binding/contract/graph/plan
+digests and case dispositions in the current review handoff plus Playwright's
+bounded attachments; do not invent a `${RUN_ID}` directory before Task 10
+implements the writer. A fresh reviewer must approve the binding and live
+evidence before Tasks 2–10 may rely on the contract.
+
+### Task 2: Cover Places, Details, Search, and Filters
+
+**Files:**
+- Create: `tests/nuanu-app/public/places.spec.ts`
+- Create: `tests/nuanu-app/public/search-filters.spec.ts`
+- Modify: `tests/nuanu-app/pages/discovery.page.ts`
+- Modify: `tests/nuanu-app/offline/runtime-contract.spec.ts`
+
+**Interfaces:**
+- Consumes: DiscoveryPage and the reviewed private runtime contract.
+- Produces: deterministic interaction contracts without business-content
+  assertions.
+
+- [ ] **Step 1: Write failing Places tests**
+
+Exact titles:
+
+~~~text
+NAPP-PLC-001 Places view renders category controls collections and a place list
+NAPP-PLC-002 opening a place synchronizes URL state and detail surface
+NAPP-PLC-003 closing place detail removes place query state
+NAPP-PLC-004 Show on map returns mobile detail to map context
+NAPP-PLC-005 Call remains an unexecuted system handoff boundary
+~~~
+
+NAPP-PLC-005 inspects the href/handler and asserts no click occurred. The
+captured URL is sanitized to scheme plus pathname; phone digits are not stored.
+
+- [ ] **Step 2: Write failing filter tests**
+
+Exact titles:
+
+~~~text
+NAPP-FLT-001 Open now exposes selected state and can be cleared
+NAPP-FLT-002 each public category selects and clears without navigation failure
+NAPP-FLT-003 each observed collection opens a nonempty discovery result
+NAPP-SRH-001 empty search remains usable and produces no product error
+NAPP-SRH-002 known-place query filters mechanically and clears
+NAPP-SRH-003 search ranking follows the approved query corpus
+~~~
+
+NAPP-SRH-003 is skipped with status annotation UNVERIFIED until
+`docs/nuanu-app/ORACLES.md` names a versioned corpus. It must not silently
+pass.
+
+- [ ] **Step 3: Write and run offline RED mechanics**
+
+Add exact synthetic titles:
+
+~~~text
+NAPP-CONTRACT-002 synthetic place detail mechanics preserve URL state without network
+NAPP-CONTRACT-003 synthetic search filter mechanics use reviewed inventory without adaptive selectors
+~~~
+
+Use `page.setContent` and an injected synthetic reviewed contract. Register a
+route canary and assert it receives zero requests. Then run:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/runtime-contract.spec.ts --grep "NAPP-CONTRACT-00[23]"
+~~~
+
+Expected: FAIL because the new POM mechanics do not exist. Do not navigate
+`app.nuanu.com` during RED/GREEN.
+
+- [ ] **Step 4: Implement mechanics-only assertions**
+
+For categories, scope exact role/name controls beneath the reviewed
+`categoryGroup` and iterate only typed private `inventory.categories`
+`{role,name,evidenceId,matchCount:1}` entries whose IDs revalidate against a
+verified-state singleton in the selector observation. Assert selected
+accessibility state, exact origin, visible discovery result container, and no
+first-party 5xx. Collections use typed
+`inventory.collections` entries under `collectionGroup`. Never derive a role
+from a name, search generic text, or accept a bare string. Do not assert a
+fixed result count or copy any inventory value to tracked source.
+
+For the detail flow, use the single exact reviewed `placeCard`; require its
+locator count to be one before interaction. Assert a non-empty `place` query
+value plus reviewed `placeDetail` and `placeDetailClose` mechanics. If the
+selector is unavailable/duplicated, mark only the dependent case UNVERIFIED;
+do not choose the first card or turn absence into a pass.
+
+For NAPP-SRH-002, use the reviewed `placeCard` accessible name only as an
+ephemeral search input when its evidence binding is AVAILABLE; never attach or
+log the value. Otherwise annotate UNVERIFIED and skip with exact reason
+`approved runtime place fixture is absent`.
+
+- [ ] **Step 5: Run offline GREEN and static discovery**
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/runtime-contract.spec.ts --grep "NAPP-CONTRACT-00[23]"
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app tests/nuanu-app/public/places.spec.ts tests/nuanu-app/public/search-filters.spec.ts
+npm run typecheck
+rg -n "\.first\(|\.or\(|networkidle|waitForTimeout|setTimeout\(" tests/nuanu-app/pages/discovery.page.ts tests/nuanu-app/public/places.spec.ts tests/nuanu-app/public/search-filters.spec.ts
+~~~
+
+Expected: offline tests PASS; live specs compile and list exact titles; `rg`
+exits 1. Desktop/mobile live acceptance is deferred to Task 12 and must repeat
+the graph runtime/validate/dry-run gate immediately before execution.
+
+- [ ] **Step 6: Commit**
+
+~~~bash
+git add tests/nuanu-app/public/places.spec.ts tests/nuanu-app/public/search-filters.spec.ts tests/nuanu-app/pages/discovery.page.ts tests/nuanu-app/offline/runtime-contract.spec.ts
+git diff --cached --check
+git commit -m "test: cover Nuanu App discovery interactions"
+~~~
+
+### Task 3: Add Public API Observation Contracts
+
+**Files:**
+- Create: `tests/nuanu-app/api/public-content.spec.ts`
+- Create: `tests/nuanu-app/fixtures/oracles.ts`
+- Create: `tests/nuanu-app/offline/api-contract.spec.ts`
+
+**Interfaces:**
+- Consumes: browser-initiated public Supabase responses.
+- Produces: sanitized response-shape evidence; no copied API keys.
+
+- [ ] **Step 1: Write failing API tests**
+
+Exact titles:
+
+~~~text
+NAPP-API-001 public venues response is successful and structurally usable
+NAPP-API-002 public map items response is successful and structurally usable
+NAPP-API-003 public categories response supplies rendered filters
+NAPP-API-004 optional content failure does not blank public discovery
+NAPP-API-005 dynamic hours prices and open state follow an approved Bali-time contract
+~~~
+
+Observe requests initiated by loading root. Match URL pathname fragments
+`venues_with_location`, `map_items_with_location`, and
+`content_categories`; never store query strings or request headers.
+
+- [ ] **Step 2: Write and run the offline RED oracle**
+
+The offline title is exactly:
+
+~~~text
+NAPP-CONTRACT-004 synthetic public API samples normalize shape without retaining payloads
+~~~
+
+Fulfill synthetic same-origin responses entirely through `page.route` before
+navigation, use generic values, and set a canary for every unfulfilled request.
+The evidence assertion permits only status, origin+pathname, array length, and
+sorted sampled field names; it rejects body values, query, headers, and DOM
+text.
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/api-contract.spec.ts
+~~~
+
+Expected: FAIL because the shape oracle does not exist. This command must make
+zero live requests.
+
+- [ ] **Step 3: Implement shape oracles**
+
+Sample at most five rows. Require:
+
+~~~ts
+type VenueSample = {
+  id: string;
+  name: string;
+  slug: string;
+  latitude: number | null;
+  longitude: number | null;
+};
+~~~
+
+Map-item samples require non-empty ID/title/type and numeric-or-null
+coordinates. Evidence stores status, sanitized pathname, array length, and
+sampled field names only.
+
+NAPP-API-004 starts INCONCLUSIVE until a controlled response-failure fixture
+exists. NAPP-API-005 starts UNVERIFIED until a versioned API/clock contract
+exists. Neither is a pass.
+
+- [ ] **Step 4: Run offline GREEN/static checks and commit**
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/api-contract.spec.ts
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app tests/nuanu-app/api/public-content.spec.ts
+npm run typecheck
+rg -n "request\.headers|response\.headers|screenshot|trace|video|\.first\(|networkidle|waitForTimeout" tests/nuanu-app/api/public-content.spec.ts tests/nuanu-app/fixtures/oracles.ts
+git add tests/nuanu-app/api/public-content.spec.ts tests/nuanu-app/fixtures/oracles.ts tests/nuanu-app/offline/api-contract.spec.ts
+git diff --cached --check
+git commit -m "test: verify Nuanu App public data contracts"
+~~~
+
+Expected: offline GREEN and typecheck pass; live specs list only; `rg` exits 1
+for forbidden evidence/fallback calls. Live API observation is deferred to
+Task 12 after a fresh graph preflight.
+
+### Task 4: Add Routing, SEO, and Candidate Reproduction Probes
+
+**Files:**
+- Create: `tests/nuanu-app/public/routes-seo.spec.ts`
+- Create: `tests/nuanu-app/offline/routes-contract.spec.ts`
+
+**Interfaces:**
+- Consumes: reviewed runtime selector contract, separately approved route/
+  metadata oracles when present, and evidence helper.
+- Produces: deterministic route/metadata contracts plus non-gating candidate
+  evidence.
+
+- [ ] **Step 1: Write route and SEO tests**
+
+Exact titles:
+
+~~~text
+NAPP-RTE-001 root publishes documented metadata
+NAPP-RTE-002 approved place query deep link renders detail or explicit unavailable state
+NAPP-CAND-SOFT404-01 unknown route response and Not Found UI are captured
+NAPP-RTE-004 place query refresh preserves or explicitly rejects state
+~~~
+
+NAPP-RTE-001 compares title/language only when approved in ORACLES.md and
+mechanically requires non-empty description, canonical URL, and OG
+title/description/URL/image. Selector observation does not supply business
+metadata policy. Missing policy is UNVERIFIED, not a guessed failure.
+
+Candidate probe NAPP-CAND-SOFT404-01 attaches only numeric status, a normalized
+content-kind enum, final origin+pathname, and generic shell/not-found booleans.
+It stores no DOM text, query, response/cache header, body, screenshot, trace,
+or video. It does not use `test.fail` and does not create a ticket.
+
+- [ ] **Step 2: Write and run offline RED route branches**
+
+The exact offline title is:
+
+~~~text
+NAPP-CONTRACT-005 synthetic route branches distinguish detail unavailable and blank shell without network
+~~~
+
+Intercept the exact app origin before navigation and fulfill synthetic detail,
+unavailable, and blank-shell fixtures. A final canary rejects any unhandled
+request.
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/routes-contract.spec.ts
+~~~
+
+Expected: FAIL before the route oracle exists and zero live requests.
+
+- [ ] **Step 3: Implement deterministic deep-link branches**
+
+NAPP-RTE-002 and RTE-004 remain UNVERIFIED until `ORACLES.md` contains a
+separately approved, versioned, non-sensitive route fixture. Runtime capture
+does not retain query values/slugs and cannot invent that fixture. When one is
+approved, accept either matching detail UI or explicit unavailable/not-found
+UI through available exact role/name slots; reject blank shell, uncaught error,
+and origin escape.
+
+- [ ] **Step 4: Run offline GREEN/static checks and commit**
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/routes-contract.spec.ts
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app tests/nuanu-app/public/routes-seo.spec.ts
+npm run typecheck
+rg -n "screenshot|trace|video|waitForTimeout|networkidle|\.first\(" tests/nuanu-app/public/routes-seo.spec.ts
+git add tests/nuanu-app/public/routes-seo.spec.ts tests/nuanu-app/offline/routes-contract.spec.ts
+git diff --cached --check
+git commit -m "test: probe Nuanu App routing and SEO"
+~~~
+
+Expected: offline GREEN/typecheck pass, live cases list, and `rg` exits 1.
+The three-fresh-context plus one browserless-request candidate run moves to
+Task 12, immediately after its own runtime/validate/dry-run gate.
+
+### Task 5: Add PWA Manifest and Lifecycle Evidence
+
+**Files:**
+- Create: `tests/nuanu-app/pwa/manifest.spec.ts`
+- Create: `tests/nuanu-app/pwa/lifecycle.spec.ts`
+- Create: `tests/nuanu-app/offline/pwa-contract.spec.ts`
+- Modify: `tests/nuanu-app/fixtures/safety.ts`
+
+**Interfaces:**
+- Consumes: root HTML, same-origin manifest, service-worker API.
+- Produces: installability contracts and non-gating update-loop evidence.
+
+- [ ] **Step 1: Write manifest tests**
+
+Exact titles:
+
+~~~text
+NAPP-PWA-001 manifest declares standalone Nuanu PWA metadata
+NAPP-PWA-002 manifest provides any and maskable 192 and 512 icons
+NAPP-PWA-003 HTML declares manifest Apple PWA and viewport-fit metadata
+NAPP-PWA-004 service worker registers without first-party console error
+NAPP-CAND-SW-UPDATE-01 fresh latest context update state is captured
+NAPP-PWA-006 cached shell offline and reconnect behavior is characterized
+~~~
+
+Manifest assertions: name/short_name Nuanu, start URL and scope root, standalone
+display, portrait orientation, and advertised icon responses below 400 with
+image content type.
+
+- [ ] **Step 2: Write and run offline RED parsers/state branches**
+
+Use this exact title:
+
+~~~text
+NAPP-CONTRACT-006 synthetic PWA manifest and lifecycle states normalize without network
+~~~
+
+Exercise pure manifest parsing and intercepted synthetic worker-state inputs.
+Add a synthetic context-route RED in which an unsafe service-worker-owned
+request has `request.serviceWorker()` set: the new context guard must abort it,
+record only the existing bounded sanitized mutation ledger, and never call
+`request.frame()`. Assert the guard is installed before Page creation. The
+request canary must remain zero.
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/pwa-contract.spec.ts
+~~~
+
+Expected: FAIL before the parser/state oracle exists; no live navigation.
+
+- [ ] **Step 3: Implement lifecycle evidence without clicking Reload**
+
+Use a dedicated isolated Chromium Playwright context created with
+`serviceWorkers: "allow"` for service-worker lifecycle evidence. Before Page
+creation, install a context-level mutation guard that reuses the closed method,
+URL sanitizer, 25-record cap, and overflow semantics from `safety.ts`. It must
+abort and ledger both ordinary unsafe network requests and unsafe requests
+owned by a Service Worker; it must branch on `request.serviceWorker()` and
+must not call `request.frame()` for that branch. Do not rely on the existing
+`page.route()` guard in this context because Page routing does not intercept
+requests handled by a Service Worker. Install the remaining privacy guards
+before navigation and close the context after capture. Every other project and
+context retains `serviceWorkers: "block"`. In that isolated context, await one
+reviewed mechanic, read service-worker
+registration scope and worker states, and detect only the reviewed
+`updatePrompt` role/name when AVAILABLE. Attach enum/boolean state evidence and
+close. Store no toast text. Do not click Reload or Close. An inaccessible
+prompt is UNVERIFIED pending a reviewed contract amendment, never a text/CSS
+fallback. The candidate remains INCONCLUSIVE until three clean-profile runs
+and one controlled browser restart reproduce it.
+
+For PWA-006, load root once, verify a controlling service worker, switch the
+context offline, reload, record whether a usable shell or explicit offline
+state appears, restore network, and verify recovery. The first campaign records
+this as INCONCLUSIVE until the product owner approves the offline-support
+contract; network toggling is local browser state and performs no product
+mutation.
+
+- [ ] **Step 4: Run offline GREEN/static discovery**
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/pwa-contract.spec.ts
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app tests/nuanu-app/pwa
+npm run typecheck
+rg -n "getByText|locator\(['\"]|\.first\(|networkidle|waitForTimeout|setTimeout\(|screenshot|trace|video" tests/nuanu-app/pwa
+~~~
+
+Expected: offline GREEN/typecheck pass, live cases list, and `rg` exits 1.
+Manifest/metadata execution in the default projects moves to Task 12 after a
+fresh graph gate. Playwright service-worker lifecycle automation is
+Chromium-only; Firefox/WebKit lifecycle lanes remain BLOCKED and physical
+iPhone Safari/PWA evidence remains MANUAL until Task 10/12 records it. Do not
+claim engine or physical-device parity from the Chromium result.
+
+- [ ] **Step 5: Commit**
+
+~~~bash
+git add tests/nuanu-app/pwa tests/nuanu-app/offline/pwa-contract.spec.ts tests/nuanu-app/fixtures/safety.ts
+git diff --cached --check
+git commit -m "test: cover Nuanu App PWA metadata lifecycle"
+~~~
+
+### Task 6: Add Responsive Browser and Mobile-Web Emulation
+
+**Files:**
+- Create: `tests/nuanu-app/responsive/public-layout.spec.ts`
+- Create: `tests/nuanu-app/offline/responsive-contract.spec.ts`
+
+**Interfaces:**
+- Consumes: DiscoveryPage and auth-entry page from Task 8 when available.
+- Produces: deterministic overflow and responsive-information-architecture
+  checks.
+
+- [ ] **Step 1: Write parameterized layout tests**
+
+Use exact viewports:
+
+~~~ts
+[
+  { width: 320, height: 568 },
+  { width: 375, height: 812 },
+  { width: 393, height: 852 },
+  { width: 412, height: 915 },
+  { width: 768, height: 1024 },
+  { width: 1024, height: 768 },
+  { width: 1440, height: 900 },
+]
+~~~
+
+Generate the first four exact titles from the numeric viewport with these
+template literals; the resulting title contains the real width, for example
+`NAPP-RSP-001 Places has no horizontal overflow at 375px`:
+
+~~~ts
+`NAPP-RSP-001 Places has no horizontal overflow at ${viewport.width}px`
+`NAPP-RSP-002 mobile exposes Places Map and Profile at ${viewport.width}px`
+`NAPP-RSP-003 desktop exposes search filters and place list at ${viewport.width}px`
+`NAPP-RSP-004 mobile auth fields remain reachable at ${viewport.width}px`
+~~~
+
+The manual case title is exactly `NAPP-RSP-005 physical safe-area and software
+keyboard behavior`.
+
+RSP-005 is MANUAL and never passes in emulation.
+
+RSP-004 implementation remains pending, which is not a case status. Until Task
+8 creates `AuthEntryPage`, report RSP-004 as `BLOCKED`. Task 6 may run and
+report the other responsive cases before then, but it cannot be claimed
+complete while RSP-004 is blocked.
+
+- [ ] **Step 2: Verify RED then implement against a synthetic layout**
+
+Install the mutation guard, hydrate, and compare document
+`scrollWidth <= clientWidth + 1`. Mobile navigation applies only to
+320/375/393/412; desktop assertions apply only to 1024/1440. RSP-004 opens the
+auth entry but does not type or submit. The offline spec uses semantic generic
+markup through `page.setContent`, an injected contract, and a zero-hit request
+canary. Its exact title is:
+
+~~~text
+NAPP-CONTRACT-007 synthetic responsive layout applies exact viewport branches without network
+~~~
+
+Run RED before implementation:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/responsive-contract.spec.ts
+~~~
+
+Expected: FAIL before the responsive oracle exists and zero live requests.
+
+- [ ] **Step 3: Run offline GREEN/static discovery**
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/responsive-contract.spec.ts
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app tests/nuanu-app/responsive/public-layout.spec.ts
+npm run typecheck
+rg -n "\.first\(|\.or\(|networkidle|waitForTimeout|setTimeout\(|getByText|locator\(['\"]" tests/nuanu-app/responsive/public-layout.spec.ts
+~~~
+
+Expected: offline GREEN/typecheck pass, live cases list, and `rg` exits 1.
+Chromium/Android/iOS emulation live runs move to Task 12 and require a fresh
+graph runtime/validate/dry-run immediately before each command.
+
+- [ ] **Step 4: Commit**
+
+~~~bash
+git add tests/nuanu-app/responsive/public-layout.spec.ts tests/nuanu-app/offline/responsive-contract.spec.ts
+git diff --cached --check
+git commit -m "test: cover Nuanu App responsive web lanes"
+~~~
+
+### Task 7: Add Accessibility Inventory and Keyboard Contracts
+
+**Files:**
+- Modify: `package.json`
+- Modify: `package-lock.json`
+- Create: `tests/nuanu-app/accessibility/public-a11y.spec.ts`
+- Create: `tests/nuanu-app/fixtures/a11y-baseline.json`
+- Create: `tests/nuanu-app/offline/a11y-contract.spec.ts`
+
+**Interfaces:**
+- Consumes: hydrated public shell and reviewed accessibility baseline.
+- Produces: sanitized axe inventory and deterministic keyboard mechanics.
+
+- [ ] **Step 1: Write a failing module contract**
+
+Use:
+
+~~~ts
+import AxeBuilder from '@axe-core/playwright';
+
+const results = await new AxeBuilder({ page })
+  .withTags(['wcag2a', 'wcag2aa'])
+  .analyze();
+~~~
+
+NAPP-A11Y-001 attaches rule ID, impact, help URL, and selector targets only.
+It initially verifies inventory schema, not zero violations.
+
+- [ ] **Step 2: Verify offline RED because dependency is absent**
+
+The exact offline title is:
+
+~~~text
+NAPP-CONTRACT-008 synthetic public shell produces sanitized axe and keyboard mechanics without network
+~~~
+
+It uses semantic generic HTML via `page.setContent`, an injected contract, and
+a zero-hit request canary.
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/a11y-contract.spec.ts
+~~~
+
+Expected: module resolution failure for `@axe-core/playwright`; no live
+navigation.
+
+- [ ] **Step 3: Install the exact package through the repository package manager**
+
+~~~bash
+npm install --save-dev @axe-core/playwright
+~~~
+
+Review `package.json` and `package-lock.json`; no unrelated dependency
+updates are allowed.
+
+- [ ] **Step 4: Add keyboard tests**
+
+Exact titles:
+
+~~~text
+NAPP-A11Y-001 public Map and Places produce a versioned axe inventory
+NAPP-A11Y-002 keyboard reaches Places Map Profile and returns from detail
+NAPP-A11Y-003 detail focus remains actionable and returns to discovery
+NAPP-A11Y-004 VoiceOver TalkBack and map semantics
+NAPP-A11Y-005 reduced motion follows an approved UX rule
+~~~
+
+A11Y-004 is MANUAL. A11Y-005 is UNVERIFIED until ORACLES.md names the rule.
+Only owner-reviewed zero-tolerance rules in `a11y-baseline.json` fail the
+release. A11Y-002/003 use only exact AVAILABLE runtime-contract roles/names;
+an inaccessible map/card mechanic is UNVERIFIED pending schema/accessibility
+review and never uses CSS, text, or ordinal fallback.
+
+- [ ] **Step 5: Verify and commit**
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/a11y-contract.spec.ts
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app tests/nuanu-app/accessibility/public-a11y.spec.ts
+npm run typecheck
+rg -n "\.first\(|\.or\(|networkidle|waitForTimeout|setTimeout\(|getByText|locator\(['\"]|screenshot|trace|video" tests/nuanu-app/accessibility/public-a11y.spec.ts
+git add package.json package-lock.json tests/nuanu-app/accessibility/public-a11y.spec.ts tests/nuanu-app/fixtures/a11y-baseline.json tests/nuanu-app/offline/a11y-contract.spec.ts
+git diff --cached --check
+git commit -m "test: inventory Nuanu App accessibility"
+~~~
+
+Expected: offline GREEN/typecheck pass, live cases list, and `rg` exits 1.
+Live axe/keyboard inventory runs only in Task 12 after preflight.
+
+### Task 8: Add Safe Authentication Entry and Supplied-State Coverage
+
+**Files:**
+- Create: `tests/nuanu-app/pages/auth-entry.page.ts`
+- Create: `tests/nuanu-app/public/auth-entry.spec.ts`
+- Create: `tests/nuanu-app/auth/storage-state.spec.ts`
+- Create: `tests/nuanu-app/offline/auth-contract.spec.ts`
+
+**Interfaces:**
+- Consumes: Profile entry and optional gitignored storage state.
+- Produces: UI-only auth boundary checks and read-only supplied-state shell.
+
+- [ ] **Step 1: Write public auth-entry tests**
+
+Exact titles:
+
+~~~text
+NAPP-AUTH-001 Profile opens Create Nuanu ID without submitting
+NAPP-AUTH-002 Sign In switches to login entry without submitting
+NAPP-AUTH-003 empty auth entry exposes no credential values in URL or DOM
+NAPP-AUTH-004 malformed email is blocked before any auth request
+NAPP-AUTH-007 Forgot password renders without reset delivery
+NAPP-AUTH-008 Apple and Google handoffs are visible but unexecuted
+~~~
+
+The mutation guard is mandatory. AUTH-004 uses `not-an-email` and a synthetic
+password, proves client/native invalidity, and asserts no auth POST escaped.
+AUTH-007 does not click a send control. AUTH-008 does not click providers.
+
+- [ ] **Step 2: Write supplied-state tests**
+
+Exact titles:
+
+~~~text
+NAPP-AUTH-005 supplied state opens a safe authenticated shell
+NAPP-AUTH-006 wrong credentials return a safe localized error
+NAPP-AUTH-009 provider callback establishes expected session
+NAPP-AUTH-010 reset delivery reaches controlled inbox
+~~~
+
+AUTH-005 skips with BLOCKED annotation unless
+`NUANU_APP_AUTH_STORAGE_STATE` exists. It never creates or refreshes state.
+AUTH-006, 009, and 010 remain BLOCKED pending their named account/inbox/provider
+fixture and separate authorization.
+
+- [ ] **Step 3: Write offline RED and implement AuthEntryPage**
+
+The exact offline title is:
+
+~~~text
+NAPP-CONTRACT-009 synthetic auth entry enforces unsubmitted provider and reset boundaries without network
+~~~
+
+Use semantic generic HTML, an injected contract, and a zero-hit request canary.
+Run RED:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/auth-contract.spec.ts
+~~~
+
+Expected: FAIL before AuthEntryPage exists. Implement only exact AVAILABLE
+`authEntry`, `emailInput`, `passwordInput`, `signUpAction`, `signInAction`,
+`forgotPasswordAction`, `appleProviderAction`, `googleProviderAction`, and
+`privacyAction` role/name pairs. No accessible names are hardcoded in tracked
+page objects. No method submits a form, sends reset delivery, or clicks an
+external provider. An unavailable/duplicate role-name marks the dependent case
+UNVERIFIED; it never triggers a CSS/text/ordinal fallback.
+
+- [ ] **Step 4: Run offline GREEN/static discovery**
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/auth-contract.spec.ts
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app tests/nuanu-app/public/auth-entry.spec.ts tests/nuanu-app/auth/storage-state.spec.ts
+npm run typecheck
+rg -n "Email|Password|Sign Up|Sign In|Forgot password|Apple|Google|Privacy" tests/nuanu-app/pages/auth-entry.page.ts
+rg -n "\.first\(|\.or\(|networkidle|waitForTimeout|getByText|locator\(['\"]" tests/nuanu-app/pages/auth-entry.page.ts tests/nuanu-app/public/auth-entry.spec.ts
+~~~
+
+Expected: offline GREEN/typecheck pass; live cases list; `rg` exits 1. Public
+boundary and supplied-state behavior execute only in Task 12 after a fresh
+graph gate. Missing supplied state then reports exact BLOCKED skips; it never
+creates or refreshes auth state.
+
+- [ ] **Step 5: Commit**
+
+~~~bash
+git add tests/nuanu-app/pages/auth-entry.page.ts tests/nuanu-app/public/auth-entry.spec.ts tests/nuanu-app/auth/storage-state.spec.ts tests/nuanu-app/offline/auth-contract.spec.ts
+git diff --cached --check
+git commit -m "test: cover Nuanu App authentication boundaries"
+~~~
+
+### Task 9: Add Non-Gating Performance, Security, Privacy, and Locale Evidence
+
+**Files:**
+- Create: `tests/nuanu-app/performance/public-performance.spec.ts`
+- Create: `tests/nuanu-app/security/public-privacy.spec.ts`
+- Create: `tests/nuanu-app/fixtures/performance-baseline.json`
+- Create: `tests/nuanu-app/offline/performance-privacy-contract.spec.ts`
+- Modify: `tests/nuanu-app/fixtures/oracles.ts`
+
+**Interfaces:**
+- Consumes: hydrated public shell and browser performance/security APIs.
+- Consumes optionally: privacy-normalized aggregate telemetry and its explicit
+  READY/PARTIAL/BLOCKED status from the standalone telemetry plan.
+- Produces: five-run lab observations and explicit policy gaps; no invented
+  release budget. PostHog RUM remains a separate non-gating observation.
+
+- [ ] **Step 1: Write performance observation tests**
+
+Exact titles:
+
+~~~text
+NAPP-PERF-001 public cold-load LCP CLS and navigation timing are captured
+NAPP-PERF-002 interaction latency follows an approved INP sampling contract
+NAPP-PERF-003 map memory and CPU follow an approved device budget
+~~~
+
+PERF-001 installs PerformanceObserver through `page.addInitScript` before
+navigation, records LCP and non-input layout shifts, plus navigation timing,
+then attaches numbers and the named browser/viewport/network profile. It does
+not fail on an unapproved threshold. PERF-002 and PERF-003 remain UNVERIFIED
+until ORACLES.md defines sampling and hardware budgets.
+
+- [ ] **Step 2: Write public security/privacy inventory tests**
+
+Exact titles:
+
+~~~text
+NAPP-SEC-001 public entry exposes no credentials or callback secrets
+NAPP-SEC-002 security and privacy response headers are inventoried
+NAPP-PRIV-001 privacy controls and analytics disclosure are visible without mutation
+NAPP-I18N-001 live runtime language metadata is reported without policy inference
+~~~
+
+SEC-001 inspects only final origin+pathname, query-key names, empty auth-input
+booleans, and storage key names; it never attaches values. SEC-002 records only
+presence booleans for HSTS, CSP, Referrer-Policy, Permissions-Policy, and
+X-Content-Type-Options without retaining header values or turning an
+unapproved policy into a gate. PRIV-001 opens only the reviewed
+`privacyAction` surface and does not toggle consent or retain its DOM text.
+I18N-001 records the bounded `html[lang]` metadata value but remains UNVERIFIED
+until ORACLES.md names an approved language policy; selector evidence does not
+claim that policy. Graph source-only locale nodes remain
+NOT_DEPLOYED/UNVERIFIED.
+
+- [ ] **Step 3: Write offline RED then implement**
+
+The exact offline title is:
+
+~~~text
+NAPP-CONTRACT-010 synthetic performance privacy and locale evidence is bounded and value-free
+~~~
+
+Intercept every navigation before it starts and use generic same-origin HTML,
+synthetic PerformanceObserver entries, and synthetic response-header presence
+booleans. A request canary must remain zero outside the interceptions.
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/performance-privacy-contract.spec.ts
+~~~
+
+Expected: FAIL before the evidence normalizers exist. Implement using only
+sanitized numeric/header-presence evidence. Do not capture storage values,
+request/response header values, content payloads, DOM text, or user data.
+
+- [ ] **Step 4: Run offline GREEN/static discovery**
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline/performance-privacy-contract.spec.ts
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app tests/nuanu-app/performance/public-performance.spec.ts tests/nuanu-app/security/public-privacy.spec.ts
+npm run typecheck
+rg -n "storageState\(|localStorage\.getItem|sessionStorage\.getItem|textContent|innerText|screenshot|trace|video|networkidle|waitForTimeout|\.first\(" tests/nuanu-app/performance/public-performance.spec.ts tests/nuanu-app/security/public-privacy.spec.ts tests/nuanu-app/fixtures/oracles.ts
+~~~
+
+Expected: offline GREEN/typecheck pass, live cases list, and `rg` exits 1.
+The five-run live PERF-001 baseline moves to Task 12 after its own fresh graph
+preflight and uses five new contexts with `--retries=0`.
+
+Aggregate median and worst sample into the private run report. Keep
+`performance-baseline.json` as an empty reviewed-policy document until the
+owner approves concrete budgets; raw measurements stay private.
+
+If the normalized telemetry baseline is available, record telemetry freshness
+and p75 LCP/CLS/INP beside, but never merged with, the named lab samples. Do not
+compare them to a threshold or use them as a release result. Record absent
+fields as NOT_INSTRUMENTED, inaccessible metrics as UNAVAILABLE, insufficient
+cohorts as SUPPRESSED, and missing access as BLOCKED. Continue all lab and
+security/privacy checks in every status.
+
+Consume only the standalone plan's exact six-field catalog wrapper with a
+recomputed digest that includes `capturedAt`. Standalone telemetry Task 2—not
+this web task or the pure normalizer—must already have joined each p75 to its same-window total
+count by metric/bucket/dimensions/coordinate and discarded raw rows. Standalone
+telemetry Task 1 must have validated the structural source marker, distinct
+role hashes, shared pair digest, status union, and privacy floor.
+
+Record a p75 value only for AVAILABLE with non-null pairing. SUPPRESSED after a
+valid pair retains pairing but no percentile/cohort identity; an invalid,
+unsupported, or missing companion is UNAVAILABLE with null pairing and the
+primary query hash. Never derive sample size from returned-row count, time
+buckets, quantile values, or result metadata. All lab and deterministic checks
+continue.
+
+For telemetry freshness, route/exception rates, and funnels, require the
+standalone Task 2 candidate to use the exact code-owned sole total, ordered
+denominator, or first-step population respectively. The web task never
+reconstructs those origins from provider output and treats an unavailable or
+BLOCKED telemetry candidate as a separate report status only.
+
+Consume a RUM metric only when its structured-query proof includes the exact
+`app.nuanu.com` predicate, one fresh same-preflight schema-facts digest, the
+explicit immutable 24-hour UTC window and matching window-dependent hash,
+effective capability matrix, complete approved hash, verified bounded provider
+envelope, and separate scoped transport status. A builder proves structural
+shape only; standalone telemetry Task 2 proves freshness/binding. Persist
+breakdowns only as reviewed public categorical values after the 20-observation floor when the dimension is
+present and the value exactly matches its allowlist. An omitted dimension uses
+the single catalog-wide random-ID memo; an allowlist mismatch is rejected, not
+silently randomized, and no reverse map persists. Do not treat an unkeyed hash
+as privacy. For exceptions, retain only total count/rate unless standalone
+telemetry Task 2 freshly validated the official-schema/manifest binding for an already opaque provider
+fingerprint and that group also meets the floor; standalone telemetry Task 1's
+attestation check is structural only. That fingerprint comes only from the
+dedicated auxiliary query, never a normal breakdown; without proof, expect
+`FIELD_NOT_PROVEN`, no group/hash/attestation, and aggregate exceptions only.
+
+- [ ] **Step 5: Commit**
+
+~~~bash
+git add tests/nuanu-app/performance/public-performance.spec.ts tests/nuanu-app/security/public-privacy.spec.ts tests/nuanu-app/fixtures/performance-baseline.json tests/nuanu-app/fixtures/oracles.ts tests/nuanu-app/offline/performance-privacy-contract.spec.ts
+git diff --cached --check
+git commit -m "test: inventory Nuanu App performance privacy"
+~~~
+
+### Task 10: Define Oracles and the Physical Device Campaign
+
+**Files:**
+- Create: `docs/nuanu-app/ORACLES.md`
+- Create: `docs/nuanu-app/MANUAL-DEVICE-CASES.md`
+- Update: `docs/nuanu-app/TEST-CASES.md`
+- Create: `docs/nuanu-app/BASELINE-RUNBOOK.md`
+- Create: `tools/nuanu-app-evidence/run-context.mjs`
+- Create: `tests/nuanu-app-evidence/run-context.test.mjs`
+- Create: `tests/nuanu-app/fixtures/run-context.ts`
+
+**Interfaces:**
+- Consumes: implemented test catalog.
+- Consumes optionally: reviewed telemetry metric dispositions and add-only
+  planner reasons; a BLOCKED telemetry lane is a documented gap only.
+- Produces: explicit automated/manual/blocked/unverified coverage registry and
+  the only module-derived durable evidence-run writer.
+
+- [ ] **Step 1: Write RED tests and implement the exact run-context writer**
+
+`run-context.mjs` accepts only `init --kind baseline`, derives
+`docs/local/nuanu-app/evidence` from its own module URL, and creates one private
+directory plus `current-run.json`. The pointer has exactly:
+
+~~~ts
+type CurrentRun = Readonly<{
+  schemaVersion: 1;
+  productId: 'nuanu-app';
+  kind: 'baseline';
+  runId: string;
+  createdAt: string;
+}>;
+~~~
+
+`runId` is exactly the UTC `createdAt` rendered as
+`YYYYMMDDTHHMMSSZ-napp-baseline`; fractional seconds are rejected. Create the
+directory with mode 0700 and JSON files with 0600, refuse symlink/non-directory
+ancestors and collisions, fsync file/directory, and atomically replace only the
+fixed pointer. Stdout is one closed JSON line with `ok`, `command`, and
+`runId`; stderr failures contain stable codes and no absolute path. The
+TypeScript loader accepts no path/argument/env override and validates the
+pointer plus contained directory before returning it. It never creates a run.
+
+Test fixed-clock success, exact schema/modes, repeated-second collision,
+unknown args, symlink/file ancestors, malformed/stale pointer, traversal,
+secret fields/values, atomic-failure cleanup, and no stdout/stderr path leak.
+Run RED then GREEN:
+
+~~~bash
+node --test tests/nuanu-app-evidence/run-context.test.mjs
+node --test tests/nuanu-app-evidence/run-context.test.mjs
+npm run typecheck
+~~~
+
+The first run must fail before implementation; the second must pass after it.
+Do not invoke `init` against the real private root during this task—unit tests
+inject a temporary root and clock.
+
+- [ ] **Step 2: Record current oracle maturity**
+
+ORACLES.md must say:
+
+- search ranking has no approved query corpus and is UNVERIFIED;
+- place-query deep-link/refresh has no approved non-sensitive route fixture and
+  is UNVERIFIED; selector capture stores no slug/query value;
+- title/language has no approved metadata policy and is UNVERIFIED; runtime
+  selector evidence does not become product policy;
+- dynamic hours/price/open state has no approved Bali-time snapshot and is
+  UNVERIFIED;
+- performance first records five runs on a named machine/browser/network and
+  is non-gating;
+- PostHog RUM first records an aggregate baseline with no approved thresholds,
+  never replaces lab performance, and is non-gating;
+- telemetry access, instrumentation, availability, and sample gaps keep their
+  exact BLOCKED, NOT_INSTRUMENTED, UNAVAILABLE, or SUPPRESSED status while the
+  safe campaign continues;
+- telemetry queryability requires the effective capability matrix, mandatory
+  fresh digest-bound all-nine-metric schema preflight, `app.nuanu.com` equality
+  scope, explicit immutable approved 24-hour UTC window, code-owned structured
+  query validation, verified bounded provider envelope, and a separate scoped
+  transport; displayed role/browser membership proves none of these;
+- `HogQLQuery`, text query, raw nodes/columns/joins, and unknown fields are
+  BLOCKED pending a separately reviewed AST allowlist;
+- p75 Web Vitals require an independent same-window/scope/filter/breakdown
+  total-count companion; unsupported or invalid pairing is UNAVAILABLE and a
+  companion count below 20 is SUPPRESSED;
+- other telemetry sample sizes come only from the code-owned sole count,
+  ordered denominator, or first funnel step; exception fingerprint groups use
+  only the dedicated proven-opaque query or remain `FIELD_NOT_PROVEN`;
+- visual comparison is INCONCLUSIVE without an approved baseline;
+- GPS accuracy and reduced-motion semantics remain manual/UNVERIFIED.
+
+- [ ] **Step 3: Write exact iPhone cases**
+
+Include IOS-WEB-01 through 04 and IOS-PWA-01 through 03: clean Safari discovery,
+permission dismiss/deny/allow, keyboard/safe area/back, Call pre-handoff,
+install/standalone, kill/relaunch/offline/update, provider fixture. Never store
+precise coordinates or place a call.
+
+- [ ] **Step 4: Write exact Android cases**
+
+Include AND-WEB-01 through 04 and AND-PWA-01 through 03: clean Chrome discovery,
+approximate/precise permission states if offered, keyboard/back/rotation, tel
+pre-handoff, install/standalone/task switch, offline/update/cache recovery, and
+provider fixture.
+
+- [ ] **Step 5: Reconcile test registry with discovery**
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app
+~~~
+
+Every TEST-CASES row names an actually discovered test or an exact manual ID.
+No sibling case inherits a pass.
+
+Also reconcile every optional telemetry selector to its logical metric ID,
+catalog digest, nullable mapping, disposition, and typed `reasons[]`. Do not
+list an analytics query as a Playwright PASS/FAIL case and do not infer a
+missing selector from source or runtime data.
+
+- [ ] **Step 6: Commit**
+
+~~~bash
+git add docs/nuanu-app/ORACLES.md docs/nuanu-app/MANUAL-DEVICE-CASES.md docs/nuanu-app/TEST-CASES.md docs/nuanu-app/BASELINE-RUNBOOK.md tools/nuanu-app-evidence/run-context.mjs tests/nuanu-app-evidence/run-context.test.mjs tests/nuanu-app/fixtures/run-context.ts
+git diff --cached --check
+git commit -m "docs: define Nuanu App coverage oracles"
+~~~
+
+### Task 11: Build the Graph and Dry-Run the First Campaign
+
+**Files:**
+- Generated private files only under `docs/local/nuanu-app/product-graph`.
+
+**Interfaces:**
+- Consumes: read-only source checkout, runtime catalog, implemented tests,
+  reviewed mappings, and optional reviewed aggregate telemetry signals.
+- Produces: valid graph, impact, and test plan; no test execution yet.
+
+- [ ] **Step 1: Capture the preliminary mapping observation alone**
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+This first observation exists only to expose current sanitized runtime node
+IDs for mapping review. It does not rebind or prove selector evidence. Keep
+deployment identity UNVERIFIED unless a real build signal exists.
+
+- [ ] **Step 2: Reconcile every discovered test/manual case and pin source**
+
+Map actual runtime nodes, source files, capabilities, journeys, invariants,
+every exact NAPP-PUB/CONTRACT/functional test ID, and every manual case. Preserve
+the byte-exact PUB-001 title and include the stable PUB-002 title. Source-only
+nodes remain NOT_DEPLOYED or UNVERIFIED and cannot select live tests. Do not
+invent a runtime node or carry a stale title. Then run:
+
+~~~bash
+npm run nuanu-app:graph -- source-lock --repo "$NUANU_APP_SOURCE_REPO"
+~~~
+
+`NUANU_APP_SOURCE_REPO` is a user-supplied absolute read-only checkout that
+passes remote, cleanliness, containment, and SHA validation. Verify full SHA,
+expected remote, scoped source roots, content digest, and the just-reviewed
+mapping digest. No temporary recon path is assumed. The command must not fetch,
+write, or push upstream.
+
+- [ ] **Step 3: Start the mandatory campaign sequence with runtime alone**
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+- [ ] **Step 4: Review and rebind the fresh catalog**
+
+Confirm the separately digested selector observation is at most 30 minutes old
+and its runtime digest equals this new catalog. Set contract `observedAt`
+exactly to this catalog's `capturedAt` and `observationDigest` exactly to this
+catalog's `runtimeDigest`; read both equalities back. Do not reuse values from
+Step 1. If evidence is stale/mismatched, repeat Task 1B's producer and restart
+Step 3. Root/probe observation never substitutes for selector evidence.
+
+- [ ] **Step 5: Validate alone**
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+- [ ] **Step 6: Accept the exact validation attestation**
+
+Require `validate` to attest catalog/contract equalities, selector observation,
+capture plan, typed bindings/inventory, every discovered test title, and the
+refreshed mapping/source-lock digest. Missing contract/evidence is BLOCKED;
+malformed/missing/duplicate/inaccessible/stale/mismatched selector evidence is
+UNVERIFIED and prevents live execution.
+
+- [ ] **Step 7: Build the deterministic dry-run plan alone**
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+- [ ] **Step 8: Inspect and accept the exact deterministic plan**
+
+Inspect every selected test ID/reason, graph/impact/plan digest, and all
+blocked/manual/unverified/not-deployed cases. Record acceptance of this exact
+plan; command success is not acceptance. Do not execute until it is internally
+consistent.
+
+Verify the dry-run has distinct sorted `blocked`, `unverified`, and
+`notDeployed` buckets. Source-only UNVERIFIED cases must appear only in
+`unverified`; telemetry dispositions remain in `telemetrySignals` and do not
+change those case buckets.
+
+When `docs/local/nuanu-app/telemetry/telemetry-signals.json` has passed the
+standalone telemetry plan, rebuild the same dry run with:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run --telemetry-signals docs/local/nuanu-app/telemetry/telemetry-signals.json
+~~~
+
+Verify that telemetry only adds discovered read-only AUTOMATED cases, retains
+typed signal/mapping/catalog/graph-path reasons, and leaves the deterministic
+selection intact. If telemetry status is BLOCKED, omit the optional input,
+record `telemetryStatus: "BLOCKED"`, and continue with the validated
+deterministic plan. When the optional command succeeds, inspect and explicitly
+accept its exact replacement plan/digest in a separate checkpoint before any
+live command; success alone is not acceptance.
+
+Before accepting the signal file, verify its catalog proves the complete
+effective capability read-back, one fresh same-preflight schema-facts digest
+covering all nine metric statuses, exact `app.nuanu.com` predicate in every
+code-owned structured query, the explicit immutable 24-hour UTC window and
+matching window-dependent approvals, approved complete query hash, verified
+bounded provider envelope, and separate scoped query transport. A role label,
+browser invite session, project name, missing
+host property, rejected structured query, or HTTP 401/403/429/5xx keeps the
+signal BLOCKED and selects nothing.
+
+A malformed 200, redirect, unexpected status, stale/mixed schema facts,
+window mismatch, or production-envelope compatibility still UNVERIFIED also
+keeps the signal BLOCKED. For non-p75 metrics, require the reviewed sole-count,
+ordered-denominator, or first-step sample origin. For exception groups, require
+the separate auxiliary hash and fresh proven-opaque binding; otherwise accept
+only aggregate exceptions with `FIELD_NOT_PROVEN`.
+
+Require the exact catalog wrapper, recomputed digest including timestamp, and
+matching credential-free access-lock digest. Require `queryHash` for every
+AVAILABLE, UNAVAILABLE, SUPPRESSED, and post-query BLOCKED metric; allow null
+only for NOT_INSTRUMENTED or pre-query BLOCKED without a complete query.
+
+For every p75 signal, also require approved percentile/count hashes, immutable
+metric/dimension pair digest, exact same-window/scope/filter/breakdown proof,
+and companion-derived sample size. AVAILABLE requires pairing; valid-pair
+SUPPRESSED retains it but selects nothing; missing/invalid pairing is
+UNAVAILABLE with null pairing and a retained primary hash. This task validates
+the normalized structural union only; raw coordinate mismatch tests remain in
+the standalone Task 2 adapter. The deterministic plan does not change.
+
+### Task 12: Execute the Safe Baseline and Triage Candidates
+
+**Files:**
+- Generated evidence under `docs/local/nuanu-app/evidence/${RUN_ID}`.
+- Potential regression tests only after confirmed NAPP items.
+
+**Interfaces:**
+- Consumes: validated dry-run plan.
+- Produces: run report, confirmed/blocked/manual ledger, and candidate dossier.
+
+Before execution, read the optional telemetry status from the validated plan.
+READY/PARTIAL signals execute only the additional safe cases already selected
+by reviewed mappings. BLOCKED, NOT_INSTRUMENTED, UNAVAILABLE, or SUPPRESSED
+signals do not stop T0, the default suite, browser emulation, or manual-device
+planning.
+
+Do not re-query or repair telemetry during this web task. A stale schema
+preflight, window/hash mismatch, unverified or malformed provider envelope, or
+missing code-owned non-p75 population origin remains the standalone lane's
+BLOCKED/UNAVAILABLE status and adds no test. Aggregate exception evidence may
+remain without groups when the dedicated fingerprint proof is
+`FIELD_NOT_PROVEN`.
+
+Treat each p75 metric independently: execute its optional selection only when
+the validated catalog marks it AVAILABLE with non-null structural pairing and
+sample size at or above 20. SUPPRESSED retains valid pairing but selects
+nothing; standalone telemetry Task 2 has already converted missing, mismatched, ambiguous, or
+unsupported companions to UNAVAILABLE with null pairing. Never substitute
+result length or quantile metadata for the count.
+
+- [ ] **Step 1: Initialize the private run without observing production**
+
+~~~bash
+node tools/nuanu-app-evidence/run-context.mjs init --kind baseline
+~~~
+
+- [ ] **Step 2: Execute T0 through six separate gates**
+
+Capture runtime alone:
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+Checkpoint: confirm selector evidence is fresh and has the same semantic
+runtime digest; set/read back `observedAt=capturedAt` and
+`observationDigest=runtimeDigest`. If not, stop and repeat Task 1B's producer.
+
+Validate alone:
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+Checkpoint: accept the exact contract/evidence/graph attestation.
+
+Build the plan alone:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+Checkpoint: inspect and accept exact T0 IDs/reasons/digests/buckets, then
+obtain separate authorization for this read-only live run. Only in the later
+block execute:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/public/smoke.spec.ts tests/nuanu-app/public/places.spec.ts tests/nuanu-app/api/public-content.spec.ts tests/nuanu-app/pwa/manifest.spec.ts
+~~~
+
+Verify every executed live test attached a capped `mutation-ledger.json` and
+sanitized observation, even on failure/skip.
+
+- [ ] **Step 3: Execute the full safe default suite through a new six-gate sequence**
+
+Runtime alone:
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+Checkpoint: revalidate selector-evidence freshness/runtime digest, set/read
+back contract `observedAt=capturedAt` and
+`observationDigest=runtimeDigest`, or stop and recapture.
+
+Validate alone:
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+Checkpoint: accept the exact validation attestation.
+
+Plan alone:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+Checkpoint: inspect/accept exact IDs/reasons/digests/buckets and separately
+authorize the later live run. Then execute only:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npm run test:nuanu-app
+~~~
+
+Offline `NAPP-CONTRACT-*` cases cannot satisfy a live case or inflate live
+coverage.
+
+- [ ] **Step 4: Execute each opt-in engine/emulation through its own six-gate sequence**
+
+For Firefox, run runtime alone:
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+Checkpoint: revalidate selector-evidence freshness/runtime digest, set/read
+back contract `observedAt=capturedAt` and
+`observationDigest=runtimeDigest`, or stop and recapture. Validate alone:
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+Checkpoint: accept validation. Plan alone:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+Checkpoint: inspect/accept the exact Firefox selection and separately
+authorize its later live block:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com NUANU_APP_FIREFOX=1 npx playwright test --project=nuanu-app-firefox
+~~~
+
+For WebKit, repeat from a new runtime capture:
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+Checkpoint: revalidate selector-evidence freshness/runtime digest, set/read
+back contract `observedAt=capturedAt` and
+`observationDigest=runtimeDigest`, or stop and recapture. Validate alone:
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+Checkpoint: accept validation. Plan alone:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+Checkpoint: inspect/accept WebKit selection and separately authorize the later
+live block:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com NUANU_APP_WEBKIT=1 npx playwright test --project=nuanu-app-webkit
+~~~
+
+For Android Chromium emulation, repeat from runtime:
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+Checkpoint: revalidate selector-evidence freshness/runtime digest, set/read
+back contract `observedAt=capturedAt` and
+`observationDigest=runtimeDigest`, or stop and recapture. Validate alone:
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+Checkpoint: accept validation. Plan alone:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+Checkpoint: inspect/accept Android selection and separately authorize the
+later live block:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com NUANU_APP_MOBILE=1 npx playwright test --project=nuanu-app-android-chrome
+~~~
+
+For iOS WebKit emulation, repeat from runtime:
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+Checkpoint: revalidate selector-evidence freshness/runtime digest, set/read
+back contract `observedAt=capturedAt` and
+`observationDigest=runtimeDigest`, or stop and recapture. Validate alone:
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+Checkpoint: accept validation. Plan alone:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+Checkpoint: inspect/accept iOS selection and separately authorize the later
+live block:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com NUANU_APP_MOBILE=1 npx playwright test --project=nuanu-app-ios-webkit
+~~~
+
+Unavailable engines are BLOCKED with install evidence, not passes.
+
+- [ ] **Step 5: Capture the five-context lab baseline through a fresh six-gate sequence**
+
+Runtime alone:
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+Checkpoint: revalidate selector-evidence freshness/runtime digest, set/read
+back contract `observedAt=capturedAt` and
+`observationDigest=runtimeDigest`, or stop and recapture. Validate alone:
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+Checkpoint: accept validation. Plan alone:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+Checkpoint: inspect/accept only the selected non-gating performance case and
+separately authorize the later live block:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/performance/public-performance.spec.ts --grep "NAPP-PERF-001" --repeat-each=5 --retries=0
+~~~
+
+Keep samples separate and aggregate only median/worst numeric values. No
+unreviewed threshold changes status.
+
+- [ ] **Step 6: Reproduce each candidate through its own fresh six-gate sequence**
+
+For soft-404, capture runtime alone:
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+Checkpoint: revalidate selector-evidence freshness/runtime digest, set/read
+back contract `observedAt=capturedAt` and
+`observationDigest=runtimeDigest`, or stop and recapture. Validate alone:
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+Checkpoint: accept validation. Plan alone:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+Checkpoint: inspect/accept exact candidate selection and separately authorize
+the later live block:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/public/routes-seo.spec.ts --grep "NAPP-CAND-SOFT404-01" --repeat-each=3 --retries=0
+~~~
+
+The test uses three fresh contexts plus one exact-origin browserless GET and
+stores only the bounded candidate schema.
+
+For the update prompt, start a different sequence with runtime alone:
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+Checkpoint: revalidate selector-evidence freshness/runtime digest, set/read
+back contract `observedAt=capturedAt` and
+`observationDigest=runtimeDigest`, or stop and recapture. Validate alone:
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+Checkpoint: accept validation. Plan alone:
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+Checkpoint: inspect/accept exact update candidate selection and separately
+authorize the later live block:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/pwa/lifecycle.spec.ts --grep "NAPP-CAND-SW-UPDATE-01" --repeat-each=3 --retries=0
+~~~
+
+The controlled browser restart remains MANUAL unless a reviewed restart
+harness exists. For any React Native warning, run nothing ad hoc: require a
+discovered stable candidate ID, reviewed mapping, deterministic user-impact
+oracle, and another complete six-gate sequence; otherwise mark it UNVERIFIED.
+Classify product/test/environment/FLAKY/INCONCLUSIVE separately.
+
+- [ ] **Step 7: Prepare the confirmed bug batch**
+
+For each confirmed defect, create sanitized evidence, graph link, severity,
+regression-test design, duplicate-search result, and outbox fingerprint. Show
+the exact titles/priorities/platforms and consequences to the user for
+action-time confirmation before external creation.
+
+An aggregate telemetry change may raise reproduction priority or add a safe
+test, but it is never sufficient confirmation. Do not enqueue or create a Bugs
+item without the same clean-context deterministic reproduction required for
+all other candidates.
+
+- [ ] **Step 8: Sync confirmed bugs and read back**
+
+Use the leased outbox synchronizer and Nuanu Flow tools. Verify exact Bugs
+state, labels, priority, HTML, attachments, and `NAPP-*` identifier. Do not
+claim a ticket if read-back fails.
+
+- [ ] **Step 9: Add expected-failure regression tests**
+
+Only after a real ticket exists, replace the candidate annotation with a
+`test.fail(true, ...)` call containing the literal identifier and confirmed
+title returned by `get_issue`, then assert the correct behavior. Reject the
+edit if the resulting source does not match `/NAPP-[0-9]+:/`. Run the test to
+prove it expected-fails. A flaky candidate uses quarantine, not `test.fail`.
+
+### Task 13: Final Verification and Evidence-Based Report
+
+**Files:**
+- Update: `docs/nuanu-app/TEST-CASES.md`
+- Create: `docs/local/nuanu-app/evidence/${RUN_ID}/run-report.json`
+- Create: `docs/local/nuanu-app/evidence/${RUN_ID}/FINAL-REPORT.md`
+
+**Interfaces:**
+- Consumes: all executed results and Flow read-backs.
+- Consumes optionally: normalized telemetry baseline, signal dispositions,
+  privacy suppression counts, and add-only planner reasons.
+- Produces: exact automated, expected-fail, flaky, manual, blocked,
+  unverified, not-deployed, and inconclusive counts.
+
+- [ ] **Step 1: Run complete local verification**
+
+~~~bash
+node --test tests/nuanu-app-graph/*.test.mjs
+node --test tests/nuanu-app-evidence/*.test.mjs
+npm run typecheck
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app tests/nuanu-app/offline
+git diff --check
+~~~
+
+This step is offline: `--list` performs no navigation and every offline spec
+has a zero-live-request canary. It does not rerun the public product. Final
+live evidence comes only from Task 12's individually gated runs.
+
+- [ ] **Step 2: Capture the final runtime alone**
+
+~~~bash
+npm run nuanu-app:graph -- runtime --url https://app.nuanu.com
+~~~
+
+
+- [ ] **Step 3: Review and rebind the final catalog**
+
+Confirm selector-observation runtime digest/freshness, set contract
+`observedAt=capturedAt` and `observationDigest=runtimeDigest` exactly, and read
+both equalities back. If selector evidence is stale/mismatched, stop and
+recapture; do not repair or continue.
+
+- [ ] **Step 4: Validate alone**
+
+~~~bash
+npm run nuanu-app:graph -- validate
+~~~
+
+- [ ] **Step 5: Accept final validation evidence**
+
+Read and accept exact catalog, selector-observation, capture-plan, typed
+bindings/inventory, contract, mapping/source-lock, test-catalog, and graph
+attestations.
+
+- [ ] **Step 6: Build the final dry-run plan alone**
+
+~~~bash
+npm run nuanu-app:graph -- plan --runtime-only --dry-run
+~~~
+
+- [ ] **Step 7: Inspect and accept the final plan without live execution**
+
+Inspect exact IDs/reasons/status buckets and graph/impact/plan digests. Record
+acceptance of this exact plan. This checkpoint does not authorize another live
+Playwright run.
+
+Validate evidence redaction, graph digest, runtime/source disposition, and
+manual/device pending ledger. Also validate `current-run.json`, its contained
+private directory, every capped mutation-ledger attachment, the bounded
+selector-observation artifact, and absence of any raw DOM/network observation
+file.
+
+Validate the telemetry catalog and signal digest when present. Confirm that
+durable telemetry contains no raw event/person/replay data, direct identifiers,
+exact URLs/query values, search text, exception message/stack/code variables,
+headers, or bodies, and that every cohort below 20 is SUPPRESSED. If telemetry
+is BLOCKED, record the reason and continue final verification.
+
+Require the exact six-field catalog wrapper and recompute its digest including
+`capturedAt`. Verify the status/`queryHash`/`p75Pairing` unions, exact-match
+public allowlist mode, omitted-dimension random-ID mode, one reused ID per
+distinct non-public raw value catalog-wide, and absence of a reverse map.
+
+Confirm query-builder evidence rejects `HogQLQuery`, raw tables/columns/nodes,
+persons/replay, joins, and unknown fields before the injected client; every
+executed query carries the exact `app.nuanu.com` equality predicate, explicit
+immutable 24-hour UTC window, matching window-dependent approval, and approved
+complete hash; and the browser invite session was not API auth. Confirm the
+read layer, not the structural builder, validated one fresh digest-bound
+schema observation with all nine statuses. Confirm the bounded production
+provider envelope was read back; malformed success/redirect/unexpected status
+must be `HTTP_PROVIDER_BLOCKED`, while UNVERIFIED compatibility permits no
+query. Confirm
+breakdowns use only reviewed public categories or mapless catalog-local random
+IDs, never privacy-claimed unkeyed hashes. Exception groups may retain only an
+officially proven opaque provider fingerprint above the 20-observation floor
+from its dedicated auxiliary query and separate hash; otherwise report
+`FIELD_NOT_PROVEN` plus aggregate exception count/rate only.
+
+For every reported p75, confirm the percentile and independent total-count
+queries have approved hashes, an approved pair digest, identical window/host/
+filters/breakdown, and a one-to-one metric/bucket/dimension-coordinate match.
+Confirm standalone telemetry Task 2 evidence established that the emitted sample size equals the
+companion count, not an array or quantile-result length. Missing, extra,
+duplicate, mismatched, ambiguous, or sub-20 count evidence must yield
+UNAVAILABLE or SUPPRESSED with no p75 value. The raw-coordinate proof and
+negative cases come from standalone telemetry Task 2 tests; catalog/report verification
+checks only standalone telemetry Task 1's structural attestation and privacy result.
+
+For every non-p75 metric, confirm standalone Task 2 used the code-owned sole
+total, ordered rate denominator, or first funnel step as `sampleSize`, never
+response/row/bucket/array length. Any origin/arity/order mismatch remains
+UNAVAILABLE or BLOCKED and cannot add a test.
+
+- [ ] **Step 8: Read back Flow without mutation**
+
+List NAPP states, labels, Bugs items, Retest items, and initial coverage items.
+Reconcile every claimed identifier and attachment with actual persisted state.
+Read back the non-defect `Establish read-only PostHog telemetry baseline`
+coverage item separately; its existence or status never proves a Bugs item.
+
+- [ ] **Step 9: Report only supported claims**
+
+Report counts per status, confirmed `NAPP-*` items, verified working areas,
+manual/device work, missing credentials/oracles, source/runtime drift, flaky
+tests, and next safe actions. Do not claim full QA, real-device coverage,
+authenticated coverage, or deployment equivalence without evidence.
+
+Read counts from the planner's distinct `blocked`, `unverified`, and
+`notDeployed` buckets. Never report a source-only UNVERIFIED case as BLOCKED,
+and never merge a telemetry disposition into these case-status counts.
+
+The run report also records: mapped-node disposition percentage, exact-mapped
+changed-file percentage, autonomous share of repeatable cases, human minutes
+spent on authoring/triage/reruns/adjudication/device work, confirmed defects,
+duplicate rate, false-positive count, flaky rate, known escaped regressions,
+median candidate-to-verdict time, automatable confirmed bugs with regression
+coverage, and unauthorized consequential action count. Values without a
+measured denominator are `null` plus an explicit reason, never zero.
+
+Report telemetry independently as READY, PARTIAL, BLOCKED, or NOT_REQUESTED,
+then list capability/host-scope/schema-preflight/exact-window/structured-query/
+bounded-envelope/scoped-transport status, freshness, per-logical-metric
+availability, code-owned sample-origin status, counts/rates/p75 values, reviewed
+public breakdowns or catalog-local random IDs, eligible provider exception
+fingerprints, privacy suppressions, add-only selected tests, and the statement
+that thresholds remain unreviewed. Do not blend RUM
+with lab metrics, pass rate, source coverage, deployment identity, or confirmed
+defect counts.
+
+Each reported p75 entry additionally lists count-companion status, both query
+hashes in the canonical nested-role object, the pair digest, and
+`sampleSizeSource: "independent_total_count"`.
+These are query-integrity metadata only; raw responses and breakdown values
+below the privacy floor remain absent.
+
+- [ ] **Step 10: Commit only tracked registry/test changes**
+
+~~~bash
+git status --short
+git diff --check
+git add tests/nuanu-app docs/nuanu-app package.json package-lock.json playwright.config.ts .env.example tools/nuanu-app-graph tests/nuanu-app-graph
+git diff --cached --name-status
+git commit -m "test: establish Nuanu App web QA baseline"
+~~~
+
+Before commit, remove from the index every unrelated pre-existing path and
+verify that private evidence under `docs/local` remains untracked.
+
+## Coverage Exit Gate
+
+The web/PWA campaign is complete only when:
+
+- every live Playwright command has its own freshly reviewed
+  runtime→contract-rebind→validate→dry-run-plan evidence immediately before
+  execution;
+- graph validation attests the fixed private runtime contract against the
+  exact sibling catalog time/digest **and** separately attests the bounded
+  selector observation, reviewed capture plan, typed bindings/inventory, and
+  every referenced evidence ID/count; every promoted reference has exact
+  `matchCount: 1`, every recorded state passed its unique reviewed
+  postcondition before attribution, and ambiguity evidence selects nothing;
+  no root/probe record substitutes for that selector evidence, and no guessed
+  selector/digest repair or CSS/text/ordinal fallback occurred;
+- missing contract/auth prerequisites remain BLOCKED while malformed,
+  missing/duplicate/inaccessible selectors and digest drift remain UNVERIFIED;
+- the durable evidence run was created only by the fixed module-derived
+  run-context writer, and offline synthetic cases are excluded from live
+  coverage/pass counts;
+- every live case attaches a capped sanitized mutation ledger in `finally`,
+  and every first-party 5xx follows the three-context product/environment
+  triage rule before defect classification;
+- every implemented test has a stable ID and explicit status;
+- public functional/API/PWA/responsive/a11y/auth-boundary results have
+  sanitized evidence;
+- dynamic business/performance/visual claims remain UNVERIFIED until approved;
+- optional telemetry status and privacy suppressions are explicit; telemetry
+  BLOCKED does not block completion of the deterministic safe campaign;
+- telemetry only adds safe test selection and never supplies PASS/FAIL,
+  deployment proof, or automatic Bugs creation;
+- no telemetry query runs without complete capability read-back, the exact app
+  host predicate, fresh all-nine-status schema preflight, immutable approved
+  24-hour UTC window, recursively valid code-owned structured shape/hash,
+  verified bounded provider envelope, and a separate scoped transport; missing
+  or UNVERIFIED proof leaves only telemetry BLOCKED;
+- no unkeyed cohort hash is claimed as privacy and exception grouping follows
+  the dedicated-query official-opaque-proof plus 20-observation rule;
+- every persisted p75 has a one-to-one independently counted same-window/
+  scope/filter/breakdown cohort with count at least 20; absent or ambiguous
+  count evidence remains UNAVAILABLE/SUPPRESSED and never selects tests;
+- optional telemetry uses the exact catalog wrapper/digest, locked query-hash/
+  pairing unions, strict public-allowlist mode, and one mapless catalog-wide
+  random-ID memo; downstream web tasks never re-interpret raw provider rows;
+- every non-p75 telemetry sample uses its code-owned total, denominator, or
+  first-step origin; response/row/bucket/array length is never sample size;
+- every physical-device case remains MANUAL/BLOCKED without human evidence;
+- every confirmed bug has dedupe, regression coverage, Flow read-back, and
+  exact `NAPP-*` identifier;
+- no prohibited browser or upstream action occurred.

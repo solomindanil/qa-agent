@@ -1,0 +1,1750 @@
+import { digestJson } from "./model.mjs";
+import {
+  P75_METRIC_IDS,
+  TELEMETRY_DIMENSIONS,
+  TELEMETRY_METRIC_IDS,
+} from "./telemetry-contract.mjs";
+import {
+  POSTHOG_AUXILIARY_QUERY_BUILDERS,
+  POSTHOG_QUERY_BUILDERS,
+  TARGET_APP_HOST,
+  buildP75PostHogQueryPair,
+  buildStructuredPostHogQuery,
+  digestStructuredPostHogQuery,
+  getPostHogSensitiveScalarViolation,
+  validateAndFreezePostHogWindow,
+  validateP75PostHogQueryPair,
+  validateStructuredPostHogQuery,
+} from "./posthog-query-builders.mjs";
+
+export const POSTHOG_QUERY_IDS = Object.freeze([...TELEMETRY_METRIC_IDS]);
+
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+const PREFLIGHT_ID = /^napp-posthog-preflight-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const MAX_SCHEMA_AGE_MS = 30 * 60 * 1_000;
+const MAX_COORDINATES = 1_000;
+const MAX_DIMENSION_VALUE_BYTES = 128;
+const P75_METRIC_ID_SET = new Set(P75_METRIC_IDS);
+const TELEMETRY_DIMENSION_SET = new Set(TELEMETRY_DIMENSIONS);
+const QUERY_ID_SET = new Set(POSTHOG_QUERY_IDS);
+const ORGANIZATION_LEVELS = new Set(["none", "member", "admin", "owner"]);
+const PROJECT_VISIBILITIES = new Set(["private", "organization", "public"]);
+const RESOURCE_LEVELS = new Set(["none", "view", "edit", "admin"]);
+const ACCESS_VALUES = new Set(["allowed", "denied"]);
+const CREDENTIAL_VALUES = new Set(["available", "missing"]);
+const ADDITIONAL_EFFECTS = new Set(["read", "write", "manage"]);
+const HTTP_STATUSES = new Set([200, 401, 403, 429, 500, 502, 503, 504]);
+
+function readError(message, path = "$", code = "POSTHOG_READ_BLOCKED") {
+  const error = new Error(message);
+  error.code = code;
+  error.path = path;
+  return error;
+}
+
+function fail(message, path = "$", code = "POSTHOG_READ_BLOCKED") {
+  throw readError(message, path, code);
+}
+
+function compareCodeUnits(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function deepFreeze(value, seen = new WeakSet()) {
+  if (value === null || typeof value !== "object" || seen.has(value)) return value;
+  seen.add(value);
+  for (const child of Object.values(value)) deepFreeze(child, seen);
+  return Object.freeze(value);
+}
+
+function assertExactPlainObject(value, keys, path) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    fail(`${path} must be a plain object`, path);
+  }
+  if (Object.getPrototypeOf(value) !== Object.prototype) {
+    fail(`${path} must use the plain object prototype`, path);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) fail(`${path} must not contain symbols`, path);
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  for (const [key, descriptor] of Object.entries(descriptors)) {
+    if (!descriptor.enumerable || !("value" in descriptor)) {
+      fail(`${path}.${key} must be an enumerable data property`, `${path}.${key}`);
+    }
+  }
+  const actual = Object.keys(value).sort(compareCodeUnits);
+  const expected = [...keys].sort(compareCodeUnits);
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    fail(`${path} has missing or extra keys`, path);
+  }
+}
+
+function assertDensePlainArray(value, path, maximum = 10_000) {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+    fail(`${path} must be a plain array`, path);
+  }
+  if (!Number.isSafeInteger(value.length) || value.length > maximum) {
+    fail(`${path} exceeds its bounded array length`, path);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) fail(`${path} must not contain symbols`, path);
+  const names = Object.getOwnPropertyNames(value);
+  if (names.length !== value.length + 1 || !names.includes("length")) {
+    fail(`${path} must be dense and contain no extra keys`, path);
+  }
+  for (let index = 0; index < value.length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    if (!descriptor || !descriptor.enumerable || !("value" in descriptor)) {
+      fail(`${path}[${index}] must be an enumerable data entry`, `${path}[${index}]`);
+    }
+  }
+}
+
+function assertJsonTree(value, path = "$", seen = new WeakSet()) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || Object.is(value, -0)) fail(`${path} must be a finite JSON number`, path);
+    return;
+  }
+  if (typeof value !== "object") fail(`${path} must contain JSON values only`, path);
+  if (seen.has(value)) fail(`${path} must not contain cycles or shared references`, path);
+  seen.add(value);
+  if (Array.isArray(value)) {
+    assertDensePlainArray(value, path);
+    value.forEach((entry, index) => assertJsonTree(entry, `${path}[${index}]`, seen));
+    return;
+  }
+  if (Object.getPrototypeOf(value) !== Object.prototype) fail(`${path} must be a plain object`, path);
+  if (Object.getOwnPropertySymbols(value).length !== 0) fail(`${path} contains symbols`, path);
+  for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(value))) {
+    if (!descriptor.enumerable || !("value" in descriptor)) {
+      fail(`${path}.${key} must be an enumerable data property`, `${path}.${key}`);
+    }
+    assertJsonTree(descriptor.value, `${path}.${key}`, seen);
+  }
+}
+
+function assertString(value, path, { maxBytes = 256 } = {}) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    Buffer.byteLength(value, "utf8") > maxBytes ||
+    /[\u0000-\u001f\u007f]/.test(value)
+  ) {
+    fail(`${path} must be a bounded non-empty string`, path);
+  }
+}
+
+function assertIdentifier(value, path) {
+  if (getPostHogSensitiveScalarViolation(value, 256) !== null) {
+    fail(`${path} is not a safe bounded provider identifier`, path);
+  }
+}
+
+function assertSha256(value, path) {
+  if (typeof value !== "string" || !SHA256_HEX.test(value)) {
+    fail(`${path} must be a lowercase SHA-256 digest`, path);
+  }
+}
+
+function parseUtcIso(value, path) {
+  if (typeof value !== "string") fail(`${path} must be a canonical UTC timestamp`, path);
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
+    fail(`${path} must be a canonical UTC timestamp`, path);
+  }
+  return parsed.getTime();
+}
+
+function assertPreflightId(value, path) {
+  if (typeof value !== "string" || !PREFLIGHT_ID.test(value)) {
+    fail(`${path} must be a canonical PostHog preflight ID`, path);
+  }
+}
+
+function assertEnum(value, allowed, path) {
+  if (typeof value !== "string" || !allowed.has(value)) {
+    fail(`${path} has an invalid enum value`, path);
+  }
+}
+
+function assertBoolean(value, path) {
+  if (typeof value !== "boolean") fail(`${path} must be boolean`, path);
+}
+
+function assertSortedUniqueStrings(
+  values,
+  path,
+  { allowEmpty = true, safeScalars = false } = {},
+) {
+  assertDensePlainArray(values, path, 1_000);
+  if (!allowEmpty && values.length === 0) fail(`${path} must not be empty`, path);
+  let previous = null;
+  values.forEach((value, index) => {
+    assertString(value, `${path}[${index}]`, { maxBytes: 128 });
+    if (safeScalars && getPostHogSensitiveScalarViolation(value, 128) !== null) {
+      fail(`${path}[${index}] is not a reviewed safe scalar`, `${path}[${index}]`);
+    }
+    if (previous !== null && compareCodeUnits(previous, value) >= 0) {
+      fail(`${path} must be sorted and unique`, path);
+    }
+    previous = value;
+  });
+}
+
+function assertExactHttpsOrigin(value, path) {
+  assertString(value, path);
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    fail(`${path} must be an exact HTTPS origin`, path);
+  }
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.pathname !== "/" ||
+    parsed.search !== "" ||
+    parsed.hash !== "" ||
+    parsed.origin !== value
+  ) {
+    fail(`${path} must be an exact HTTPS origin`, path);
+  }
+}
+
+function validateAccessibleProjects(projects, accessLock) {
+  assertDensePlainArray(projects, "accessLock.effectiveCapabilities.accessibleProjects", 1_000);
+  let previous = null;
+  let targetCount = 0;
+  for (const [index, project] of projects.entries()) {
+    const path = `accessLock.effectiveCapabilities.accessibleProjects[${index}]`;
+    assertExactPlainObject(
+      project,
+      ["resourceId", "name", "defaultVisibility", "resourceLevel"],
+      path,
+    );
+    assertString(project.resourceId, `${path}.resourceId`);
+    assertString(project.name, `${path}.name`);
+    assertEnum(project.defaultVisibility, PROJECT_VISIBILITIES, `${path}.defaultVisibility`);
+    assertEnum(project.resourceLevel, RESOURCE_LEVELS, `${path}.resourceLevel`);
+    if (previous !== null && compareCodeUnits(previous, project.resourceId) >= 0) {
+      fail("accessible projects must be sorted by unique resource ID", path);
+    }
+    previous = project.resourceId;
+    if (project.resourceId === accessLock.targetProjectResourceId) {
+      targetCount += 1;
+      if (project.name !== accessLock.projectName) {
+        fail("target accessible project name does not match access lock", `${path}.name`);
+      }
+    }
+  }
+  if (targetCount !== 1) fail("accessible projects must contain target project exactly once", "accessLock.effectiveCapabilities.accessibleProjects");
+}
+
+function validateCapabilityMatrix(accessLock) {
+  const caps = accessLock.effectiveCapabilities;
+  assertExactPlainObject(
+    caps,
+    [
+      "inventory",
+      "organizationMembershipLevel",
+      "accessibleProjects",
+      "targetProjectResourceLevels",
+      "memberManagement",
+      "query",
+      "sensitiveRead",
+      "writes",
+      "additionalVisibleCapabilities",
+    ],
+    "accessLock.effectiveCapabilities",
+  );
+  assertExactPlainObject(
+    caps.inventory,
+    ["preflightId", "observedAt", "evidenceDigest", "visibleCapabilitiesComplete"],
+    "accessLock.effectiveCapabilities.inventory",
+  );
+  assertPreflightId(caps.inventory.preflightId, "accessLock.effectiveCapabilities.inventory.preflightId");
+  parseUtcIso(caps.inventory.observedAt, "accessLock.effectiveCapabilities.inventory.observedAt");
+  assertSha256(caps.inventory.evidenceDigest, "accessLock.effectiveCapabilities.inventory.evidenceDigest");
+  assertBoolean(caps.inventory.visibleCapabilitiesComplete, "accessLock.effectiveCapabilities.inventory.visibleCapabilitiesComplete");
+  if (!caps.inventory.visibleCapabilitiesComplete) {
+    fail("capability inventory must be complete", "accessLock.effectiveCapabilities.inventory.visibleCapabilitiesComplete");
+  }
+  assertEnum(caps.organizationMembershipLevel, ORGANIZATION_LEVELS, "accessLock.effectiveCapabilities.organizationMembershipLevel");
+  validateAccessibleProjects(caps.accessibleProjects, accessLock);
+
+  assertExactPlainObject(
+    caps.targetProjectResourceLevels,
+    ["project", "query", "persons", "replay", "rawEvents"],
+    "accessLock.effectiveCapabilities.targetProjectResourceLevels",
+  );
+  for (const key of ["project", "query", "persons", "replay", "rawEvents"]) {
+    assertEnum(caps.targetProjectResourceLevels[key], RESOURCE_LEVELS, `accessLock.effectiveCapabilities.targetProjectResourceLevels.${key}`);
+  }
+
+  assertExactPlainObject(
+    caps.memberManagement,
+    ["inviteMembers", "changeRoles", "removeMembers"],
+    "accessLock.effectiveCapabilities.memberManagement",
+  );
+  for (const key of ["inviteMembers", "changeRoles", "removeMembers"]) {
+    assertEnum(caps.memberManagement[key], ACCESS_VALUES, `accessLock.effectiveCapabilities.memberManagement.${key}`);
+  }
+
+  assertExactPlainObject(
+    caps.query,
+    ["aggregateStructuredRead", "scopedQueryCredential"],
+    "accessLock.effectiveCapabilities.query",
+  );
+  assertEnum(caps.query.aggregateStructuredRead, ACCESS_VALUES, "accessLock.effectiveCapabilities.query.aggregateStructuredRead");
+  assertEnum(caps.query.scopedQueryCredential, CREDENTIAL_VALUES, "accessLock.effectiveCapabilities.query.scopedQueryCredential");
+
+  assertExactPlainObject(
+    caps.sensitiveRead,
+    ["persons", "replay", "rawEvents", "exports"],
+    "accessLock.effectiveCapabilities.sensitiveRead",
+  );
+  for (const key of ["persons", "replay", "rawEvents", "exports"]) {
+    assertEnum(caps.sensitiveRead[key], ACCESS_VALUES, `accessLock.effectiveCapabilities.sensitiveRead.${key}`);
+  }
+
+  const writeKeys = [
+    "projectSettings",
+    "instrumentation",
+    "featureFlags",
+    "cohorts",
+    "dashboards",
+    "retention",
+    "annotations",
+    "projectData",
+    "members",
+  ];
+  assertExactPlainObject(caps.writes, writeKeys, "accessLock.effectiveCapabilities.writes");
+  for (const key of writeKeys) {
+    assertEnum(caps.writes[key], ACCESS_VALUES, `accessLock.effectiveCapabilities.writes.${key}`);
+  }
+
+  assertDensePlainArray(caps.additionalVisibleCapabilities, "accessLock.effectiveCapabilities.additionalVisibleCapabilities", 1_000);
+  let previous = null;
+  for (const [index, capability] of caps.additionalVisibleCapabilities.entries()) {
+    const path = `accessLock.effectiveCapabilities.additionalVisibleCapabilities[${index}]`;
+    assertExactPlainObject(capability, ["providerCapability", "effect", "access"], path);
+    assertString(capability.providerCapability, `${path}.providerCapability`);
+    assertEnum(capability.effect, ADDITIONAL_EFFECTS, `${path}.effect`);
+    assertEnum(capability.access, ACCESS_VALUES, `${path}.access`);
+    const key = `${capability.providerCapability}\u0000${capability.effect}`;
+    if (previous !== null && compareCodeUnits(previous, key) >= 0) {
+      fail("additional capabilities must be sorted and unique", path);
+    }
+    previous = key;
+  }
+
+  const authorized =
+    caps.query.aggregateStructuredRead === "allowed" &&
+    caps.query.scopedQueryCredential === "available";
+  if (accessLock.leastPrivilegeProven) {
+    const allDenied = [
+      ...Object.values(caps.memberManagement),
+      ...Object.values(caps.sensitiveRead),
+      ...Object.values(caps.writes),
+      ...caps.additionalVisibleCapabilities.map((entry) => entry.access),
+    ].every((value) => value === "denied");
+    const targetOnly =
+      caps.accessibleProjects.length === 1 &&
+      caps.accessibleProjects[0].resourceId === accessLock.targetProjectResourceId &&
+      caps.accessibleProjects[0].resourceLevel === "view" &&
+      caps.targetProjectResourceLevels.project === "view" &&
+      caps.targetProjectResourceLevels.query === "view" &&
+      caps.targetProjectResourceLevels.persons === "none" &&
+      caps.targetProjectResourceLevels.replay === "none" &&
+      caps.targetProjectResourceLevels.rawEvents === "none";
+    if (!allDenied || !targetOnly || accessLock.broaderMembershipConfirmed) {
+      fail("least privilege claim does not match the complete capability matrix", "accessLock.leastPrivilegeProven");
+    }
+  } else if (!accessLock.broaderMembershipConfirmed) {
+    fail("a broader complete capability matrix requires exact confirmation", "accessLock.broaderMembershipConfirmed");
+  }
+  return authorized;
+}
+
+function validateApprovedHashes(accessLock, windowDigest) {
+  const map = accessLock.approvedQueryHashes;
+  assertJsonTree(map, "accessLock.approvedQueryHashes");
+  if (map === null || typeof map !== "object" || Array.isArray(map)) {
+    fail("approvedQueryHashes must be a plain object", "accessLock.approvedQueryHashes");
+  }
+  const ids = Object.keys(map);
+  const expectedOrder = POSTHOG_QUERY_IDS.filter((id) => Object.hasOwn(map, id));
+  if (ids.length !== expectedOrder.length || ids.some((id, index) => id !== expectedOrder[index])) {
+    fail("approved query IDs must be known and in canonical order", "accessLock.approvedQueryHashes");
+  }
+  const usedHashes = new Set();
+  for (const queryId of ids) {
+    if (!QUERY_ID_SET.has(queryId)) fail("approved query ID is unknown", `accessLock.approvedQueryHashes.${queryId}`);
+    const record = map[queryId];
+    assertExactPlainObject(
+      record,
+      ["primary", "sampleCount", "pairDigest", "auxiliary", "windowDigest"],
+      `accessLock.approvedQueryHashes.${queryId}`,
+    );
+    assertSha256(record.primary, `accessLock.approvedQueryHashes.${queryId}.primary`);
+    if (record.windowDigest !== windowDigest) {
+      fail("approved query window digest does not match approvedWindow", `accessLock.approvedQueryHashes.${queryId}.windowDigest`);
+    }
+    if (P75_METRIC_ID_SET.has(queryId)) {
+      assertSha256(record.sampleCount, `accessLock.approvedQueryHashes.${queryId}.sampleCount`);
+      assertSha256(record.pairDigest, `accessLock.approvedQueryHashes.${queryId}.pairDigest`);
+      if (record.auxiliary !== null) fail("p75 query cannot have auxiliary approval", `accessLock.approvedQueryHashes.${queryId}.auxiliary`);
+    } else {
+      if (record.sampleCount !== null || record.pairDigest !== null) {
+        fail("non-p75 query cannot have sample-count or pair approval", `accessLock.approvedQueryHashes.${queryId}`);
+      }
+      if (queryId === "js-exception-rate" && record.auxiliary !== null) {
+        assertExactPlainObject(record.auxiliary, ["exceptionFingerprint"], `accessLock.approvedQueryHashes.${queryId}.auxiliary`);
+        assertSha256(record.auxiliary.exceptionFingerprint, `accessLock.approvedQueryHashes.${queryId}.auxiliary.exceptionFingerprint`);
+      } else if (record.auxiliary !== null) {
+        fail("auxiliary approval is valid only for js-exception-rate", `accessLock.approvedQueryHashes.${queryId}.auxiliary`);
+      }
+    }
+    for (const hash of [
+      record.primary,
+      record.sampleCount,
+      record.pairDigest,
+      record.auxiliary?.exceptionFingerprint,
+    ].filter(Boolean)) {
+      if (usedHashes.has(hash)) fail("approved role hashes must not be reused", `accessLock.approvedQueryHashes.${queryId}`);
+      usedHashes.add(hash);
+    }
+  }
+}
+
+export function validatePostHogAccessLock(accessLock) {
+  assertJsonTree(accessLock, "accessLock");
+  assertExactPlainObject(
+    accessLock,
+    [
+      "version",
+      "provider",
+      "host",
+      "organizationName",
+      "projectName",
+      "targetProjectResourceId",
+      "queryEndpointPath",
+      "displayedRole",
+      "effectiveCapabilities",
+      "leastPrivilegeProven",
+      "broaderMembershipConfirmed",
+      "acceptedAt",
+      "approvedWindow",
+      "approvedQueryHashes",
+    ],
+    "accessLock",
+  );
+  if (accessLock.version !== 1 || accessLock.provider !== "posthog") {
+    fail("access lock version/provider is unsupported", "accessLock");
+  }
+  assertExactHttpsOrigin(accessLock.host, "accessLock.host");
+  assertString(accessLock.organizationName, "accessLock.organizationName");
+  assertString(accessLock.projectName, "accessLock.projectName");
+  assertString(accessLock.targetProjectResourceId, "accessLock.targetProjectResourceId");
+  if (
+    !/^[A-Za-z0-9._:-]+$/.test(accessLock.targetProjectResourceId) ||
+    accessLock.targetProjectResourceId === "." ||
+    accessLock.targetProjectResourceId === ".."
+  ) {
+    fail("target project resource ID contains unsafe path characters", "accessLock.targetProjectResourceId");
+  }
+  const expectedPath = `/api/projects/${accessLock.targetProjectResourceId}/query/`;
+  if (accessLock.queryEndpointPath !== expectedPath) {
+    fail("query endpoint path must exactly match the target project resource", "accessLock.queryEndpointPath");
+  }
+  assertString(accessLock.displayedRole, "accessLock.displayedRole");
+  assertBoolean(accessLock.leastPrivilegeProven, "accessLock.leastPrivilegeProven");
+  assertBoolean(accessLock.broaderMembershipConfirmed, "accessLock.broaderMembershipConfirmed");
+  const acceptedAt = parseUtcIso(accessLock.acceptedAt, "accessLock.acceptedAt");
+  const authorized = validateCapabilityMatrix(accessLock);
+  const inventoryObservedAt = parseUtcIso(
+    accessLock.effectiveCapabilities.inventory.observedAt,
+    "accessLock.effectiveCapabilities.inventory.observedAt",
+  );
+  if (acceptedAt >= inventoryObservedAt) {
+    fail("final capability inventory must be observed after invitation acceptance", "accessLock.acceptedAt");
+  }
+
+  assertExactPlainObject(
+    accessLock.approvedWindow,
+    ["startAt", "endAt", "interval", "windowDigest", "schemaObservationId", "schemaFactsDigest"],
+    "accessLock.approvedWindow",
+  );
+  const window = validateAndFreezePostHogWindow({
+    startAt: accessLock.approvedWindow.startAt,
+    endAt: accessLock.approvedWindow.endAt,
+    interval: accessLock.approvedWindow.interval,
+  });
+  assertSha256(accessLock.approvedWindow.windowDigest, "accessLock.approvedWindow.windowDigest");
+  if (accessLock.approvedWindow.windowDigest !== digestJson(window)) {
+    fail("approved window digest does not match its exact window", "accessLock.approvedWindow.windowDigest");
+  }
+  assertPreflightId(accessLock.approvedWindow.schemaObservationId, "accessLock.approvedWindow.schemaObservationId");
+  assertSha256(accessLock.approvedWindow.schemaFactsDigest, "accessLock.approvedWindow.schemaFactsDigest");
+  if (accessLock.approvedWindow.schemaObservationId !== accessLock.effectiveCapabilities.inventory.preflightId) {
+    fail("approved window and capability inventory use mixed preflights", "accessLock.approvedWindow.schemaObservationId");
+  }
+  validateApprovedHashes(accessLock, accessLock.approvedWindow.windowDigest);
+  return { ok: true, authorized };
+}
+
+function validateMetricFacts(metrics) {
+  assertDensePlainArray(metrics, "schemaFacts.metrics", POSTHOG_QUERY_IDS.length);
+  if (metrics.length !== POSTHOG_QUERY_IDS.length) {
+    fail("schema facts must contain all nine metric statuses", "schemaFacts.metrics");
+  }
+  metrics.forEach((metric, index) => {
+    const path = `schemaFacts.metrics[${index}]`;
+    assertExactPlainObject(
+      metric,
+      ["metricId", "status", "events", "valuePropertyIdentifier", "exactPopulationSemanticsEvidenceDigest"],
+      path,
+    );
+    const queryId = POSTHOG_QUERY_IDS[index];
+    if (metric.metricId !== queryId) fail("schema metric IDs must use canonical order", `${path}.metricId`);
+    if (!new Set(["AVAILABLE", "NOT_INSTRUMENTED", "UNAVAILABLE"]).has(metric.status)) {
+      fail("schema metric status is invalid", `${path}.status`);
+    }
+    const definition = POSTHOG_QUERY_BUILDERS[queryId];
+    assertDensePlainArray(metric.events, `${path}.events`, definition.series.length);
+    if (metric.status === "NOT_INSTRUMENTED") {
+      if (
+        metric.events.length !== 0 ||
+        metric.valuePropertyIdentifier !== null ||
+        metric.exactPopulationSemanticsEvidenceDigest !== null
+      ) {
+        fail("NOT_INSTRUMENTED metric facts must not contain identifiers", path);
+      }
+      return;
+    }
+    if (metric.events.length !== definition.series.length) {
+      fail("schema metric event arity does not match code-owned roles", `${path}.events`);
+    }
+    metric.events.forEach((event, eventIndex) => {
+      const eventPath = `${path}.events[${eventIndex}]`;
+      assertExactPlainObject(event, ["role", "identifier"], eventPath);
+      if (event.role !== definition.series[eventIndex].role) {
+        fail("schema metric roles must match code-owned order", `${eventPath}.role`);
+      }
+      assertIdentifier(event.identifier, `${eventPath}.identifier`);
+    });
+    const isP75 = P75_METRIC_ID_SET.has(queryId);
+    if (isP75) {
+      assertIdentifier(metric.valuePropertyIdentifier, `${path}.valuePropertyIdentifier`, { property: true });
+    } else if (metric.valuePropertyIdentifier !== null) {
+      fail("non-p75 schema metric cannot bind a value property", `${path}.valuePropertyIdentifier`);
+    }
+    if (metric.status === "UNAVAILABLE") {
+      if (!isP75 || metric.exactPopulationSemanticsEvidenceDigest !== null) {
+        fail("schema UNAVAILABLE is valid only for p75 without population proof", path);
+      }
+    } else {
+      assertSha256(metric.exactPopulationSemanticsEvidenceDigest, `${path}.exactPopulationSemanticsEvidenceDigest`);
+    }
+  });
+}
+
+function validateBreakdownFacts(breakdowns) {
+  assertDensePlainArray(breakdowns, "schemaFacts.breakdowns", TELEMETRY_DIMENSIONS.length);
+  if (breakdowns.length !== TELEMETRY_DIMENSIONS.length) {
+    fail("schema facts must contain all five breakdown statuses", "schemaFacts.breakdowns");
+  }
+  breakdowns.forEach((breakdown, index) => {
+    const path = `schemaFacts.breakdowns[${index}]`;
+    assertExactPlainObject(breakdown, ["dimension", "status", "propertyIdentifier"], path);
+    if (breakdown.dimension !== TELEMETRY_DIMENSIONS[index]) {
+      fail("schema breakdowns must use canonical order", `${path}.dimension`);
+    }
+    if (!new Set(["AVAILABLE", "NOT_INSTRUMENTED"]).has(breakdown.status)) {
+      fail("schema breakdown status is invalid", `${path}.status`);
+    }
+    if (breakdown.status === "AVAILABLE") {
+      assertIdentifier(breakdown.propertyIdentifier, `${path}.propertyIdentifier`, { property: true });
+    } else if (breakdown.propertyIdentifier !== null) {
+      fail("NOT_INSTRUMENTED breakdown cannot bind a property", `${path}.propertyIdentifier`);
+    }
+  });
+}
+
+export function validatePostHogSchemaFacts(input) {
+  assertExactPlainObject(input, ["accessLock", "schemaFacts", "now"], "validatePostHogSchemaFacts input");
+  validatePostHogAccessLock(input.accessLock);
+  const { schemaFacts } = input;
+  assertJsonTree(schemaFacts, "schemaFacts");
+  assertExactPlainObject(
+    schemaFacts,
+    [
+      "version",
+      "provider",
+      "productId",
+      "targetHost",
+      "observation",
+      "hostScope",
+      "metrics",
+      "breakdowns",
+      "exceptionFingerprint",
+      "schemaFactsDigest",
+    ],
+    "schemaFacts",
+  );
+  if (
+    schemaFacts.version !== 1 ||
+    schemaFacts.provider !== "posthog" ||
+    schemaFacts.productId !== "nuanu-app" ||
+    schemaFacts.targetHost !== TARGET_APP_HOST
+  ) {
+    fail("schema facts identity is invalid", "schemaFacts");
+  }
+  assertSha256(schemaFacts.schemaFactsDigest, "schemaFacts.schemaFactsDigest");
+  const content = structuredClone(schemaFacts);
+  delete content.schemaFactsDigest;
+  if (schemaFacts.schemaFactsDigest !== digestJson(content)) {
+    fail("schema facts digest does not match its complete content", "schemaFacts.schemaFactsDigest");
+  }
+  assertExactPlainObject(
+    schemaFacts.observation,
+    ["preflightId", "observedAt", "targetProjectResourceId", "capabilityEvidenceDigest", "evidenceDigest"],
+    "schemaFacts.observation",
+  );
+  assertPreflightId(schemaFacts.observation.preflightId, "schemaFacts.observation.preflightId");
+  const observedAt = parseUtcIso(schemaFacts.observation.observedAt, "schemaFacts.observation.observedAt");
+  assertString(schemaFacts.observation.targetProjectResourceId, "schemaFacts.observation.targetProjectResourceId");
+  assertSha256(schemaFacts.observation.capabilityEvidenceDigest, "schemaFacts.observation.capabilityEvidenceDigest");
+  assertSha256(schemaFacts.observation.evidenceDigest, "schemaFacts.observation.evidenceDigest");
+
+  assertExactPlainObject(
+    schemaFacts.hostScope,
+    ["status", "kind", "propertyIdentifier", "operator", "value"],
+    "schemaFacts.hostScope",
+  );
+  if (!new Set(["AVAILABLE", "NOT_INSTRUMENTED"]).has(schemaFacts.hostScope.status)) {
+    fail("schema host scope status is invalid", "schemaFacts.hostScope.status");
+  }
+  if (
+    schemaFacts.hostScope.kind !== "event_property" ||
+    schemaFacts.hostScope.operator !== "exact" ||
+    schemaFacts.hostScope.value !== TARGET_APP_HOST
+  ) {
+    fail("schema host scope must use exact app.nuanu.com event property semantics", "schemaFacts.hostScope");
+  }
+  if (schemaFacts.hostScope.status === "AVAILABLE") {
+    assertIdentifier(schemaFacts.hostScope.propertyIdentifier, "schemaFacts.hostScope.propertyIdentifier", { property: true });
+  } else if (schemaFacts.hostScope.propertyIdentifier !== null) {
+    fail("NOT_INSTRUMENTED host scope cannot bind a property", "schemaFacts.hostScope.propertyIdentifier");
+  }
+  validateMetricFacts(schemaFacts.metrics);
+  validateBreakdownFacts(schemaFacts.breakdowns);
+
+  assertExactPlainObject(
+    schemaFacts.exceptionFingerprint,
+    ["status", "propertyIdentifier", "officialSchemaEvidenceDigest"],
+    "schemaFacts.exceptionFingerprint",
+  );
+  if (schemaFacts.exceptionFingerprint.status === "PROVEN_OPAQUE") {
+    assertIdentifier(schemaFacts.exceptionFingerprint.propertyIdentifier, "schemaFacts.exceptionFingerprint.propertyIdentifier", { property: true });
+    assertSha256(schemaFacts.exceptionFingerprint.officialSchemaEvidenceDigest, "schemaFacts.exceptionFingerprint.officialSchemaEvidenceDigest");
+  } else if (schemaFacts.exceptionFingerprint.status === "FIELD_NOT_PROVEN") {
+    if (
+      schemaFacts.exceptionFingerprint.propertyIdentifier !== null ||
+      schemaFacts.exceptionFingerprint.officialSchemaEvidenceDigest !== null
+    ) {
+      fail("FIELD_NOT_PROVEN fingerprint facts must contain null proof fields", "schemaFacts.exceptionFingerprint");
+    }
+  } else {
+    fail("exception fingerprint status is invalid", "schemaFacts.exceptionFingerprint.status");
+  }
+
+  const inventory = input.accessLock.effectiveCapabilities.inventory;
+  if (
+    schemaFacts.observation.preflightId !== inventory.preflightId ||
+    schemaFacts.observation.preflightId !== input.accessLock.approvedWindow.schemaObservationId
+  ) {
+    fail("schema facts and access lock use mixed preflight identities", "schemaFacts.observation.preflightId");
+  }
+  if (schemaFacts.schemaFactsDigest !== input.accessLock.approvedWindow.schemaFactsDigest) {
+    fail("schema facts digest does not match approved window", "schemaFacts.schemaFactsDigest");
+  }
+  if (schemaFacts.observation.targetProjectResourceId !== input.accessLock.targetProjectResourceId) {
+    fail("schema target project resource does not match access lock", "schemaFacts.observation.targetProjectResourceId");
+  }
+  if (schemaFacts.observation.capabilityEvidenceDigest !== inventory.evidenceDigest) {
+    fail("schema capability evidence does not match inventory", "schemaFacts.observation.capabilityEvidenceDigest");
+  }
+  const inventoryObservedAt = parseUtcIso(inventory.observedAt, "accessLock.effectiveCapabilities.inventory.observedAt");
+  const now = parseUtcIso(input.now, "now");
+  if (inventoryObservedAt > observedAt) {
+    fail("schema observation precedes capability inventory", "schemaFacts.observation.observedAt");
+  }
+  if (observedAt > now || inventoryObservedAt > now) {
+    fail("schema or capability evidence is from the future", "schemaFacts.observation.observedAt");
+  }
+  if (now - observedAt > MAX_SCHEMA_AGE_MS || now - inventoryObservedAt > MAX_SCHEMA_AGE_MS) {
+    fail("schema or capability evidence is stale beyond thirty minutes", "schemaFacts.observation.observedAt");
+  }
+  return { ok: true };
+}
+
+function validateManifestBreakdown(breakdown, schemaFacts, path) {
+  if (breakdown === null) return null;
+  assertExactPlainObject(
+    breakdown,
+    ["dimension", "propertyIdentifier", "publicValueAllowlist"],
+    path,
+  );
+  if (!TELEMETRY_DIMENSION_SET.has(breakdown.dimension)) {
+    fail(`${path}.dimension is not reviewed`, `${path}.dimension`);
+  }
+  const fact = schemaFacts.breakdowns.find((entry) => entry.dimension === breakdown.dimension);
+  if (
+    !fact ||
+    fact.status !== "AVAILABLE" ||
+    breakdown.propertyIdentifier !== fact.propertyIdentifier
+  ) {
+    fail(`${path} is not bound to an AVAILABLE fresh breakdown fact`, path);
+  }
+  if (breakdown.publicValueAllowlist !== null) {
+    assertSortedUniqueStrings(
+      breakdown.publicValueAllowlist,
+      `${path}.publicValueAllowlist`,
+      { allowEmpty: false, safeScalars: true },
+    );
+  }
+  return breakdown;
+}
+
+function createBuilderBinding(queryManifest, binding) {
+  return {
+    queryId: binding.queryId,
+    builderId: binding.builderId,
+    eventIdentifiers: [...binding.eventIdentifiers],
+    valuePropertyIdentifier: binding.valuePropertyIdentifier,
+    hostPropertyIdentifier: queryManifest.hostScope.propertyIdentifier,
+    breakdown: binding.breakdown === null ? null : structuredClone(binding.breakdown),
+    p75SampleCountCompanion: binding.p75SampleCountCompanion === null
+      ? null
+      : structuredClone(binding.p75SampleCountCompanion),
+  };
+}
+
+function createAuxiliaryBuilderBinding(queryManifest, binding) {
+  return {
+    queryId: "js-exception-rate:fingerprint",
+    builderId: binding.exceptionFingerprintQuery.builderId,
+    eventIdentifiers: [binding.eventIdentifiers[1]],
+    valuePropertyIdentifier: null,
+    hostPropertyIdentifier: queryManifest.hostScope.propertyIdentifier,
+    breakdown: {
+      dimension: "exception_fingerprint",
+      propertyIdentifier: binding.exceptionFingerprintQuery.propertyIdentifier,
+      publicValueAllowlist: null,
+    },
+    p75SampleCountCompanion: null,
+  };
+}
+
+function validateApprovalForBinding({ accessLock, queryManifest, binding, metricFact, window }) {
+  const approval = accessLock.approvedQueryHashes[binding.queryId];
+  const builderBinding = createBuilderBinding(queryManifest, binding);
+  if (metricFact.status === "UNAVAILABLE") {
+    if (approval !== undefined) {
+      fail("schema-level UNAVAILABLE p75 cannot have a partial approval", `accessLock.approvedQueryHashes.${binding.queryId}`);
+    }
+    const result = buildP75PostHogQueryPair({
+      metricId: binding.queryId,
+      binding: builderBinding,
+      window,
+    });
+    if (result.status !== "UNAVAILABLE" || result.queryHash === null) {
+      fail("UNAVAILABLE p75 must retain a complete primary hash", `queryManifest.bindings.${binding.queryId}`);
+    }
+    return;
+  }
+  if (approval === undefined) {
+    fail("every AVAILABLE complete query requires an approved hash record", `accessLock.approvedQueryHashes.${binding.queryId}`);
+  }
+  if (P75_METRIC_ID_SET.has(binding.queryId)) {
+    const result = buildP75PostHogQueryPair({ metricId: binding.queryId, binding: builderBinding, window });
+    if (
+      result.status !== "READY" ||
+      approval.primary !== result.queryHash ||
+      approval.sampleCount !== result.pairBundle.p75PairDigestInput.sampleCount.queryHash ||
+      approval.pairDigest !== result.pairBundle.pairDigest
+    ) {
+      fail("approved p75 hashes or pair digest do not match rebuilt queries", `accessLock.approvedQueryHashes.${binding.queryId}`);
+    }
+  } else {
+    const query = buildStructuredPostHogQuery({ queryId: binding.queryId, binding: builderBinding, window });
+    if (approval.primary !== digestStructuredPostHogQuery(query)) {
+      fail("approved primary hash does not match rebuilt query", `accessLock.approvedQueryHashes.${binding.queryId}.primary`);
+    }
+  }
+  if (binding.exceptionFingerprintQuery !== null) {
+    const auxiliaryQuery = buildStructuredPostHogQuery({
+      queryId: "js-exception-rate:fingerprint",
+      binding: createAuxiliaryBuilderBinding(queryManifest, binding),
+      window,
+    });
+    if (
+      approval.auxiliary === null ||
+      approval.auxiliary.exceptionFingerprint !== digestStructuredPostHogQuery(auxiliaryQuery)
+    ) {
+      fail("approved exception auxiliary hash does not match rebuilt query", `accessLock.approvedQueryHashes.${binding.queryId}.auxiliary`);
+    }
+  } else if (approval.auxiliary !== null) {
+    fail("unbound exception auxiliary hash is not allowed", `accessLock.approvedQueryHashes.${binding.queryId}.auxiliary`);
+  }
+}
+
+export function validatePostHogQueryManifest(input) {
+  assertExactPlainObject(
+    input,
+    ["accessLock", "queryManifest", "schemaFacts", "window", "now"],
+    "validatePostHogQueryManifest input",
+  );
+  const accessValidation = validatePostHogAccessLock(input.accessLock);
+  validatePostHogSchemaFacts({
+    accessLock: input.accessLock,
+    schemaFacts: input.schemaFacts,
+    now: input.now,
+  });
+  const window = validateAndFreezePostHogWindow(input.window);
+  if (
+    input.accessLock.approvedWindow.startAt !== window.startAt ||
+    input.accessLock.approvedWindow.endAt !== window.endAt ||
+    input.accessLock.approvedWindow.interval !== window.interval ||
+    input.accessLock.approvedWindow.windowDigest !== digestJson(window)
+  ) {
+    fail("adapter window does not match the exact approved window and digest", "window");
+  }
+  const manifest = input.queryManifest;
+  assertJsonTree(manifest, "queryManifest");
+  assertExactPlainObject(
+    manifest,
+    ["version", "provider", "targetHost", "schemaObservation", "hostScope", "bindings"],
+    "queryManifest",
+  );
+  if (manifest.version !== 1 || manifest.provider !== "posthog" || manifest.targetHost !== TARGET_APP_HOST) {
+    fail("query manifest identity is invalid", "queryManifest");
+  }
+  assertExactPlainObject(
+    manifest.schemaObservation,
+    ["preflightId", "schemaFactsDigest"],
+    "queryManifest.schemaObservation",
+  );
+  if (
+    manifest.schemaObservation.preflightId !== input.schemaFacts.observation.preflightId ||
+    manifest.schemaObservation.schemaFactsDigest !== input.schemaFacts.schemaFactsDigest
+  ) {
+    fail("query manifest uses mixed or stale schema preflight evidence", "queryManifest.schemaObservation");
+  }
+  assertExactPlainObject(
+    manifest.hostScope,
+    ["propertyIdentifier", "operator", "value"],
+    "queryManifest.hostScope",
+  );
+  if (
+    input.schemaFacts.hostScope.status !== "AVAILABLE" ||
+    manifest.hostScope.propertyIdentifier !== input.schemaFacts.hostScope.propertyIdentifier ||
+    manifest.hostScope.operator !== "exact" ||
+    manifest.hostScope.value !== TARGET_APP_HOST
+  ) {
+    fail("query manifest host scope does not match fresh exact schema facts", "queryManifest.hostScope");
+  }
+
+  const expectedFacts = input.schemaFacts.metrics.filter((metric) => metric.status !== "NOT_INSTRUMENTED");
+  assertDensePlainArray(manifest.bindings, "queryManifest.bindings", POSTHOG_QUERY_IDS.length);
+  if (manifest.bindings.length !== expectedFacts.length) {
+    fail("manifest bindings must equal every AVAILABLE or UNAVAILABLE schema metric", "queryManifest.bindings");
+  }
+  const publicDeclarations = new Map();
+  const expectedApprovedIds = [];
+  const reservedOrdinaryProperties = new Set([
+    manifest.hostScope.propertyIdentifier,
+    ...input.schemaFacts.breakdowns
+      .filter((breakdown) => breakdown.status === "AVAILABLE")
+      .map((breakdown) => breakdown.propertyIdentifier),
+    ...input.schemaFacts.metrics
+      .filter((metric) => metric.valuePropertyIdentifier !== null)
+      .map((metric) => metric.valuePropertyIdentifier),
+  ]);
+  manifest.bindings.forEach((binding, index) => {
+    const path = `queryManifest.bindings[${index}]`;
+    const metricFact = expectedFacts[index];
+    assertExactPlainObject(
+      binding,
+      [
+        "queryId",
+        "builderId",
+        "eventIdentifiers",
+        "valuePropertyIdentifier",
+        "breakdown",
+        "exceptionFingerprintQuery",
+        "p75SampleCountCompanion",
+      ],
+      path,
+    );
+    if (binding.queryId !== metricFact.metricId) fail("manifest binding order/status set is invalid", `${path}.queryId`);
+    const definition = POSTHOG_QUERY_BUILDERS[binding.queryId];
+    if (!definition || binding.builderId !== definition.builderId) {
+      fail("manifest builder ID is not code-owned", `${path}.builderId`);
+    }
+    assertDensePlainArray(binding.eventIdentifiers, `${path}.eventIdentifiers`, definition.series.length);
+    const expectedEvents = metricFact.events.map((event) => event.identifier);
+    if (
+      binding.eventIdentifiers.length !== expectedEvents.length ||
+      binding.eventIdentifiers.some((identifier, eventIndex) => identifier !== expectedEvents[eventIndex])
+    ) {
+      fail("manifest event identifiers do not match fresh schema role order", `${path}.eventIdentifiers`);
+    }
+    if (binding.valuePropertyIdentifier !== metricFact.valuePropertyIdentifier) {
+      fail("manifest value property does not match fresh schema facts", `${path}.valuePropertyIdentifier`);
+    }
+    validateManifestBreakdown(binding.breakdown, input.schemaFacts, `${path}.breakdown`);
+    if (binding.breakdown !== null) {
+      const declaration = binding.breakdown.publicValueAllowlist === null
+        ? null
+        : JSON.stringify(binding.breakdown.publicValueAllowlist);
+      if (publicDeclarations.has(binding.breakdown.dimension) && publicDeclarations.get(binding.breakdown.dimension) !== declaration) {
+        fail("conflicting public allowlists cannot change persistence mode", `${path}.breakdown.publicValueAllowlist`);
+      }
+      publicDeclarations.set(binding.breakdown.dimension, declaration);
+    }
+    if (P75_METRIC_ID_SET.has(binding.queryId)) {
+      if (metricFact.status === "AVAILABLE") {
+        assertExactPlainObject(
+          binding.p75SampleCountCompanion,
+          ["builderId", "exactPopulationSemanticsEvidenceDigest"],
+          `${path}.p75SampleCountCompanion`,
+        );
+        if (
+          binding.p75SampleCountCompanion.builderId !== "trends-total-sample-size-v1" ||
+          binding.p75SampleCountCompanion.exactPopulationSemanticsEvidenceDigest !== metricFact.exactPopulationSemanticsEvidenceDigest
+        ) {
+          fail("p75 companion does not match exact population evidence", `${path}.p75SampleCountCompanion`);
+        }
+      } else if (binding.p75SampleCountCompanion !== null) {
+        fail("schema-level UNAVAILABLE p75 must have null companion", `${path}.p75SampleCountCompanion`);
+      }
+    } else if (binding.p75SampleCountCompanion !== null) {
+      fail("non-p75 manifest binding cannot contain a companion", `${path}.p75SampleCountCompanion`);
+    }
+    if (binding.exceptionFingerprintQuery !== null) {
+      if (binding.queryId !== "js-exception-rate" || binding.breakdown !== null) {
+        fail("exception fingerprint auxiliary query is exclusive with a normal breakdown", `${path}.exceptionFingerprintQuery`);
+      }
+      assertExactPlainObject(
+        binding.exceptionFingerprintQuery,
+        ["builderId", "propertyIdentifier", "officialSchemaEvidenceDigest"],
+        `${path}.exceptionFingerprintQuery`,
+      );
+      if (
+        input.schemaFacts.exceptionFingerprint.status !== "PROVEN_OPAQUE" ||
+        binding.exceptionFingerprintQuery.builderId !== POSTHOG_AUXILIARY_QUERY_BUILDERS["js-exception-rate:fingerprint"].builderId ||
+        binding.exceptionFingerprintQuery.propertyIdentifier !== input.schemaFacts.exceptionFingerprint.propertyIdentifier ||
+        binding.exceptionFingerprintQuery.officialSchemaEvidenceDigest !== input.schemaFacts.exceptionFingerprint.officialSchemaEvidenceDigest
+      ) {
+        fail("exception fingerprint proof does not match fresh schema facts", `${path}.exceptionFingerprintQuery`);
+      }
+      if (reservedOrdinaryProperties.has(binding.exceptionFingerprintQuery.propertyIdentifier)) {
+        fail(
+          "exception fingerprint property collides with or reuses an ordinary scoped property",
+          `${path}.exceptionFingerprintQuery.propertyIdentifier`,
+        );
+      }
+    } else if (
+      binding.queryId === "js-exception-rate" &&
+      input.schemaFacts.exceptionFingerprint.status === "PROVEN_OPAQUE"
+    ) {
+      fail("proven opaque exception fingerprint requires its exact auxiliary binding", `${path}.exceptionFingerprintQuery`);
+    }
+    if (metricFact.status === "AVAILABLE") expectedApprovedIds.push(binding.queryId);
+    validateApprovalForBinding({
+      accessLock: input.accessLock,
+      queryManifest: manifest,
+      binding,
+      metricFact,
+      window,
+    });
+  });
+
+  const approvedIds = Object.keys(input.accessLock.approvedQueryHashes);
+  if (
+    approvedIds.length !== expectedApprovedIds.length ||
+    approvedIds.some((id, index) => id !== expectedApprovedIds[index])
+  ) {
+    fail("approved query set must equal AVAILABLE manifest bindings exactly", "accessLock.approvedQueryHashes");
+  }
+  const publicValueAllowlists = {};
+  for (const dimension of TELEMETRY_DIMENSIONS) {
+    if (!publicDeclarations.has(dimension)) continue;
+    const declaration = publicDeclarations.get(dimension);
+    if (declaration !== null) publicValueAllowlists[dimension] = JSON.parse(declaration);
+  }
+  return {
+    ok: true,
+    authorized: accessValidation.authorized,
+    publicValueAllowlists: deepFreeze(publicValueAllowlists),
+  };
+}
+
+function metricFactFor(schemaFacts, queryId) {
+  return schemaFacts.metrics[POSTHOG_QUERY_IDS.indexOf(queryId)];
+}
+
+function manifestBindingFor(queryManifest, queryId) {
+  return queryManifest.bindings.find((binding) => binding.queryId === queryId) ?? null;
+}
+
+function envelopeBlocked(limitation) {
+  return deepFreeze({ status: "BLOCKED", limitation });
+}
+
+function limitationForStatus(status) {
+  if (status === 401 || status === 403) return "HTTP_AUTH_BLOCKED";
+  if (status === 429) return "HTTP_RATE_LIMIT_BLOCKED";
+  return "HTTP_PROVIDER_BLOCKED";
+}
+
+function assertProviderEnvelope(envelope, expected, { allowDuplicateCoordinates }) {
+  assertJsonTree(envelope, "providerEnvelope");
+  assertExactPlainObject(envelope, ["status", "redirected", "payload"], "providerEnvelope");
+  if (!HTTP_STATUSES.has(envelope.status)) fail("provider envelope status is not allowed", "providerEnvelope.status");
+  if (envelope.redirected !== false) fail("provider redirects are not allowed", "providerEnvelope.redirected");
+  if (envelope.status !== 200) {
+    if (envelope.payload !== null) fail("provider error envelope must have null payload", "providerEnvelope.payload");
+    return { status: "BLOCKED", limitation: limitationForStatus(envelope.status) };
+  }
+  if (envelope.payload === null) fail("provider 200 envelope requires payload", "providerEnvelope.payload");
+  const payload = envelope.payload;
+  assertExactPlainObject(
+    payload,
+    ["schemaVersion", "queryId", "queryHash", "windowDigest", "resultKind", "coordinates"],
+    "providerEnvelope.payload",
+  );
+  if (
+    payload.schemaVersion !== 1 ||
+    payload.queryId !== expected.queryId ||
+    payload.queryHash !== expected.queryHash ||
+    payload.windowDigest !== expected.windowDigest ||
+    payload.resultKind !== expected.resultKind
+  ) {
+    fail("provider envelope identity does not match the immutable request", "providerEnvelope.payload");
+  }
+  assertDensePlainArray(payload.coordinates, "providerEnvelope.payload.coordinates", MAX_COORDINATES);
+  const identities = new Set();
+  const coordinates = payload.coordinates.map((coordinate, coordinateIndex) => {
+    const path = `providerEnvelope.payload.coordinates[${coordinateIndex}]`;
+    assertExactPlainObject(coordinate, ["bucketEndedAt", "dimensionIds", "dimensionValues", "series"], path);
+    if (coordinate.bucketEndedAt !== expected.window.endAt) {
+      fail("provider bucket must end at the exact approved window end", `${path}.bucketEndedAt`);
+    }
+    assertDensePlainArray(coordinate.dimensionIds, `${path}.dimensionIds`, 5);
+    assertDensePlainArray(coordinate.dimensionValues, `${path}.dimensionValues`, 5);
+    if (coordinate.dimensionIds.length !== coordinate.dimensionValues.length) {
+      fail("provider dimension IDs and values must have equal arity", path);
+    }
+    let previousDimension = null;
+    coordinate.dimensionIds.forEach((dimension, index) => {
+      const allowed = TELEMETRY_DIMENSION_SET.has(dimension) ||
+        (expected.requestRole === "exception_fingerprint" && dimension === "exception_fingerprint");
+      if (!allowed) fail("provider dimension ID is not reviewed for this request", `${path}.dimensionIds[${index}]`);
+      if (previousDimension !== null && compareCodeUnits(previousDimension, dimension) >= 0) {
+        fail("provider dimension IDs must be sorted and unique", `${path}.dimensionIds`);
+      }
+      previousDimension = dimension;
+      assertString(coordinate.dimensionValues[index], `${path}.dimensionValues[${index}]`, {
+        maxBytes: MAX_DIMENSION_VALUE_BYTES,
+      });
+    });
+    const allowedDimensions = expected.requestRole === "exception_fingerprint"
+      ? [["exception_fingerprint"]]
+      : expected.breakdownDimension === null
+        ? [[]]
+        : [[], [expected.breakdownDimension]];
+    if (!allowedDimensions.some((dimensions) => JSON.stringify(dimensions) === JSON.stringify(coordinate.dimensionIds))) {
+      fail("provider coordinate dimensions do not match the code-owned request", `${path}.dimensionIds`);
+    }
+    assertDensePlainArray(coordinate.series, `${path}.series`, expected.series.length);
+    if (coordinate.series.length !== expected.series.length) {
+      fail("provider series arity does not match code-owned request", `${path}.series`);
+    }
+    coordinate.series.forEach((series, index) => {
+      const seriesPath = `${path}.series[${index}]`;
+      assertExactPlainObject(series, ["index", "role", "aggregation", "value"], seriesPath);
+      const expectedSeries = expected.series[index];
+      if (
+        series.index !== index ||
+        series.role !== expectedSeries.role ||
+        series.aggregation !== expectedSeries.aggregation
+      ) {
+        fail("provider series order/role/aggregation does not match request", seriesPath);
+      }
+      if (
+        typeof series.value !== "number" ||
+        !Number.isFinite(series.value) ||
+        series.value < 0 ||
+        Object.is(series.value, -0)
+      ) {
+        fail("provider series value must be finite and non-negative", `${seriesPath}.value`);
+      }
+      if (series.aggregation !== "p75" && !Number.isSafeInteger(series.value)) {
+        fail("provider count/session value must be a non-negative safe integer", `${seriesPath}.value`);
+      }
+    });
+    const identity = JSON.stringify([
+      payload.queryId,
+      payload.queryHash,
+      payload.windowDigest,
+      coordinate.bucketEndedAt,
+      coordinate.dimensionIds,
+      coordinate.dimensionValues,
+    ]);
+    if (!allowDuplicateCoordinates && identities.has(identity)) {
+      fail("provider non-p75 or auxiliary coordinates must be unique", path);
+    }
+    identities.add(identity);
+    return {
+      bucketEndedAt: coordinate.bucketEndedAt,
+      dimensionIds: [...coordinate.dimensionIds],
+      dimensionValues: [...coordinate.dimensionValues],
+      series: coordinate.series.map((series) => ({ ...series })),
+    };
+  });
+  return { status: "OK", coordinates };
+}
+
+function expectedRequest({ queryId, requestRole, queryHash, window, binding }) {
+  const auxiliary = requestRole === "exception_fingerprint";
+  const definition = auxiliary
+    ? POSTHOG_AUXILIARY_QUERY_BUILDERS["js-exception-rate:fingerprint"]
+    : POSTHOG_QUERY_BUILDERS[queryId];
+  const series = definition.series.map((entry) => ({
+    role: entry.role,
+    aggregation: requestRole === "sample_count" ? "total" : entry.aggregation,
+  }));
+  return {
+    queryId: auxiliary ? "js-exception-rate:fingerprint" : queryId,
+    queryHash,
+    windowDigest: digestJson(window),
+    resultKind: definition.queryKind === "FunnelsQuery" ? "funnel" : "series",
+    requestRole,
+    breakdownDimension: auxiliary
+      ? "exception_fingerprint"
+      : binding.breakdown?.dimension ?? null,
+    series,
+    window,
+  };
+}
+
+function validateTransportWindow(actual, expected) {
+  const window = validateAndFreezePostHogWindow(actual);
+  if (
+    window.startAt !== expected.startAt ||
+    window.endAt !== expected.endAt ||
+    window.interval !== expected.interval
+  ) {
+    fail("transport caller window does not match its construction window", "window");
+  }
+  return window;
+}
+
+export function createExactPostHogTransport(input) {
+  assertExactPlainObject(
+    input,
+    ["accessLock", "queryManifest", "schemaFacts", "window", "authorizedPostProvider", "now"],
+    "createExactPostHogTransport input",
+  );
+  if (typeof input.now !== "function") fail("now must be an injected function", "now");
+  assertJsonTree(input.schemaFacts, "schemaFacts");
+  const nowForStructure = input.schemaFacts?.observation?.observedAt;
+  const manifestValidation = validatePostHogQueryManifest({
+    accessLock: input.accessLock,
+    queryManifest: input.queryManifest,
+    schemaFacts: input.schemaFacts,
+    window: input.window,
+    now: nowForStructure,
+  });
+  const window = validateAndFreezePostHogWindow(input.window);
+  const accessLock = deepFreeze(structuredClone(input.accessLock));
+  const queryManifest = deepFreeze(structuredClone(input.queryManifest));
+  const schemaFacts = deepFreeze(structuredClone(input.schemaFacts));
+  const now = input.now;
+  if (manifestValidation.authorized) {
+    assertExactPlainObject(
+      input.authorizedPostProvider,
+      ["postJsonWithHostSecret"],
+      "authorizedPostProvider",
+    );
+    if (typeof input.authorizedPostProvider.postJsonWithHostSecret !== "function") {
+      fail("authorizedPostProvider requires injected postJsonWithHostSecret", "authorizedPostProvider.postJsonWithHostSecret");
+    }
+  } else if (input.authorizedPostProvider !== null) {
+    assertExactPlainObject(
+      input.authorizedPostProvider,
+      ["postJsonWithHostSecret"],
+      "authorizedPostProvider",
+    );
+    if (typeof input.authorizedPostProvider.postJsonWithHostSecret !== "function") {
+      fail("authorizedPostProvider must be null or an exact injected broker", "authorizedPostProvider");
+    }
+  }
+  const providerCall = input.authorizedPostProvider === null
+    ? null
+    : input.authorizedPostProvider.postJsonWithHostSecret.bind(input.authorizedPostProvider);
+  const unavailableTransportLimitation =
+    accessLock.effectiveCapabilities.query.scopedQueryCredential === "missing"
+      ? "SCOPED_TRANSPORT_BLOCKED"
+      : "CAPABILITY_MATRIX_BLOCKED";
+
+  function validateFreshTransportState() {
+    try {
+      const capturedAt = now();
+      return validatePostHogQueryManifest({
+        accessLock,
+        queryManifest,
+        schemaFacts,
+        window,
+        now: capturedAt,
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  async function postOne({ queryId, requestRole, queryHash, query, binding, allowDuplicateCoordinates }) {
+    let envelope;
+    try {
+      envelope = await providerCall({
+        host: accessLock.host,
+        path: accessLock.queryEndpointPath,
+        body: { query },
+      });
+    } catch {
+      return envelopeBlocked("HTTP_PROVIDER_BLOCKED");
+    }
+    try {
+      const normalized = assertProviderEnvelope(
+        envelope,
+        expectedRequest({ queryId, requestRole, queryHash, window, binding }),
+        { allowDuplicateCoordinates },
+      );
+      return deepFreeze(normalized);
+    } catch (error) {
+      if (error?.code === "POSTHOG_READ_BLOCKED") return envelopeBlocked("HTTP_PROVIDER_BLOCKED");
+      throw error;
+    }
+  }
+
+  async function postStructuredQuery(call) {
+    assertExactPlainObject(
+      call,
+      ["queryId", "queryHash", "query", "window"],
+      "postStructuredQuery input",
+    );
+    validateTransportWindow(call.window, window);
+    assertJsonTree(call.query, "postStructuredQuery input.query");
+    const query = deepFreeze(structuredClone(call.query));
+    const freshState = validateFreshTransportState();
+    if (freshState === null) return envelopeBlocked("ACCESS_BLOCKED");
+    if (!freshState.authorized) return envelopeBlocked(unavailableTransportLimitation);
+    const isAuxiliary = call.queryId === "js-exception-rate:fingerprint";
+    const logicalId = isAuxiliary ? "js-exception-rate" : call.queryId;
+    if (!isAuxiliary && P75_METRIC_ID_SET.has(logicalId)) {
+      fail(
+        "standalone p75 primary transport is forbidden; use the validated pair method",
+        "postStructuredQuery input.queryId",
+      );
+    }
+    const binding = manifestBindingFor(queryManifest, logicalId);
+    if (binding === null) fail("transport query ID has no manifest binding", "postStructuredQuery input.queryId");
+    const approval = accessLock.approvedQueryHashes[logicalId];
+    if (approval === undefined) fail("transport query has no approved hash", "postStructuredQuery input.queryHash");
+    const builderBinding = isAuxiliary
+      ? createAuxiliaryBuilderBinding(queryManifest, binding)
+      : createBuilderBinding(queryManifest, binding);
+    validateStructuredPostHogQuery({ query, binding: builderBinding, window });
+    const actualHash = digestStructuredPostHogQuery(query);
+    const approvedHash = isAuxiliary ? approval.auxiliary?.exceptionFingerprint : approval.primary;
+    if (call.queryHash !== actualHash || call.queryHash !== approvedHash) {
+      fail("transport query hash is not the exact approved rebuilt hash", "postStructuredQuery input.queryHash");
+    }
+    return postOne({
+      queryId: logicalId,
+      requestRole: isAuxiliary ? "exception_fingerprint" : "primary",
+      queryHash: actualHash,
+      query,
+      binding: builderBinding,
+      allowDuplicateCoordinates: false,
+    });
+  }
+
+  async function postStructuredP75Pair(call) {
+    assertExactPlainObject(call, ["metricId", "pair", "window"], "postStructuredP75Pair input");
+    validateTransportWindow(call.window, window);
+    assertJsonTree(call.pair, "postStructuredP75Pair input.pair");
+    const pair = deepFreeze(structuredClone(call.pair));
+    const metricId = call.metricId;
+    const freshState = validateFreshTransportState();
+    if (freshState === null) return envelopeBlocked("ACCESS_BLOCKED");
+    if (!freshState.authorized) return envelopeBlocked(unavailableTransportLimitation);
+    if (!P75_METRIC_ID_SET.has(metricId)) fail("metricId is not a p75 metric", "postStructuredP75Pair input.metricId");
+    const binding = manifestBindingFor(queryManifest, metricId);
+    if (binding === null) fail("p75 metric has no manifest binding", "postStructuredP75Pair input.metricId");
+    const builderBinding = createBuilderBinding(queryManifest, binding);
+    validateP75PostHogQueryPair({ pair, binding: builderBinding, window });
+    const approval = accessLock.approvedQueryHashes[metricId];
+    const percentileHash = digestStructuredPostHogQuery(pair.percentileQuery);
+    const sampleCountHash = digestStructuredPostHogQuery(pair.sampleCountQuery);
+    if (
+      approval === undefined ||
+      approval.primary !== percentileHash ||
+      approval.sampleCount !== sampleCountHash ||
+      approval.pairDigest !== pair.pairDigest
+    ) {
+      fail("p75 pair is not fully approved before transport", "postStructuredP75Pair input.pair");
+    }
+    const percentile = await postOne({
+      queryId: metricId,
+      requestRole: "primary",
+      queryHash: percentileHash,
+      query: pair.percentileQuery,
+      binding: builderBinding,
+      allowDuplicateCoordinates: true,
+    });
+    if (percentile.status !== "OK") return percentile;
+    const sampleCount = await postOne({
+      queryId: metricId,
+      requestRole: "sample_count",
+      queryHash: sampleCountHash,
+      query: pair.sampleCountQuery,
+      binding: builderBinding,
+      allowDuplicateCoordinates: true,
+    });
+    if (sampleCount.status !== "OK") return sampleCount;
+
+    const coordinateKey = (coordinate) => JSON.stringify([
+      metricId,
+      coordinate.bucketEndedAt,
+      coordinate.dimensionIds,
+      coordinate.dimensionValues,
+    ]);
+    const percentileIndex = new Map();
+    const countIndex = new Map();
+    let ambiguous = false;
+    for (const coordinate of percentile.coordinates) {
+      const key = coordinateKey(coordinate);
+      if (percentileIndex.has(key)) ambiguous = true;
+      else percentileIndex.set(key, coordinate);
+    }
+    for (const coordinate of sampleCount.coordinates) {
+      const key = coordinateKey(coordinate);
+      if (countIndex.has(key)) ambiguous = true;
+      else countIndex.set(key, coordinate);
+    }
+    if (ambiguous) return deepFreeze({ status: "UNAVAILABLE", limitation: "P75_COUNT_PAIR_AMBIGUOUS" });
+    if (
+      percentileIndex.size !== countIndex.size ||
+      [...percentileIndex.keys()].some((key) => !countIndex.has(key)) ||
+      [...countIndex.keys()].some((key) => !percentileIndex.has(key))
+    ) {
+      return deepFreeze({ status: "UNAVAILABLE", limitation: "P75_COUNT_PAIR_MISMATCH" });
+    }
+    const overallCoordinates = [...percentileIndex.values()].filter(
+      (coordinate) => coordinate.dimensionIds.length === 0,
+    );
+    if (overallCoordinates.length !== 1) {
+      return deepFreeze({ status: "UNAVAILABLE", limitation: "P75_COUNT_PAIR_MISMATCH" });
+    }
+    const coordinates = [];
+    for (const [key, percentileCoordinate] of percentileIndex) {
+      const countCoordinate = countIndex.get(key);
+      coordinates.push({
+        bucketEndedAt: percentileCoordinate.bucketEndedAt,
+        dimensionIds: [...percentileCoordinate.dimensionIds],
+        dimensionValues: [...percentileCoordinate.dimensionValues],
+        p75: percentileCoordinate.series[0].value,
+        sampleSize: countCoordinate.series[0].value,
+      });
+    }
+    return deepFreeze({ status: "OK", coordinates });
+  }
+
+  return Object.freeze({ postStructuredQuery, postStructuredP75Pair });
+}
+
+function emptyCandidate({ queryId, queryHash, status, capturedAt, limitations }) {
+  return {
+    queryId,
+    queryHash,
+    p75Pairing: null,
+    metricId: queryId,
+    status,
+    capturedAt,
+    bucketEndedAt: null,
+    aggregate: null,
+    breakdowns: [],
+    exceptionGroups: [],
+    providerExceptionFingerprintAttestation: null,
+    limitations,
+  };
+}
+
+function blockedCandidate({ queryId, queryHash, capturedAt, limitation }) {
+  return emptyCandidate({
+    queryId,
+    queryHash,
+    status: "BLOCKED",
+    capturedAt,
+    limitations: [limitation],
+  });
+}
+
+function coordinateIdentity(coordinate) {
+  return JSON.stringify([coordinate.dimensionIds, coordinate.dimensionValues]);
+}
+
+function splitOverallAndBreakdowns(coordinates, binding) {
+  const overall = coordinates.filter((coordinate) => coordinate.dimensionIds.length === 0);
+  if (overall.length !== 1) fail("provider result requires exactly one overall aggregate coordinate", "coordinates");
+  const breakdowns = coordinates.filter((coordinate) => coordinate.dimensionIds.length !== 0);
+  if (binding.breakdown === null && breakdowns.length !== 0) {
+    fail("provider returned unbound breakdown coordinates", "coordinates");
+  }
+  return { overall: overall[0], breakdowns };
+}
+
+function aggregateFromSeries(queryId, series) {
+  const definition = POSTHOG_QUERY_BUILDERS[queryId];
+  if (series.length !== definition.series.length) fail("series arity is invalid", "series");
+  if (definition.sampleSizeOrigin === "sole_total") {
+    return { sampleSize: series[0].value, count: series[0].value, rate: null, p75: null };
+  }
+  if (definition.sampleSizeOrigin === "ordered_denominator") {
+    const denominator = series[0].value;
+    const numerator = series[1].value;
+    if (denominator === 0 || numerator > denominator) fail("ordered rate populations are impossible", "series");
+    return { sampleSize: denominator, count: null, rate: numerator / denominator, p75: null };
+  }
+  if (definition.sampleSizeOrigin === "funnel_first_step") {
+    const first = series[0].value;
+    const last = series.at(-1).value;
+    if (first === 0 || series.some((entry) => entry.value > first) || last > first) {
+      fail("funnel populations are impossible", "series");
+    }
+    return { sampleSize: first, count: null, rate: last / first, p75: null };
+  }
+  fail("non-p75 aggregate has an unsupported sample origin", "series");
+}
+
+function availableNonP75Candidate({ queryId, queryHash, capturedAt, coordinates, binding }) {
+  const { overall, breakdowns } = splitOverallAndBreakdowns(coordinates, binding);
+  const aggregate = aggregateFromSeries(queryId, overall.series);
+  return {
+    queryId,
+    queryHash,
+    p75Pairing: null,
+    metricId: queryId,
+    status: "AVAILABLE",
+    capturedAt,
+    bucketEndedAt: overall.bucketEndedAt,
+    aggregate,
+    breakdowns: breakdowns.map((coordinate) => {
+      const normalized = aggregateFromSeries(queryId, coordinate.series);
+      return {
+        dimension: coordinate.dimensionIds[0],
+        value: coordinate.dimensionValues[0],
+        ...normalized,
+      };
+    }),
+    exceptionGroups: [],
+    providerExceptionFingerprintAttestation: null,
+    limitations: ["NO_REVIEWED_THRESHOLD"],
+  };
+}
+
+function availableP75Candidate({ queryId, queryHash, capturedAt, coordinates, binding, pairBundle }) {
+  const { overall, breakdowns } = splitOverallAndBreakdowns(coordinates, binding);
+  return {
+    queryId,
+    queryHash,
+    p75Pairing: {
+      p75PairDigestInput: structuredClone(pairBundle.p75PairDigestInput),
+      pairDigest: pairBundle.pairDigest,
+      sampleSizeSource: "independent_total_count",
+    },
+    metricId: queryId,
+    status: "AVAILABLE",
+    capturedAt,
+    bucketEndedAt: overall.bucketEndedAt,
+    aggregate: {
+      sampleSize: overall.sampleSize,
+      count: null,
+      rate: null,
+      p75: overall.p75,
+    },
+    breakdowns: breakdowns.map((coordinate) => ({
+      dimension: coordinate.dimensionIds[0],
+      value: coordinate.dimensionValues[0],
+      sampleSize: coordinate.sampleSize,
+      count: null,
+      rate: null,
+      p75: coordinate.p75,
+    })),
+    exceptionGroups: [],
+    providerExceptionFingerprintAttestation: null,
+    limitations: ["NO_REVIEWED_THRESHOLD"],
+  };
+}
+
+function validateAdapterTransport(transport) {
+  assertExactPlainObject(transport, ["postStructuredQuery", "postStructuredP75Pair"], "transport");
+  if (
+    typeof transport.postStructuredQuery !== "function" ||
+    typeof transport.postStructuredP75Pair !== "function"
+  ) {
+    fail("transport requires both exact structured methods", "transport");
+  }
+}
+
+export function createPostHogReadAdapter(input) {
+  assertExactPlainObject(
+    input,
+    ["accessLock", "queryManifest", "schemaFacts", "window", "transport", "now"],
+    "createPostHogReadAdapter input",
+  );
+  assertJsonTree(input.schemaFacts, "schemaFacts");
+  const structureValidation = validatePostHogQueryManifest({
+    accessLock: input.accessLock,
+    queryManifest: input.queryManifest,
+    schemaFacts: input.schemaFacts,
+    window: input.window,
+    now: input.schemaFacts?.observation?.observedAt,
+  });
+  const window = validateAndFreezePostHogWindow(input.window);
+  validateAdapterTransport(input.transport);
+  if (typeof input.now !== "function") fail("now must be an injected function", "now");
+  const accessLock = deepFreeze(structuredClone(input.accessLock));
+  const queryManifest = deepFreeze(structuredClone(input.queryManifest));
+  const schemaFacts = deepFreeze(structuredClone(input.schemaFacts));
+  const transport = Object.freeze({
+    postStructuredQuery: input.transport.postStructuredQuery.bind(input.transport),
+    postStructuredP75Pair: input.transport.postStructuredP75Pair.bind(input.transport),
+  });
+  const now = input.now;
+  const publicValueAllowlists = structureValidation.publicValueAllowlists;
+
+  async function readOne(queryId, capturedAt) {
+    const fact = metricFactFor(schemaFacts, queryId);
+    const accessValidation = validatePostHogAccessLock(accessLock);
+    if (new Date(window.endAt).getTime() > new Date(capturedAt).getTime()) {
+      const approvedHash = accessLock.approvedQueryHashes[queryId]?.primary ?? null;
+      return blockedCandidate({
+        queryId,
+        queryHash: approvedHash,
+        capturedAt,
+        limitation: "STRUCTURED_QUERY_BLOCKED",
+      });
+    }
+    try {
+      validatePostHogQueryManifest({
+        accessLock,
+        queryManifest,
+        schemaFacts,
+        window,
+        now: capturedAt,
+      });
+    } catch {
+      return blockedCandidate({
+        queryId,
+        queryHash: null,
+        capturedAt,
+        limitation: "ACCESS_BLOCKED",
+      });
+    }
+    if (!accessValidation.authorized) {
+      const limitation = accessLock.effectiveCapabilities.query.scopedQueryCredential === "missing"
+        ? "SCOPED_TRANSPORT_BLOCKED"
+        : "CAPABILITY_MATRIX_BLOCKED";
+      return blockedCandidate({ queryId, queryHash: null, capturedAt, limitation });
+    }
+    if (schemaFacts.hostScope.status !== "AVAILABLE") {
+      return blockedCandidate({
+        queryId,
+        queryHash: null,
+        capturedAt,
+        limitation: "APP_HOST_SCOPE_BLOCKED",
+      });
+    }
+    if (fact.status === "NOT_INSTRUMENTED") {
+      return emptyCandidate({
+        queryId,
+        queryHash: null,
+        status: "NOT_INSTRUMENTED",
+        capturedAt,
+        limitations: ["EVENT_NOT_PROVEN"],
+      });
+    }
+    const binding = manifestBindingFor(queryManifest, queryId);
+    const builderBinding = createBuilderBinding(queryManifest, binding);
+    if (fact.status === "UNAVAILABLE") {
+      const result = buildP75PostHogQueryPair({ metricId: queryId, binding: builderBinding, window });
+      return emptyCandidate({
+        queryId,
+        queryHash: result.queryHash,
+        status: "UNAVAILABLE",
+        capturedAt,
+        limitations: ["P75_COUNT_COMPANION_UNAVAILABLE"],
+      });
+    }
+    const approval = accessLock.approvedQueryHashes[queryId];
+    if (P75_METRIC_ID_SET.has(queryId)) {
+      const result = buildP75PostHogQueryPair({ metricId: queryId, binding: builderBinding, window });
+      const response = await transport.postStructuredP75Pair({
+        metricId: queryId,
+        pair: result.pairBundle,
+        window,
+      });
+      if (response.status === "BLOCKED") {
+        return blockedCandidate({ queryId, queryHash: approval.primary, capturedAt, limitation: response.limitation });
+      }
+      if (response.status === "UNAVAILABLE") {
+        return emptyCandidate({
+          queryId,
+          queryHash: approval.primary,
+          status: "UNAVAILABLE",
+          capturedAt,
+          limitations: [response.limitation],
+        });
+      }
+      try {
+        return availableP75Candidate({
+          queryId,
+          queryHash: approval.primary,
+          capturedAt,
+          coordinates: response.coordinates,
+          binding,
+          pairBundle: result.pairBundle,
+        });
+      } catch {
+        return emptyCandidate({
+          queryId,
+          queryHash: approval.primary,
+          status: "UNAVAILABLE",
+          capturedAt,
+          limitations: ["P75_COUNT_PAIR_MISMATCH"],
+        });
+      }
+    }
+
+    const query = buildStructuredPostHogQuery({ queryId, binding: builderBinding, window });
+    const response = await transport.postStructuredQuery({
+      queryId,
+      queryHash: approval.primary,
+      query,
+      window,
+    });
+    if (response.status === "BLOCKED") {
+      return blockedCandidate({ queryId, queryHash: approval.primary, capturedAt, limitation: response.limitation });
+    }
+    let candidate;
+    try {
+      candidate = availableNonP75Candidate({
+        queryId,
+        queryHash: approval.primary,
+        capturedAt,
+        coordinates: response.coordinates,
+        binding,
+      });
+    } catch {
+      return blockedCandidate({
+        queryId,
+        queryHash: approval.primary,
+        capturedAt,
+        limitation: "HTTP_PROVIDER_BLOCKED",
+      });
+    }
+
+    if (queryId === "js-exception-rate") {
+      if (binding.exceptionFingerprintQuery === null) {
+        candidate.limitations = ["FIELD_NOT_PROVEN", "NO_REVIEWED_THRESHOLD"];
+      } else {
+        const auxiliaryBinding = createAuxiliaryBuilderBinding(queryManifest, binding);
+        const auxiliaryQuery = buildStructuredPostHogQuery({
+          queryId: "js-exception-rate:fingerprint",
+          binding: auxiliaryBinding,
+          window,
+        });
+        const auxiliary = await transport.postStructuredQuery({
+          queryId: "js-exception-rate:fingerprint",
+          queryHash: approval.auxiliary.exceptionFingerprint,
+          query: auxiliaryQuery,
+          window,
+        });
+        if (auxiliary.status !== "OK") {
+          return blockedCandidate({
+            queryId,
+            queryHash: approval.primary,
+            capturedAt,
+            limitation: auxiliary.limitation,
+          });
+        }
+        const denominator = candidate.aggregate.sampleSize;
+        try {
+          candidate.exceptionGroups = auxiliary.coordinates.map((coordinate) => {
+            const count = coordinate.series[0].value;
+            if (count > denominator) fail("exception group count exceeds eligible population", "exceptionGroups");
+            return {
+              providerFingerprint: coordinate.dimensionValues[0],
+              sampleSize: count,
+              count,
+              rate: count / denominator,
+            };
+          });
+        } catch {
+          return blockedCandidate({
+            queryId,
+            queryHash: approval.primary,
+            capturedAt,
+            limitation: "HTTP_PROVIDER_BLOCKED",
+          });
+        }
+        candidate.providerExceptionFingerprintAttestation = {
+          propertyIdentifier: binding.exceptionFingerprintQuery.propertyIdentifier,
+          officialSchemaEvidenceDigest: binding.exceptionFingerprintQuery.officialSchemaEvidenceDigest,
+        };
+      }
+    }
+    return candidate;
+  }
+
+  function sampleNow() {
+    const capturedAt = now();
+    parseUtcIso(capturedAt, "now() result");
+    return capturedAt;
+  }
+
+  async function readMetric(call) {
+    assertExactPlainObject(call, ["queryId"], "readMetric input");
+    if (!QUERY_ID_SET.has(call.queryId)) fail("readMetric queryId is unknown", "readMetric input.queryId");
+    const capturedAt = sampleNow();
+    const candidate = await readOne(call.queryId, capturedAt);
+    return deepFreeze({ capturedAt, candidate, publicValueAllowlists });
+  }
+
+  async function readAvailableMetrics(...args) {
+    if (args.length !== 0) fail("readAvailableMetrics accepts no arguments", "readAvailableMetrics input");
+    const capturedAt = sampleNow();
+    const candidates = [];
+    for (const queryId of POSTHOG_QUERY_IDS) {
+      candidates.push(await readOne(queryId, capturedAt));
+    }
+    return deepFreeze({ capturedAt, candidates, publicValueAllowlists });
+  }
+
+  return Object.freeze({ readMetric, readAvailableMetrics });
+}

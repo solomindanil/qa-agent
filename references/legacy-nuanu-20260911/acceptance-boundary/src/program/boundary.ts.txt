@@ -1,0 +1,78 @@
+/**
+ * The only release data acceptance QA may consume from a product team.
+ * Each field is an opaque, non-secret identifier for one deployed release.
+ */
+export type ProductReleaseInput = {
+  baseUrl: string;
+  environmentId: string;
+  gitSha: string;
+  buildId: string;
+  capabilitiesDigest: string;
+};
+
+export type AcceptanceDependency =
+  | 'deployed-ui'
+  | 'deployed-api'
+  | 'official-nuanu-flow-mcp';
+
+const releaseInputFields = [
+  'baseUrl',
+  'environmentId',
+  'gitSha',
+  'buildId',
+  'capabilitiesDigest',
+] as const satisfies ReadonlyArray<keyof ProductReleaseInput>;
+
+const releaseInputFieldSet = new Set<string>(releaseInputFields);
+
+const allowedAcceptanceDependencies = new Set<AcceptanceDependency>([
+  'deployed-ui',
+  'deployed-api',
+  'official-nuanu-flow-mcp',
+]);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Reject incomplete or non-identifier release handshakes before QA begins. */
+export const assertReleaseInput = (value: unknown): ProductReleaseInput => {
+  if (!isRecord(value)) {
+    throw new TypeError('Release input must be an object.');
+  }
+
+  if (
+    Reflect.ownKeys(value).some(
+      (field) => typeof field !== 'string' || !releaseInputFieldSet.has(field),
+    )
+  ) {
+    throw new TypeError('Release input must contain only its declared fields.');
+  }
+
+  for (const field of releaseInputFields) {
+    if (typeof value[field] !== 'string' || value[field].trim() === '') {
+      throw new TypeError(`Release input requires a non-empty ${field}.`);
+    }
+  }
+
+  return {
+    baseUrl: value.baseUrl as string,
+    environmentId: value.environmentId as string,
+    gitSha: value.gitSha as string,
+    buildId: value.buildId as string,
+    capabilitiesDigest: value.capabilitiesDigest as string,
+  };
+};
+
+/** Reject dependencies that bypass the independently deployed acceptance boundary. */
+export const assertAllowedAcceptanceDependency = (
+  dependency: unknown,
+): AcceptanceDependency => {
+  if (
+    typeof dependency !== 'string' ||
+    !allowedAcceptanceDependencies.has(dependency as AcceptanceDependency)
+  ) {
+    throw new TypeError(`Unsupported acceptance dependency: ${String(dependency)}.`);
+  }
+
+  return dependency as AcceptanceDependency;
+};

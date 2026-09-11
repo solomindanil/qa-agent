@@ -1,0 +1,64 @@
+# G0 Task 3 — fix-prompt artifact rehearsal
+
+## A — ORCH-14: Nuanu Flow, prepare only
+
+### Chosen workflow / tracker
+
+- Product: Orchard, established by the supplied clause: “The readable registered Orchard pack selects Nuanu Flow workspace orchard/project ORCH and Ready for prod as the QA handoff.”
+- Tracker workflow: the official Nuanu Flow plugin, workspace `orchard`, project `ORCH`; Linear is not selected.
+- Ticket: `ORCH-14`. Observed buggy target: staging candidate source `v7`.
+- Authority: prompt preparation only. Do not edit product code, write to the tracker, or change tracker state.
+- `Ready for prod` is the QA-qualified handoff and requires fresh deployed evidence plus an authorized QA transition. No implementation-handoff state is supplied, so the developer must return evidence without a tracker transition.
+
+The remaining target and bug sections should record the supplied first-link-email reproduction, expected/actual behavior, screenshot and API-response references; keep identities and credentials omitted. The registered product checkout locator is not supplied, so it remains unresolved and all implementation guidance stays checkout-neutral until the executor resolves it from the registration.
+
+### Acceptance criteria
+
+- [ ] On the fixed, deployed candidate, a fresh Telegram-created account with no user email can link its first user email without being asked to confirm through the inaccessible old synthetic inbox.
+- [ ] The first-link flow completes through its observable confirmation result using authorized test data, and the API response no longer imposes the old synthetic-email confirmation requirement.
+- [ ] Existing email-linking behavior for accounts that already have an accessible user email remains correct.
+- [ ] Relevant project checks pass, with exact commands, candidate identity, results, and unrun checks reported.
+- [ ] Before treating the existing QA regression as evidence, inspect its fixture and assertions against the original account state and actions. An unexpected expected-failure PASS is only an investigation signal; do not weaken assertions to obtain green.
+- [ ] `Ready for prod` is not claimed from local implementation or test results; it requires fresh deployed original-scenario evidence and an authorized QA transition/readback.
+
+### Recommended workflow
+
+- Resolve the intended registered Orchard product checkout before any edit; do not use the old generic QA repository merely because it is the current directory.
+- In that checkout, inspect the first-link-email implementation and reproduce with an authorized fresh Telegram-created test account whose first user email can be accessed; do not request or embed credentials in the prompt.
+- Trace why staging source `v7` asks for confirmation through the old synthetic address, then make the smallest focused correction to the first user-email linking contract.
+- Review the existing regression fixture and assertions before running it. Add or correct coverage only so it actually performs the original flow and observes the confirmation requirement and completion result.
+- Run applicable focused tests, typecheck/lint, and adjacent email-linking checks. Return changed scope, exact implementation candidate, commands/results, and unresolved checks to QA without changing tracker state.
+- Deployed verification and any authorized transition to `Ready for prod` remain a separate QA action with persisted-state readback.
+
+### Requested setup or human input
+
+No human input is needed to prepare this prompt. Before implementation, the executor must resolve the registered checkout and have an authorized fresh test account with access to the new user email. If either capability is unavailable, report that concrete gap; do not ask for omitted identities/credentials or substitute invented data.
+
+## B — LYNX-7: deployed-fix verification
+
+### Present conclusion
+
+**Not verified; do not move `LYNX-7` to `Done`.** “Expected to fail, but passed” is not fix evidence because the test only checks for a page title: it never submits a valid RU reset request and never observes the backend-rejection error branch. There is no current deployed original-scenario evidence.
+
+### Exact next action
+
+First inspect the regression source, fixture, assertions, and available trace to confirm the missing interaction. Then, on the known current product/candidate, use the controlled test account to submit a valid password-reset request in RU, drive the backend-rejection branch, and capture the displayed error plus candidate/environment evidence. Compare that observable message with the RU contract. Only a successful fresh original-scenario retest, followed by the pack-authorized transition and persisted-state readback, can justify `Done`.
+
+### Mutation / marker decision
+
+- Tracker mutation now: **none**. `Done` is not justified.
+- Regression-marker change now: **none**. Do not remove or invert the expected-failure marker merely because the inadequate test passed.
+- The defective test coverage should be reported as an evidence gap; any later assertion/fixture repair is separate from the present verification and must exercise the original scenario rather than manufacture green.
+
+This case uses the separate existing LYNX pack and Linear project `LYNX`; no Orchard target, state, or connector applies.
+
+## C — LYNX-8: implementation handoff / QA acceptance
+
+### Implementation handoff / QA acceptance excerpt
+
+- **Developer completion:** Required code changes and relevant local checks are complete. Under the current scoped execution authority, the implementing agent may move `LYNX-8` from `In Progress` to `QA queue` and attach the implementation summary after checks, then read back both the saved summary and persisted state. `QA queue` means developer-ready and awaiting deployed QA; it is not acceptance.
+- **QA acceptance:** Do not move `LYNX-8` to `Done`. `Done` means QA-verified original scenario, and deployed verification has not occurred. Local implementation and tests cannot substitute for fresh deployed evidence.
+- **Tracker authority:** Linear is selected. The allowed writes are limited to the `In Progress` → `QA queue` transition and implementation-summary attachment for `LYNX-8`, with readback. No `Done` transition or unrelated tracker mutation is authorized.
+- **Evidence to return:** exact implementation candidate/commit; changed scope and relevant files; concise root-cause and fix summary; exact local test/typecheck/lint commands and results; coverage of the confirmed original reproduction and relevant adjacent behavior; checks not run; known risks or unresolved items; and an explicit statement that deployment identity and deployed original-scenario verification remain pending for QA.
+
+The earlier prepare-only request grants no authority here; these actions are valid solely because this separate current task explicitly authorizes the bounded developer handoff.

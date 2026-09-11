@@ -1,0 +1,2030 @@
+# Freeland Release Certification Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Produce reproducible, non-overlapping pre-deploy staging certification and post-deploy production-canary verdicts without treating individual ticket status as release approval.
+
+**Architecture:** A pure release kernel consumes validated `QaRunEvidence`
+pairs—one immutable `QaRunResult` plus its exact sanitized bundle and
+registry-derived coverage projection—and exact
+environment/candidate/catalog/policy/payment identities. It validates a
+mandatory release registry and emits a signed-by-digest certification record.
+Staging evidence can decide only the pre-deploy candidate verdict. A separately
+attested production identity and production-only payment authorization create a
+later canary record; failure creates an incident/rollback instruction but never
+rewrites the staging decision. A parent-owned, authenticated Nuanu release-
+control launcher keeps Nuanu credentials outside Freeland and exposes only
+closed publish, pause, and incident operations over a fresh inherited FD `3`.
+Only sanitized exact-version bundles cross into Nuanu Artifacts.
+
+**Tech Stack:** Node.js 20.20.x, TypeScript 6, Node test runner, Ajv/JSON Schema, SHA-256 canonical JSON, existing FreelandQA contracts and coverage registry, Nuanu versioned Artifacts.
+
+## Global Constraints
+
+1. Implement product code only in `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local` from `codex/freeland-agent-first-cdp-i1-local@72378f3` or a reviewed descendant.
+2. Read the runner and payment contracts from
+   `packages/contracts/src/qa-run.ts` and
+   `packages/contracts/src/payment-control.ts`; do not define substitute
+   verdict or lifecycle types.
+3. `Ready for prod` ticket count is never an input to candidate readiness.
+4. Pre-deploy certification accepts staging evidence only. Post-deploy canary accepts production evidence only. Cross-environment evidence is a schema-valid blocked result, not a warning.
+5. Candidate, full release SHA, catalog, integration, coverage, oracle, policy, environment, data, classifier, authorization, and payment-profile digests are exact-match invariants.
+6. A zero-check, skipped, retried, expected-failure, stale, incomplete-evidence, unresolved-conflict, unknown-payment, failed-cleanup, or redaction-blocked mandatory leaf cannot yield ready/pass.
+7. Publication may add Artifact references but cannot change a deterministic verdict.
+8. Production failure opens a typed incident and pauses only the affected capability; it never edits historical staging certification.
+9. Real production purchase is executed only through the separately completed payment plan and its production authorization. These tasks do not enter PAN/CVV or submit a charge directly.
+10. All code tasks follow RED → minimal GREEN → focused regression → aggregate verification → exact-scope commit.
+11. Production N3/N5 execution is one statically composed production runner:
+    production-attributed Computer Use/CDP/Telegram/Playwright/API evidence
+    first, the inert production payment factory last, and the common runner
+    authority/evaluator/evidence publisher exactly once. It cannot import or
+    invoke the N5 staging CLI or staging payment factory.
+12. Nuanu credentials, endpoints, generic methods, executable paths, cwd,
+    argv, descriptors, and environment keys remain parent-owned. Freeland
+    release children receive only a fresh authenticated socket at FD `3`, exact
+    non-secret deployment/handler pins, and the command-specific positive env
+    allowlist.
+13. The NuanuFlowQA and Freeland repositories own independent closed release-
+    control types, JSON Schemas, and validators. Their pinned schema digests
+    must match before launch; neither repository imports the other's source.
+14. Every live release command is selected from the reviewed static handler
+    manifest and spawned directly with pinned Node 20, `shell:false`,
+    `detached:false`, fixed cwd/argv/stdio, and bounded I/O. Direct product CLI,
+    npm, npx, shell, model, generic MCP, or caller-selected launch is not a live
+    path.
+
+## Target File Structure
+
+```text
+packages/contracts/src/
+  release.ts
+  nuanu-release-control.ts
+packages/contracts/schemas/
+  release-baseline.v1.schema.json
+  release-certification.v1.schema.json
+  production-canary.v1.schema.json
+  production-incident.v1.schema.json
+  production-payment-gate.v1.schema.json
+  production-canary-launch.v1.schema.json
+  nuanu-release-control-request.v1.schema.json
+  nuanu-release-control-result.v1.schema.json
+  nuanu-release-control-envelope.v1.schema.json
+  nuanu-release-control-response.v1.schema.json
+  staging-certification-launch.v1.schema.json
+  production-certification-launch.v1.schema.json
+packages/release/src/
+  baseline.ts
+  identity-lock.ts
+  staging-certifier.ts
+  production-canary.ts
+  production-payment-gate.ts
+  incident.ts
+  bundle.ts
+  commands.ts
+  handler-spec.ts
+  nuanu-control-client.ts
+packages/runner/src/
+  production-dependencies.ts
+config/nuanu/
+  release-control-handlers.v1.json
+tools/release/
+  certify-staging.ts
+  certify-production.ts
+tools/payment/
+  run-production-canary.ts
+tests/release/
+  contracts.test.ts
+  baseline.test.ts
+  identity-lock.test.ts
+  staging-certifier.test.ts
+  production-canary.test.ts
+  production-payment-gate.test.ts
+  incident.test.ts
+  bundle.test.ts
+  commands.test.ts
+  fixtures/
+    release-baseline.valid.json
+    staging-ready.results.json
+    staging-blocked.results.json
+    staging-inconclusive.results.json
+    production-pass.results.json
+    production-fail.results.json
+config/release/
+  freeland-mandatory-baseline.v1.yaml
+config/environments/
+  production.yaml
+docs/runbooks/
+  staging-release-certification.md
+  production-canary-response.md
+
+# NuanuFlowQA parent-side files are implemented in its own reviewed worktree.
+/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program/
+  config/nuanu/freeland-release-deployment.v1.json
+  src/nuanu/release-control-wire.ts
+  src/nuanu/release-control-server.ts
+  src/nuanu/release-control-launcher.ts
+  src/nuanu/schemas/release-control-request.v1.schema.json
+  src/nuanu/schemas/release-control-result.v1.schema.json
+  src/nuanu/schemas/release-control-envelope.v1.schema.json
+  src/nuanu/schemas/release-control-response.v1.schema.json
+  src/nuanu/schemas/staging-certification-launch.v1.schema.json
+  src/nuanu/schemas/production-certification-launch.v1.schema.json
+  src/nuanu/schemas/production-canary-launch.v1.schema.json
+  tools/nuanu/run-freeland-release-staging.ts
+  tools/nuanu/run-freeland-production-canary.ts
+  tools/nuanu/run-freeland-release-production.ts
+  tools/nuanu/pin-freeland-release-deployment.ts
+  tests/program/nuanu/release-control-server.spec.ts
+  tests/program/nuanu/release-control-launcher.spec.ts
+```
+
+No fixture contains a real token, customer identity, payment instrument, signed
+URL, production order ID, or provider payload.
+
+## Execution Preflight
+
+Before Task 1, require the inherited N3/N5 database-backed suite to be runnable:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git status --short
+/opt/homebrew/opt/node@20/bin/node --version
+docker compose -f config/postgres/payment-test.compose.yaml up -d --wait
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+```
+
+Expected: clean checkout, Node `v20.20.2`, healthy/migrated loopback fixture,
+and exit `0`. Keep the fixture healthy throughout N6/N7 implementation.
+
+---
+
+### Task 1: Add Strict Release Contracts and Schemas
+
+**Files:**
+
+- Create: `packages/contracts/src/release.ts`
+- Create: `packages/contracts/schemas/release-baseline.v1.schema.json`
+- Create: `packages/contracts/schemas/release-certification.v1.schema.json`
+- Create: `packages/contracts/schemas/production-canary.v1.schema.json`
+- Create: `packages/contracts/schemas/production-incident.v1.schema.json`
+- Modify: `packages/contracts/src/index.ts`
+- Create: `tests/release/contracts.test.ts`
+
+**Interfaces:**
+
+```ts
+export type ReleaseVerdict =
+  | 'CANDIDATE_RELEASE_READY'
+  | 'CANDIDATE_RELEASE_BLOCKED'
+  | 'CANDIDATE_RELEASE_INCONCLUSIVE';
+
+export interface ReleaseIdentity {
+  environment: 'staging' | 'production';
+  fullReleaseSha: string;
+  candidateDigest: string;
+  catalogDigest: string;
+  integrationDigest: string;
+  coverageDigest: string;
+  oracleDigest: string;
+  policyDigest: string;
+  classifierDigest: string;
+  environmentDigest: string;
+  dataDigest: string;
+}
+
+export interface ReleaseBaselineLeaf {
+  requirementId: string;
+  capabilityId: string;
+  requiredLanes: Array<'api' | 'playwright' | 'cdp' | 'computer-use' | 'telegram' | 'payment'>;
+  paymentProfileDigest: string | null;
+  productionCanaryRequired: boolean;
+}
+
+export interface ReleaseBaseline {
+  schemaVersion: 1;
+  baselineId: string;
+  revision: number;
+  leaves: ReleaseBaselineLeaf[];
+  reviewedByMemberId: string;
+  reviewedAt: string;
+}
+
+export interface ReleaseCertification {
+  schemaVersion: 1;
+  certificationId: string;
+  kind: 'PRE_DEPLOY_STAGING';
+  identity: ReleaseIdentity & { environment: 'staging' };
+  baselineDigest: string;
+  evidenceDigests: string[];
+  verdict: ReleaseVerdict;
+  reasonCodes: string[];
+  artifacts: Array<{ artifactId: string; versionId: string; sha256: string }>;
+  createdAt: string;
+}
+
+export interface ProductionCanaryRecord {
+  schemaVersion: 1;
+  canaryId: string;
+  kind: 'POST_DEPLOY_PRODUCTION';
+  stagingCertificationId: string;
+  stagingCertificationDigest: string;
+  identity: ReleaseIdentity & { environment: 'production' };
+  productionAuthorizationId: string;
+  productionAccountDigest: string;
+  evidenceDigests: string[];
+  verdict: 'PRODUCTION_CANARY_PASS' | 'PRODUCTION_CANARY_FAIL' | 'PRODUCTION_CANARY_INCONCLUSIVE';
+  affectedCapabilities: string[];
+  artifacts: Array<{ artifactId: string; versionId: string; sha256: string }>;
+  createdAt: string;
+}
+
+export interface ProductionIncidentInstruction {
+  schemaVersion: 1;
+  incidentKey: string;
+  canaryId: string;
+  canaryDigest: string;
+  affectedCapabilities: string[];
+  action: 'PAUSE_CAPABILITY_AND_ROLL_BACK' | 'PAUSE_CAPABILITY_AND_INVESTIGATE';
+  stagingCertificationRemainsImmutable: true;
+}
+```
+
+- [ ] **Step 1: Write failing schema tests**
+
+Cover valid round trips and rejection of additional properties, short digests,
+duplicate requirement/result IDs, staging records with production identity,
+production records with staging authorization/account fields, empty evidence,
+and an incident that permits staging-history mutation.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/*.test.ts
+```
+
+Expected: FAIL because the release schemas and exports do not exist.
+
+- [ ] **Step 2: Implement the minimum closed contracts and schemas**
+
+Use `additionalProperties:false`, 64-character lower-case SHA-256 patterns,
+non-empty unique arrays, and discriminated `kind`/`environment` constants.
+Export the types and schema paths through the existing contracts index.
+
+- [ ] **Step 3: Run focused and aggregate verification**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:unit
+```
+
+- [ ] **Step 4: Commit the contract boundary**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/contracts/src/release.ts packages/contracts/src/index.ts packages/contracts/schemas/release-baseline.v1.schema.json packages/contracts/schemas/release-certification.v1.schema.json packages/contracts/schemas/production-canary.v1.schema.json packages/contracts/schemas/production-incident.v1.schema.json tests/release/contracts.test.ts
+git commit -m "feat: add release certification contracts"
+```
+
+---
+
+### Task 2: Define and Validate the Mandatory Freeland Release Baseline
+
+**Files:**
+
+- Create: `packages/release/src/baseline.ts`
+- Create: `config/release/freeland-mandatory-baseline.v1.yaml`
+- Create: `tests/release/baseline.test.ts`
+- Create: `tests/release/fixtures/release-baseline.valid.json`
+
+**Interfaces:**
+
+```ts
+export function loadReleaseBaseline(path: string): Promise<ReleaseBaseline>;
+export function validateReleaseBaseline(
+  baseline: ReleaseBaseline,
+  coverageRegistry: CoverageRegistry,
+): { baselineDigest: string; leaves: ReleaseBaselineLeaf[] };
+```
+
+- [ ] **Step 1: Write failing baseline-closure tests**
+
+Assert that every mandatory leaf resolves to an active coverage requirement,
+every required lane exists in that requirement's executable policy, payment
+leaves pin a payment profile, retired requirements are rejected, duplicate
+capabilities are normalized deterministically, and an empty baseline fails.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/*.test.ts
+```
+
+Expected: FAIL because the loader/validator is absent.
+
+- [ ] **Step 2: Implement canonical loading and closure validation**
+
+Parse YAML with the pinned library, sort leaves by requirement ID, hash
+canonical JSON, and fail closed on any coverage-registry mismatch. Populate the
+committed baseline only with IDs already present through
+`coverage/registry.v1.yaml` and its `coverage/requirements/` entries;
+do not invent future requirement IDs.
+
+- [ ] **Step 3: Prove registry drift is blocking**
+
+Add fixture mutations for removed, renamed, disabled, and lane-changed
+requirements and assert each produces a typed validation error.
+
+- [ ] **Step 4: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:validate
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add packages/release/src/baseline.ts config/release/freeland-mandatory-baseline.v1.yaml tests/release/baseline.test.ts tests/release/fixtures/release-baseline.valid.json
+git commit -m "feat: define mandatory Freeland release baseline"
+```
+
+---
+
+### Task 3: Lock Every Result to One Release Identity
+
+**Files:**
+
+- Create: `packages/release/src/identity-lock.ts`
+- Create: `tests/release/identity-lock.test.ts`
+
+**Interfaces:**
+
+```ts
+export interface LockedReleaseInput {
+  identity: ReleaseIdentity;
+  baselineDigest: string;
+  evidence: QaRunEvidence[];
+}
+
+export function deriveReleaseCandidateDigest(identity: Omit<ReleaseIdentity, 'candidateDigest'>): string;
+export function lockReleaseInput(input: LockedReleaseInput): {
+  identityDigest: string;
+  evidenceDigests: string[];
+};
+```
+
+- [ ] **Step 1: Write the identity mutation table as failing tests**
+
+Starting from two valid result/bundle/projection evidence pairs, independently
+mutate issue revision, Flow item, requirement, check, capability, lane binding,
+bundle SHA-256,
+candidate-after digest, full release SHA, catalog, integration, coverage,
+oracle, policy, classifier, environment, data, payment authorization, and
+payment profile. Assert every mandatory mismatch blocks locking. Assert result
+ordering does not change the final digest and duplicate `qaRunKey` does.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/*.test.ts
+```
+
+Expected: FAIL because `lockReleaseInput` does not exist.
+
+- [ ] **Step 2: Implement exact-match locking**
+
+Reuse canonical JSON and SHA-256 helpers from the runner contracts. First
+require `identity.candidateDigest === deriveReleaseCandidateDigest(identity)`;
+that digest commits the full release SHA plus catalog and integration identity.
+Then require
+`candidateBeforeDigest === candidateAfterDigest === identity.candidateDigest`
+for every accepted result. Require staging payment results to carry the exact
+baseline profile and authorization policy digest.
+
+- [ ] **Step 3: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add packages/release/src/identity-lock.ts tests/release/identity-lock.test.ts
+git commit -m "feat: lock QA evidence to a release identity"
+```
+
+---
+
+### Task 4: Certify the Pre-Deploy Staging Candidate
+
+**Files:**
+
+- Create: `packages/release/src/staging-certifier.ts`
+- Create: `tests/release/staging-certifier.test.ts`
+- Create: `tests/release/fixtures/staging-ready.results.json`
+- Create: `tests/release/fixtures/staging-blocked.results.json`
+- Create: `tests/release/fixtures/staging-inconclusive.results.json`
+
+**Interfaces:**
+
+```ts
+export function certifyStagingCandidate(input: {
+  identity: ReleaseIdentity & { environment: 'staging' };
+  baseline: ReleaseBaseline;
+  evidence: QaRunEvidence[];
+  now: string;
+}): ReleaseCertification;
+```
+
+- [ ] **Step 1: Write the failing verdict truth table**
+
+Require `CANDIDATE_RELEASE_READY` only when every baseline leaf has a unique,
+fresh, sufficient, healthy, matched result with all required lanes, zero
+skip/retry/expected-failure facts, complete cleanup and reconciliation, and no
+conflict. Map reproducible product failures to `BLOCKED`; map stale,
+environment/provider/harness/flaky/human/unknown states to `INCONCLUSIVE` unless
+another leaf already proves `BLOCKED`. Ticket workflow state must not appear in
+any fixture or function input.
+
+For each leaf, validate `QaRunEvidence`, then use only its
+`bundle.coverageProjection` and `bundle.laneExecutions` to prove the exact
+Flow-item/requirement/check/capability/lane mapping and zero retry/skip facts.
+Counts or lane digests in `QaRunResult` alone are never sufficient. Require the
+result's sole artifact SHA-256 to equal the exact bundle digest before the leaf
+can contribute.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/*.test.ts
+```
+
+Expected: FAIL because the certifier is absent.
+
+- [ ] **Step 2: Implement deterministic aggregation**
+
+Use an explicit reason-code enum and a total truth table. Generate
+`certificationId` from kind, identity digest, baseline digest, and sorted result
+digests; never from wall-clock time. Store `createdAt` as metadata only.
+
+- [ ] **Step 3: Add metamorphic regressions**
+
+Prove result permutation is invariant, removal cannot remain ready, adding a
+duplicate cannot remain ready, changing one identity byte cannot remain ready,
+and `Ready for prod` counts cannot affect output because they are not accepted.
+
+- [ ] **Step 4: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add packages/release/src/staging-certifier.ts tests/release/staging-certifier.test.ts tests/release/fixtures/staging-ready.results.json tests/release/fixtures/staging-blocked.results.json tests/release/fixtures/staging-inconclusive.results.json
+git commit -m "feat: certify pre-deploy staging candidates"
+```
+
+---
+
+### Task 5: Build the Sanitized Bundle and the Authenticated Nuanu Release-Control Publication Path
+
+**Repositories:**
+
+- Parent/control server: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program`
+- Freeland implementation/commit source: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local`
+- Fixed detached Freeland launch root: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-release-control-fixed`
+
+**NuanuFlowQA parent files:**
+
+- Create: `src/nuanu/release-control-wire.ts`
+- Create: `src/nuanu/release-control-server.ts`
+- Create: `src/nuanu/release-control-launcher.ts`
+- Create: `src/nuanu/schemas/release-control-request.v1.schema.json`
+- Create: `src/nuanu/schemas/release-control-result.v1.schema.json`
+- Create: `src/nuanu/schemas/release-control-envelope.v1.schema.json`
+- Create: `src/nuanu/schemas/release-control-response.v1.schema.json`
+- Create: `src/nuanu/schemas/staging-certification-launch.v1.schema.json`
+- Create: `config/nuanu/freeland-release-deployment.v1.json`
+- Create: `tools/nuanu/run-freeland-release-staging.ts`
+- Create: `tools/nuanu/run-freeland-production-canary.ts`
+- Create: `tools/nuanu/run-freeland-release-production.ts`
+- Create: `tools/nuanu/pin-freeland-release-deployment.ts`
+- Create: `tests/program/nuanu/release-control-server.spec.ts`
+- Create: `tests/program/nuanu/release-control-launcher.spec.ts`
+- Modify: `package.json`
+- Modify: `package-lock.json`
+
+**Freeland child files:**
+
+- Create: `packages/contracts/src/nuanu-release-control.ts`
+- Create: `packages/contracts/schemas/nuanu-release-control-request.v1.schema.json`
+- Create: `packages/contracts/schemas/nuanu-release-control-result.v1.schema.json`
+- Create: `packages/contracts/schemas/nuanu-release-control-envelope.v1.schema.json`
+- Create: `packages/contracts/schemas/nuanu-release-control-response.v1.schema.json`
+- Create: `packages/contracts/schemas/staging-certification-launch.v1.schema.json`
+- Create: `packages/release/src/bundle.ts`
+- Create: `packages/release/src/commands.ts`
+- Create: `packages/release/src/handler-spec.ts`
+- Create: `packages/release/src/nuanu-control-client.ts`
+- Create: `config/nuanu/release-control-handlers.v1.json`
+- Create: `tools/release/certify-staging.ts`
+- Create: `tests/release/bundle.test.ts`
+- Create: `tests/release/commands.test.ts`
+- Create: `tests/release/handler-spec.test.ts`
+- Create: `tests/release/nuanu-control-client.test.ts`
+- Create: `docs/runbooks/staging-release-certification.md`
+- Modify: `packages/contracts/src/index.ts`
+- Modify: `package.json`
+
+**Interfaces:**
+
+Both repositories define these wire shapes independently and accept `unknown`
+at their socket boundary. They do not import source, generated types, or schema
+paths from the other repository.
+
+```ts
+export type NuanuReleaseCommandId =
+  | 'freeland-release-certify-staging-v1'
+  | 'freeland-production-canary-v1'
+  | 'freeland-release-certify-production-v1';
+
+export type NuanuReleaseArtifactName =
+  | 'staging-release-certification.v1.json'
+  | 'production-qa-evidence.v1.json'
+  | 'production-release-canary.v1.json';
+
+export interface ReleaseControlSessionAuthorityV1 {
+  schemaVersion: 1;
+  commandId: NuanuReleaseCommandId;
+  flowItemId: string;
+  processRunId: string;
+  releaseRecordDigest: string;
+  allowedArtifactName: NuanuReleaseArtifactName;
+  allowedCapabilityIds: string[];
+  incidentKey: string | null;
+}
+
+export interface ProductionIncidentInstructionWireV1 {
+  schemaVersion: 1;
+  incidentKey: string;
+  canaryId: string;
+  canaryDigest: string;
+  affectedCapabilities: string[];
+  action:
+    | 'PAUSE_CAPABILITY_AND_ROLL_BACK'
+    | 'PAUSE_CAPABILITY_AND_INVESTIGATE';
+  stagingCertificationRemainsImmutable: true;
+}
+
+export type NuanuReleaseControlRequestV1 =
+  | {
+      schemaVersion: 1;
+      operation: 'publish-exact-version';
+      publicationKey: string;
+      flowItemId: string;
+      processRunId: string;
+      name: NuanuReleaseArtifactName;
+      mediaType: 'application/json';
+      bytesBase64: string;
+      sha256: string;
+    }
+  | {
+      schemaVersion: 1;
+      operation: 'pause-release-capabilities';
+      incidentKey: string;
+      capabilityIds: string[];
+      canaryDigest: string;
+    }
+  | {
+      schemaVersion: 1;
+      operation: 'create-release-incident';
+      instruction: ProductionIncidentInstructionWireV1;
+    };
+
+export type NuanuReleaseControlResultV1 =
+  | {
+      schemaVersion: 1;
+      operation: 'publish-exact-version';
+      artifactId: string;
+      versionId: string;
+      sha256: string;
+      readBackDigest: string;
+    }
+  | {
+      schemaVersion: 1;
+      operation: 'pause-release-capabilities';
+      receiptId: string;
+      capabilityIds: string[];
+      observedMode: 'ASSIST';
+      readBackDigest: string;
+    }
+  | {
+      schemaVersion: 1;
+      operation: 'create-release-incident';
+      flowItemId: string;
+      incidentKey: string;
+      observedState: 'OPEN';
+      readBackDigest: string;
+    };
+
+export interface NuanuReleaseControlEnvelopeV1 {
+  schemaVersion: 1;
+  requestId: string;
+  sessionId: string;
+  commandId: NuanuReleaseCommandId;
+  deploymentPinDigest: string;
+  handlerSpecDigest: string;
+  authorityDigest: string;
+  issuedAt: string;
+  expiresAt: string;
+  nonce: string;
+  payloadDigest: string;
+  payload: NuanuReleaseControlRequestV1;
+  mac: string;
+}
+
+export interface NuanuReleaseControlResponseV1 {
+  schemaVersion: 1;
+  requestId: string;
+  sessionId: string;
+  commandId: NuanuReleaseCommandId;
+  operation: NuanuReleaseControlResultV1['operation'];
+  resultDigest: string;
+  result: NuanuReleaseControlResultV1;
+  mac: string;
+}
+
+export interface StagingCertificationLaunchV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-release-certify-staging-v1';
+  case: 'fixture-ready' | 'fixture-blocked' | 'live';
+  authority: ReleaseControlSessionAuthorityV1 & {
+    commandId: 'freeland-release-certify-staging-v1';
+    allowedArtifactName: 'staging-release-certification.v1.json';
+    allowedCapabilityIds: [];
+    incidentKey: null;
+  };
+  input:
+    | {
+        kind: 'committed-fixture';
+        fixtureId: 'staging-ready' | 'staging-blocked';
+        fixtureSha256: string;
+      }
+    | {
+        kind: 'sanitized-staging-evidence';
+        bytesBase64: string;
+        sha256: string;
+      };
+  deadline: string;
+}
+
+export function buildReleaseBundle(input: {
+  certification: ReleaseCertification | ProductionCanaryRecord;
+  resultManifest: SanitizedBundleReceipt[];
+}): Promise<{
+  bundleFile: string;
+  manifestSha256: string;
+  byteLength: number;
+}>;
+
+export interface ReleasePublisher {
+  publishExactVersion(input: {
+    publicationKey: string;
+    flowItemId: string;
+    processRunId: string;
+    name: NuanuReleaseArtifactName;
+    bundleFile: string;
+    manifestSha256: string;
+  }): Promise<{ artifactId: string; versionId: string; sha256: string }>;
+}
+
+export interface ProductionResponsePort {
+  createIncident(
+    instruction: ProductionIncidentInstruction,
+  ): Promise<{ flowItemId: string }>;
+  pauseCapabilities(
+    capabilityIds: string[],
+    canaryDigest: string,
+  ): Promise<{ receiptId: string }>;
+}
+
+export interface NuanuReleaseControlClient
+  extends ReleasePublisher, ProductionResponsePort {
+  publishQaEvidence(input: SanitizedBundlePublication): Promise<SanitizedArtifactRef>;
+  close(): Promise<void>;
+}
+
+export function createInheritedNuanuReleaseControlClient(input: {
+  fd: 3;
+  commandId: NuanuReleaseCommandId;
+  deploymentPinDigest: string;
+  handlerSpecDigest: string;
+  authorityDigest: string;
+}): Promise<NuanuReleaseControlClient>;
+
+export function runStagingCertificationCommand(input: unknown, deps: {
+  publisher: ReleasePublisher;
+  now: () => string;
+}): Promise<number>;
+```
+
+The parent repository defines the matching independent wire validators plus
+these concrete server/launcher boundaries:
+
+```ts
+export function createOfficialNuanuReleaseControlServer(input: {
+  controlFd: 3;
+  commandId: NuanuReleaseCommandId;
+  deploymentPinDigest: string;
+  handlerSpecDigest: string;
+  authority: ReleaseControlSessionAuthorityV1;
+  expectedPeerUid: number;
+  expectedPeerPid: number;
+}): Promise<{ close(): Promise<void> }>;
+
+export interface ReleaseControlHandlerManifestV1 {
+  schemaVersion: 1;
+  handlers: readonly [
+    {
+      commandId: 'freeland-release-certify-staging-v1';
+      executable: '/opt/homebrew/opt/node@20/bin/node';
+      argv: readonly ['--import', 'tsx', 'tools/release/certify-staging.ts'];
+      allowedOperations: readonly ['publish-exact-version'];
+    },
+    {
+      commandId: 'freeland-production-canary-v1';
+      executable: '/opt/homebrew/opt/node@20/bin/node';
+      argv: readonly ['--import', 'tsx', 'tools/payment/run-production-canary.ts'];
+      allowedOperations: readonly ['publish-exact-version'];
+    },
+    {
+      commandId: 'freeland-release-certify-production-v1';
+      executable: '/opt/homebrew/opt/node@20/bin/node';
+      argv: readonly ['--import', 'tsx', 'tools/release/certify-production.ts'];
+      allowedOperations: readonly [
+        'publish-exact-version',
+        'pause-release-capabilities',
+        'create-release-incident',
+      ];
+    },
+  ];
+  requiredEnvironmentKeysByCommand: {
+    'freeland-release-certify-staging-v1': readonly [
+      'PATH', 'TZ', 'LANG', 'TMPDIR',
+      'FREELAND_RELEASE_DEPLOYMENT_PIN_DIGEST',
+      'FREELAND_RELEASE_HANDLER_SPEC_DIGEST',
+      'FREELAND_RELEASE_AUTHORITY_DIGEST',
+    ];
+    'freeland-production-canary-v1': readonly [
+      'PATH', 'TZ', 'LANG', 'TMPDIR',
+      'FREELAND_RELEASE_DEPLOYMENT_PIN_DIGEST',
+      'FREELAND_RELEASE_HANDLER_SPEC_DIGEST',
+      'FREELAND_RELEASE_AUTHORITY_DIGEST',
+      'FREELAND_PRODUCTION_BASE_URL',
+      'FREELAND_EXPECTED_PRODUCTION_SHA',
+      'FREELAND_PRODUCTION_TEST_EMAIL',
+      'FREELAND_PRODUCTION_TEST_PASSWORD',
+      'FREELAND_PRODUCTION_CHROMIUM_AUTH_FILE',
+      'FREELAND_QA_DATABASE_URL',
+      'FREELAND_PAYMENT_RECONCILER_DATABASE_URL',
+      'FREELAND_PAYMENT_SECRET_BROKER_SOCKET',
+      'FREELAND_PAYMENT_SECRET_BROKER_PIN',
+    ];
+    'freeland-release-certify-production-v1': readonly [
+      'PATH', 'TZ', 'LANG', 'TMPDIR',
+      'FREELAND_RELEASE_DEPLOYMENT_PIN_DIGEST',
+      'FREELAND_RELEASE_HANDLER_SPEC_DIGEST',
+      'FREELAND_RELEASE_AUTHORITY_DIGEST',
+    ];
+  };
+  optionalEnvironmentKeys: readonly [];
+  cwdPolicy: 'PINNED_PRODUCT_ROOT';
+  shell: false;
+  detached: false;
+  stdio: readonly ['request-stdin', 'result-stdout', 'reason-stderr', 'release-control-socket'];
+  stdinMaxBytes: 3_145_728;
+  stdoutMaxBytes: 65536;
+  stderrMaxBytes: 65536;
+  controlFrameMaxBytes: 1_500_000;
+  schemaDigestSet: string;
+}
+
+export function buildNuanuReleaseControlSpawnSpec(input: {
+  commandId: NuanuReleaseCommandId;
+  pinnedProductRoot: string;
+  expectedProductCommit: string;
+  childControlFd: number;
+  manifestInput: unknown;
+  expectedManifestDigest: string;
+  env: Readonly<Record<string, string | undefined>>;
+}): Readonly<{
+  file: '/opt/homebrew/opt/node@20/bin/node';
+  args: readonly string[];
+  options: {
+    cwd: string;
+    shell: false;
+    detached: false;
+    stdio: readonly ['pipe', 'pipe', 'pipe', number];
+    env: Readonly<Record<string, string>>;
+  };
+}>;
+```
+
+- [ ] **Step 1: Write both sides' RED contract and transport tests**
+
+In Freeland, add named tests proving deterministic single-file bundle bytes,
+atomic `0600` publication under an owned `0700` temporary root, symlink/hardlink
+rejection, 1 MiB bound, secret/PAN/CVV/cookie/signed-URL rejection, independent
+schema validation, and exact schema-digest parity with the reviewed NuanuFlowQA
+copies. For the real client, prove fresh bootstrap, uid+pid/session/command/pin
+and authority-digest binding, request and response HMACs, 30-second maximum expiry, single-use nonce,
+constant-time digest verification, command/operation separation, exact Artifact
+read-back, idempotent replay, key/buffer zeroization, close-on-ambiguity, and no
+generic send/method/URL/token surface.
+Validate the independent staging-launch schemas field-by-field: ready/blocked
+cases bind the corresponding committed fixture ID and reviewed fixture digest;
+live binds bounded sanitized evidence bytes and their digest; every cross-case,
+path, extra field, raw evidence, or authority mismatch fails before child spawn.
+
+In NuanuFlowQA, name tests for the three-entry manifest, clean pinned source
+commit, separately materialized fixed detached launch root, exact direct Node
+argv/cwd/stdio/env, fresh parent-owned socketpair,
+only child FD `3`, child `EBADF` for every unreviewed descriptor, one-shot
+peer-validated bootstrap, wrong peer/pid/pin/MAC/replay/cross-command rejection,
+bounded frames/stdout/stderr, exact publish/read-back, exact replay returning the
+same version, changed bytes/name/key failing closed, and absence of any generic
+MCP/tool/method/URL operation.
+Test the N1 runtime-root bridge separately: absent-before-spawn, raw deletion
+receipt verification, directory-FD/no-link traversal, atomic external custody
+rename and sync, no raw bytes in the archive, quarantine-on-ambiguity, launch
+block while quarantined, and exact closed recovery restore/reconcile/rearchive.
+Prove ignored `.superpowers`, `.work`, `.qa-runtime`, evidence, output, or a
+non-lock-derived dependency entry never reaches a spawn.
+Assert the two certification handlers reject runtime/reconciler/broker/browser
+keys, the production-canary handler alone receives the exact runtime+
+reconciler+broker+production-browser tuple, and its spawned payment host and
+all descendants receive no reconciler or release-control authority.
+At Task 5 the deployment pin activates only
+`freeland-release-certify-staging-v1`; attempts to select either future child
+fail `HANDLER_PHASE_INACTIVE` before socketpair or spawn. Task 6 and Task 8 each
+activate exactly their newly committed child through a reviewed pin roll-forward.
+Test the pin writer against temporary clean/dirty Git fixtures: each phase
+records the exact clean OID/digests/active tuple and fixed detached launch root;
+dirty, wrong phase, extra path,
+changed schema/manifest, stale OID, and read-back drift fail without updating
+the pin. The only ignored fixtures accepted are the two literal `node_modules/`
+trees with exact lock/content digests; exact lock-derived internal `.bin` links
+pass, while a mutated dependency, any other symlink/hardlink, or ignored
+runtime/evidence/output path fails closed.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/bundle.test.ts tests/release/commands.test.ts tests/release/handler-spec.test.ts tests/release/nuanu-control-client.test.ts
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/release-control-server.spec.ts tests/program/nuanu/release-control-launcher.spec.ts
+```
+
+Expected: both commands fail because the independent contracts, inherited
+client, server, and launcher do not exist.
+
+- [ ] **Step 2: Implement the independent closed schemas and authenticated FD `3` session**
+
+Every schema is a closed object with `additionalProperties:false`, canonical
+UUID/timestamp/lowercase SHA-256 formats, bounded unique sorted capability IDs,
+fixed media type/name/operation discriminants, and no free-form URL, method,
+tool, state UUID, executable, path, credential, or extra data field. Pin the
+complete independent schema digest set in `freeland-release-deployment.v1.json`:
+the four control-protocol schemas plus every launch schema active in the
+selected phase. Launch fails before socket creation if any paired schema digest
+differs between repositories.
+
+The official parent transport creates a fresh authenticated Unix socketpair
+for exactly one static handler and maps only the child endpoint to FD `3`. It
+retains the Nuanu endpoint/token and all native operations. The parent creates
+a fresh UUID session and 32-byte key, sends them only in a one-shot peer-
+credential-validated FD `3` bootstrap, derives direction-separated MAC keys,
+then zeroes the bootstrap buffer. Neither key nor session appears in argv,
+environment, stdin business input, disk, logs, stdout, stderr, or an Artifact.
+The child takes exclusive ownership of FD `3`, completes the keyed challenge,
+and never exposes the descriptor or a raw request method.
+
+Each frame binds uid, pid, session, command, deployment pin, handler-spec pin,
+server-owned session-authority digest, operation, canonical payload/result
+digest, issue/expiry time, and nonce. The parent derives that authority only
+from the exact validated launch record; a child cannot widen its Flow item,
+process run, Artifact name, capability set, incident key, or release/canary
+digest. The
+server atomically claims each operation key before mutation and validates exact
+read-back afterward. Claims use the existing durable official Nuanu transport
+idempotency store, never an in-memory map or child-owned file; live launch is
+disabled unless claim/replay survives parent restart. A disconnect, timeout, malformed/oversized frame, wrong
+peer/pin/command/operation/digest/MAC, replay, or changed idempotency payload
+performs no new mutation and returns no success. Staging sessions may publish
+only `staging-release-certification.v1.json`; production-canary sessions may
+publish only `production-qa-evidence.v1.json`; production-certification
+sessions may publish only `production-release-canary.v1.json` and later use the
+two Task 8 response operations.
+
+- [ ] **Step 3: Implement the parent-owned direct launcher and static child manifest**
+
+`config/nuanu/release-control-handlers.v1.json` is the sole Freeland handler
+manifest. `handler-spec.ts` validates the exact three literal entries above,
+exact cwd policy/stdio/limits/operation sets, and its canonical digest. The
+NuanuFlowQA deployment pin records the clean Freeland product commit, pinned
+absolute product root, handler-manifest digest, schema digest set, Nuanu build/
+catalog/plugin pins, exact command-specific environment-key tuples, and the
+ordered `activeCommandIds`. Task 5 sets that tuple to only
+`['freeland-release-certify-staging-v1']`; the two future manifest entries are
+validated but cannot be selected and their not-yet-created files are not
+treated as live handlers.
+
+`release-control-launcher.ts` reads only that server-owned pin, verifies the
+clean product commit and manifest bytes, creates the socketpair/server, and
+makes one direct `spawn` of the selected final Node child with `shell:false`,
+`detached:false`, fixed cwd/argv, request stdin, result-only stdout, coarse-code
+stderr, and child socket at FD `3`. It never invokes npm, npx, a shell, PATH
+lookup, a model prompt, a package alias, or a caller-selected executable/path/
+argv/env/schema. The three parent tools accept only their closed launch input:
+the staging tool accepts `case: 'fixture-ready' | 'fixture-blocked' | 'live'`;
+the production-canary tool accepts no financial or path argument; the
+production-certification tool accepts `case: 'live' | 'non-spending-failure-fixture'`.
+
+`pin-freeland-release-deployment.ts` is a development-time pin writer, not a
+live launcher. It accepts only `--phase=task5|task6|task8` or the same phase
+plus `--verify`, invokes Git with fixed argv and `shell:false`, and uses the
+literal implementation worktree only to require empty tracked/non-ignored-
+untracked source status and capture its full clean OID. Ignored developer
+directories there never become launch inputs. For a mutating phase invocation,
+the tool creates or advances the separate literal detached launch root above to
+that OID, refusing any existing tracked/untracked/runtime dirt, and installs
+the exact lockfile tree with the pinned Node 20 npm CLI. `--verify` never
+creates, advances, installs, or deletes anything.
+
+The parent and fixed launch root may each contain only their literal installed
+`node_modules/` dependency tree as runtime-relevant ignored content. Verify
+each against its exact package-lock SHA plus a canonical content digest of the
+complete installed tree. Ordinary files must stay under the real tree root and
+cannot be hardlinks. Symlinks are rejected except for the exact lock-derived
+`node_modules/.bin/<name>` relative links declared by package `bin` entries;
+each such single-hop link must resolve to the exact regular file under the same
+tree, and absolute, dangling, multi-hop, extra, or outside-root links fail.
+Record both lock/tree digests in the deployment pin and recompute them before
+every launch. Every other ignored entry in the fixed launch root fails,
+especially `.superpowers`, `.work`, `.qa-runtime`, prepared invocations,
+evidence, artifacts, reports, screenshots, traces, downloads, output, coverage,
+and temporary files. There is no broad ignored-path allowlist.
+
+The child still receives N1's unchanged runtime root
+`<repositoryRoot>/.qa-runtime` while it is executing. Before spawn, the parent
+requires that path absent. On exit, the parent opens and validates the runtime
+root by directory FD, requires N1's raw-artifact verified-deletion receipts,
+and atomically renames the remaining sanitized receipts/state into the fixed
+owner-only `0700` release custody root
+`/Users/danilsolomin/.local/share/nuanu-flow-qa/freeland-release-runtime`,
+whose literal path is server-owned and pinned rather than caller-selectable,
+followed by file and parent-directory sync. No raw artifact may enter that archive. An ambiguous
+run is quarantined there and blocks all new release launches; only the closed
+recovery launcher may atomically restore that exact state to `.qa-runtime`
+after pin verification, reconcile it, and move it back out. Thus N1's path and
+recovery semantics are preserved during execution without leaving ignored
+runtime dirt in the pinned launch root.
+
+The writer then captures the exact full commit OID, recomputes the handler and
+complete independent schema digest set from a fixed file allowlist, sets the
+exact phase `activeCommandIds`, writes the parent pin atomically, and reads it
+back. It accepts no root/path/file/digest/command/env/ignored-path override.
+`--verify` is read-only and fails unless the pin bytes equal a fresh
+recomputation at the same clean OID and dependency-tree digests, `.qa-runtime`
+is absent, and the custody index contains no unresolved quarantine for that
+release/command authority.
+
+Pin `tsx` exactly to `4.22.4` in the NuanuFlowQA `package.json` and lockfile;
+install/update it only through the pinned Node 20 npm CLI. No launcher may use
+a globally resolved loader or PATH-resolved `tsx` executable.
+
+Build each child environment from nothing. All receive only fixed Node `PATH`,
+`TZ=UTC`, `LANG=C.UTF-8`, custody `TMPDIR`, and non-secret deployment/handler
+pins. Staging-live adds only fixed staging certification/profile references.
+Production-canary adds only the reviewed production base/release/login/auth
+references, runtime-role DB DSN, reconciler-role DSN, and owned secret-broker
+socket/pin required by Task 6. The reconciler DSN remains in the final runner
+process and never enters the payment host or browser. Production-certification adds only fixed production certification
+references and no browser or payment authority. Every child rejects Nuanu
+token/endpoint, owner/migration/test DSNs, authorization mint or switch files,
+provider mutation credentials, `NODE_OPTIONS`, `NODE_PATH`, inspectors/loaders,
+`DYLD_*`, `DOTENV_*`, npm/proxy/model/tool variables, unknown parent keys, and
+task-provided environment. The staging-certification and production-
+certification children additionally reject runtime/reconciler DSNs, browser
+login/auth, and secret-broker values. Only the final production-canary runner
+may receive the allowlisted reconciler DSN; its payment host, browser,
+watchdog, provider, and helper descendants must observe it absent.
+
+- [ ] **Step 4: Implement the bundle, concrete client, and staging CLI composition**
+
+`buildReleaseBundle` writes one canonical JSON file, sanitizes before write,
+re-reads and validates exact bytes, and returns its path/digest/length. The
+client performs a symlink-safe bounded read of that exact file, proves owner/
+mode/realpath/size/digest, builds the closed authenticated request internally,
+and validates server read-back before satisfying `ReleasePublisher`.
+`publicationKey` is the SHA-256 of certification ID, Flow item, process run,
+fixed Artifact name, and manifest digest. Exact replay returns the original
+Artifact/version/SHA; a changed digest under the key fails closed.
+
+`tools/release/certify-staging.ts` accepts exactly one bounded closed
+`StagingCertificationLaunchV1` stdin document from the parent, validates the inherited pins before business
+input, opens only `createInheritedNuanuReleaseControlClient({fd:3,...})`, and
+injects that concrete `ReleasePublisher` into
+`runStagingCertificationCommand`. Fixture cases are dry-run and make zero
+control calls; live mode publishes once and validates the exact version. The
+parent tool constructs that document from its literal case, exact committed
+fixture digest, or exact sanitized version bytes read through its static
+read-only release-evidence operation; no file path crosses stdin. The CLI never constructs a Nuanu SDK/MCP client, reads a token/endpoint, or accepts
+a publisher/factory/module/path/URL/method from stdin or environment.
+
+Add only the local developer/test aliases below. They are not live entrypoints;
+Task 9 uses the parent-owned launcher tools directly.
+
+```json
+{
+  "test:release": "/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/*.test.ts",
+  "release:certify:staging:child-test-only": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/release/certify-staging.ts"
+}
+```
+
+- [ ] **Step 5: Run focused and aggregate GREEN in both repositories**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/bundle.test.ts tests/release/commands.test.ts tests/release/handler-spec.test.ts tests/release/nuanu-control-client.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js ci --ignore-scripts
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/release-control-server.spec.ts tests/program/nuanu/release-control-launcher.spec.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands pass; direct child invocation without authenticated FD
+`3` fails before bundle read or mutation, and server tests observe no Nuanu
+credential in child argv/env/stdin/stdout/stderr.
+
+- [ ] **Step 6: Stage exact Freeland scope, commit it, then pin and stage the parent scope**
+
+The child commit must exist first so the parent deployment pin can record its
+exact commit and handler/schema digests. Do not use an uncommitted child tree as
+a live launcher target.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/contracts/src/nuanu-release-control.ts packages/contracts/src/index.ts packages/contracts/schemas/nuanu-release-control-request.v1.schema.json packages/contracts/schemas/nuanu-release-control-result.v1.schema.json packages/contracts/schemas/nuanu-release-control-envelope.v1.schema.json packages/contracts/schemas/nuanu-release-control-response.v1.schema.json packages/contracts/schemas/staging-certification-launch.v1.schema.json packages/release/src/bundle.ts packages/release/src/commands.ts packages/release/src/handler-spec.ts packages/release/src/nuanu-control-client.ts config/nuanu/release-control-handlers.v1.json tools/release/certify-staging.ts tests/release/bundle.test.ts tests/release/commands.test.ts tests/release/handler-spec.test.ts tests/release/nuanu-control-client.test.ts docs/runbooks/staging-release-certification.md package.json
+git diff --cached --check
+git commit -m "feat(release): add authenticated certification publisher"
+git status --short
+git rev-parse --verify HEAD
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task5
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task5 --verify
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/release-control-server.spec.ts tests/program/nuanu/release-control-launcher.spec.ts
+git add src/nuanu/release-control-wire.ts src/nuanu/release-control-server.ts src/nuanu/release-control-launcher.ts src/nuanu/schemas/release-control-request.v1.schema.json src/nuanu/schemas/release-control-result.v1.schema.json src/nuanu/schemas/release-control-envelope.v1.schema.json src/nuanu/schemas/release-control-response.v1.schema.json src/nuanu/schemas/staging-certification-launch.v1.schema.json config/nuanu/freeland-release-deployment.v1.json tools/nuanu/run-freeland-release-staging.ts tools/nuanu/run-freeland-production-canary.ts tools/nuanu/run-freeland-release-production.ts tools/nuanu/pin-freeland-release-deployment.ts tests/program/nuanu/release-control-server.spec.ts tests/program/nuanu/release-control-launcher.spec.ts package.json package-lock.json
+git diff --cached --check
+git commit -m "feat(nuanu): launch closed Freeland release handlers"
+```
+
+---
+
+### Task 6: Open the Production Payment Canary Only After Deployment Attestation
+
+**Files by repository:**
+
+**NuanuFlowQA parent pin:**
+
+- Create: `src/nuanu/schemas/production-canary-launch.v1.schema.json`
+- Modify: `src/nuanu/release-control-wire.ts`
+- Modify: `tools/nuanu/run-freeland-production-canary.ts`
+- Modify: `tests/program/nuanu/release-control-launcher.spec.ts`
+- Modify: `config/nuanu/freeland-release-deployment.v1.json`
+
+**Freeland production child:**
+
+- Create: `packages/contracts/schemas/production-payment-gate.v1.schema.json`
+- Create: `packages/contracts/schemas/production-run-context.v1.schema.json`
+- Create: `packages/contracts/schemas/production-canary-launch.v1.schema.json`
+- Create: `config/environments/production.yaml`
+- Create: `config/cdp/public-production-routes.v1.yaml`
+- Create: `scenarios/computer-use/production-web-smoke.v1.yaml`
+- Create: `packages/release/src/production-payment-gate.ts`
+- Create: `packages/runner/src/production-dependencies.ts`
+- Create: `tools/payment/run-production-canary.ts`
+- Create: `tests/release/production-payment-gate.test.ts`
+- Create: `tests/release/production-runner-composition.test.ts`
+- Create: `tests/computer-use/production-runner-lanes.test.ts`
+- Create: `tests/payment/production-host-control-bootstrap.test.ts`
+- Create: `tests/payment/production-runner-payment-integration.test.ts`
+- Modify: `packages/contracts/src/release.ts`
+- Modify: `packages/contracts/src/qa-run.ts`
+- Modify: `packages/contracts/src/cdp.ts`
+- Modify: `packages/contracts/src/computer-use.ts`
+- Modify: `packages/contracts/src/telegram.ts`
+- Modify: `packages/contracts/src/payment-control.ts`
+- Modify: `packages/contracts/src/index.ts`
+- Modify: `packages/contracts/schemas/cdp-session-manifest.v1.schema.json`
+- Modify: `packages/contracts/schemas/cdp-observation.v1.schema.json`
+- Modify: `packages/contracts/schemas/cdp-run-result.v1.schema.json`
+- Modify: `packages/contracts/schemas/computer-use-observation.v1.schema.json`
+- Modify: `packages/contracts/schemas/telegram-runtime-identity.v1.schema.json`
+- Modify: `packages/contracts/schemas/qa-lane-execution.v1.schema.json`
+- Modify: `packages/contracts/schemas/qa-artifact-bundle.v1.schema.json`
+- Modify: `packages/contracts/schemas/qa-run-evidence.v1.schema.json`
+- Modify: `packages/cdp-broker/src/attestation.ts`
+- Modify: `packages/cdp-broker/src/broker.ts`
+- Modify: `packages/cdp-broker/src/daemon.ts`
+- Modify: `packages/computer-use/src/checkpoint.ts`
+- Modify: `packages/computer-use/src/control-contracts.ts`
+- Modify: `packages/computer-use/src/control-client.ts`
+- Modify: `packages/computer-use/src/host-runtime.ts`
+- Modify: `packages/computer-use/src/origin-guard.ts`
+- Modify: `packages/computer-use/src/runner-lanes.ts`
+- Modify: `packages/computer-use/src/session.ts`
+- Modify: `packages/computer-use/src/telegram.ts`
+- Modify: `packages/payment/src/computer-use-fill-handler.ts`
+- Modify: `packages/payment/src/computer-use-submit-adapter.ts`
+- Modify: `packages/payment/src/computer-use-submit-handler.ts`
+- Modify: `packages/payment/src/field-injector.ts`
+- Modify: `packages/payment/src/host-control-bootstrap.ts`
+- Modify: `packages/payment/src/runner-lane.ts`
+- Modify: `packages/payment/src/program-gate.ts`
+- Modify: `packages/payment/src/canary.ts`
+- Modify: `packages/runner/src/commands.ts`
+- Modify: `packages/runner/src/selection.ts`
+- Modify: `packages/runner/src/run-authority.ts`
+- Modify: `packages/runner/src/evaluator.ts`
+- Modify: `packages/runner/src/evidence.ts`
+- Modify: `config/nuanu/release-control-handlers.v1.json`
+- Modify: `tests/cdp/cdp-contracts.test.ts`
+- Modify: `tests/cdp/attestation.test.ts`
+- Modify: `tests/cdp/broker.test.ts`
+- Modify: `tests/cdp/daemon.test.ts`
+- Modify: `tests/computer-use/checkpoint.test.ts`
+- Modify: `tests/computer-use/control-client.test.ts`
+- Modify: `tests/computer-use/evidence-redaction.test.ts`
+- Modify: `tests/computer-use/origin-guard.test.ts`
+- Modify: `tests/computer-use/host-runtime.test.ts`
+- Modify: `tests/computer-use/runner-integration.test.ts`
+- Modify: `tests/computer-use/nuanu-worker-integration.test.ts`
+- Modify: `tests/computer-use/telegram.test.ts`
+- Modify: `tests/contracts/qa-run.test.ts`
+- Modify: `tests/payment/computer-use-fill-handler.test.ts`
+- Modify: `tests/payment/computer-use-submit-adapter.test.ts`
+- Modify: `tests/payment/host-control-bootstrap.test.ts`
+- Modify: `tests/payment/runner-payment-integration.test.ts`
+- Modify: `tests/payment/nuanu-worker-payment-integration.test.ts`
+- Modify: `tests/runner/evaluator.test.ts`
+- Modify: `tests/runner/evidence.test.ts`
+- Modify: `tests/runner/selection.test.ts`
+- Modify: `tests/runner/run-authority.test.ts`
+- Modify: `package.json`
+
+**Interfaces:**
+
+```ts
+export interface ProductionPaymentGate {
+  schemaVersion: 1;
+  gateId: string;
+  stagingCertificationId: string;
+  stagingCertificationDigest: string;
+  deployedReleaseSha: string;
+  productionAttestationDigest: string;
+  productionAuthorizationId: string;
+  productionAccountDigest: string;
+  productionCatalogDigest: string;
+  productionPaymentProfileDigest: string;
+  expiresAt: string;
+}
+
+export interface ProductionRunContextV1 {
+  schemaVersion: 1;
+  environment: 'production';
+  gateId: string;
+  gateDigest: string;
+  fullReleaseSha: string;
+  candidateDigest: string;
+  productionAccountDigest: string;
+  productionCatalogDigest: string;
+  productionPaymentProfileDigest: string;
+}
+
+export interface ProductionCanaryLaunchV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-production-canary-v1';
+  gate: ProductionPaymentGate;
+  context: ProductionRunContextV1;
+  seed: QaWorkerSeedV1 & { paymentAuthorizationId: string };
+}
+
+export function deriveProductionPaymentGate(input: {
+  stagingCertification: ReleaseCertification;
+  productionIdentity: ReleaseIdentity & { environment: 'production' };
+  authorization: PaymentAuthorizationPolicyV1 & { environment: 'production' };
+  productionAccountDigest: string;
+  productionPaymentProfileDigest: string;
+  now: string;
+}): ProductionPaymentGate;
+
+export interface ProductionPaymentLaneFactoryDependencies {
+  loadAuthorizationRef(
+    authorizationId: string,
+  ): Promise<PaymentAuthorizationRef & { environment: 'production' }>;
+  startProductionPaymentHost(input: {
+    envelope: NuanuTaskEnvelope;
+    context: ProductionRunContextV1;
+  }): Promise<{ client: PrivateControlClient; stop(): Promise<void> }>;
+  createCanaryDependencies(input: {
+    environment: 'production';
+    context: ProductionRunContextV1;
+    authorization: PaymentAuthorizationRef & { environment: 'production' };
+    client: PrivateControlClient;
+  }): Promise<PaymentCanaryDependencies>;
+}
+
+export function createProductionPaymentLaneExecutorFactory(input: {
+  context: ProductionRunContextV1;
+  dependencies: ProductionPaymentLaneFactoryDependencies;
+}): PaymentLaneExecutorFactory;
+
+export function createProductionRunnerDependencies(input: {
+  repositoryRoot: string;
+  context: ProductionRunContextV1;
+  control: Pick<NuanuReleaseControlClient, 'publishQaEvidence'>;
+  env: Readonly<Record<string, string | undefined>>;
+}): Promise<RunnerDependencies & {
+  playwrightEnvironmentProfile: 'production';
+  extensionLanes: RunnerExtensionPorts & {
+    cdp: RunnerExtensionLaneExecutor<'cdp'>;
+    computerUse: RunnerExtensionLaneExecutor<'computer-use'>;
+    telegram: RunnerExtensionLaneExecutor<'telegram'>;
+    payment: PaymentLaneExecutorFactory;
+  };
+}>;
+
+export function runProductionPaymentCanary(input: {
+  launch: ProductionCanaryLaunchV1;
+  dependencies: Awaited<ReturnType<typeof createProductionRunnerDependencies>>;
+}): Promise<QaRunResult>;
+```
+
+- [ ] **Step 1: Write the production gate, attribution, and schema RED table**
+
+Reject a non-ready or mutated staging certification, unattested deployment,
+release-SHA mismatch, staging authorization/account/catalog/profile, any ID or
+Artifact reused from staging, expired gate, non-production canary input, and a
+Runner dependency whose `playwrightEnvironmentProfile` is not `production`,
+or a payment authorization outside its amount/currency/SKU/release scope. Repeated
+execution of the same canonical slot must enter observation/reconciliation and
+must not arm checkout or submit again.
+
+Add exact tests requiring `QaRunIdentity.environment`, every
+`QaLaneExecution.environment`, every N3 `QaSanitizedLaneEvidence` variant,
+every CDP/Computer Use/Telegram host request, observation, checkpoint and
+result, every payment host fill/submit request and result, `PaymentLifecycle`,
+the coverage projection, the Artifact bundle, and `QaRunEvidence` to carry the
+same literal `production`, full release SHA, and candidate digest. Mutate each
+one independently to `staging`, another release, another candidate, or an extra
+field and require rejection before any lane or publication.
+The independent parent and child `production-canary-launch.v1` schemas accept
+only the command literal, exact gate/context, and one closed `QaWorkerSeedV1`
+whose non-null authorization/candidate/deadline match them; caller-supplied
+`qaRunKey`, environment, lane, profile, executable, path, or dependency fields
+are rejected.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/production-payment-gate.test.ts tests/release/production-runner-composition.test.ts tests/contracts/qa-run.test.ts tests/runner/selection.test.ts tests/runner/run-authority.test.ts
+```
+
+Expected: FAIL because the production context, environment-attributed contract,
+and production dependency factory are absent.
+
+- [ ] **Step 2: Extend the shared contracts without creating a second result model**
+
+Add `environment: 'staging' | 'production'` to `QaRunIdentity` and
+`QaLaneExecution`, and add exact `environment`, `fullReleaseSha`, and
+`candidateDigest` attribution to each closed sanitized lane-evidence variant.
+Change N3's staged-only `backendEnvironment` literal to the same closed union,
+but require it to equal the authoritative run environment. Add the same exact
+attribution to the CDP session/observation/run-result contracts, Computer Use
+action-guard request/guard/observation/checkpoint receipts, Telegram runtime
+identity, `PaymentFillFieldsCommandV1`, `PaymentFillFieldsResultV1`,
+`PaymentSubmitCommandV1`, and `PaymentSubmitResultV1`; bind it in the private
+control envelope, action guard MAC, retained handles, field receipt, submit
+guard, and result digest. Update manual validators, all named N3 host schemas,
+and the three runner JSON Schemas in the same step. No optional attribution or
+legacy inference is allowed.
+
+`run-authority.ts` derives environment only from the static dependency profile
+and reviewed tracked environment file, never from the task envelope. It binds
+environment plus production context/gate digest into `QaRunIdentity` before
+`qaRunKey`. `selection.ts` selects only reviewed production-capable check and
+scenario mappings when environment is production. `evaluator.ts` rejects any
+cross-environment lane/lifecycle as `harness_invalid`; `evidence.ts` revalidates
+that the identity, plan, all lane executions, lifecycle, projection, bundle,
+and final `QaRunResult` carry one byte-identical production attribution.
+The parent launch schema is an independent wire copy pinned beside the four
+release-control schemas; the Freeland boundary validates its own copy and then
+uses the existing `FreelandRunnerPort.prepare(seed)` followed by
+`FreelandRunnerPort.execute(prepared)` path. Preparation may add only the
+deterministic `qaRunKey`; execution still delegates only to
+`executeFreelandQaRun`.
+
+- [ ] **Step 3: Write the full production composition RED tests**
+
+Use named tests proving:
+
+- the factory statically constructs production CDP, Computer Use, Telegram,
+  Playwright, API, payment, authority, evaluator, evidence, and release-control
+  publication dependencies;
+- `packages/runner/src/production-dependencies.ts` does not import or call
+  `createStagingCanaryCli`, the N5 staging `createPaymentLaneExecutorFactory`,
+  `createNuanuWorkerDependencies`, a staging scenario/profile, or any caller-
+  supplied factory/module/path;
+- all required production N3 lanes execute with production scenario/origin/
+  candidate/release attribution and cannot reuse staged evidence;
+- construction performs no host start, authorization load, secret resolution,
+  checkout, field entry, or submit;
+- Computer Use/Telegram primary, CDP custody/observation, and Playwright/API
+  secondary lanes plus freshness/candidate/cleanup gates all finish before the
+  payment factory's sole `create`, and its returned executor runs exactly once;
+- any earlier missing/failing/dirty lane prevents payment factory creation;
+- the production payment host receives a new one-shot host-key pipe distinct
+  from inherited release-control FD `3`, closes it before bind, and all browser,
+  watchdog, provider, and helper descendants observe both descriptors as
+  `EBADF`;
+- same-slot replay after any checkout/submit boundary invokes only observation/
+  reconciliation and constructs no second host, field injector, submit adapter,
+  checkout, or submit;
+- the one common evaluator/evidence/publisher returns one production
+  `QaRunResult` with the exact production payment lifecycle and sole exact
+  `production-qa-evidence.v1.json` reference.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/production-runner-composition.test.ts tests/computer-use/production-runner-lanes.test.ts tests/payment/production-host-control-bootstrap.test.ts tests/payment/production-runner-payment-integration.test.ts
+```
+
+Expected: FAIL because N3/N5 expose staging compositions only.
+
+- [ ] **Step 4: Implement the production-only N3/N5 composition**
+
+Reuse the N5 ledger, mutex, fencing, injector, watchdog, scrub, and
+reconciliation code. Remove no safety check. `deriveProductionPaymentGate`
+binds a ready staging certificate to the independently attested deployed SHA
+and production-only authorization/account/catalog/profile. The canary wrapper
+requires this exact digest before the sole `executeFreelandQaRun` entry point.
+The common runner owns selection, lifecycle projection, deterministic verdict,
+sanitized Artifact publication, and final `QaRunResult`; no side payment result
+bypasses it. The wrapper grants no authority to mint or widen an authorization.
+
+`production-dependencies.ts` is the only production composition root. It
+statically imports fixed production N3 lane builders, the exact production
+environment/route/scenario/profile loaders, repository/run authority, common
+evaluator/evidence projector, and
+`createProductionPaymentLaneExecutorFactory`. It adapts only
+`control.publishQaEvidence` to the existing `QaArtifactPublisher`; the client
+remains command-scoped and is never exposed through `RunnerDependencies`.
+There is no environment-polymorphic dependency factory and no fallback to the
+staging factory.
+
+Modify `runner-lanes.ts` to expose a named static production builder whose
+closed production manifests are reviewed files, not caller arguments. Each
+N3 host/lane result echoes production/full-release/candidate attribution and
+the runner rejects a staged scenario, staged origin, staged persona, staged
+backend, or missing attribution before evaluation. Production CDP remains
+custody/observation only and cannot replace required Computer Use/Telegram.
+
+Implement `createProductionPaymentLaneExecutorFactory` separately from N5's
+staging factory. Its construction captures only fixed production services,
+the already-derived context, and an exact-row loader; it is inert. Only its
+single late `create` call may load the exact authorization from
+`identity.payment`, revalidate environment/release/candidate/profile/gate,
+start the fixed production payment host, resolve opaque handles, and return the
+existing `RunnerExtensionLaneExecutor<'payment'>`. The payment lane remains the
+last external-effect lane. Any mismatch stops before host construction.
+
+Modify `computer-use-submit-adapter.ts` with a named production constructor
+that accepts only the branded production context plus resolved production
+profile. It sends one closed environment-attributed command and has no API/
+Playwright/CDP/script/mouse fallback or retry. Modify both payment handlers and
+`host-control-bootstrap.ts` so the static production bootstrap installs the
+exact non-null fill and submit handlers before bind. The host builds env from
+nothing with fixed Node locale/temp, production origin/release pins, runtime-
+role DB DSN, and secret-broker socket/pin only. The browser login/auth values
+go only to its purpose-specific browser child. Staging, reconciler, owner,
+migration/test, authorization mint/program/switch, Nuanu/release-control,
+provider mutation, Node/DYLD/npm/proxy, and unknown variables are absent.
+
+Create `config/environments/production.yaml` with `id: freeland-production`,
+HTTPS origin enforcement, and environment-variable references
+`FREELAND_PRODUCTION_BASE_URL`, `FREELAND_EXPECTED_PRODUCTION_SHA`,
+`FREELAND_PRODUCTION_TEST_EMAIL`, `FREELAND_PRODUCTION_TEST_PASSWORD`, and
+`FREELAND_PRODUCTION_CHROMIUM_AUTH_FILE`. It contains no literal URL or secret.
+`public-production-routes.v1.yaml` and the production scenario contain only
+reviewed route IDs/public origins and production attribution; no credential,
+account alias, selector, coordinate, card value, or arbitrary URL is present.
+
+- [ ] **Step 5: Compose the sole production-spend child behind the official launcher**
+
+`tools/payment/run-production-canary.ts` is the final child selected only by
+the Task 5 `freeland-production-canary-v1` parent launcher. It accepts no argv
+and one bounded closed `ProductionCanaryLaunchV1` stdin document, validates deployment/handler pins
+before reading it, exclusively opens inherited FD `3`, constructs the concrete
+`NuanuReleaseControlClient`, derives and validates the production gate/context,
+creates the static production dependencies, calls the existing runner port's
+`prepare` exactly once and `execute` exactly once, and never adds another
+ticket-level dispatcher. The parent tool builds the launch document only from
+its server-owned deployment/canary record and validates it with the independent
+parent schema before direct spawn. It
+accepts no PAN/CVV, amount, SKU, origin, URL, selector, shell, module, factory,
+or environment selector. It resolves reviewed production profiles and opaque
+secret handles internally, has no confirmation prompt, is absent from generic
+aggregates, and exits without external effect unless the exact durable
+authorization and gate validate.
+
+```json
+{
+  "acceptance:payment:production:child-test-only": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/payment/run-production-canary.ts"
+}
+```
+
+- [ ] **Step 6: Drive the integration suite from RED to GREEN and fault every boundary**
+
+With fake adapters, crash before and after each armed boundary. A post-submit
+unknown retains budget, closes the fence, pauses the production payment lane,
+and permits only reconciliation. A second worker, account, persona, or run key
+cannot produce a second checkout/submit for the same authorization slot.
+Require the returned `QaRunResult` to carry the exact production payment lane
+and lifecycle; candidate readiness remains the later Task 7 decision.
+
+Also inject environment/release/candidate drift immediately before every N3
+host action, field write, UI-submit claim, submit click, lifecycle return,
+evidence projection, and publish. Pre-claim drift emits no external action;
+post-claim ambiguity remains `UNKNOWN_HELD` and reconciliation-only. Assert the
+whole-transaction field mutex, stable native handles, DB claim-before-click,
+scrub/deletion proofs, finality holds, and late-paid recovery remain unchanged
+in production. Direct child launch without the official FD `3`, staged profile
+reuse, a null/wrong lane, duplicate factory creation, or read-back mismatch
+must fail closed and publish no PASS.
+
+- [ ] **Step 7: Run focused and aggregate GREEN**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/production-payment-gate.test.ts tests/release/production-runner-composition.test.ts tests/cdp/cdp-contracts.test.ts tests/cdp/attestation.test.ts tests/cdp/broker.test.ts tests/cdp/daemon.test.ts tests/computer-use/checkpoint.test.ts tests/computer-use/control-client.test.ts tests/computer-use/evidence-redaction.test.ts tests/computer-use/origin-guard.test.ts tests/computer-use/host-runtime.test.ts tests/computer-use/runner-integration.test.ts tests/computer-use/nuanu-worker-integration.test.ts tests/computer-use/telegram.test.ts tests/computer-use/production-runner-lanes.test.ts tests/payment/computer-use-fill-handler.test.ts tests/payment/computer-use-submit-adapter.test.ts tests/payment/host-control-bootstrap.test.ts tests/payment/runner-payment-integration.test.ts tests/payment/nuanu-worker-payment-integration.test.ts tests/payment/production-host-control-bootstrap.test.ts tests/payment/production-runner-payment-integration.test.ts tests/runner/selection.test.ts tests/runner/run-authority.test.ts tests/runner/evaluator.test.ts tests/runner/evidence.test.ts tests/contracts/qa-run.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands pass, exactly one production evidence Artifact is
+published in success fixtures, and no test opens a live provider checkout.
+
+- [ ] **Step 8: Stage the complete production composition and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/contracts/schemas/production-payment-gate.v1.schema.json packages/contracts/schemas/production-run-context.v1.schema.json packages/contracts/schemas/production-canary-launch.v1.schema.json packages/contracts/schemas/cdp-session-manifest.v1.schema.json packages/contracts/schemas/cdp-observation.v1.schema.json packages/contracts/schemas/cdp-run-result.v1.schema.json packages/contracts/schemas/computer-use-observation.v1.schema.json packages/contracts/schemas/telegram-runtime-identity.v1.schema.json packages/contracts/schemas/qa-lane-execution.v1.schema.json packages/contracts/schemas/qa-artifact-bundle.v1.schema.json packages/contracts/schemas/qa-run-evidence.v1.schema.json packages/contracts/src/release.ts packages/contracts/src/qa-run.ts packages/contracts/src/cdp.ts packages/contracts/src/computer-use.ts packages/contracts/src/telegram.ts packages/contracts/src/payment-control.ts packages/contracts/src/index.ts packages/release/src/production-payment-gate.ts packages/runner/src/production-dependencies.ts packages/runner/src/commands.ts packages/runner/src/selection.ts packages/runner/src/run-authority.ts packages/runner/src/evaluator.ts packages/runner/src/evidence.ts packages/cdp-broker/src/attestation.ts packages/cdp-broker/src/broker.ts packages/cdp-broker/src/daemon.ts packages/computer-use/src/checkpoint.ts packages/computer-use/src/control-contracts.ts packages/computer-use/src/control-client.ts packages/computer-use/src/host-runtime.ts packages/computer-use/src/origin-guard.ts packages/computer-use/src/runner-lanes.ts packages/computer-use/src/session.ts packages/computer-use/src/telegram.ts packages/payment/src/computer-use-fill-handler.ts packages/payment/src/computer-use-submit-adapter.ts packages/payment/src/computer-use-submit-handler.ts packages/payment/src/field-injector.ts packages/payment/src/host-control-bootstrap.ts packages/payment/src/runner-lane.ts packages/payment/src/program-gate.ts packages/payment/src/canary.ts tools/payment/run-production-canary.ts tests/release/production-payment-gate.test.ts tests/release/production-runner-composition.test.ts tests/cdp/cdp-contracts.test.ts tests/cdp/attestation.test.ts tests/cdp/broker.test.ts tests/cdp/daemon.test.ts tests/computer-use/checkpoint.test.ts tests/computer-use/control-client.test.ts tests/computer-use/evidence-redaction.test.ts tests/computer-use/origin-guard.test.ts tests/computer-use/host-runtime.test.ts tests/computer-use/runner-integration.test.ts tests/computer-use/nuanu-worker-integration.test.ts tests/computer-use/telegram.test.ts tests/computer-use/production-runner-lanes.test.ts tests/payment/computer-use-fill-handler.test.ts tests/payment/computer-use-submit-adapter.test.ts tests/payment/host-control-bootstrap.test.ts tests/payment/runner-payment-integration.test.ts tests/payment/nuanu-worker-payment-integration.test.ts tests/payment/production-host-control-bootstrap.test.ts tests/payment/production-runner-payment-integration.test.ts tests/contracts/qa-run.test.ts tests/runner/selection.test.ts tests/runner/run-authority.test.ts tests/runner/evaluator.test.ts tests/runner/evidence.test.ts config/environments/production.yaml config/cdp/public-production-routes.v1.yaml scenarios/computer-use/production-web-smoke.v1.yaml config/nuanu/release-control-handlers.v1.json package.json
+git diff --cached --check
+git commit -m "feat: gate production payment canaries"
+git status --short
+git rev-parse --verify HEAD
+```
+
+- [ ] **Step 9: Roll the parent deployment pin to the reviewed production child**
+
+After the child commit exists, add the independent parent launch schema and
+closed launch-document validator, update the fixed production-canary parent
+tool, and roll the deployment pin to that clean product commit plus the
+recomputed handler/complete schema digest set. Then prove the official launcher
+selects the final production child and FD `3` protocol.
+Phase `task6` sets `activeCommandIds` to exactly staging certification plus
+production canary; production certification remains inactive until Task 8.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task6
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task6 --verify
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/release-control-server.spec.ts tests/program/nuanu/release-control-launcher.spec.ts
+git add src/nuanu/schemas/production-canary-launch.v1.schema.json src/nuanu/release-control-wire.ts tools/nuanu/run-freeland-production-canary.ts tests/program/nuanu/release-control-launcher.spec.ts config/nuanu/freeland-release-deployment.v1.json
+git diff --cached --check
+git commit -m "chore(nuanu): pin production release child"
+```
+
+This task creates the command but does not execute it. Live use remains Step 3
+of Task 9 after a deployment and all exact production prerequisites exist.
+
+---
+
+### Task 7: Evaluate an Independently Attested Production Canary
+
+**Files:**
+
+- Create: `packages/release/src/production-canary.ts`
+- Create: `tests/release/production-canary.test.ts`
+- Create: `tests/release/fixtures/production-pass.results.json`
+- Create: `tests/release/fixtures/production-fail.results.json`
+
+**Interfaces:**
+
+```ts
+export function evaluateProductionCanary(input: {
+  stagingCertification: ReleaseCertification;
+  productionIdentity: ReleaseIdentity & { environment: 'production' };
+  productionAuthorizationId: string;
+  productionAccountDigest: string;
+  requiredCapabilityIds: string[];
+  evidence: QaRunEvidence[];
+  now: string;
+}): ProductionCanaryRecord;
+```
+
+- [ ] **Step 1: Write failing environment-separation tests**
+
+Reject staging environment/catalog/account/authorization/evidence, reused
+`qaRunKey`, pre-deploy timestamps, mismatched release SHA, missing production
+attestation, unknown payment lifecycle, missing production-only canary leaf, and
+Artifact refs copied from staging. Prove a production failure leaves the input
+staging certification byte-identical.
+Also reject any result whose bundle/projection does not bind the required
+production capability, requirement, check, Flow item, and exact payment lane.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/*.test.ts
+```
+
+Expected: FAIL because the evaluator is absent.
+
+- [ ] **Step 2: Implement the production-only evaluator**
+
+Require an already-ready staging certification only as a historical link, not
+as production evidence. Generate a distinct canary ID/digest. Categorize
+product/entitlement/payment failures as `FAIL`; infra/provider/stale/incomplete
+as `INCONCLUSIVE`; never convert either to pass.
+
+- [ ] **Step 3: Verify and commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add packages/release/src/production-canary.ts tests/release/production-canary.test.ts tests/release/fixtures/production-pass.results.json tests/release/fixtures/production-fail.results.json
+git commit -m "feat: evaluate isolated production canaries"
+```
+
+---
+
+### Task 8: Emit Incident and Rollback Instructions Without Rewriting History
+
+**Repositories:**
+
+- Parent/control server: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program`
+- Freeland child/client: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local`
+
+**NuanuFlowQA parent files:**
+
+- Create: `src/nuanu/schemas/production-certification-launch.v1.schema.json`
+- Create: `src/nuanu/release-response-adapter.ts`
+- Create: `tests/program/nuanu/release-response-adapter.spec.ts`
+- Modify: `src/nuanu/release-control-wire.ts`
+- Modify: `src/nuanu/release-control-server.ts`
+- Modify: `tools/nuanu/run-freeland-release-production.ts`
+- Modify: `tests/program/nuanu/release-control-server.spec.ts`
+- Modify: `tests/program/nuanu/release-control-launcher.spec.ts`
+- Modify: `config/nuanu/freeland-release-deployment.v1.json`
+
+**Freeland child files:**
+
+- Create: `packages/contracts/schemas/production-certification-launch.v1.schema.json`
+- Create: `packages/release/src/incident.ts`
+- Create: `tools/release/certify-production.ts`
+- Create: `tests/release/incident.test.ts`
+- Create: `tests/release/nuanu-response-integration.test.ts`
+- Create: `docs/runbooks/production-canary-response.md`
+- Modify: `packages/release/src/commands.ts`
+- Modify: `packages/release/src/nuanu-control-client.ts`
+- Modify: `packages/contracts/src/nuanu-release-control.ts`
+- Modify: `packages/contracts/src/index.ts`
+- Modify: `tests/release/commands.test.ts`
+- Modify: `tests/release/nuanu-control-client.test.ts`
+- Modify: `config/nuanu/release-control-handlers.v1.json`
+- Modify: `package.json`
+
+**Interfaces:**
+
+```ts
+export function deriveProductionIncident(
+  canary: ProductionCanaryRecord,
+): ProductionIncidentInstruction | null;
+
+export interface ProductionCertificationLaunchV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-release-certify-production-v1';
+  case: 'live' | 'non-spending-failure-fixture';
+  authority: ReleaseControlSessionAuthorityV1 & {
+    commandId: 'freeland-release-certify-production-v1';
+    allowedArtifactName: 'production-release-canary.v1.json';
+  };
+  input:
+    | {
+        kind: 'sanitized-live-evidence';
+        stagingCertificationBytesBase64: string;
+        stagingCertificationSha256: string;
+        productionEvidenceBytesBase64: string;
+        productionEvidenceSha256: string;
+      }
+    | {
+        kind: 'committed-failure-fixture';
+        fixtureId: 'production-fail';
+        fixtureSha256: string;
+      };
+  deadline: string;
+}
+
+export function runProductionCanaryCommand(input: unknown, deps: {
+  control: ReleasePublisher & ProductionResponsePort;
+  now: () => string;
+}): Promise<number>;
+
+export interface NuanuReleaseResponseNativePort {
+  pauseExactCapabilities(input: {
+    incidentKey: string;
+    capabilityIds: readonly string[];
+    canaryDigest: string;
+  }): Promise<{ receiptId: string }>;
+  readBackCapabilities(
+    capabilityIds: readonly string[],
+  ): Promise<readonly {
+    capabilityId: string;
+    mode: 'ASSIST';
+    canaryDigest: string;
+  }[]>;
+  createExactIncident(
+    instruction: ProductionIncidentInstructionWireV1,
+  ): Promise<{ flowItemId: string }>;
+  readBackIncident(flowItemId: string): Promise<{
+    flowItemId: string;
+    incidentKey: string;
+    state: 'OPEN';
+    canaryDigest: string;
+  }>;
+}
+```
+
+- [ ] **Step 1: Write Freeland and parent response RED tests**
+
+Assert pass emits no incident, fail pauses exactly the affected capabilities
+before creating the incident, inconclusive pauses and investigates without
+claiming rollback success, repeated invocation is idempotent by `incidentKey`,
+late completion cannot unpause, and staging certification is never supplied to
+a mutation method. Also assert production bundle publication/read-back occurs
+before pause, every capability's Assist read-back occurs before incident
+creation, partial/mismatched pause keeps every already-paused capability in
+Assist and creates no incident, incident read-back mismatch is non-zero, and no
+error path retries payment or edits the staging certificate.
+
+Against the real inherited client and NuanuFlowQA fixture server, test exact
+request/result schema validation, production command/operation allowlist,
+idempotent replay returning the original pause and incident receipts, changed
+capability set/canary/instruction under one key failing closed, disconnect after
+server claim followed by safe read-back replay, late/stale response rejection,
+and absence of any generic Nuanu/MCP method. Prove a staging or production-
+canary command session cannot call pause or create incident.
+Validate independent production-certification launch schemas and digest parity:
+live accepts only exact sanitized staging-certificate and production-evidence
+bytes/digests obtained by the parent from the previously claimed exact Artifact
+versions; the failure case accepts only the committed `production-fail`
+fixture/digest. Cross-case fields, paths, raw evidence, extra bytes, authority/
+capability/incident-key drift, or more than 3 MiB total stdin fail before
+spawn or control mutation.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/incident.test.ts tests/release/commands.test.ts tests/release/nuanu-control-client.test.ts tests/release/nuanu-response-integration.test.ts
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/release-response-adapter.spec.ts tests/program/nuanu/release-control-server.spec.ts tests/program/nuanu/release-control-launcher.spec.ts
+```
+
+Expected: both commands fail because the response adapter and official child
+composition are absent.
+
+- [ ] **Step 2: Implement the parent-owned exact response adapter and atomic read-back**
+
+`release-response-adapter.ts` is the only parent-side implementation behind the
+two response protocol operations. It statically binds the exact official Nuanu
+capability-mode and incident operations; no URL, method name, tool name, state
+UUID, arbitrary item fields, token, or generic client crosses the port. The
+server validates and atomically claims `(commandId, incidentKey, operation)`
+with the canonical payload digest before the first mutation. It permits only
+sorted unique affected capability IDs already present in the validated canary
+and only the fixed Assist mode.
+
+For pause, invoke the one exact capability operation, read every capability
+back, require exact Assist/canary binding, and only then mint the signed
+`readBackDigest`. Exact replay returns the original receipt; changed input
+fails. For incident creation, require the previously verified pause receipt for
+the same incident key/canary/capability set, create one exact typed incident,
+read it back as open, and return only its Flow item ID/key/state/digest. Exact
+replay returns that item. A timeout after an atomic claim enters read-back
+recovery and never issues a second distinct mutation. The server cannot unpause,
+close an incident, transition a ticket, rewrite an Artifact, or touch staging
+history.
+
+- [ ] **Step 3: Implement typed Freeland response ordering through the concrete FD `3` client**
+
+Publish the canary exact version, verify read-back, pause capabilities, then
+create/link the incident. On any receipt mismatch return non-zero and retain the
+pause. Do not auto-close incidents. `NuanuReleaseControlClient` implements
+`ReleasePublisher` and `ProductionResponsePort` directly; it constructs the
+three closed authenticated requests internally and exposes no transport escape
+hatch. `runProductionCanaryCommand` accepts one intersection-typed `control`,
+not independently swappable publisher/response arguments; live composition
+passes the concrete client, so publish and response share the same fixed
+production command/session/pins. Test doubles remain unit-test-only.
+
+`tools/release/certify-production.ts` accepts no argv and exactly one bounded
+closed `ProductionCertificationLaunchV1` document from the official parent. It validates deployment/
+handler pins, exclusively opens inherited FD `3`, loads only already-sanitized
+production evidence, evaluates Task 7, and injects the same
+`NuanuReleaseControlClient` as publisher/response. It accepts no Nuanu token,
+endpoint, generic method, module, client, executable, path, environment
+selector, payment input, or staging certificate mutation. Direct invocation
+without authenticated FD `3` fails before reading evidence.
+`tools/nuanu/run-freeland-release-production.ts` uses only its closed case enum,
+reads the exact prior publication claims through fixed read-only native
+operations, verifies their Artifact/version/SHA and sanitizer schemas, builds
+the independent launch document and authority, then directly spawns the pinned
+child. No local evidence path or Artifact ID is an operator argument.
+
+Add only this child test alias; it is not a live invocation path:
+
+```json
+{
+  "release:certify:production:child-test-only": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/release/certify-production.ts"
+}
+```
+
+- [ ] **Step 4: Document and test operator recovery**
+
+The runbook gives only the official Task 5 parent-launcher command to inspect
+canary Artifact versions, verify pause receipts, reconcile payments, authorize
+rollback, and return only a reviewed capability to Assist. It explicitly
+prohibits direct child/npm/npx invocation, generic Nuanu/API clients, rerunning
+a payment submit to resolve an unknown outcome, editing the staging
+certification, or claiming rollback success before an independently authorized
+deployment rollback and later verification.
+
+- [ ] **Step 5: Run focused and aggregate GREEN in both repositories**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/release/incident.test.ts tests/release/commands.test.ts tests/release/nuanu-control-client.test.ts tests/release/nuanu-response-integration.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:release
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/release-response-adapter.spec.ts tests/program/nuanu/release-control-server.spec.ts tests/program/nuanu/release-control-launcher.spec.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands pass; the failure fixture transcript is exactly publish
+→ read-back → pause → read-back → incident → read-back, while the
+pass fixture performs publish/read-back only.
+
+- [ ] **Step 6: Stage and commit the child, then roll forward and stage the parent pin**
+
+The child commit and empty status are prerequisites to phase `task8`. The pin
+writer captures that OID, recomputes all handler/launch/control schema digests,
+and activates exactly all three reviewed commands. Its read-only verification
+and the parent response/server/launcher tests must pass before the parent pin
+is staged or committed.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/contracts/schemas/production-certification-launch.v1.schema.json packages/contracts/src/nuanu-release-control.ts packages/contracts/src/index.ts packages/release/src/incident.ts packages/release/src/commands.ts packages/release/src/nuanu-control-client.ts tools/release/certify-production.ts tests/release/incident.test.ts tests/release/commands.test.ts tests/release/nuanu-control-client.test.ts tests/release/nuanu-response-integration.test.ts docs/runbooks/production-canary-response.md config/nuanu/release-control-handlers.v1.json package.json
+git diff --cached --check
+git commit -m "feat: route production canary incidents safely"
+git status --short
+git rev-parse --verify HEAD
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task8
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task8 --verify
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/release-response-adapter.spec.ts tests/program/nuanu/release-control-server.spec.ts tests/program/nuanu/release-control-launcher.spec.ts
+git add src/nuanu/schemas/production-certification-launch.v1.schema.json src/nuanu/release-control-wire.ts src/nuanu/release-response-adapter.ts src/nuanu/release-control-server.ts tools/nuanu/run-freeland-release-production.ts tests/program/nuanu/release-response-adapter.spec.ts tests/program/nuanu/release-control-server.spec.ts tests/program/nuanu/release-control-launcher.spec.ts config/nuanu/freeland-release-deployment.v1.json
+git diff --cached --check
+git commit -m "feat(nuanu): serve closed release response operations"
+```
+
+---
+
+### Task 9: Execute N6 and N7 Acceptance Separately
+
+**Repositories:**
+
+- Parent/pin owner: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program`
+- Freeland acceptance records: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local`
+
+**Files:**
+
+- Modify: `docs/runbooks/staging-release-certification.md`
+- Modify: `docs/runbooks/production-canary-response.md`
+- Modify: `config/nuanu/freeland-release-deployment.v1.json`
+
+Until every launcher in Steps 1–4 has finished, do not edit either checkout.
+Capture observations only in the restricted owner-only custody root outside
+both repositories; do not write acceptance records, prepared invocations,
+evidence, output, or temporary files under either worktree. Immediately before
+each launcher block, require both tracked/untracked source statuses to be empty
+and reverify the exact Task 8 deployment, dependency-tree, handler, and schema
+pins. Only Step 5 may project the sanitized observations into the two tracked
+runbooks.
+
+- [ ] **Step 1: Reproduce one staging ready and one staging blocked fixture**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-release-control-fixed
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+test ! -e .qa-runtime
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task8 --verify
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/run-freeland-release-staging.ts --case=fixture-ready
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/run-freeland-release-staging.ts --case=fixture-blocked
+```
+
+Retain certification IDs, manifest hashes, reason codes, and deterministic
+rerun equality only in the external restricted observation record until Step
+5. Both are official parent
+launcher invocations: they validate the deployment/handler/schema pins, spawn
+the fixed child with inherited FD `3`, and enforce dry-run zero-control-call
+behavior. Do not run the Freeland child directly.
+
+- [ ] **Step 2: Run the live pre-deploy staging certification**
+
+Use the exact candidate/full-release/catalog/integration/policy identities and
+completed mandatory baseline. Publish the sanitized bundle to the bound Nuanu
+work item/process run and read back the exact version. Do not deploy or mutate
+ticket states from this command.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-release-control-fixed
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+test ! -e .qa-runtime
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task8 --verify
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/run-freeland-release-staging.ts --case=live
+```
+
+The parent selects the pinned staging profile and child environment. No path,
+profile, publisher, Nuanu method, endpoint, token, or handler override is an
+operator argument.
+
+- [ ] **Step 3: After an independently authorized deployment, run production**
+
+First execute the production payment canary through the Task 5 official parent
+launcher. Then aggregate the production-only evidence and publish/respond
+through the separate production-certification launcher:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-release-control-fixed
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+test ! -e .qa-runtime
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task8 --verify
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/run-freeland-production-canary.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/run-freeland-release-production.ts --case=live
+```
+
+The production environment/profile, static N3/N5 dependency composition,
+clean product commit, handler manifest, and exact deployment/schema pins are
+Task 6 prerequisites. If deployment or its exact SHA has not been attested,
+the first launcher exits inconclusive before the payment factory is created and
+performs no purchase. The second launcher never submits payment.
+
+- [ ] **Step 4: Exercise the response port with a non-spending failure fixture**
+
+Prove the capability pause/incident sequence against an isolated Nuanu test
+capability; read back receipts and verify the staging certification remains
+unchanged. Re-enable only by the runbook's reviewed Assist recovery path.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-release-control-fixed
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+test ! -e .qa-runtime
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task8 --verify
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/run-freeland-release-production.ts --case=non-spending-failure-fixture
+```
+
+Expected transcript: exact-version publish/read-back, exact capability pause/
+read-back, incident creation/read-back. The fixture has no payment authorization
+and cannot invoke the production-canary child.
+
+- [ ] **Step 5: Project sanitized records, commit them, and roll the parent pin to the final clean OID**
+
+Only now copy the allowlisted sanitized fields from the external observation
+record into the two runbooks. Before staging, require the Freeland dirty-tree
+set to contain exactly those two tracked files and no untracked/ignored
+acceptance material. Commit them first, prove the Freeland worktree is empty,
+then recompute the Task 8 parent pin for that new clean documentation-only OID.
+The parent launcher tests and read-only pin verification must pass before the
+pin commit; both worktrees must finish empty.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:release
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan
+test "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)" = "$(/usr/bin/printf '%s\n' ' M docs/runbooks/production-canary-response.md' ' M docs/runbooks/staging-release-certification.md')"
+git add docs/runbooks/staging-release-certification.md docs/runbooks/production-canary-response.md
+git diff --cached --check
+git commit -m "test: record release certification acceptance"
+git status --short
+git rev-parse --verify HEAD
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+test -z "$(/usr/bin/git status --porcelain=v1 --untracked-files=all)"
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task8
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task8 --verify
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/release-control-server.spec.ts tests/program/nuanu/release-control-launcher.spec.ts tests/program/nuanu/release-response-adapter.spec.ts
+git add config/nuanu/freeland-release-deployment.v1.json
+git diff --cached --check
+git commit -m "chore(nuanu): pin release acceptance record"
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-release-deployment.ts --phase=task8 --verify
+git status --short
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freeland-release-control-fixed
+git status --short
+test ! -e .qa-runtime
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git status --short
+```
+
+The three npm-CLI commands above are local verification suites only; they do
+not publish, pause, create incidents, or launch a production payment. Every
+release-control action in this task uses only the three official parent tools
+from Steps 1–4 and their pinned direct child launchers.
+
+Only sanitized run IDs, digests, exact Nuanu Artifact version IDs, transition or
+pause receipt IDs, and verdicts enter the committed runbooks. Live account,
+order, provider, or payment identifiers remain in the restricted evidence
+boundary.
+
+## Plan Acceptance
+
+- All nine tasks' exact-scope commits and required NuanuFlowQA pin roll-forwards
+  are present; the parent, Freeland implementation, and fixed detached launch
+  worktrees are clean, `.qa-runtime` is absent from the launch root, and the
+  parent pin names the reviewed Freeland commit/handler/schema/dependency
+  digests.
+- `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:release`, `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic`, and
+  `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan` pass under Node 20.20.x.
+- One live staging certification is reproducible from exact immutable inputs and
+  cannot use ticket status as evidence.
+- One post-deploy production canary uses distinct environment, account,
+  authorization, catalog, run, and Artifact identities.
+- The production runner statically composes production-attributed N3 lanes and
+  the separate inert N5 production payment factory, executes every mandatory
+  non-payment/cleanup gate first, and creates/executes payment only once as the
+  final external-effect lane. No staging factory or staged evidence is loaded.
+- Independent NuanuFlowQA/Freeland release-control schemas have matching pinned
+  digests; every live child is a direct pinned Node 20 spawn with fresh
+  authenticated FD `3`, strict child env, parent-only Nuanu credentials, exact
+  operation idempotency, and verified Artifact/capability/incident read-back.
+- Task 9 uses only the three official parent launcher tools. Direct Freeland
+  release/payment children, generic Nuanu/MCP clients, npm/npx launch aliases,
+  and caller-selected executable/cwd/argv/env/method paths are not live paths.
+- The production-spend command is absent from generic aggregates, accepts only
+  opaque reviewed references, and same-slot replay cannot resubmit.
+- Production failure/inconclusive response is idempotent, pauses the exact
+  capability, creates a reviewable incident, and leaves staging history intact.
+- No real charge is submitted by release aggregation; all paid canaries enter
+  through the separately accepted payment kernel.

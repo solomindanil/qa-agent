@@ -1,0 +1,419 @@
+// View model for the I2 "safe first evidence" vertical: exact baseline review →
+// dry-run scope → action-time probe approval → one terminal receipt.
+//
+// Honesty rules this module enforces, so no component can bypass them:
+//   1. Nothing but a terminal receipt may name a run or a verdict. Every earlier
+//      state reports `Runs: none` / `Verdict: NOT_EVALUATED`.
+//   2. The only verdicts I2 can reach are INCONCLUSIVE, ENV_BLOCKED and
+//      HARNESS_FAIL. A receipt claiming anything else — PASS above all — is a
+//      contract violation and fails closed to HARNESS_FAIL.
+//   3. Accept release is disabled in every state, and always carries a reason.
+//
+// See docs/superpowers/specs/2026-08-31-safe-first-evidence-i2-design.md §2–§3.
+
+/** The four user-visible gates of the I2 vertical, in lifecycle order. */
+export const EVIDENCE_STEPS = ["BASELINE", "DRY_RUN", "EXECUTION", "EVIDENCE"] as const;
+export type EvidenceStepKey = (typeof EVIDENCE_STEPS)[number];
+
+/** The complete verdict vocabulary of I2. `PASS` is deliberately absent. */
+export const EVIDENCE_VERDICTS = ["INCONCLUSIVE", "ENV_BLOCKED", "HARNESS_FAIL"] as const;
+export type EvidenceVerdict = (typeof EVIDENCE_VERDICTS)[number];
+
+export type EvidenceStepStatus = "pending" | "active" | "running" | "complete" | "blocked";
+
+export interface DigestRow {
+  readonly label: string;
+  /** The contract the digest belongs to, e.g. `product-profile.v1`. */
+  readonly contract: string;
+  readonly digest: string;
+}
+
+export interface EvidenceEnvironment {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: string;
+}
+
+/** Everything a human must see before approving one exact baseline (design §2). */
+export interface BaselineReview {
+  readonly sessionId: string;
+  readonly workspacePath: string;
+  readonly registrationReceiptDigest: string;
+  readonly artifacts: readonly DigestRow[];
+  /** Strategy blockers that prevent the narrow HTTP observation. Empty ⇒ approvable. */
+  readonly blockers: readonly string[];
+  /** Candidate checks whose business oracle is unresolved — why PASS is unreachable. */
+  readonly unresolvedOracles: number;
+  readonly candidateChecks: number;
+  readonly selectedEnvironment: EvidenceEnvironment | null;
+  readonly declaredSource: string;
+  readonly adapter: string;
+}
+
+export interface BaselineApproval {
+  readonly approvalId: string;
+  readonly approvalDigest: string;
+  readonly idempotencyKeyDigest: string;
+  readonly lifecycle: "DRY_RUN_READY";
+  readonly nextAction: "COMPILE_DISCOVERY_RUN";
+  readonly approvedAt: string;
+  readonly boundArtifactCount: number;
+}
+
+/** `discovery-run-plan.v1` as the console shows it — bounded, read-only, exact. */
+export interface DiscoveryRunPlan {
+  readonly planDigest: string;
+  readonly baselineApprovalDigest: string;
+  readonly environment: EvidenceEnvironment;
+  readonly declaredSource: string;
+  readonly normalizedUrl: string;
+  readonly allowedOrigin: string;
+  readonly method: "GET" | "HEAD";
+  readonly sideEffectClass: "read_only";
+  readonly maxRedirects: number;
+  readonly maxResponseBytes: number;
+  readonly timeoutMs: number;
+  readonly retainedEvidenceFields: readonly string[];
+  readonly expectedObservationKind: string;
+  readonly adapter: string;
+}
+
+/** `execution-approval-receipt.v1` — one confirmed action bound to one run. */
+export interface ExecutionApproval {
+  readonly runId: string;
+  readonly executionApprovalDigest: string;
+  readonly idempotencyKeyDigest: string;
+  readonly planDigest: string;
+  readonly scopeDigest: string;
+  readonly lifecycle: "RUNNING";
+  readonly nextAction: "COLLECT_EVIDENCE";
+  readonly approvedAt: string;
+}
+
+/** Response metadata only — the observation never stores a body (design §5). */
+export interface RunObservation {
+  readonly requestedUrl: string;
+  readonly effectiveUrl: string;
+  readonly status: number;
+  readonly redirects: number;
+  readonly headers: readonly { readonly name: string; readonly value: string }[];
+  readonly bodyBytes: number;
+  readonly bodyDigest: string;
+  readonly capturedAt: string;
+  readonly adapter: string;
+}
+
+export interface RunBlocker {
+  readonly class: "environment" | "harness";
+  readonly code: string;
+  readonly detail: string;
+}
+
+/** `discovery-run-receipt.v1` — exactly one observation or exactly one blocker. */
+export interface DiscoveryRunReceipt {
+  readonly runId: string;
+  readonly receiptDigest: string;
+  readonly planDigest: string;
+  readonly baselineApprovalDigest: string;
+  readonly executionApprovalDigest: string;
+  readonly state: "final" | "incomplete";
+  readonly verdict: EvidenceVerdict;
+  readonly observation: RunObservation | null;
+  readonly blocker: RunBlocker | null;
+  readonly evidenceManifestDigest: string;
+  readonly evidenceEntries: number;
+  readonly completedAt: string;
+}
+
+export type EvidenceRunState =
+  | { readonly kind: "ungated"; readonly lifecycleState: string; readonly nextAction: string }
+  | { readonly kind: "baseline"; readonly baseline: BaselineReview }
+  | { readonly kind: "approving"; readonly baseline: BaselineReview }
+  | { readonly kind: "refused"; readonly baseline: BaselineReview; readonly message: string }
+  | { readonly kind: "compiling"; readonly baseline: BaselineReview; readonly approval: BaselineApproval }
+  | {
+      readonly kind: "scoped";
+      readonly baseline: BaselineReview;
+      readonly approval: BaselineApproval;
+      readonly plan: DiscoveryRunPlan;
+    }
+  | {
+      readonly kind: "running";
+      readonly baseline: BaselineReview;
+      readonly approval: BaselineApproval;
+      readonly plan: DiscoveryRunPlan;
+      readonly execution: ExecutionApproval;
+    }
+  | {
+      readonly kind: "terminal";
+      readonly baseline: BaselineReview;
+      readonly approval: BaselineApproval;
+      readonly plan: DiscoveryRunPlan;
+      readonly execution: ExecutionApproval;
+      readonly receipt: DiscoveryRunReceipt;
+    };
+
+export interface EvidenceStepView {
+  readonly key: EvidenceStepKey;
+  readonly title: string;
+  readonly status: EvidenceStepStatus;
+  readonly detail: string;
+}
+
+export interface EvidenceFlowView {
+  readonly steps: readonly EvidenceStepView[];
+  readonly activeStep: EvidenceStepKey;
+  readonly headline: string;
+  readonly detail: string;
+  /** `none` until a terminal receipt exists; then the run it names. */
+  readonly runsLabel: string;
+  readonly verdictLabel: "NOT_EVALUATED" | EvidenceVerdict;
+  readonly verdictNote: string;
+  readonly acceptRelease: { readonly enabled: false; readonly reason: string };
+  readonly baseline: BaselineReview | null;
+  readonly approval: BaselineApproval | null;
+  readonly plan: DiscoveryRunPlan | null;
+  readonly execution: ExecutionApproval | null;
+  readonly receipt: DiscoveryRunReceipt | null;
+  readonly canApproveBaseline: boolean;
+  readonly approvalBlockedReason: string | null;
+  readonly canRunProbe: boolean;
+  readonly busy: boolean;
+  readonly error: string | null;
+  /** Where this data came from — surfaced verbatim, never implied. */
+  readonly provenance: string;
+}
+
+const STEP_TITLE: Record<EvidenceStepKey, string> = {
+  BASELINE: "Exact baseline review",
+  DRY_RUN: "Dry-run scope",
+  EXECUTION: "Read-only probe approval",
+  EVIDENCE: "Terminal evidence",
+};
+
+const P: EvidenceStepStatus = "pending";
+
+function stepStatuses(
+  state: EvidenceRunState,
+  verdict: EvidenceVerdict | null,
+): Record<EvidenceStepKey, EvidenceStepStatus> {
+  switch (state.kind) {
+    case "ungated":
+      return { BASELINE: P, DRY_RUN: P, EXECUTION: P, EVIDENCE: P };
+    case "baseline":
+      return { BASELINE: "active", DRY_RUN: P, EXECUTION: P, EVIDENCE: P };
+    case "approving":
+      return { BASELINE: "running", DRY_RUN: P, EXECUTION: P, EVIDENCE: P };
+    case "refused":
+      return { BASELINE: "blocked", DRY_RUN: P, EXECUTION: P, EVIDENCE: P };
+    case "compiling":
+      return { BASELINE: "complete", DRY_RUN: "running", EXECUTION: P, EVIDENCE: P };
+    case "scoped":
+      return { BASELINE: "complete", DRY_RUN: "complete", EXECUTION: "active", EVIDENCE: P };
+    case "running":
+      return { BASELINE: "complete", DRY_RUN: "complete", EXECUTION: "complete", EVIDENCE: "running" };
+    case "terminal":
+      return {
+        BASELINE: "complete",
+        DRY_RUN: "complete",
+        EXECUTION: "complete",
+        EVIDENCE: verdict === "INCONCLUSIVE" ? "complete" : "blocked",
+      };
+  }
+}
+
+function baselineDetail(state: EvidenceRunState): string {
+  switch (state.kind) {
+    case "ungated":
+      return "no registered baseline to review yet";
+    case "baseline":
+      return `${state.baseline.artifacts.length} artifact digests are bound by this approval`;
+    case "approving":
+      return "writing the immutable baseline-approval receipt";
+    case "refused":
+      return state.message;
+    default:
+      return "approved · baseline-approval-receipt.v1 written and read back";
+  }
+}
+
+function dryRunDetail(state: EvidenceRunState): string {
+  switch (state.kind) {
+    case "compiling":
+      return "compiling one bounded HTTP metadata plan";
+    case "scoped":
+    case "running":
+    case "terminal":
+      return `${state.plan.method} ${state.plan.normalizedUrl} · ${state.plan.sideEffectClass}`;
+    default:
+      return "compiled only after an exact baseline approval";
+  }
+}
+
+function executionDetail(state: EvidenceRunState): string {
+  switch (state.kind) {
+    case "scoped":
+      return "a second, action-time approval is required before any request";
+    case "running":
+    case "terminal":
+      return `bound to run ${state.execution.runId}`;
+    default:
+      return "no request is sent without an explicit run approval";
+  }
+}
+
+function evidenceDetail(state: EvidenceRunState, receipt: DiscoveryRunReceipt | null): string {
+  if (state.kind === "running") return "collecting one bounded observation — the outcome is not known yet";
+  if (receipt === null) return "no receipt exists, so there is no run and no verdict";
+  if (receipt.blocker !== null) return `${receipt.blocker.code} · ${receipt.blocker.detail}`;
+  return `${receipt.evidenceEntries} evidence entry · manifest ${receipt.evidenceManifestDigest}`;
+}
+
+function headlineFor(
+  state: EvidenceRunState,
+  receipt: DiscoveryRunReceipt | null,
+): { readonly headline: string; readonly detail: string } {
+  switch (state.kind) {
+    case "ungated":
+      // Deliberately never prints the lifecycle this workspace is *not* in.
+      return {
+        headline: "First evidence is not available yet",
+        detail: `the build stopped at ${state.lifecycleState}, whose next action is ${state.nextAction}`,
+      };
+    case "baseline":
+      return {
+        headline: "Review this exact baseline",
+        detail: "approval binds these digests and nothing else — nothing has run",
+      };
+    case "approving":
+      return { headline: "Approving baseline…", detail: "the receipt is written, then read back byte-for-byte" };
+    case "refused":
+      return { headline: "✗ approval refused", detail: "no plan was compiled and no request was sent" };
+    case "compiling":
+      return { headline: "Compiling the dry-run scope…", detail: "one environment, one URL, one read-only method" };
+    case "scoped":
+      return { headline: "Review the dry-run scope", detail: "running the probe is a second, explicit approval" };
+    case "running":
+      return {
+        headline: "Collecting one bounded observation…",
+        detail: "an interrupted run is never retried automatically",
+      };
+    case "terminal":
+      return receipt?.verdict === "INCONCLUSIVE"
+        ? { headline: "✓ first runtime evidence", detail: "one observation was captured and kept as one receipt" }
+        : { headline: "✗ the run produced no evidence", detail: "the receipt records a typed blocker instead of an observation" };
+  }
+}
+
+function contractViolation(receipt: DiscoveryRunReceipt): string | null {
+  if (!(EVIDENCE_VERDICTS as readonly string[]).includes(receipt.verdict)) {
+    return `the runner reported "${receipt.verdict}", which is not a verdict I2 can produce`;
+  }
+  if (receipt.verdict === "INCONCLUSIVE") {
+    if (receipt.observation === null) return "an INCONCLUSIVE receipt must carry exactly one captured observation";
+    if (receipt.blocker !== null) return "an INCONCLUSIVE receipt cannot also carry a blocker";
+    if (receipt.state !== "final") return "an INCONCLUSIVE receipt must be final";
+  }
+  if (receipt.verdict === "ENV_BLOCKED") {
+    if (receipt.blocker?.class !== "environment") return "an ENV_BLOCKED receipt requires a typed environment blocker";
+    if (receipt.observation !== null) return "an ENV_BLOCKED receipt cannot also claim an observation";
+  }
+  if (receipt.verdict === "HARNESS_FAIL" && receipt.blocker?.class !== "harness") {
+    return "a HARNESS_FAIL receipt requires a typed harness blocker";
+  }
+  return null;
+}
+
+// A receipt that breaks its own contract is not a result to display — it is a
+// harness failure. This is the single place a `PASS` claim is turned away.
+function reconcile(receipt: DiscoveryRunReceipt): { receipt: DiscoveryRunReceipt; error: string | null } {
+  const violation = contractViolation(receipt);
+  if (violation === null) return { receipt, error: null };
+  return {
+    receipt: {
+      ...receipt,
+      state: "incomplete",
+      verdict: "HARNESS_FAIL",
+      observation: null,
+      blocker: { class: "harness", code: "E_RECEIPT_CONTRACT", detail: violation },
+    },
+    error: violation,
+  };
+}
+
+const VERDICT_NOTE: Record<EvidenceVerdict, string> = {
+  INCONCLUSIVE:
+    "A bounded observation was collected, but no approved business oracle was evaluated. This is first runtime evidence, not product acceptance.",
+  ENV_BLOCKED: "The declared environment could not be observed. Nothing about the product was verified.",
+  HARNESS_FAIL: "The runner or the evidence pipeline failed. Nothing about the product was verified.",
+};
+
+function approvalBlocker(baseline: BaselineReview): string | null {
+  if (baseline.blockers.length > 0) return baseline.blockers[0];
+  if (baseline.selectedEnvironment === null) {
+    return "no single eligible web environment can be selected safely from this baseline";
+  }
+  return null;
+}
+
+function acceptReleaseReason(baseline: BaselineReview | null, verdict: "NOT_EVALUATED" | EvidenceVerdict): string {
+  if (verdict === "NOT_EVALUATED") return "no run has produced a receipt — there is nothing to accept";
+  const oracles = baseline?.unresolvedOracles ?? 0;
+  return oracles > 0
+    ? `I2 cannot reach PASS: ${oracles} candidate checks still have unresolved business oracles`
+    : "I2 cannot reach PASS: no approved business oracle was evaluated";
+}
+
+function provenanceFor(state: EvidenceRunState): string {
+  if (state.kind === "ungated") return "the UI fixture adapter stays idle until a registered baseline exists";
+  return `${state.baseline.adapter} · a labelled UI fixture adapter — no request leaves the browser and nothing is persisted`;
+}
+
+export function buildEvidenceFlow(state: EvidenceRunState): EvidenceFlowView {
+  const settled = state.kind === "terminal" ? reconcile(state.receipt) : null;
+  const receipt = settled?.receipt ?? null;
+  const verdict: "NOT_EVALUATED" | EvidenceVerdict = receipt?.verdict ?? "NOT_EVALUATED";
+
+  const statuses = stepStatuses(state, receipt?.verdict ?? null);
+  const details: Record<EvidenceStepKey, string> = {
+    BASELINE: baselineDetail(state),
+    DRY_RUN: dryRunDetail(state),
+    EXECUTION: executionDetail(state),
+    EVIDENCE: evidenceDetail(state, receipt),
+  };
+  const steps: readonly EvidenceStepView[] = EVIDENCE_STEPS.map((key) => ({
+    key,
+    title: STEP_TITLE[key],
+    status: statuses[key],
+    detail: details[key],
+  }));
+
+  const baseline = state.kind === "ungated" ? null : state.baseline;
+  const blockedReason = state.kind === "baseline" ? approvalBlocker(state.baseline) : null;
+  const { headline, detail } = headlineFor(state, receipt);
+
+  return {
+    steps,
+    activeStep: steps.find((step) => step.status === "active" || step.status === "running")?.key
+      ?? (state.kind === "terminal" ? "EVIDENCE" : "BASELINE"),
+    headline,
+    detail,
+    runsLabel: receipt?.runId ?? "none",
+    verdictLabel: verdict,
+    verdictNote: verdict === "NOT_EVALUATED"
+      ? "no receipt exists yet — an absent verdict is not a pass"
+      : VERDICT_NOTE[verdict],
+    acceptRelease: { enabled: false, reason: acceptReleaseReason(baseline, verdict) },
+    baseline,
+    approval: "approval" in state ? state.approval : null,
+    plan: "plan" in state ? state.plan : null,
+    execution: "execution" in state ? state.execution : null,
+    receipt,
+    canApproveBaseline: state.kind === "baseline" && blockedReason === null,
+    approvalBlockedReason: blockedReason,
+    canRunProbe: state.kind === "scoped",
+    busy: state.kind === "approving" || state.kind === "compiling" || state.kind === "running",
+    error: state.kind === "refused" ? state.message : settled?.error ?? null,
+    provenance: provenanceFor(state),
+  };
+}

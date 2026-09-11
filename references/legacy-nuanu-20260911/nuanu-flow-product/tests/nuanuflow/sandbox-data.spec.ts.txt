@@ -1,0 +1,216 @@
+import { expect, test } from '@playwright/test';
+import {
+  CleanupLedger,
+  SANDBOX,
+  createRunId,
+  qaName,
+  registerCreatedEntity,
+} from './fixtures/sandbox-data';
+import {
+  CleanupResidualError,
+  captureKnownBugBehavior,
+  cleanupRegistered,
+  requireKnownBugFailure,
+} from './fixtures/authenticated.fixture';
+
+test('generates worker-safe QA E2E names', () => {
+  const runId = createRunId(3, new Date('2026-07-26T10:11:12.000Z'));
+  expect(qaName(runId, 'work item')).toMatch(
+    /^QA E2E 20260726T101112Z-w3-[a-f0-9]{6} work item$/,
+  );
+});
+
+test('rejects cleanup outside the exact sandbox and prefix', () => {
+  const ledger = new CleanupLedger();
+  expect(() =>
+    ledger.register({
+      kind: 'work-item',
+      id: 'unsafe-1',
+      name: 'Existing item',
+      workspaceSlug: SANDBOX.workspaceSlug,
+      cleanup: async () => {},
+    }),
+  ).toThrow(/QA E2E/);
+  expect(() =>
+    ledger.register({
+      kind: 'work-item',
+      id: 'unsafe-2',
+      name: 'QA E2E wrong workspace',
+      workspaceSlug: 'nuanu-flow-qa',
+      cleanup: async () => {},
+    }),
+  ).toThrow(/nf-qa-sandbox/);
+});
+
+test('cleans in reverse order and reports exact residual IDs', async () => {
+  const calls: string[] = [];
+  const ledger = new CleanupLedger();
+  ledger.register({
+    kind: 'work-item',
+    id: 'one',
+    name: 'QA E2E one',
+    workspaceSlug: SANDBOX.workspaceSlug,
+    cleanup: async () => calls.push('one'),
+  });
+  ledger.register({
+    kind: 'cycle',
+    id: 'two',
+    name: 'QA E2E two',
+    workspaceSlug: SANDBOX.workspaceSlug,
+    cleanup: async () => {
+      calls.push('two');
+      throw new Error('cleanup failed');
+    },
+  });
+
+  await expect(ledger.cleanupAll()).resolves.toEqual([
+    { kind: 'cycle', id: 'two', name: 'QA E2E two' },
+  ]);
+  expect(calls).toEqual(['two', 'one']);
+});
+
+test('keeps failed cleanup entries for a retry with their exact IDs', async () => {
+  let attempts = 0;
+  const ledger = new CleanupLedger();
+  ledger.register({
+    kind: 'process',
+    id: 'process-42',
+    name: 'QA E2E retryable process',
+    workspaceSlug: SANDBOX.workspaceSlug,
+    cleanup: async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('temporary delete failure');
+    },
+  });
+
+  await expect(ledger.cleanupAll()).resolves.toEqual([
+    {
+      kind: 'process',
+      id: 'process-42',
+      name: 'QA E2E retryable process',
+    },
+  ]);
+  await expect(ledger.cleanupAll()).resolves.toEqual([]);
+  expect(attempts).toBe(2);
+});
+
+test('registers the endpoint-scoped exact response ID before post-create work fails', async () => {
+  const deletedIds: string[] = [];
+  const ledger = new CleanupLedger();
+  const response = {
+    url: 'https://test.invalid/api/processes',
+    status: 201,
+    body: { result: { id: 'process-from-response' } },
+  };
+  const contract = {
+    endpoint: 'https://test.invalid/api/processes',
+    extractExactId: (body: unknown) => {
+      if (typeof body !== 'object' || body === null) return undefined;
+      const result = (body as { result?: unknown }).result;
+      if (typeof result !== 'object' || result === null) return undefined;
+      const id = (result as { id?: unknown }).id;
+      return typeof id === 'string' ? id : undefined;
+    },
+  };
+
+  const processId = registerCreatedEntity(ledger, response, contract, {
+    kind: 'process',
+    name: 'QA E2E process with exact response ID',
+    workspaceSlug: SANDBOX.workspaceSlug,
+    cleanup: async () => deletedIds.push(processId),
+  });
+
+  expect(processId).toBe('process-from-response');
+  try {
+    throw new Error('post-create assertion failed');
+  } catch (error) {
+    expect(error).toHaveProperty('message', 'post-create assertion failed');
+  } finally {
+    await cleanupRegistered(ledger);
+  }
+  expect(deletedIds).toEqual(['process-from-response']);
+});
+
+test('reports an unannotated cleanup residual and keeps it for fixture retry', async () => {
+  let attempts = 0;
+  const ledger = new CleanupLedger();
+  ledger.register({
+    kind: 'process',
+    id: 'process-residual-7',
+    name: 'QA E2E residual process',
+    workspaceSlug: SANDBOX.workspaceSlug,
+    cleanup: async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('delete failed once');
+    },
+  });
+
+  await expect(cleanupRegistered(ledger)).rejects.toMatchObject({
+    name: 'CleanupResidualError',
+    residuals: [
+      {
+        kind: 'process',
+        id: 'process-residual-7',
+        name: 'QA E2E residual process',
+      },
+    ],
+  } satisfies Partial<CleanupResidualError>);
+  await expect(cleanupRegistered(ledger)).resolves.toBeUndefined();
+  expect(attempts).toBe(2);
+});
+
+test('turns an observed correct behavior into an unannotated NUANU-8 XPASS failure', () => {
+  expect(() => requireKnownBugFailure(undefined)).toThrow(
+    'NUANU-8 unexpectedly passed',
+  );
+
+  const knownBugFailure = new Error('dialog remained open');
+  expect(requireKnownBugFailure(knownBugFailure)).toBe(knownBugFailure);
+});
+
+test('leaves an operational setup error outside NUANU-8 classification', async () => {
+  const setupError = new Error('authentication expired');
+  let knownBugCheckRan = false;
+
+  const setupThenCheck = async () => {
+    throw setupError;
+    const knownBugFailure = await captureKnownBugBehavior(async () => {
+      knownBugCheckRan = true;
+    });
+    return requireKnownBugFailure(knownBugFailure);
+  };
+
+  await expect(setupThenCheck()).rejects.toBe(setupError);
+  expect(knownBugCheckRan).toBe(false);
+});
+
+test('captures only the precise NUANU-8 behavior assertion for expected-fail eligibility', async () => {
+  const knownBugError = new Error('bracketed name was not shown');
+  const captured = await captureKnownBugBehavior(async () => {
+    throw knownBugError;
+  });
+
+  expect(requireKnownBugFailure(captured)).toBe(knownBugError);
+});
+
+test('removes a registered mutation after a later assertion failure', async () => {
+  const calls: string[] = [];
+  const ledger = new CleanupLedger();
+
+  try {
+    ledger.register({
+      kind: 'process',
+      id: 'process-1',
+      name: 'QA E2E process',
+      workspaceSlug: SANDBOX.workspaceSlug,
+      cleanup: async () => calls.push('process-1'),
+    });
+    throw new Error('later assertion failed');
+  } catch (error) {
+    expect(error).toHaveProperty('message', 'later assertion failed');
+  } finally {
+    await cleanupRegistered(ledger);
+  }
+
+  expect(calls).toEqual(['process-1']);
+});

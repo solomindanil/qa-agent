@@ -1,0 +1,241 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+
+import { buildSourceLock, validateMappings } from "../../tools/nuanu-app-graph/source.mjs";
+
+const FIXTURE_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
+const EXPECTED_REMOTE = "https://github.com/nuanu-ai/nuanu-web.git";
+const MAPPING_DIGEST = "a".repeat(64);
+
+async function readFixture(name) {
+  return JSON.parse(await readFile(join(FIXTURE_DIRECTORY, name), "utf8"));
+}
+
+function git(repoPath, args) {
+  return execFileSync("git", args, { cwd: repoPath, encoding: "utf8" }).trim();
+}
+
+async function createRepository(t) {
+  const repoPath = await mkdtemp(join(tmpdir(), "nuanu-app-source-"));
+  t.after(() => rm(repoPath, { recursive: true, force: true }));
+  await mkdir(join(repoPath, "apps/nuanu-web/src/app"), { recursive: true });
+  await writeFile(join(repoPath, "apps/nuanu-web/src/app/page.tsx"), "export default function Home() {}\n");
+  await writeFile(join(repoPath, "apps/nuanu-web/README.md"), "# Nuanu App\n");
+  git(repoPath, ["init", "-q"]);
+  git(repoPath, ["config", "user.email", "qa@example.test"]);
+  git(repoPath, ["config", "user.name", "QA Test"]);
+  git(repoPath, ["add", "."]);
+  git(repoPath, ["commit", "-qm", "initial fixture"]);
+  git(repoPath, ["remote", "add", "origin", EXPECTED_REMOTE]);
+  return repoPath;
+}
+
+function validationCodes(result) {
+  return result.errors.map((error) => error.code);
+}
+
+const catalog = {
+  sourceRoots: ["apps/nuanu-web"],
+  automatedTestIds: ["nuanu-app:automated-test:home-smoke"],
+  runtimeNodeIds: [],
+};
+
+test("buildSourceLock records full SHA, remote, roots, clean state, and digest", async (t) => {
+  const repoPath = await createRepository(t);
+  const sourceLock = await buildSourceLock({
+    repoPath,
+    sourceRoots: ["apps/nuanu-web"],
+    expectedRemote: EXPECTED_REMOTE,
+    mappingDigest: MAPPING_DIGEST,
+  });
+
+  assert.deepEqual(sourceLock, {
+    productId: "nuanu-app",
+    repositoryUrl: EXPECTED_REMOTE,
+    commitSha: git(repoPath, ["rev-parse", "HEAD"]),
+    clean: true,
+    sourceRoots: ["apps/nuanu-web"],
+    contentDigest: sourceLock.contentDigest,
+    mappingDigest: MAPPING_DIGEST,
+  });
+  assert.match(sourceLock.commitSha, /^[0-9a-f]{40}$/);
+  assert.match(sourceLock.contentDigest, /^[0-9a-f]{64}$/);
+  assert.equal(sourceLock.contentDigest, createHash("sha256")
+    .update("apps/nuanu-web/README.md\0# Nuanu App\n\0")
+    .update("apps/nuanu-web/src/app/page.tsx\0export default function Home() {}\n\0")
+    .digest("hex"));
+  await assert.rejects(
+    () => buildSourceLock({
+      repoPath,
+      sourceRoots: ["apps/nuanu-web"],
+      expectedRemote: EXPECTED_REMOTE,
+      mappingDigest: "A".repeat(64),
+    }),
+    { code: "INVALID_MAPPING_DIGEST" },
+  );
+});
+
+test("buildSourceLock rejects a dirty checkout when requireClean is true", async (t) => {
+  const repoPath = await createRepository(t);
+  await writeFile(join(repoPath, "apps/nuanu-web/src/app/page.tsx"), "changed\n");
+
+  await assert.rejects(
+    () => buildSourceLock({
+      repoPath,
+      sourceRoots: ["apps/nuanu-web"],
+      expectedRemote: EXPECTED_REMOTE,
+      mappingDigest: MAPPING_DIGEST,
+    }),
+    { code: "DIRTY_CHECKOUT" },
+  );
+});
+
+test("buildSourceLock treats untracked files as dirty despite local Git status settings", async (t) => {
+  const repoPath = await createRepository(t);
+  git(repoPath, ["config", "status.showUntrackedFiles", "no"]);
+  await writeFile(join(repoPath, "apps/nuanu-web/untracked.ts"), "export {}\n");
+
+  await assert.rejects(
+    () => buildSourceLock({
+      repoPath,
+      sourceRoots: ["apps/nuanu-web"],
+      expectedRemote: EXPECTED_REMOTE,
+      mappingDigest: MAPPING_DIGEST,
+    }),
+    { code: "DIRTY_CHECKOUT" },
+  );
+});
+
+test("buildSourceLock deduplicates roots and hashes non-ASCII paths in code-unit order", async (t) => {
+  const repoPath = await createRepository(t);
+  await writeFile(join(repoPath, "apps/nuanu-web/z.ts"), "export const z = 1;\n");
+  await writeFile(join(repoPath, "apps/nuanu-web/ä.ts"), "export const umlaut = 1;\n");
+  git(repoPath, ["add", "."]);
+  git(repoPath, ["commit", "-qm", "unicode paths"]);
+
+  const sourceLock = await buildSourceLock({
+    repoPath,
+    sourceRoots: ["apps/nuanu-web", "apps/nuanu-web"],
+    expectedRemote: EXPECTED_REMOTE,
+    mappingDigest: MAPPING_DIGEST,
+  });
+
+  assert.deepEqual(sourceLock.sourceRoots, ["apps/nuanu-web"]);
+  assert.equal(sourceLock.contentDigest, createHash("sha256")
+    .update("apps/nuanu-web/README.md\0# Nuanu App\n\0")
+    .update("apps/nuanu-web/src/app/page.tsx\0export default function Home() {}\n\0")
+    .update("apps/nuanu-web/z.ts\0export const z = 1;\n\0")
+    .update("apps/nuanu-web/ä.ts\0export const umlaut = 1;\n\0")
+    .digest("hex"));
+});
+
+test("buildSourceLock rejects source roots outside the repository", async (t) => {
+  const repoPath = await createRepository(t);
+  const outsidePath = await mkdtemp(join(tmpdir(), "nuanu-app-outside-"));
+  t.after(() => rm(outsidePath, { recursive: true, force: true }));
+  await symlink(outsidePath, join(repoPath, "apps/nuanu-web/link-out"));
+
+  for (const sourceRoot of [outsidePath, "apps/nuanu-web/link-out"]) {
+    await assert.rejects(
+      () => buildSourceLock({
+        repoPath,
+        sourceRoots: [sourceRoot],
+        expectedRemote: EXPECTED_REMOTE,
+        mappingDigest: MAPPING_DIGEST,
+      }),
+      { code: "INVALID_SOURCE_ROOT" },
+    );
+  }
+});
+
+test("validateMappings rejects foreign namespace and foreign paths", async () => {
+  const result = validateMappings(await readFixture("mappings.foreign.json"), catalog);
+  assert.equal(result.ok, false);
+  assert.ok(validationCodes(result).includes("FOREIGN_PRODUCT_NAMESPACE"));
+  assert.ok(validationCodes(result).includes("FOREIGN_MAPPING_PATH"));
+});
+
+test("validateMappings rejects globs in no_product_impact", async () => {
+  const mappings = await readFixture("mappings.valid.json");
+  mappings.no_product_impact[0].path = "apps/nuanu-web/**/*.md";
+
+  const result = validateMappings(mappings, catalog);
+  assert.equal(result.ok, false);
+  assert.ok(validationCodes(result).includes("INVALID_MAPPING_PATH"));
+});
+
+test("validateMappings rejects unknown automated test IDs", async () => {
+  const mappings = await readFixture("mappings.valid.json");
+  mappings.mappings[0].automatedTestIds = ["nuanu-app:automated-test:missing"];
+
+  const result = validateMappings(mappings, catalog);
+  assert.equal(result.ok, false);
+  assert.ok(validationCodes(result).includes("UNKNOWN_AUTOMATED_TEST_ID"));
+});
+
+test("validateMappings always returns structured errors for malformed mappings and catalogs", async () => {
+  const validMappings = await readFixture("mappings.valid.json");
+  const cases = [
+    { mappings: null, inputCatalog: null, requiredCode: "INVALID_CATALOG" },
+    { mappings: [], inputCatalog: catalog, requiredCode: "INVALID_MAPPINGS" },
+    {
+      mappings: validMappings,
+      inputCatalog: { sourceRoots: {}, automatedTestIds: {}, runtimeNodeIds: {} },
+      requiredCode: "INVALID_AUTOMATED_TEST_CATALOG",
+    },
+  ];
+
+  for (const { mappings, inputCatalog, requiredCode } of cases) {
+    let result;
+    assert.doesNotThrow(() => { result = validateMappings(mappings, inputCatalog); });
+    assert.equal(typeof result.ok, "boolean");
+    assert.ok(Array.isArray(result.errors));
+    assert.ok(validationCodes(result).includes(requiredCode));
+  }
+});
+
+test("validateMappings derives source-only safety from runtime membership and validates provenance", async () => {
+  const sourceOnly = await readFixture("mappings.valid.json");
+  sourceOnly.mappings[0].provenance = "runtime";
+  sourceOnly.mappings[0].coverageDisposition = "AUTOMATED";
+
+  const sourceOnlyResult = validateMappings(sourceOnly, catalog);
+  assert.equal(sourceOnlyResult.ok, false);
+  assert.ok(validationCodes(sourceOnlyResult).includes("INVALID_MAPPING_PROVENANCE"));
+  assert.ok(validationCodes(sourceOnlyResult).includes("SOURCE_MAPPING_LIVE_COVERAGE"));
+
+  const runtimeObserved = await readFixture("mappings.valid.json");
+  runtimeObserved.mappings[0].provenance = "source_and_runtime";
+  runtimeObserved.mappings[0].coverageDisposition = "AUTOMATED";
+  const runtimeCatalog = {
+    ...catalog,
+    runtimeNodeIds: [runtimeObserved.mappings[0].nodeId],
+  };
+  assert.deepEqual(validateMappings(runtimeObserved, runtimeCatalog), { ok: true, errors: [] });
+});
+
+test("validateMappings rejects standard extglobs without rejecting ordinary parentheses", async () => {
+  const ordinaryParentheses = await readFixture("mappings.valid.json");
+  ordinaryParentheses.no_product_impact[0].path = "apps/nuanu-web/docs/(draft).md";
+  assert.deepEqual(validateMappings(ordinaryParentheses, catalog), { ok: true, errors: [] });
+
+  for (const globPath of [
+    "apps/nuanu-web/!(README).md",
+    "apps/nuanu-web/+(foo)",
+    "apps/nuanu-web/@(foo)",
+    "apps/nuanu-web/*(foo)",
+    "apps/nuanu-web/?(foo)",
+  ]) {
+    const mappings = await readFixture("mappings.valid.json");
+    mappings.no_product_impact[0].path = globPath;
+    const result = validateMappings(mappings, catalog);
+    assert.equal(result.ok, false, globPath);
+    assert.ok(validationCodes(result).includes("INVALID_MAPPING_PATH"), globPath);
+  }
+});

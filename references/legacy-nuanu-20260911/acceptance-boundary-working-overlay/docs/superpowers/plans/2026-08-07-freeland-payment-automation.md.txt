@@ -1,0 +1,3303 @@
+# Freeland Payment Automation Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Implement N5.1–N5.4 as an unattended but owner-bounded payment kernel that can perform one authorized staging canary per exact release/SKU without duplicate checkout or submit, while proving atomic budget custody, monotonic fencing, PAN/CVV deletion, independent watchdog recovery, and provider/order/entitlement reconciliation.
+
+**Architecture:** Keep payment authorization, budget, canonical intent, checkout cardinality, submission fencing, data-custody inventory, and reconciliation in PostgreSQL 16 with database constraints and `SERIALIZABLE` transactions. Nuanu and the deterministic runner pass only immutable references; the private Mac payment adapter resolves opaque secret handles inside the declared payment boundary, and a separate watchdog scrubs CVV/PAN-bearing copies without depending on the worker callback. Routine execution consumes an owner-minted authorization without an interactive purchase Decision, but the only submit adapter remains fail-closed until every program, candidate, persona, profile, watchdog, quote, origin, budget, scrub, and reconciliation gate is present.
+
+**Tech Stack:** Node.js 20.20.2 at `/opt/homebrew/opt/node@20/bin/node`, npm from the same installation, TypeScript 6.0.3, raw `pg` 8.16.3 with `@types/pg` 8.15.5, PostgreSQL 16.12, Node test runner through `tsx` 4.22.4, JSON Schema 2020-12 through Ajv 8.20.0, YAML 2.9.0, existing Freeland CDP/Computer Use custody, and SHA-256 canonical JSON.
+
+## Global Constraints
+
+1. The approved design is `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program/docs/superpowers/specs/2026-08-07-freeland-nuanu-native-qa-control-plane-design.md` at NuanuFlowQA commit `affd6e1727c69d483b7886763eb52b495f5bf3b1`.
+2. All implementation changes land only in `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local`, whose clean product baseline is `72378f3e32f8da3d1e5226e8737a3717e48a6347` on `codex/freeland-agent-first-cdp-i1-local`. That commit must remain an ancestor of the implementation HEAD.
+3. Execute this plan only after the deterministic-runner plan has supplied `packages/contracts/src/qa-run.ts`, `packages/contracts/schemas/qa-run-result.v1.schema.json`, `QaRunResult`, and `PaymentLifecycle`, and the Computer Use/persona plan has supplied `packages/contracts/src/persona.ts`, `db/migrations/0010_persona_leases.sql`, `packages/personas/src/lease-service.ts`, and a private payment-context control port.
+4. Import `PaymentLifecycle` from `packages/contracts/src/qa-run.ts`. Do not create a second lifecycle/result type or let an agent-written summary alter it.
+5. PostgreSQL is payment-domain durable state, not a generic queue, workflow engine, worker registry, or replacement for Nuanu task delivery. Do not add Redis, an ORM, or a local-file mutex.
+6. The shared N3 database contract is `tools/db/migrate.ts`, sorted `db/migrations/*.sql`, immutable `schema_migrations(version, sha256, applied_at)`, `FREELAND_QA_DATABASE_URL`, `FREELAND_QA_TEST_DATABASE_URL`, and `FREELAND_QA_MIGRATION_DATABASE_URL`. Payment adds only the owner/reconciler DB variables `FREELAND_PAYMENT_OWNER_DATABASE_URL` and `FREELAND_PAYMENT_RECONCILER_DATABASE_URL`, plus the non-value secret-broker locator/pin named in constraint 13.
+7. An authorization is minted only through the owner database role and owner CLI. Planner, Nuanu worker, Computer Use worker, provider adapter, and ordinary runtime have consume-only authority and cannot insert, update, widen, renew, or delete one.
+8. There is no per-purchase human confirmation for an ordinary allowlisted canary. New money, scope, SKU, environment, release, currency, recurrence, amount, or expiry authority requires a new immutable owner authorization, not a runtime prompt.
+9. The database-unique slot is exactly `(authorizationId, environment, fullReleaseSha, sku)`. `qaRunKey`, issue, account, worker, retry, payment-profile revision, merchant, method, and caller ordinal never create another slot.
+10. `maxCheckoutsCreated` and `maxSubmittedPayments` are both exactly `1`. A database row reserves each external-effect slot before the effect; checkout count advances only on observed creation, while an ambiguous submit fence is conservatively counted as submitted. A crash after arming can only resume the same idempotent checkout or observe/reconcile; it cannot reserve another slot.
+11. The budget ledger exposes `authorized`, `reserved`, `spent`, and `pendingUnknown` minor units. `pendingUnknown` is a subset of `reserved`; therefore `pendingUnknown <= reserved` and `reserved + spent <= authorized` at every commit.
+12. One global instrument mutex serializes staging and production across VPN, eSIM, and virtual-number canaries. Its epoch only increases. Worker/persona lease expiry never reopens a payment fence after checkout or submit is armed.
+13. No ordinary JSON input, CLI argument, Nuanu envelope, test fixture, database column, log, error, trace, screenshot, or Artifact contains PAN, expiry value, CVV, provider payload, checkout URL, or reversible provider handle. Ordinary inputs carry only opaque aliases and branded secret handles. The unattended worker may locate the private handle service only through the exact owned Unix-socket path and public pin named by `FREELAND_PAYMENT_SECRET_BROKER_SOCKET` and `FREELAND_PAYMENT_SECRET_BROKER_PIN`; neither variable contains a payment value.
+14. CVV is never durable. Every non-provider-field CVV copy must have a backend deletion receipt plus an independent not-found/tombstone proof before submit. The hard CVV deadline is ten minutes from first capture.
+15. Every durable PAN-bearing copy is encrypted inside the restricted payment boundary, pre-registered, and deleted within 24 hours with a backend receipt and independent not-found/tombstone proof. A legal or incident hold cannot extend CVV or full-PAN retention.
+16. Staging and production use different authorization IDs, account aliases, resolved profile digests, candidate identities, catalog digests, evidence namespaces, order/entitlement records, and canary results. N5 may execute staging only; production submit remains hard-disabled for the N7 plan.
+17. An unknown or conflicting post-submit result retains its reservation, sets `pendingUnknown`, keeps the instrument fence closed, pauses the payment lane, prohibits resubmit, and schedules reconciliation/escalation.
+18. Refund initiation is outside this plan. The reconciler may observe a provider reversal/refund but never derives authority to request one from purchase authorization.
+19. Unit and integration tests use `.invalid` origins, generated non-Luhn tokens, opaque aliases, and fake provider facts. They never open a provider checkout or submit a payment.
+20. The sole operator/automation trigger for a staging canary is the pinned Nuanu parent tool `/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/launch-freeland-payment-canary-trigger.ts`; it may only enqueue one closed QA worker seed for an already durable authorization. The sole effect-capable runtime is the existing digest-pinned `qa:nuanu-worker` handler. No product CLI, package script, test, or second dispatcher may call `executeFreelandQaRun`, open checkout, or submit independently.
+21. Do not invoke the canary trigger while implementing Tasks 1–14. Task 15 defines a machine-verifiable boundary: when its complete durable precondition set is true, the automated Nuanu parent enqueues the seed once without a prompt and the ordinary worker executes it. Repeating the same trigger or delivery must converge on the same `qaRunKey`/intent/ledger and enter observation or reconciliation only.
+22. Every code task uses RED → minimal GREEN → focused regression → aggregate verification → exact-scope commit. Record the named failing assertion before implementation and run `git diff --check` before every commit.
+23. Ambient Node 22 is non-authoritative. Every direct test uses
+    `/opt/homebrew/opt/node@20/bin/node`; every package script is invoked by
+    that binary through the pinned
+    `/opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run SCRIPT`.
+    Installation uses the same Node/npm pair. Completion requires exact version
+    `v20.20.2`.
+24. Every state-changing database routine exposed to runtime, reconciler, or
+    watchdog is a hardened `SECURITY DEFINER` function owned by the dedicated
+    `NOLOGIN` owner, with an immutable safe `search_path`, schema-qualified
+    objects, no dynamic SQL, and `PUBLIC` execution revoked. Caller-controlled
+    schemas, temporary objects, operators, casts, or function overloads cannot
+    alter resolution.
+25. A decline or cancellation never releases money or the instrument mutex
+    from a provisional provider observation or from elapsed time alone.
+    Release requires the configured horizon, an atomic provider-event drain to
+    a stored watermark, and a provider-authoritative terminal-closure
+    attestation that makes a later paid event impossible. Providers without
+    that reviewed capability remain `UNKNOWN_HELD`/`FINALITY_HOLD`
+    indefinitely. Any contract-violating later verified paid event atomically
+    restores a held reservation, recloses the instrument, globally pauses
+    payment, and enters incident reconciliation.
+
+---
+
+## Audited Starting Point and Prerequisite Contract
+
+Run from the implementation worktree before the first task:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git merge-base --is-ancestor 72378f3e32f8da3d1e5226e8737a3717e48a6347 HEAD
+git diff --check
+git status --short
+/opt/homebrew/opt/node@20/bin/node --version
+docker compose -f config/postgres/payment-test.compose.yaml up -d --wait
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+```
+
+Expected: the ancestor/clean-tree checks exit `0`, Node reports exactly
+`v20.20.2`, the disposable loopback PostgreSQL fixture is healthy and migrated,
+and deterministic verification exits `0`. If the worktree contains user
+changes, preserve them and create a separate clean worktree rather than
+resetting them.
+
+The N3 prerequisite owns these shared files; this plan consumes them without renaming or duplicating them:
+
+```text
+config/postgres/payment-test.compose.yaml
+db/migrations/0010_persona_leases.sql
+packages/personas/src/contracts.ts
+packages/personas/src/lease-service.ts
+packages/personas/src/postgres-store.ts
+packages/contracts/src/persona.ts
+packages/computer-use/src/control-client.ts
+tests/personas/lease-service.test.ts
+tools/db/migrate.ts
+```
+
+The persona lease passed into payment has this exact shape:
+
+```ts
+export interface PersonaLease {
+  personaId: string;
+  accountAlias: string;
+  environment: 'staging' | 'production';
+  qaRunKey: QaRunKey;
+  fencingEpoch: number;
+  leasedUntil: string;
+}
+```
+
+Payment calls `holdForPayment(lease, canonicalIntentId)` before checkout. Once held, ordinary lease expiry cannot return the persona to `AVAILABLE`; only terminal payment reconciliation plus a reset receipt may release it.
+
+## Target File Structure
+
+Create or modify exactly this payment-owned surface:
+
+```text
+apps/payment-watchdog/src/main.ts
+config/payment-data-backends.v1.yaml
+config/payment-profiles/staging/esim.v1.yaml
+config/payment-profiles/staging/virtual-number.v1.yaml
+config/payment-profiles/staging/vpn.v1.yaml
+config/payment-profiles/production/esim.v1.yaml
+config/payment-profiles/production/virtual-number.v1.yaml
+config/payment-profiles/production/vpn.v1.yaml
+db/migrations/0020_payment_authorizations.sql
+db/migrations/0021_payment_ledger.sql
+db/migrations/0022_payment_checkout_fencing.sql
+db/migrations/0023_payment_data_custody.sql
+db/migrations/0024_payment_reconciliation.sql
+docs/runbooks/payment-authorization.md
+docs/runbooks/payment-canary.md
+packages/contracts/schemas/payment-authorization.v1.schema.json
+packages/contracts/schemas/payment-canary-input.v1.schema.json
+packages/contracts/schemas/payment-data-artifact.v1.schema.json
+packages/contracts/schemas/payment-profile.v1.schema.json
+packages/contracts/src/payment-control.ts
+packages/payment/src/authorization-store.ts
+packages/payment/src/authorization.ts
+packages/payment/src/canary.ts
+packages/payment/src/canonical-intent.ts
+packages/payment/src/computer-use-submit-adapter.ts
+packages/payment/src/computer-use-submit-handler.ts
+packages/payment/src/computer-use-fill-handler.ts
+packages/payment/src/data-artifacts.ts
+packages/payment/src/fault-injector.ts
+packages/payment/src/field-injector.ts
+packages/payment/src/host-control-bootstrap.ts
+packages/payment/src/index.ts
+packages/payment/src/ledger-store.ts
+packages/payment/src/postgres.ts
+packages/payment/src/profiles.ts
+packages/payment/src/program-gate.ts
+packages/payment/src/reconciliation.ts
+packages/payment/src/runner-lane.ts
+packages/payment/src/schema-validator.ts
+packages/payment/src/scrubber.ts
+packages/payment/src/secret-handles.ts
+packages/payment/src/watchdog.ts
+tests/payment/authorization.test.ts
+tests/payment/canonical-intent.test.ts
+tests/payment/canary.test.ts
+tests/payment/computer-use-submit-adapter.test.ts
+tests/payment/computer-use-fill-handler.test.ts
+tests/payment/data-artifacts.test.ts
+tests/payment/field-injector.test.ts
+tests/payment/host-control-bootstrap.test.ts
+tests/payment/fixtures/payment-authorization.valid.json
+tests/payment/fixtures/profiles/production-vpn.v1.yaml
+tests/payment/fixtures/profiles/staging-vpn.v1.yaml
+tests/payment/profiles.test.ts
+tests/payment/program-gate.test.ts
+tests/payment/reconciliation.test.ts
+tests/payment/runner-payment-integration.test.ts
+tests/payment/schema-validation.test.ts
+tests/payment/scrubber.test.ts
+tests/payment/watchdog.test.ts
+tests/payment-integration/authorization-rbac.test.ts
+tests/payment-integration/ledger.test.ts
+tests/payment-integration/payment-32-process-race.test.ts
+tests/payment-integration/payment-fault-canaries.test.ts
+tests/payment-integration/payment-restart.test.ts
+tests/payment-integration/fixtures/payment-contender.ts
+tests/payment-integration/helpers.ts
+tools/payment/mint-authorization.ts
+tools/payment/reconcile-canary.ts
+tools/payment/record-program-gate.ts
+tools/payment/run-payment-host.ts
+tools/payment/set-kill-switch.ts
+```
+
+Modify `package.json`, `package-lock.json`, `tsconfig.json`, `.env.example`,
+`packages/contracts/src/index.ts`, `packages/runner/src/commands.ts`,
+`packages/runner/src/selection.ts`, `packages/runner/src/run-authority.ts`,
+`packages/runner/src/evaluator.ts`, and `packages/runner/src/evidence.ts`. Do
+not add a production-canary command in this plan.
+
+## Immutable Cross-Task Interfaces
+
+`packages/contracts/src/payment-control.ts` owns these process-safe values. It imports `PaymentLifecycle` rather than redeclaring it.
+
+```ts
+import type { CleanupReceipt, PersonaLease, PersonaPaymentHold } from './persona.js';
+import type { PaymentLifecycle, QaRunKey } from './qa-run.js';
+
+export type PaymentEnvironment = 'staging' | 'production';
+export type PaymentProduct = 'vpn' | 'esim' | 'virtual-number';
+export type PaymentDataClass = 'PAN' | 'CVV';
+export type PaymentResidency =
+  | 'PROVIDER_FIELD'
+  | 'TOOL_ARGUMENT'
+  | 'APP_STATE'
+  | 'SCREENSHOT'
+  | 'BUFFER'
+  | 'JOB_LOG';
+
+export interface PaymentAuthorizationPolicyV1 {
+  schemaVersion: 1;
+  authorizationId: string;
+  policyRevision: number;
+  environment: PaymentEnvironment;
+  fullReleaseSha: string;
+  product: PaymentProduct;
+  sku: string;
+  purpose: 'release-canary';
+  provider: string;
+  currency: string;
+  recurrence: 'one-time' | 'recurring';
+  maxQuotedAmountMinor: number;
+  aggregateAuthorizedAmountMinor: number;
+  effectiveAt: string;
+  expiresAt: string;
+  resolvedProfileDigest: string;
+  catalogDigest: string;
+  instrumentAlias: string;
+}
+
+export interface PaymentAuthorizationRef {
+  authorizationId: string;
+  policyRevision: number;
+  policyDigest: string;
+}
+
+export interface PaymentCanaryInputV1 {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  authorization: PaymentAuthorizationRef;
+  candidateDigest: string;
+  personaLease: PersonaLease;
+  requirementIds: string[];
+}
+
+export interface PaymentDataArtifactV1 {
+  schemaVersion: 1;
+  artifactId: string;
+  canonicalIntentId: string;
+  backendId: string;
+  objectAlias: string;
+  dataClass: PaymentDataClass;
+  residency: PaymentResidency;
+  createdAt: string;
+  deleteBy: string;
+}
+
+export interface PaymentCanaryResult {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  lifecycle: PaymentLifecycle;
+  programGateDigest: string;
+  resolvedProfileDigest: string;
+  candidateDigest: string;
+  scrubProofDigest: string | null;
+  reconciliationDigest: string | null;
+}
+```
+
+`PaymentAuthorizationPolicyV1`, `PaymentCanaryInputV1`, and every JSON Schema are closed objects with `additionalProperties: false`. No field named or normalized to `pan`, `cardNumber`, `expiry`, `cvv`, `cvc`, `providerPayload`, `checkoutUrl`, or `secretValue` is accepted.
+
+The exact canonical intent identity is:
+
+```ts
+export interface CanonicalPaymentSlot {
+  authorizationId: string;
+  environment: PaymentEnvironment;
+  fullReleaseSha: string;
+  sku: string;
+}
+
+export function deriveCanonicalIntentId(slot: CanonicalPaymentSlot): string;
+export function deriveProviderIdempotencyKey(canonicalIntentId: string): string;
+```
+
+Both functions return lowercase SHA-256 hex. `deriveCanonicalIntentId` hashes canonical JSON with keys in the displayed order. The provider key hashes canonical JSON `{ canonicalIntentId, operation: 'checkout-v1' }` and cannot include run, account, retry, or profile revision.
+
+The following internal service types are also immutable across Tasks 1–15:
+
+```ts
+export type PaymentIntentState =
+  | 'BUDGET_RESERVED'
+  | 'FENCE_ACQUIRED'
+  | 'CHECKOUT_ARMED'
+  | 'CHECKOUT_CREATED'
+  | 'ENTRY_FILLED'
+  | 'CVV_SCRUB_CONFIRMED'
+  | 'SUBMIT_FENCED'
+  | 'SUBMITTED_PENDING'
+  | 'RECONCILED_PAID'
+  | 'RECONCILED_DECLINED'
+  | 'RECONCILED_CANCELLED'
+  | 'UNKNOWN_HELD';
+
+export interface ObservedAuthorizationIdentity {
+  environment: PaymentEnvironment;
+  fullReleaseSha: string;
+  product: PaymentProduct;
+  sku: string;
+  purpose: 'release-canary';
+  provider: string;
+  resolvedProfileDigest: string;
+  catalogDigest: string;
+  quotedAmountMinor: number;
+  currency: string;
+  recurrence: 'one-time' | 'recurring';
+  observedAt: string;
+}
+
+export interface ConsumedAuthorization extends PaymentAuthorizationPolicyV1 {
+  policyDigest: string;
+}
+
+export interface AcquireFenceInput {
+  commandId: string;
+  canonicalIntentId: string;
+  authorizationId: string;
+  instrumentAlias: string;
+  holderId: string;
+  personaFencingEpoch: number;
+  observedAt: string;
+}
+
+export interface ArmCheckoutInput {
+  commandId: string;
+  canonicalIntentId: string;
+  authorizationId: string;
+  providerIdempotencyKey: string;
+  fencingEpoch: number;
+  quoteDigest: string;
+  observedAt: string;
+}
+
+export interface RecordCheckoutInput {
+  commandId: string;
+  canonicalIntentId: string;
+  authorizationId: string;
+  checkoutAlias: string;
+  checkoutDigest: string;
+  fencingEpoch: number;
+  observedAt: string;
+}
+
+export interface FieldEntryReceipt {
+  canonicalIntentId: string;
+  fencingEpoch: number;
+  originDigest: string;
+  panFieldPresent: true;
+  expiryFieldPresent: true;
+  cvvFieldPresent: true;
+  artifactInventoryDigest: string;
+  observationDigest: string;
+  observedAt: string;
+}
+
+export interface PaymentDataInventory {
+  register(artifact: PaymentDataArtifactV1): Promise<void>;
+  recordDeletion(receipt: DeletionReceipt): Promise<void>;
+  recordTombstone(proof: TombstoneProof): Promise<void>;
+  listForIntent(canonicalIntentId: string): Promise<readonly PaymentDataArtifactV1[]>;
+}
+
+export interface CvvScrubber {
+  scrub(
+    canonicalIntentId: string,
+    trigger: ScrubProof['trigger'],
+    signal: AbortSignal,
+  ): Promise<ScrubProof>;
+}
+
+export interface PrivateSecretResolver {
+  consume<K extends 'PAN' | 'EXPIRY' | 'CVV'>(
+    handle: SecretHandle<K>,
+    signal: AbortSignal,
+  ): Promise<Uint8Array>;
+}
+
+export interface ProgramGateInput {
+  authorization: ConsumedAuthorization;
+  profile: ResolvedPaymentProfile;
+  candidateDigest: string;
+  personaLease: PersonaLease;
+  providerPreflightDigest: string;
+  backendCapabilityDigest: string;
+  observedAt: string;
+}
+
+export interface PaymentProfileLoader {
+  load(environment: PaymentEnvironment, product: PaymentProduct): PaymentProfileV1;
+  resolve(profile: PaymentProfileV1, env: Readonly<Record<string, string | undefined>>): ResolvedPaymentProfile;
+}
+
+export interface PersonaLeaseService {
+  holdForPayment(lease: PersonaLease, canonicalIntentId: string): Promise<PersonaPaymentHold>;
+  releaseAfterPayment(hold: PersonaPaymentHold, cleanup: CleanupReceipt): Promise<void>;
+  quarantine(lease: PersonaLease, reasonCode: string): Promise<void>;
+}
+
+export interface PaymentReconciler {
+  reconcile(
+    canonicalIntentId: string,
+    profile: ResolvedPaymentProfile,
+    signal: AbortSignal,
+  ): Promise<{ lifecycle: PaymentLifecycle; reconciliationDigest: string }>;
+}
+
+export interface Clock {
+  now(): string;
+}
+
+export interface CliIo {
+  stdout: string[];
+  stderr: string[];
+  promptCalls: number;
+}
+```
+
+`PersonaPaymentHold` and `CleanupReceipt` come from `packages/contracts/src/persona.ts`. TypeScript may structurally assign an N3 `PersonaLease` to `PaymentCanaryInputV1`, but payment never owns or advances the persona fencing epoch.
+
+## PostgreSQL Invariants and Role Boundary
+
+Migrations create four `NOLOGIN` group roles: `freeland_payment_owner`, `freeland_payment_runtime`, `freeland_payment_reconciler`, and `freeland_payment_watchdog`. Deployment grants login principals into those groups outside Git. Tests use a migration-admin connection and `SET ROLE` to prove permissions.
+
+All payment objects live in a dedicated `freeland_payment` schema owned by
+`freeland_payment_owner`; `PUBLIC`, runtime, reconciler, and watchdog have no
+`CREATE` privilege there. Every privilege-escalating routine is created as
+`SECURITY DEFINER`, owned by `freeland_payment_owner`, and declares the fixed
+function setting `search_path = pg_catalog, freeland_payment, pg_temp` with
+`pg_temp` explicitly last. Its body schema-qualifies every table, sequence,
+function, operator-sensitive expression, and extension helper and contains no
+dynamic SQL. Migrations revoke all default/table/sequence/function privileges
+from `PUBLIC`, then grant only exact signatures to the intended group role;
+runtime is not a member of the owner role. The SQL snippets below omit the
+schema prefix only for readability; implementation may not omit it.
+
+The RBAC suite sets a hostile caller `search_path`, creates same-named tables,
+functions, operators, domains, and overloads in an attacker schema and
+`pg_temp`, then invokes every granted routine as runtime/reconciler/watchdog.
+It proves only the owner-owned objects changed, `PUBLIC` cannot execute, no
+attacker object ran, ownership cannot be reassigned, and routine output records
+the original `session_user` where actor attribution is required.
+
+`0020_payment_authorizations.sql` creates:
+
+```sql
+CREATE TABLE payment_authorizations (
+  authorization_id uuid PRIMARY KEY,
+  policy_revision integer NOT NULL CHECK (policy_revision > 0),
+  policy_digest char(64) NOT NULL UNIQUE CHECK (policy_digest ~ '^[0-9a-f]{64}$'),
+  environment text NOT NULL CHECK (environment IN ('staging', 'production')),
+  full_release_sha char(40) NOT NULL CHECK (full_release_sha ~ '^[0-9a-f]{40}$'),
+  product text NOT NULL CHECK (product IN ('vpn', 'esim', 'virtual-number')),
+  sku text NOT NULL CHECK (length(sku) BETWEEN 1 AND 128),
+  purpose text NOT NULL CHECK (purpose = 'release-canary'),
+  provider text NOT NULL CHECK (length(provider) BETWEEN 1 AND 64),
+  currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+  recurrence text NOT NULL CHECK (recurrence IN ('one-time', 'recurring')),
+  max_quoted_amount_minor bigint NOT NULL CHECK (max_quoted_amount_minor > 0),
+  aggregate_authorized_amount_minor bigint NOT NULL CHECK (aggregate_authorized_amount_minor > 0),
+  effective_at timestamptz NOT NULL,
+  expires_at timestamptz NOT NULL CHECK (expires_at > effective_at),
+  resolved_profile_digest char(64) NOT NULL CHECK (resolved_profile_digest ~ '^[0-9a-f]{64}$'),
+  catalog_digest char(64) NOT NULL CHECK (catalog_digest ~ '^[0-9a-f]{64}$'),
+  instrument_alias text NOT NULL CHECK (length(instrument_alias) BETWEEN 1 AND 128),
+  owner_subject text NOT NULL DEFAULT session_user,
+  minted_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  UNIQUE (authorization_id, environment, full_release_sha, sku),
+  CHECK (max_quoted_amount_minor <= aggregate_authorized_amount_minor)
+);
+```
+
+The same migration creates append-only `payment_program_gates`, hierarchical `payment_kill_switches`, an UPDATE/DELETE rejection trigger for authorizations and gate history, and owner-only function `owner_mint_payment_authorization(jsonb)`. Runtime receives only `SELECT` on sanitized authorization columns and `EXECUTE` on payment routines; it receives no table DML grants.
+
+`0021_payment_ledger.sql` creates `payment_budget_ledger`, `payment_intents`, and append-only `payment_events`. `0022_payment_checkout_fencing.sql` adds `payment_instrument_mutex` and `payment_checkouts`. `0023_payment_data_custody.sql` adds `payment_submit_fences` only after the scrub tables it references exist. Required keys and checks are:
+
+```text
+payment_budget_ledger.authorization_id                 PRIMARY KEY
+payment_intents.authorization_id                       UNIQUE
+payment_intents.canonical_intent_id                    PRIMARY KEY
+payment_checkouts.authorization_id                     PRIMARY KEY
+payment_checkouts.canonical_intent_id                  UNIQUE
+payment_submit_fences.authorization_id                 PRIMARY KEY
+payment_submit_fences.canonical_intent_id              UNIQUE
+reserved_minor >= 0 AND spent_minor >= 0 AND pending_unknown_minor >= 0
+pending_unknown_minor <= reserved_minor
+reserved_minor + spent_minor <= authorized_minor
+checkout_count BETWEEN 0 AND 1
+submitted_payment_count BETWEEN 0 AND 1
+fencing_epoch > 0
+```
+
+Every state-changing routine locks only the rows it needs but preserves this
+global relative order: authorization → budget → persona lease → intent →
+provider ingress/finality → instrument mutex → checkout → custody → submit
+fence. `packages/payment/src/postgres.ts` begins `BEGIN ISOLATION LEVEL
+SERIALIZABLE`, retries SQLSTATE `40001` or `40P01` at most three times for the
+same immutable command, and never derives a new ID during retry.
+
+`0023_payment_data_custody.sql` creates typed `payment_data_artifacts`, `payment_scrub_batches`, `payment_cleanup_requests`, `payment_watchdog_heartbeats`, and the scrub-bound submit fence. It rejects CVV deadlines after `created_at + interval '10 minutes'` and PAN deadlines after `created_at + interval '24 hours'`; it contains no byte, payload, URL, screenshot, or free-form JSON column.
+
+`0024_payment_reconciliation.sql` creates separately granted `payment_provider_handles`, append-only `payment_provider_events`, `payment_reconciliation_facts`, and `payment_reconciliation_runs`. Only `freeland_payment_reconciler` can read encrypted handle bytes; ordinary runtime and evidence publishers see the handle alias and SHA-256 digest only.
+
+---
+
+### Task 1: Closed Payment Contracts and Schema Validator
+
+**Files:**
+- Create: `packages/contracts/src/payment-control.ts`
+- Create: `packages/contracts/schemas/payment-authorization.v1.schema.json`
+- Create: `packages/contracts/schemas/payment-canary-input.v1.schema.json`
+- Create: `packages/contracts/schemas/payment-data-artifact.v1.schema.json`
+- Create: `packages/contracts/schemas/payment-profile.v1.schema.json`
+- Create: `packages/payment/src/schema-validator.ts`
+- Modify: `packages/contracts/src/index.ts`
+- Test: `tests/payment/schema-validation.test.ts`
+
+**Interfaces:**
+- Consumes: `QaRunKey`, `PaymentLifecycle`, and `PersonaLease` from prerequisite packages.
+- Produces: the immutable types in “Cross-Task Interfaces” plus `assertPaymentAuthorizationPolicy`, `assertPaymentCanaryInput`, `assertPaymentDataArtifact`, and `assertPaymentProfile`.
+
+- [ ] **Step 1: Write the failing closed-schema tests**
+
+```ts
+test('accepts the canonical authorization fixture', () => {
+  assert.doesNotThrow(() => assertPaymentAuthorizationPolicy(validAuthorization()));
+});
+
+test('rejects secret-bearing and open authorization fields', () => {
+  for (const key of ['pan', 'cardNumber', 'expiry', 'cvv', 'providerPayload', 'checkoutUrl']) {
+    assert.throws(
+      () => assertPaymentAuthorizationPolicy({ ...validAuthorization(), [key]: 'synthetic-forbidden' }),
+      /payment authorization failed closed schema validation/u,
+    );
+  }
+});
+
+test('canary input contains references and no payment values', () => {
+  const input = validCanaryInput();
+  assert.doesNotThrow(() => assertPaymentCanaryInput(input));
+  assert.deepEqual(Object.keys(input).sort(), [
+    'authorization', 'candidateDigest', 'personaLease', 'qaRunKey', 'requirementIds', 'schemaVersion',
+  ]);
+});
+```
+
+- [ ] **Step 2: Run the focused test and verify RED**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/schema-validation.test.ts`
+
+Expected: FAIL because `payment-control.ts` and the validator exports do not exist.
+
+- [ ] **Step 3: Add the exact TypeScript contracts and closed schemas**
+
+Implement the displayed interfaces, ISO timestamp patterns, lowercase 40/64-hex patterns, safe-integer minor-unit bounds `1..9007199254740991`, UUID authorization/artifact IDs, non-empty unique requirement IDs, `additionalProperties: false`, and the six exact profile environment/product combinations.
+
+- [ ] **Step 4: Compile all four schemas through one strict Ajv instance**
+
+```ts
+export function assertPaymentAuthorizationPolicy(
+  input: unknown,
+): asserts input is PaymentAuthorizationPolicyV1;
+export function assertPaymentCanaryInput(input: unknown): asserts input is PaymentCanaryInputV1;
+export function assertPaymentDataArtifact(input: unknown): asserts input is PaymentDataArtifactV1;
+export function assertPaymentProfile(input: unknown): asserts input is PaymentProfileV1;
+```
+
+After schema validation, add semantic checks for `effectiveAt < expiresAt`, unique origins/backend IDs, CVV/PAN deadline caps, staging/production filename binding, and normalized forbidden field names.
+
+- [ ] **Step 5: Run focused GREEN and contract typecheck**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/schema-validation.test.ts`
+
+Expected: PASS with every added-property and secret-field mutation rejected.
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck`
+
+Expected: PASS with `PaymentLifecycle` imported only from `qa-run.ts`.
+
+- [ ] **Step 6: Run aggregate verification and commit**
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:unit && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan && git diff --check`
+
+Expected: PASS and no generated artifact containing a forbidden payment field.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/contracts/src/payment-control.ts packages/contracts/src/index.ts packages/contracts/schemas/payment-authorization.v1.schema.json packages/contracts/schemas/payment-canary-input.v1.schema.json packages/contracts/schemas/payment-data-artifact.v1.schema.json packages/contracts/schemas/payment-profile.v1.schema.json packages/payment/src/schema-validator.ts tests/payment/schema-validation.test.ts
+git commit -m "feat(payment): add closed payment control contracts"
+```
+
+### Task 2: Canonical Slot and Provider Idempotency Identity
+
+**Files:**
+- Create: `packages/payment/src/canonical-intent.ts`
+- Create: `tests/payment/canonical-intent.test.ts`
+
+**Interfaces:**
+- Consumes: `CanonicalPaymentSlot` and `PaymentEnvironment` from `payment-control.ts`.
+- Produces: `deriveCanonicalIntentId(slot): string` and `deriveProviderIdempotencyKey(canonicalIntentId): string`.
+
+- [ ] **Step 1: Write the failing identity fixture**
+
+```ts
+const slot = {
+  authorizationId: '00000000-0000-4000-8000-000000000001',
+  environment: 'staging' as const,
+  fullReleaseSha: '1'.repeat(40),
+  sku: 'vpn.synthetic.monthly',
+};
+
+test('canonical identity excludes run, account, retry, and profile revision', () => {
+  const expected = createHash('sha256').update(JSON.stringify(slot)).digest('hex');
+  assert.equal(deriveCanonicalIntentId(slot), expected);
+  assert.equal(deriveCanonicalIntentId(structuredClone(slot)), expected);
+});
+
+test('one changed slot dimension changes identity', () => {
+  const baseline = deriveCanonicalIntentId(slot);
+  assert.notEqual(deriveCanonicalIntentId({ ...slot, environment: 'production' }), baseline);
+  assert.notEqual(deriveCanonicalIntentId({ ...slot, fullReleaseSha: '2'.repeat(40) }), baseline);
+  assert.notEqual(deriveCanonicalIntentId({ ...slot, sku: 'esim.synthetic.once' }), baseline);
+});
+```
+
+- [ ] **Step 2: Run focused RED**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/canonical-intent.test.ts`
+
+Expected: FAIL because the identity functions do not exist.
+
+- [ ] **Step 3: Implement exact-key canonical hashing**
+
+```ts
+export function deriveCanonicalIntentId(slot: CanonicalPaymentSlot): string {
+  const canonical = JSON.stringify({
+    authorizationId: slot.authorizationId,
+    environment: slot.environment,
+    fullReleaseSha: slot.fullReleaseSha,
+    sku: slot.sku,
+  });
+  return createHash('sha256').update(canonical).digest('hex');
+}
+
+export function deriveProviderIdempotencyKey(canonicalIntentId: string): string {
+  return createHash('sha256').update(JSON.stringify({
+    canonicalIntentId,
+    operation: 'checkout-v1',
+  })).digest('hex');
+}
+```
+
+Validate UUID/hex/SKU/environment before hashing and freeze a copied slot so getters/proxies cannot change it between validation and serialization.
+
+- [ ] **Step 4: Add adversarial dimension-exclusion assertions**
+
+Assert that extra keys, symbol keys, getters, proxies, malformed UUID, uppercase SHA, whitespace SKU, and prototype pollution fail closed rather than alter identity. Assert the provider key is stable lowercase 64-hex and differs from the canonical intent ID.
+
+- [ ] **Step 5: Run focused and aggregate GREEN**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/canonical-intent.test.ts && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck && git diff --check`
+
+Expected: PASS.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/payment/src/canonical-intent.ts tests/payment/canonical-intent.test.ts
+git commit -m "feat(payment): derive canonical payment intent identity"
+```
+
+### Task 3: Owner-Only Immutable Authorization and Program Safety Rows
+
+**Files:**
+- Create: `db/migrations/0020_payment_authorizations.sql`
+- Create: `packages/payment/src/postgres.ts`
+- Create: `packages/payment/src/authorization-store.ts`
+- Create: `tests/payment-integration/helpers.ts`
+- Create: `tests/payment-integration/authorization-rbac.test.ts`
+- Create: `tests/payment-integration/routine-hardening.test.ts`
+- Modify: `.env.example`
+- Modify: `package.json`
+- Modify: `package-lock.json`
+- Modify: `tsconfig.json`
+
+**Interfaces:**
+- Consumes: shared migration runner and PostgreSQL test compose from N3.
+- Produces: `OwnerAuthorizationStore.mint`, `RuntimeAuthorizationStore.consume`, immutable program-gate rows, and hierarchical payment kill switches.
+
+- [ ] **Step 1: Pin raw PostgreSQL dependencies and payment scripts**
+
+Run:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js install --save-exact pg@8.16.3
+/opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js install --save-dev --save-exact @types/pg@8.15.5
+```
+
+Expected: `package.json` and lockfile v3 pin those exact versions. Add scripts:
+
+```json
+{
+  "db:migrate:test": "FREELAND_QA_MIGRATION_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx tools/db/migrate.ts",
+  "test:payment:unit": "/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/*.test.ts",
+  "test:payment:integration": "FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/payment-integration/*.test.ts"
+}
+```
+
+Retain N3's exact migration-runner contract: `db:migrate:test` sets the fixed
+loopback `FREELAND_QA_MIGRATION_DATABASE_URL` and passes no new CLI flag to
+`tools/db/migrate.ts`. Payment does not redefine or restage that shared runner.
+
+List only variable names in `.env.example`: `FREELAND_QA_DATABASE_URL`, `FREELAND_QA_TEST_DATABASE_URL`, `FREELAND_QA_MIGRATION_DATABASE_URL`, `FREELAND_PAYMENT_OWNER_DATABASE_URL`, `FREELAND_PAYMENT_RECONCILER_DATABASE_URL`, `FREELAND_PAYMENT_SECRET_BROKER_SOCKET`, `FREELAND_PAYMENT_SECRET_BROKER_PIN`, `FREELAND_PAYMENT_AUTHORIZATION_ID`, `FREELAND_PAYMENT_AUTHORIZATION_FILE`, `FREELAND_PAYMENT_PROGRAM_GATE_FILE`, and `FREELAND_PAYMENT_SWITCH_CHANGE_FILE`.
+
+- [ ] **Step 2: Start the isolated PostgreSQL test service and write RED RBAC tests**
+
+Run: `docker compose -f config/postgres/payment-test.compose.yaml up -d --wait`
+
+Write named assertions that migration `0020` is unapplied, runtime cannot insert/update/delete authorization, runtime cannot execute `owner_mint_payment_authorization`, owner can mint once, and the same authorization/policy digest cannot be minted twice. In `routine-hardening.test.ts`, enumerate every non-owner-granted function from `pg_proc` and fail unless it is owner-owned, `SECURITY DEFINER`, has the exact fixed `search_path`, has no `PUBLIC` execute privilege, and changes only schema-qualified owner objects under hostile caller resolution.
+
+Run: `FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/payment-integration/authorization-rbac.test.ts tests/payment-integration/routine-hardening.test.ts`
+
+Expected: FAIL because migration `0020` and the stores do not exist.
+
+- [ ] **Step 3: Implement the exact DDL and grants**
+
+Create the displayed `payment_authorizations` table plus:
+
+```sql
+CREATE TABLE payment_program_gates (
+  gate_id text PRIMARY KEY CHECK (gate_id IN (
+    'N1_TYPED_RUNNER', 'N2_MANUAL_SLICE', 'N3_COMPUTER_USE',
+    'N3_PERSONA_CUSTODY', 'N4_ASSIST_CALIBRATION', 'N5_FAULT_INJECTION_ACCEPTED'
+  )),
+  evidence_digest char(64) NOT NULL CHECK (evidence_digest ~ '^[0-9a-f]{64}$'),
+  active boolean NOT NULL,
+  activated_at timestamptz NOT NULL,
+  expires_at timestamptz,
+  recorded_by text NOT NULL DEFAULT session_user
+);
+
+CREATE TABLE payment_kill_switches (
+  scope_type text NOT NULL CHECK (scope_type IN ('GLOBAL','ENVIRONMENT','PROVIDER','PRODUCT')),
+  scope_key text NOT NULL,
+  paused boolean NOT NULL DEFAULT true,
+  revision bigint GENERATED ALWAYS AS IDENTITY,
+  reason_code text NOT NULL,
+  changed_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  changed_by text NOT NULL DEFAULT session_user,
+  PRIMARY KEY (scope_type, scope_key)
+);
+```
+
+Seed paused rows for `GLOBAL/*`, both environments, and all three products. A provider row is inserted paused by the owner when its first authorization is minted. Implement immutable authorization triggers and append-only `payment_safety_events` before granting routines.
+
+Create every granted mutation routine with the global privileged-function
+hardening above. Enumerate exact signatures in the migration, revoke
+`EXECUTE` from `PUBLIC` before granting a role, and assert the function owner,
+`prosecdef`, and `proconfig` values from `pg_proc`; an unqualified or unhardened
+routine is a migration-test failure.
+
+- [ ] **Step 4: Implement strict serializable transaction support**
+
+```ts
+export async function withSerializable<T>(
+  pool: Pool,
+  commandId: string,
+  operation: (client: PoolClient) => Promise<T>,
+): Promise<T>;
+```
+
+The function validates a lowercase 64-hex command ID, issues `BEGIN ISOLATION LEVEL SERIALIZABLE`, retries only `40001`/`40P01` up to three times with the identical command ID, rolls back every other failure, and releases the client in `finally`.
+
+- [ ] **Step 5: Implement role-specific stores**
+
+```ts
+export interface OwnerAuthorizationStore {
+  mint(policy: PaymentAuthorizationPolicyV1): Promise<PaymentAuthorizationRef>;
+}
+
+export interface RuntimeAuthorizationStore {
+  consume(input: {
+    ref: PaymentAuthorizationRef;
+    environment: PaymentEnvironment;
+    fullReleaseSha: string;
+    product: PaymentProduct;
+    sku: string;
+    purpose: 'release-canary';
+    provider: string;
+    resolvedProfileDigest: string;
+    catalogDigest: string;
+    quotedAmountMinor: number;
+    currency: string;
+    recurrence: 'one-time' | 'recurring';
+    observedAt: string;
+  }): Promise<ConsumedAuthorization>;
+}
+```
+
+`consume` checks policy/ref digests, effective window, exact identity, exact currency/recurrence, quote ceiling, and all four unpaused kill-switch scopes without modifying authorization.
+
+- [ ] **Step 6: Migrate and prove GREEN/RBAC**
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test`
+
+Expected: migration `0020_payment_authorizations.sql` is recorded with its immutable SHA-256.
+
+Run: `FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/payment-integration/authorization-rbac.test.ts tests/payment-integration/routine-hardening.test.ts`
+
+Expected: PASS; owner mint succeeds exactly once, every runtime DML/widen attempt is permission-denied, UPDATE/DELETE fails even under the owner role, and hostile `search_path`/temporary-object/overload probes cannot hijack any granted `SECURITY DEFINER` routine.
+
+- [ ] **Step 7: Run aggregate verification and commit**
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan && git diff --check`
+
+Expected: PASS.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add .env.example package.json package-lock.json tsconfig.json db/migrations/0020_payment_authorizations.sql packages/payment/src/postgres.ts packages/payment/src/authorization-store.ts tests/payment-integration/helpers.ts tests/payment-integration/authorization-rbac.test.ts tests/payment-integration/routine-hardening.test.ts
+git commit -m "feat(payment): enforce owner-only durable authorization"
+```
+
+### Task 4: Owner Mint CLI and Consume-Only Runtime Gate
+
+**Files:**
+- Create: `packages/payment/src/authorization.ts`
+- Create: `tools/payment/mint-authorization.ts`
+- Create: `tests/payment/authorization.test.ts`
+- Create: `tests/payment/fixtures/payment-authorization.valid.json`
+- Create: `docs/runbooks/payment-authorization.md`
+- Modify: `package.json`
+
+**Interfaces:**
+- Consumes: owner/runtime stores from Task 3 and closed authorization schema from Task 1.
+- Produces: `createMintAuthorizationCli(dependencies).run(argv, env, io): Promise<number>` and `createAuthorizationConsumer(store: RuntimeAuthorizationStore).consume(ref, observed): Promise<ConsumedAuthorization>`.
+
+```ts
+export interface MintAuthorizationCliDependencies {
+  store: OwnerAuthorizationStore;
+  readSecureAbsoluteFile(path: string): Promise<Uint8Array>;
+}
+
+export function createMintAuthorizationCli(dependencies: MintAuthorizationCliDependencies): {
+  run(
+    argv: readonly string[],
+    env: Readonly<Record<string, string | undefined>>,
+    io: CliIo,
+  ): Promise<number>;
+};
+```
+
+- [ ] **Step 1: Write failing CLI and consume tests**
+
+```ts
+test('owner CLI reads one absolute mode-0600 file and emits only ref/digest', async () => {
+  const cli = createMintAuthorizationCli(fakeMintCliDependencies());
+  const result = await cli.run(
+    ['--input', fixturePath],
+    { FREELAND_PAYMENT_OWNER_DATABASE_URL: 'postgres://owner.invalid/db' },
+    fakeIo,
+  );
+  assert.equal(result, 0);
+  assert.deepEqual(Object.keys(JSON.parse(fakeIo.stdout.join(''))).sort(), [
+    'authorizationId', 'policyDigest', 'policyRevision',
+  ]);
+});
+
+test('routine consumption has no interactive confirmation callback', async () => {
+  const consumer = createAuthorizationConsumer(fakeRuntimeStore());
+  assert.equal(consumer.consume.length, 2);
+  await assert.doesNotReject(() => consumer.consume(validRef(), validObservation()));
+});
+```
+
+- [ ] **Step 2: Run focused RED**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/authorization.test.ts`
+
+Expected: FAIL because the CLI and consumption wrapper do not exist.
+
+- [ ] **Step 3: Implement owner CLI fail-closed input handling**
+
+The CLI accepts exactly `--input ABSOLUTE_PATH`, rejects symlinks and group/world permissions, parses one closed JSON policy, canonicalizes it, computes `policyDigest`, connects only through `FREELAND_PAYMENT_OWNER_DATABASE_URL`, calls `OwnerAuthorizationStore.mint`, and prints one JSON line containing only `PaymentAuthorizationRef`. It never accepts amount, SKU, environment, or expiry flags that could bypass the reviewed file.
+
+After the entrypoint exists, add the owning script:
+
+```json
+{
+  "payment:authorization:mint": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/payment/mint-authorization.ts"
+}
+```
+
+- [ ] **Step 4: Implement consume-only authorization wrapper**
+
+```ts
+export function createAuthorizationConsumer(store: RuntimeAuthorizationStore): {
+  consume(
+    ref: PaymentAuthorizationRef,
+    observed: ObservedAuthorizationIdentity,
+  ): Promise<ConsumedAuthorization>;
+} {
+  return {
+    async consume(ref, observed) {
+      assertObservedAuthorizationIdentity(observed);
+      return store.consume({ ref, ...observed });
+    },
+  };
+}
+```
+
+The wrapper has no signer, mint function, prompt, Decision callback, default amount, or fallback environment.
+
+- [ ] **Step 5: Add negative tests for every widening vector**
+
+Named cases must reject changed release, environment, SKU, profile digest, catalog digest, product, purpose, provider, currency, recurrence, quote above maximum, early use, expiry, changed policy digest, non-owner DB URL, relative input path, symlink, and mode `0644`. Assert errors contain codes only and never serialize the policy body.
+
+- [ ] **Step 6: Run focused and integration GREEN**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/authorization.test.ts`
+
+Run: `FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment-integration/authorization-rbac.test.ts`
+
+Expected: PASS with no prompt path and no runtime mint permission.
+
+- [ ] **Step 7: Document the non-routine owner action and commit**
+
+`docs/runbooks/payment-authorization.md` must distinguish: owner policy mint/revision, unattended ordinary consumption, critical safety escalation, and the prohibition on widening an existing row. Include the exact CLI command:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+FREELAND_PAYMENT_OWNER_DATABASE_URL="$FREELAND_PAYMENT_OWNER_DATABASE_URL" \
+  /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run payment:authorization:mint -- --input "$FREELAND_PAYMENT_AUTHORIZATION_FILE"
+```
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan && git diff --check`
+
+Expected: PASS.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/payment/src/authorization.ts tools/payment/mint-authorization.ts tests/payment/authorization.test.ts tests/payment/fixtures/payment-authorization.valid.json docs/runbooks/payment-authorization.md package.json
+git commit -m "feat(payment): add owner authorization mint path"
+```
+
+### Task 5: Atomic Budget Reservation and One Canonical Intent
+
+**Files:**
+- Create: `db/migrations/0021_payment_ledger.sql`
+- Create: `packages/payment/src/ledger-store.ts`
+- Create: `tests/payment-integration/ledger.test.ts`
+
+**Interfaces:**
+- Consumes: a `ConsumedAuthorization`, canonical intent ID, exact quote digest, and held `PersonaLease`.
+- Produces: `PaymentLedgerStore.reserveCanonicalIntent`, one budget row, one intent row, and append-only payment events.
+
+```ts
+export interface ReserveCanonicalIntentInput {
+  commandId: string;
+  authorization: ConsumedAuthorization;
+  canonicalIntentId: string;
+  providerIdempotencyKey: string;
+  quotedAmountMinor: number;
+  quoteDigest: string;
+  personaLease: PersonaLease;
+  observedAt: string;
+}
+
+export interface PaymentIntentSnapshot {
+  authorizationId: string;
+  canonicalIntentId: string;
+  providerIdempotencyKey: string;
+  state: PaymentIntentState;
+  authorizedMinor: number;
+  reservedMinor: number;
+  spentMinor: number;
+  pendingUnknownMinor: number;
+  checkoutCount: 0 | 1;
+  submittedPaymentCount: 0 | 1;
+  fencingEpoch: number | null;
+}
+
+export interface PaymentLedgerStore {
+  reserveCanonicalIntent(input: ReserveCanonicalIntentInput): Promise<PaymentIntentSnapshot>;
+  readCanonicalIntent(canonicalIntentId: string): Promise<PaymentIntentSnapshot>;
+}
+```
+
+- [ ] **Step 1: Write failing budget and identity tests**
+
+```ts
+test('reserves once and returns the same canonical intent on exact replay', async () => {
+  const first = await store.reserveCanonicalIntent(validReservation());
+  const replay = await store.reserveCanonicalIntent(validReservation());
+  assert.equal(first.canonicalIntentId, replay.canonicalIntentId);
+  assert.equal(replay.reservedMinor, 1200);
+  assert.equal(replay.spentMinor, 0);
+});
+
+test('same authorization cannot bind a second canonical intent', async () => {
+  await store.reserveCanonicalIntent(validReservation());
+  await assert.rejects(
+    () => store.reserveCanonicalIntent({ ...validReservation(), canonicalIntentId: '2'.repeat(64) }),
+    /PAYMENT_CANONICAL_INTENT_CONFLICT/u,
+  );
+});
+
+test('concurrent reservations cannot exceed authorized budget', async () => {
+  const results = await Promise.allSettled([
+    store.reserveCanonicalIntent(validReservation()),
+    store.reserveCanonicalIntent({ ...validReservation(), canonicalIntentId: '3'.repeat(64) }),
+  ]);
+  assert.equal(results.filter(({ status }) => status === 'fulfilled').length, 1);
+});
+```
+
+- [ ] **Step 2: Run focused RED**
+
+Run: `FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/payment-integration/ledger.test.ts`
+
+Expected: FAIL because migration `0021` and `PaymentLedgerStore` do not exist.
+
+- [ ] **Step 3: Create ledger state and exact tables**
+
+Create internal enum values `BUDGET_RESERVED`, `FENCE_ACQUIRED`, `CHECKOUT_ARMED`, `CHECKOUT_CREATED`, `ENTRY_FILLED`, `CVV_SCRUB_CONFIRMED`, `SUBMIT_FENCED`, `SUBMITTED_PENDING`, `RECONCILED_PAID`, `RECONCILED_DECLINED`, `RECONCILED_CANCELLED`, and `UNKNOWN_HELD`.
+
+Create:
+
+```sql
+CREATE TABLE payment_budget_ledger (
+  authorization_id uuid PRIMARY KEY REFERENCES payment_authorizations(authorization_id),
+  authorized_minor bigint NOT NULL CHECK (authorized_minor > 0),
+  reserved_minor bigint NOT NULL DEFAULT 0 CHECK (reserved_minor >= 0),
+  spent_minor bigint NOT NULL DEFAULT 0 CHECK (spent_minor >= 0),
+  pending_unknown_minor bigint NOT NULL DEFAULT 0 CHECK (pending_unknown_minor >= 0),
+  currency char(3) NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+  CHECK (pending_unknown_minor <= reserved_minor),
+  CHECK (reserved_minor + spent_minor <= authorized_minor)
+);
+
+CREATE TABLE payment_intents (
+  canonical_intent_id char(64) PRIMARY KEY CHECK (canonical_intent_id ~ '^[0-9a-f]{64}$'),
+  authorization_id uuid NOT NULL UNIQUE REFERENCES payment_authorizations(authorization_id),
+  provider_idempotency_key char(64) NOT NULL UNIQUE CHECK (provider_idempotency_key ~ '^[0-9a-f]{64}$'),
+  quoted_amount_minor bigint NOT NULL CHECK (quoted_amount_minor > 0),
+  quote_digest char(64) NOT NULL CHECK (quote_digest ~ '^[0-9a-f]{64}$'),
+  persona_id text NOT NULL,
+  account_alias text NOT NULL,
+  persona_fencing_epoch bigint NOT NULL CHECK (persona_fencing_epoch > 0),
+  state payment_intent_state NOT NULL,
+  checkout_count smallint NOT NULL DEFAULT 0 CHECK (checkout_count BETWEEN 0 AND 1),
+  submitted_payment_count smallint NOT NULL DEFAULT 0 CHECK (submitted_payment_count BETWEEN 0 AND 1),
+  fencing_epoch bigint,
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
+);
+```
+
+Create append-only `payment_events(event_id uuid primary key, canonical_intent_id, sequence bigint, event_type, fact_digest, occurred_at)` with unique `(canonical_intent_id, sequence)`. Reject UPDATE/DELETE on ledger, intent identity columns, and events; state/counters change only through granted functions.
+
+- [ ] **Step 4: Implement one serializable reservation function**
+
+```sql
+payment_reserve_canonical_intent(
+  p_command_id char(64),
+  p_authorization_id uuid,
+  p_canonical_intent_id char(64),
+  p_provider_idempotency_key char(64),
+  p_quoted_amount_minor bigint,
+  p_quote_digest char(64),
+  p_persona_id text,
+  p_account_alias text,
+  p_persona_fencing_epoch bigint,
+  p_observed_at timestamptz
+) RETURNS SETOF payment_intents
+```
+
+It locks authorization → budget → persona lease → intent, verifies the persona holder/epoch and `PAYMENT_HOLD`, initializes budget from the immutable authorization, reserves the quote, inserts one intent/event, and treats only an exact replay as idempotent. A conflict never changes the canonical ID or counters.
+
+- [ ] **Step 5: Implement the raw `pg` store**
+
+`reserveCanonicalIntent` calls `withSerializable` using `commandId`, passes primitives only, maps `bigint` through checked decimal strings to safe integers, rejects unknown columns/states, and freezes the returned snapshot.
+
+- [ ] **Step 6: Migrate and run focused GREEN**
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test`
+
+Run: `FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/payment-integration/ledger.test.ts`
+
+Expected: PASS; exact replay leaves one event/reservation, conflicting identity fails, and budget constraints remain true.
+
+- [ ] **Step 7: Run aggregate verification and commit**
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration && git diff --check`
+
+Expected: PASS.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add db/migrations/0021_payment_ledger.sql packages/payment/src/ledger-store.ts tests/payment-integration/ledger.test.ts
+git commit -m "feat(payment): reserve atomic canonical payment intent"
+```
+
+### Task 6: Global Instrument Mutex and One Armed Checkout
+
+**Files:**
+- Create: `db/migrations/0022_payment_checkout_fencing.sql`
+- Modify: `packages/payment/src/ledger-store.ts`
+- Modify: `tests/payment-integration/ledger.test.ts`
+
+**Interfaces:**
+- Consumes: a reserved canonical intent, held persona epoch, instrument alias, exact quote digest, and provider idempotency key.
+- Produces: monotonic `PaymentFence`, `CheckoutPermit`, and `CheckoutReceipt`.
+
+```ts
+export interface PaymentFence {
+  canonicalIntentId: string;
+  instrumentAlias: string;
+  fencingEpoch: number;
+  holderId: string;
+  acquiredAt: string;
+}
+
+export interface CheckoutPermit {
+  canonicalIntentId: string;
+  authorizationId: string;
+  providerIdempotencyKey: string;
+  fencingEpoch: number;
+  quoteDigest: string;
+}
+
+export interface CheckoutReceipt {
+  canonicalIntentId: string;
+  checkoutAlias: string;
+  checkoutDigest: string;
+  checkoutsCreated: 1;
+  fencingEpoch: number;
+}
+```
+
+Extend `PaymentLedgerStore` with:
+
+```ts
+acquireInstrumentFence(input: AcquireFenceInput): Promise<PaymentFence>;
+armCheckout(input: ArmCheckoutInput): Promise<CheckoutPermit>;
+recordCheckoutObserved(input: RecordCheckoutInput): Promise<CheckoutReceipt>;
+```
+
+- [ ] **Step 1: Write failing mutex/cardinality tests**
+
+```ts
+test('instrument epoch is monotonic and stale holders fail', async () => {
+  const first = await store.acquireInstrumentFence(validFenceRequest('holder-a'));
+  await terminallyReleaseSyntheticIntent(first.canonicalIntentId);
+  const second = await store.acquireInstrumentFence(validFenceRequest('holder-b'));
+  assert.ok(second.fencingEpoch > first.fencingEpoch);
+  await assert.rejects(() => store.armCheckout(validCheckoutArm(first)), /PAYMENT_STALE_FENCE/u);
+});
+
+test('one authorization arms one checkout before provider creation', async () => {
+  const permit = await store.armCheckout(validCheckoutArm());
+  assert.equal(permit.providerIdempotencyKey, expectedProviderKey);
+  await assert.rejects(
+    () => store.armCheckout({ ...validCheckoutArm(), quoteDigest: '9'.repeat(64) }),
+    /PAYMENT_CHECKOUT_ALREADY_ARMED/u,
+  );
+});
+```
+
+- [ ] **Step 2: Run focused RED**
+
+Run: `FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment-integration/ledger.test.ts`
+
+Expected: FAIL because mutex/checkout routines are absent.
+
+- [ ] **Step 3: Add exact mutex and checkout tables in a new immutable migration**
+
+```sql
+CREATE TABLE payment_instrument_mutex (
+  instrument_alias text PRIMARY KEY,
+  fencing_epoch bigint NOT NULL DEFAULT 0 CHECK (fencing_epoch >= 0),
+  held_by_authorization_id uuid REFERENCES payment_authorizations(authorization_id),
+  holder_id text,
+  held_at timestamptz,
+  closed_until_reconciled boolean NOT NULL DEFAULT false,
+  closed_reason text
+);
+
+CREATE TABLE payment_checkouts (
+  authorization_id uuid PRIMARY KEY REFERENCES payment_authorizations(authorization_id),
+  canonical_intent_id char(64) NOT NULL UNIQUE REFERENCES payment_intents(canonical_intent_id),
+  provider_idempotency_key char(64) NOT NULL UNIQUE,
+  fencing_epoch bigint NOT NULL CHECK (fencing_epoch > 0),
+  quote_digest char(64) NOT NULL,
+  state text NOT NULL CHECK (state IN ('ARMED','OBSERVED','UNKNOWN')),
+  checkout_alias text,
+  checkout_digest char(64),
+  armed_at timestamptz NOT NULL,
+  observed_at timestamptz
+);
+```
+
+- [ ] **Step 4: Implement lock-ordered SQL routines**
+
+Add `payment_acquire_instrument_fence`, `payment_arm_checkout`, and `payment_record_checkout_observed`. Acquisition locks the global instrument row, rejects any other active/unknown holder, increments epoch, and binds the authorization. Arming inserts the unique slot before an adapter call but leaves `checkout_count=0`; the adapter may only create or resume with its fixed provider idempotency key. Exact observation changes the row to `OBSERVED` and increments `checkout_count` once. Mismatch sets checkout `UNKNOWN`, closes the mutex, and pauses `GLOBAL/*`.
+
+- [ ] **Step 5: Prove global cross-environment serialization**
+
+Add a staging intent and a production intent sharing `instrumentAlias='instrument-synthetic-a'`. Assert one acquires; the other receives `PAYMENT_INSTRUMENT_BUSY`. Use different products and accounts to prove those values cannot bypass the global mutex.
+
+- [ ] **Step 6: Run focused and aggregate GREEN**
+
+Apply the new immutable `0022` migration to the disposable test database, then run:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test
+FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment-integration/ledger.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration
+git diff --check
+```
+
+Expected: PASS and a second migration run reports no changed applied bytes.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add db/migrations/0022_payment_checkout_fencing.sql packages/payment/src/ledger-store.ts tests/payment-integration/ledger.test.ts
+git commit -m "feat(payment): fence one canonical checkout globally"
+```
+
+### Task 7: Opaque Secret Handles and Origin-Verified Field Injector
+
+**Files:**
+- Create: `packages/payment/src/secret-handles.ts`
+- Create: `packages/payment/src/field-injector.ts`
+- Create: `packages/payment/src/computer-use-fill-handler.ts`
+- Create: `tests/payment/field-injector.test.ts`
+- Create: `tests/payment/computer-use-fill-handler.test.ts`
+
+**Interfaces:**
+- Consumes: a checkout permit, current fence, and the N3 private payment-context control port.
+- Produces: opaque one-shot leases and a sanitized field-entry receipt. No ordinary canary input gains a secret field.
+
+```ts
+declare const secretHandleBrand: unique symbol;
+
+export interface SecretHandle<K extends 'PAN' | 'EXPIRY' | 'CVV'> {
+  readonly handleId: string;
+  readonly kind: K;
+  readonly expiresAt: string;
+  readonly singleUse: K extends 'CVV' ? true : boolean;
+  readonly [secretHandleBrand]: true;
+}
+
+export interface PaymentSecretLease {
+  leaseId: string;
+  pan: SecretHandle<'PAN'>;
+  expiry: SecretHandle<'EXPIRY'>;
+  cvv: SecretHandle<'CVV'>;
+  expiresAt: string;
+}
+
+export interface PaymentSecretHandleProvider {
+  acquire(authorization: PaymentAuthorizationRef, signal: AbortSignal): Promise<PaymentSecretLease>;
+  revoke(leaseId: string, reasonCode: string): Promise<void>;
+}
+
+export interface PaymentFieldInjector {
+  fill(input: {
+    qaRunKey: QaRunKey;
+    checkout: CheckoutPermit;
+    hostSessionId: string;
+    expectedWindowId: string;
+    expectedCandidateDigest: string;
+    personaId: string;
+    personaFencingEpoch: number;
+    allowedOrigin: string;
+    secretLease: PaymentSecretLease;
+    signal: AbortSignal;
+  }): Promise<FieldEntryReceipt>;
+}
+
+export interface PaymentFillFieldsCommandV1 {
+  schemaVersion: 1;
+  commandId: 'payment-fill-fields-v1';
+  authorizationId: string;
+  canonicalIntentId: string;
+  checkoutDigest: string;
+  fencingEpoch: number;
+  expectedWindowId: string;
+  expectedCandidateDigest: string;
+  personaId: string;
+  personaFencingEpoch: number;
+  expectedTopOrigin: string;
+  expectedFrameOrigin: string;
+  secretLeaseId: string;
+  panHandleId: string;
+  expiryHandleId: string;
+  cvvHandleId: string;
+  registeredArtifactIds: string[];
+}
+
+export interface PaymentFillFieldsResultV1 {
+  schemaVersion: 1;
+  canonicalIntentId: string;
+  fencingEpoch: number;
+  originDigest: string;
+  panFieldPresent: true;
+  expiryFieldPresent: true;
+  cvvFieldPresent: true;
+  artifactInventoryDigest: string;
+  observationDigest: string;
+  observedAt: string;
+}
+
+export type VerifiedPaymentFillFieldsRequest = Extract<
+  VerifiedHostControlRequest,
+  { commandId: 'payment-fill-fields-v1' }
+>;
+
+export interface PaymentFieldEntryActivationGuard {
+  envelopeDigest: string;
+  commandDigest: string;
+  actionNonce: string;
+  issuedAt: string;
+  expiresAt: string;
+  guardDigest: string;
+  guardMac: string;
+}
+
+export interface PaymentFillFieldsHandlerDependencies {
+  fenceStore: {
+    rereadCheckoutFence(command: PaymentFillFieldsCommandV1): Promise<CheckoutPermit>;
+  };
+  computerUse: {
+    beginGuardedFieldEntry(
+      request: VerifiedPaymentFillFieldsRequest,
+      signal: AbortSignal,
+    ): Promise<PaymentFieldEntryActivationGuard>;
+    fillGuardedFieldsOnce(
+      request: VerifiedPaymentFillFieldsRequest,
+      guard: PaymentFieldEntryActivationGuard,
+      signal: AbortSignal,
+    ): Promise<PaymentFillFieldsResultV1>;
+    abortGuardedFieldEntry(guard: PaymentFieldEntryActivationGuard): Promise<void>;
+  };
+}
+
+export function createPaymentFillFieldsHandler(
+  dependencies: PaymentFillFieldsHandlerDependencies,
+): (
+  request: VerifiedPaymentFillFieldsRequest,
+  signal: AbortSignal,
+) => Promise<PaymentFillFieldsResultV1>;
+```
+
+`FieldEntryReceipt` contains intent ID, origin digest, fence epoch, three field-presence booleans, artifact-inventory digest, and observation digest; it contains no values, lengths, last-four digits, selectors, URLs, or provider payload.
+
+- [ ] **Step 1: Write failing type/runtime boundary tests**
+
+```ts
+test('ordinary canary input cannot contain secret handles or values', () => {
+  assert.throws(
+    () => assertPaymentCanaryInput({ ...validCanaryInput(), cvvHandle: 'opaque-but-forbidden' }),
+    /payment canary input failed closed schema validation/u,
+  );
+});
+
+test('injector verifies origin and fence before resolving handles', async () => {
+  const calls: string[] = [];
+  await injector.fill(validFieldInput({ calls }));
+  assert.deepEqual(calls, ['begin-guarded-entry', 'verify-fence', 'resolve-inside-host', 'fill-fields-once', 'zeroize']);
+});
+
+test('window origin candidate or persona switch after guard creation resolves no handles and types nothing');
+test('field-entry guard is single-use action-bound short-lived and host-session-bound');
+test('host fill handler reads only the verified envelope payload and returns exact v1 fields');
+test('host fill handler rereads the checkout fence before any handle can resolve');
+test('navigation or frame replacement before each PAN expiry and CVV write invalidates the retained field handle');
+test('each handle resolves just in time and its bytes are zero before the next handle resolves');
+test('secret provider accepts only the owned pinned Unix broker and rejects URL TCP task or owner overrides');
+
+test('a CVV handle cannot resolve twice', async () => {
+  const handle = makeSyntheticCvvHandle();
+  await resolver.consume(handle, AbortSignal.timeout(1000));
+  await assert.rejects(() => resolver.consume(handle, AbortSignal.timeout(1000)), /SECRET_HANDLE_CONSUMED/u);
+});
+```
+
+- [ ] **Step 2: Run focused RED**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/field-injector.test.ts tests/payment/computer-use-fill-handler.test.ts`
+
+Expected: FAIL because handle, injector, and verified fill-handler modules do
+not exist.
+
+- [ ] **Step 3: Implement non-serializable handle construction**
+
+Expose constructors only through the private handle provider. Reject `JSON.stringify`, structured clone, expired handles, wrong kinds, non-canonical IDs, and duplicate CVV consume. The resolver returns a `Uint8Array` only inside the private adapter callback and zeroizes it in `finally` with `bytes.fill(0)`.
+
+The production `PaymentSecretHandleProvider` resolves only the exact absolute
+Unix socket path and lowercase broker pin supplied by the static handler's
+`FREELAND_PAYMENT_SECRET_BROKER_SOCKET` and
+`FREELAND_PAYMENT_SECRET_BROKER_PIN`. It requires an owner-controlled `0700`
+parent, `0600` socket, expected uid/peer credential and signed challenge, and
+permits only `acquire`/`consume-once`/`revoke` for the already validated
+authorization. It rejects symlinks, TCP/URL endpoints, task/CLI overrides,
+unknown methods, owner DB authority, raw-value responses outside the private
+callback, and changed peer/pin/session. These locator variables contain no PAN,
+expiry, CVV, or reversible handle and never cross into Playwright, Chrome,
+ordinary evidence, or logs.
+
+- [ ] **Step 4: Implement closed private-control sequencing**
+
+The injector calls the N3 control port command `payment-fill-fields-v1` using
+the exact command/result shapes above. Before the socket call the orchestrator
+registers every declared tool-argument/AppState/screenshot/buffer object and
+passes their artifact IDs. The outer authenticated envelope binds `qaRunKey`
+and host session; the payload binds window, candidate, persona epoch, payment
+fence, checkout digest, origins, and handle/inventory IDs.
+
+Before resolving a handle, the host creates a maximum-five-second single-use
+MAC guard bound to those values, the exact closed field-entry action, and a
+nonce. It acquires one exclusive host action mutex for the entire three-field
+transaction and retains three reviewed native accessibility element handles,
+each bound to the attested application/window/provider frame and field role.
+It never types through global focus, coordinates, a selector, or a generic key
+event.
+
+For PAN, expiry, and CVV separately and in that order, one host primitive
+atomically rereads app/window, top/frame origin, candidate, persona epoch,
+payment fence, checkout digest, and the retained element's native ownership;
+resolves only that field's opaque handle; writes only to that still-live
+element-specific handle; reads back only a presence fact; and zeroizes the
+field bytes before the next handle can resolve. A navigation, frame
+replacement, focus change, detached/reused accessibility element, or guard
+expiry makes the retained handle stale and the primitive writes nothing. The
+host reattests after each field and once after CVV before issuing a receipt.
+Tests inject surface replacement before and inside every per-field primitive
+and prove no subsequent secret reaches the replacement. Once any resolution
+begins, failure revokes the remaining lease, zeroizes every buffer, requests
+safe clearing of already-entered provider fields without resolving another
+secret, leaves every registered copy visible to watchdog scrub, and returns no
+retryable field-entry permission. The handler fills only provider-owned
+reviewed fields, emits the sanitized receipt, and never echoes tool arguments.
+
+`computer-use-fill-handler.ts` is the sole host implementation for the N3
+`payment-fill-fields-v1` registry slot. Its registry signature is exactly
+`(VerifiedPaymentFillFieldsRequest, AbortSignal) =>
+Promise<PaymentFillFieldsResultV1>`. It reads the command only from
+`request.envelope.payload`, rereads the durable checkout/payment/persona fence,
+then creates the short-lived action guard and invokes the one whole-transaction
+host primitive. The private host resolves opaque handles only inside that
+primitive. Pre-action failure aborts the guard; any ambiguity after the first
+secret resolution revokes the remaining lease and cannot retry field entry.
+
+- [ ] **Step 5: Add failure-path zeroization tests**
+
+Inject abort, stale payment/persona fence, wrong app/window/top/frame origin,
+candidate drift, navigation/frame/element replacement before and during each
+of the three field primitives, expired/reused guard, missing field,
+field-readback mismatch, control-port disconnect, and receipt serialization
+failure at each sequence point. Assert pre-resolution races consume no handles
+or field writes; per-field buffers never overlap; every post-resolution path
+zeroizes all acquired bytes, revokes the remaining secret lease, clears only
+the retained provider elements when still attested, and remains visible to
+watchdog cleanup.
+
+- [ ] **Step 6: Run focused and security GREEN**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/field-injector.test.ts tests/payment/computer-use-fill-handler.test.ts`
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan && git diff --check`
+
+Expected: PASS with no secret material in captured errors or fake logs.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/payment/src/secret-handles.ts packages/payment/src/field-injector.ts packages/payment/src/computer-use-fill-handler.ts tests/payment/field-injector.test.ts tests/payment/computer-use-fill-handler.test.ts
+git commit -m "feat(payment): inject payment fields through opaque handles"
+```
+
+### Task 8: Payment-Data Inventory, CVV Scrub Barrier, and Submit Fence
+
+**Files:**
+- Create: `db/migrations/0023_payment_data_custody.sql`
+- Create: `packages/payment/src/data-artifacts.ts`
+- Create: `packages/payment/src/scrubber.ts`
+- Create: `tests/payment/data-artifacts.test.ts`
+- Create: `tests/payment/scrubber.test.ts`
+- Modify: `packages/payment/src/ledger-store.ts`
+- Modify: `tests/payment-integration/ledger.test.ts`
+
+**Interfaces:**
+- Consumes: registered backend capabilities, payment-data artifact records, checkout receipt, field-entry receipt, and current fence.
+- Produces: deletion receipts, tombstone proofs, one scrub proof, and one submit permit armed in PostgreSQL before external Submit.
+
+```ts
+export interface DeletionReceipt {
+  backendId: string;
+  objectAlias: string;
+  deletedAt: string;
+  receiptDigest: string;
+}
+
+export interface TombstoneProof {
+  backendId: string;
+  objectAlias: string;
+  verifiedAbsentAt: string;
+  proofDigest: string;
+}
+
+export interface PaymentDataBackend {
+  capabilities(): Promise<{
+    backendId: string;
+    supportsDeleteReceipt: true;
+    supportsIndependentAbsentCheck: true;
+    maximumCvvTtlSeconds: number;
+    maximumPanTtlSeconds: number;
+  }>;
+  delete(objectAlias: string, signal: AbortSignal): Promise<DeletionReceipt>;
+  verifyAbsent(objectAlias: string, signal: AbortSignal): Promise<TombstoneProof>;
+}
+
+export interface ScrubProof {
+  canonicalIntentId: string;
+  trigger: 'PRE_SUBMIT' | 'LEASE_LOSS' | 'TIMEOUT' | 'PROVIDER_EVENT' | 'STARTUP';
+  registeredArtifactCount: number;
+  verifiedAbsentArtifactCount: number;
+  proofDigest: string;
+  confirmedAt: string;
+}
+
+export interface SubmitPermit {
+  authorizationId: string;
+  canonicalIntentId: string;
+  fencingEpoch: number;
+  quoteDigest: string;
+  checkoutDigest: string;
+  scrubProofDigest: string;
+  programGateDigest: string;
+  armedAt: string;
+}
+```
+
+- [ ] **Step 1: Write failing inventory/deadline tests**
+
+```ts
+test('requires registration before a backend may capture payment data', async () => {
+  await assert.rejects(() => captureWithoutRegistration(), /PAYMENT_ARTIFACT_NOT_REGISTERED/u);
+});
+
+test('rejects CVV deadline after ten minutes and PAN deadline after 24 hours', async () => {
+  await assert.rejects(() => inventory.register(cvvAtMinutes(11)), /CVV_DEADLINE_EXCEEDED/u);
+  await assert.rejects(() => inventory.register(panAtHours(25)), /PAN_DEADLINE_EXCEEDED/u);
+});
+
+test('submit requires receipt and independently verified absence for every non-field CVV copy', async () => {
+  await inventory.register(toolArgumentCvvArtifact());
+  await assert.rejects(() => ledger.armSubmit(validSubmitArm()), /CVV_SCRUB_INCOMPLETE/u);
+});
+```
+
+- [ ] **Step 2: Run focused RED**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/data-artifacts.test.ts tests/payment/scrubber.test.ts`
+
+Expected: FAIL because custody migration/modules do not exist.
+
+- [ ] **Step 3: Create typed custody tables and grants**
+
+```sql
+CREATE TABLE payment_data_artifacts (
+  artifact_id uuid PRIMARY KEY,
+  canonical_intent_id char(64) NOT NULL REFERENCES payment_intents(canonical_intent_id),
+  backend_id text NOT NULL,
+  object_alias text NOT NULL,
+  data_class text NOT NULL CHECK (data_class IN ('PAN','CVV')),
+  residency text NOT NULL CHECK (residency IN (
+    'PROVIDER_FIELD','TOOL_ARGUMENT','APP_STATE','SCREENSHOT','BUFFER','JOB_LOG'
+  )),
+  created_at timestamptz NOT NULL,
+  delete_by timestamptz NOT NULL,
+  state text NOT NULL CHECK (state IN ('REGISTERED','DELETE_REQUESTED','DELETED','VERIFIED_ABSENT')),
+  deletion_receipt_digest char(64),
+  tombstone_proof_digest char(64),
+  verified_absent_at timestamptz,
+  UNIQUE (backend_id, object_alias),
+  CHECK ((data_class = 'CVV' AND delete_by <= created_at + interval '10 minutes') OR
+         (data_class = 'PAN' AND delete_by <= created_at + interval '24 hours'))
+);
+
+CREATE TABLE payment_scrub_batches (
+  canonical_intent_id char(64) PRIMARY KEY REFERENCES payment_intents(canonical_intent_id),
+  trigger text NOT NULL CHECK (trigger IN ('PRE_SUBMIT','LEASE_LOSS','TIMEOUT','PROVIDER_EVENT','STARTUP')),
+  registered_artifact_count integer NOT NULL CHECK (registered_artifact_count >= 0),
+  verified_absent_artifact_count integer NOT NULL CHECK (verified_absent_artifact_count >= 0),
+  proof_digest char(64) NOT NULL UNIQUE,
+  confirmed_at timestamptz NOT NULL,
+  CHECK (registered_artifact_count = verified_absent_artifact_count)
+);
+```
+
+Also create `payment_cleanup_requests`, `payment_watchdog_heartbeats`, and `payment_submit_fences` with `authorization_id PRIMARY KEY`, `canonical_intent_id UNIQUE`, exact epoch/quote/checkout/scrub/program-gate digests, `armed_at`, and nullable `observed_submitted_at`.
+
+- [ ] **Step 4: Implement register-delete-verify sequencing**
+
+`PaymentDataInventory.register` commits before capture. `CvvScrubber.scrub` snapshots every registered non-provider-field CVV copy, requests backend deletion, records receipt, independently verifies absence, rereads the closed set, and creates a scrub batch only when counts/digests match. A new CVV artifact after the snapshot invalidates the proof.
+
+- [ ] **Step 5: Implement database-verified submit arming**
+
+Extend `PaymentLedgerStore`:
+
+```ts
+recordFieldEntry(receipt: FieldEntryReceipt): Promise<void>;
+recordScrubProof(proof: ScrubProof): Promise<void>;
+armSubmit(input: {
+  commandId: string;
+  canonicalIntentId: string;
+  fencingEpoch: number;
+  quoteDigest: string;
+  checkoutDigest: string;
+  scrubProofDigest: string;
+  programGateDigest: string;
+  observedAt: string;
+}): Promise<SubmitPermit>;
+```
+
+SQL function `payment_arm_submit` locks intent → mutex → checkout → custody rows, verifies current persona/fence, exact unchanged quote/checkout, current program gate, fresh scrub proof, no unverified non-field CVV, no overdue PAN, all switches unpaused, and inserts the unique fence before returning the permit. Any replay returns the same permit only when every digest matches.
+
+- [ ] **Step 6: Add scrub failure and late-registration tests**
+
+Cover delete rejection, forged receipt, false tombstone, tombstone-before-delete, late CVV registration, count mismatch, expired proof, provider-field exception, PAN overdue, stale fence, changed quote, changed checkout, changed program gate, and second submit arm. Every case must fail before `SubmitPermit` exists and pause the required scope.
+
+- [ ] **Step 7: Migrate and run focused GREEN**
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test`
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/data-artifacts.test.ts tests/payment/scrubber.test.ts`
+
+Run: `FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment-integration/ledger.test.ts`
+
+Expected: PASS; exactly one scrub proof and one submit fence exist.
+
+- [ ] **Step 8: Run aggregate verification and commit**
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan && git diff --check`
+
+Expected: PASS.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add db/migrations/0023_payment_data_custody.sql packages/payment/src/data-artifacts.ts packages/payment/src/scrubber.ts packages/payment/src/ledger-store.ts tests/payment/data-artifacts.test.ts tests/payment/scrubber.test.ts tests/payment-integration/ledger.test.ts
+git commit -m "feat(payment): require scrub proof before submit fence"
+```
+
+### Task 9: Thirty-Two-Process Race and Crash-Point Recovery
+
+**Files:**
+- Create: `packages/payment/src/fault-injector.ts`
+- Create: `tests/payment-integration/fixtures/payment-contender.ts`
+- Create: `tests/payment-integration/payment-32-process-race.test.ts`
+- Create: `tests/payment-integration/payment-restart.test.ts`
+
+**Interfaces:**
+- Consumes: Tasks 3–8 stores and one synthetic authorization/persona/profile fixture.
+- Produces: cross-process proof of one reservation, canonical intent, checkout permit, checkout receipt, submit fence, and monotonic epoch across process death.
+
+```ts
+export type PaymentFaultPoint =
+  | 'AFTER_RESERVE_COMMIT'
+  | 'AFTER_MUTEX_COMMIT'
+  | 'AFTER_CHECKOUT_ARM_COMMIT'
+  | 'AFTER_CHECKOUT_OBSERVED_COMMIT'
+  | 'AFTER_FIELD_ENTRY'
+  | 'AFTER_SCRUB_PROOF_COMMIT'
+  | 'AFTER_SUBMIT_ARM_COMMIT'
+  | 'IMMEDIATELY_AFTER_EXTERNAL_SUBMIT'
+  | 'BEFORE_PROVIDER_RECONCILIATION';
+
+export interface PaymentFaultInjector {
+  hit(point: PaymentFaultPoint): Promise<void>;
+}
+```
+
+`NoopPaymentFaultInjector` is the only live binding. Fault selection is injected by test construction and is absent from environment variables, Nuanu input, and live CLI arguments.
+
+- [ ] **Step 1: Write the failing 32-process assertion**
+
+```ts
+test('32 independent processes cannot multiply payment cardinality', async () => {
+  const contenders = Array.from({ length: 32 }, (_, index) => spawnContender(index));
+  const exits = await Promise.all(contenders);
+  assert.equal(exits.filter(({ outcome }) => outcome === 'AUTHORITATIVE').length, 1);
+  assert.equal(await countRows('payment_intents'), 1);
+  assert.equal(await countRows('payment_checkouts'), 1);
+  assert.equal(await countRows('payment_submit_fences'), 1);
+  assert.deepEqual(await budgetTotals(), {
+    authorizedMinor: 1200,
+    reservedMinor: 1200,
+    spentMinor: 0,
+    pendingUnknownMinor: 0,
+  });
+});
+```
+
+- [ ] **Step 2: Run focused RED**
+
+Run: `FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/payment-integration/payment-32-process-race.test.ts`
+
+Expected: FAIL because contender/fault harnesses do not exist.
+
+- [ ] **Step 3: Implement real child-process contention**
+
+Each child imports production stores, connects through `FREELAND_QA_TEST_DATABASE_URL`, waits on one parent barrier, derives the same canonical slot, and attempts reserve → mutex → checkout arm/observe → pre-seeded synthetic scrub proof → submit arm. No in-memory shared lock or parent-side winner selection is allowed.
+
+- [ ] **Step 4: Run race GREEN repeatedly**
+
+Run the exact race command five times against a freshly seeded authorization while preserving each completed database for assertion. Expected on every run: one authoritative permit, 31 exact replays/conflicts, one intent, one checkout, one submit fence, and no budget overrun.
+
+- [ ] **Step 5: Write crash-point recovery assertions**
+
+For every `PaymentFaultPoint`, start a child, wait until the named durable event appears, terminate it, then start a replacement with a different worker/run/account identity. Assert:
+
+- before submit arm: replacement may observe/resume the same canonical rows but cannot create new rows;
+- after submit arm: replacement receives observation/reconciliation authority only;
+- immediately after external-submit simulation: state becomes `UNKNOWN_HELD`, reservation remains `1200`, `pendingUnknown` becomes `1200`, mutex remains closed, and submit count remains `1`;
+- a new persona/account/qaRunKey cannot produce a second slot;
+- fencing epochs never decrease or repeat.
+
+- [ ] **Step 6: Run crash/fence GREEN**
+
+Run: `FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/payment-integration/payment-restart.test.ts`
+
+Expected: PASS for every commit boundary and `SIGTERM`/`SIGKILL` child exit.
+
+- [ ] **Step 7: Run focused aggregate and commit**
+
+Run: `FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/payment-integration/payment-32-process-race.test.ts tests/payment-integration/payment-restart.test.ts`
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration && git diff --check`
+
+Expected: PASS.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/payment/src/fault-injector.ts tests/payment-integration/fixtures/payment-contender.ts tests/payment-integration/payment-32-process-race.test.ts tests/payment-integration/payment-restart.test.ts
+git commit -m "test(payment): prove cross-process submit cardinality"
+```
+
+### Task 10: Independent Watchdog, Lease-Loss Scrub, and PAN/CVV TTL
+
+**Files:**
+- Create: `config/payment-data-backends.v1.yaml`
+- Create: `packages/payment/src/watchdog.ts`
+- Create: `apps/payment-watchdog/src/main.ts`
+- Create: `tests/payment/watchdog.test.ts`
+- Modify: `packages/payment/src/data-artifacts.ts`
+- Modify: `packages/payment/src/scrubber.ts`
+- Modify: `package.json`
+
+**Interfaces:**
+- Consumes: custody tables from Task 8, persona/payment lease-loss observations, backend deletion adapters, and the N3 private payment-context closer.
+- Produces: an independently scheduled watchdog heartbeat/report, cleanup receipts, overdue safety events, and fail-closed switch changes.
+
+```ts
+export interface PaymentContextCloser {
+  closePaymentContext(input: {
+    canonicalIntentId: string;
+    fencingEpoch: number;
+    reason: 'LEASE_LOSS' | 'CVV_TTL' | 'PAN_TTL' | 'STARTUP_RECOVERY';
+  }): Promise<{ closedAt: string; receiptDigest: string }>;
+}
+
+export interface PaymentWatchdog {
+  tick(now: string, signal: AbortSignal): Promise<{
+    scanned: number;
+    scrubbed: number;
+    contextsClosed: number;
+    overdue: number;
+    reportDigest: string;
+  }>;
+}
+```
+
+- [ ] **Step 1: Write failing independent-recovery tests with a fake clock**
+
+```ts
+test('lease loss closes the payment context and scrubs without worker callback', async () => {
+  await enqueueCleanup('LEASE_LOSS', intentAtSubmitFence());
+  const report = await watchdog.tick('2026-08-07T01:00:00.000Z', AbortSignal.timeout(1000));
+  assert.equal(report.contextsClosed, 1);
+  assert.equal(report.scrubbed, 1);
+  assert.equal(await unverifiedCvvCount(), 0);
+});
+
+test('startup scans overdue objects even when cleanup enqueue was missed', async () => {
+  await seedOverduePanWithoutCleanupRequest();
+  const report = await watchdog.tick('2026-08-08T01:00:01.000Z', AbortSignal.timeout(1000));
+  assert.equal(report.overdue, 1);
+  assert.equal(await isSwitchPaused('GLOBAL', '*'), true);
+});
+```
+
+- [ ] **Step 2: Run focused RED**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/watchdog.test.ts`
+
+Expected: FAIL because watchdog/config modules do not exist.
+
+- [ ] **Step 3: Register every declared backend capability**
+
+`config/payment-data-backends.v1.yaml` contains these exact IDs: `computer-use-tool-arguments`, `computer-use-app-state`, `computer-use-screenshots`, `local-raw-buffer`, and `restricted-pan-store`. Each record declares `deleteReceipt: required`, `independentAbsentCheck: required`, `maximumCvvTtlSeconds: 600`, and `maximumPanTtlSeconds: 86400`. Direct entry is disabled if runtime capability attestation is weaker or if another backend appears in inventory.
+
+- [ ] **Step 4: Implement watchdog claim and scan behavior**
+
+`tick` writes a heartbeat, claims payment-specific cleanup rows with `FOR UPDATE SKIP LOCKED`, closes the live payment context for lease loss/TTL, invokes the same scrubber as pre-submit, and independently scans all `REGISTERED`, `DELETE_REQUESTED`, or `DELETED` artifacts whose deadline is due. The watchdog never calls checkout or submit adapters.
+
+Heartbeat cadence is five seconds. A submit gate accepts a watchdog heartbeat only when its age is at most 15 seconds. A second watchdog may take over cleanup after a 20-second claim timeout; deletion and tombstone operations must be idempotent on exact object alias.
+
+- [ ] **Step 5: Add every recovery trigger and breach assertion**
+
+Cover `LEASE_LOSS`, `TIMEOUT`, `PROVIDER_EVENT`, `STARTUP`, provider adapter exception, controller death, watchdog death/takeover, missed cleanup request, CVV at 9:59/10:00/10:01, PAN at 23:59:59/24:00:00/24:00:01, backend timeout, backend receipt without tombstone, and newly discovered backend. A missed deadline pauses `GLOBAL/*`; ordinary cleanup failure before a deadline pauses the affected environment/provider/product.
+
+- [ ] **Step 6: Implement the standalone entrypoint**
+
+`apps/payment-watchdog/src/main.ts --once` requires `FREELAND_QA_DATABASE_URL`, constructs no canary/submit adapter, runs one tick, prints only the sanitized report, and exits non-zero on overdue artifacts or incomplete deletion. The service-mode loop sleeps five seconds with abort-aware timers and records its final heartbeat on shutdown.
+
+Add the script only after this entrypoint exists:
+
+```json
+{
+  "payment:watchdog:once": "/opt/homebrew/opt/node@20/bin/node --import tsx apps/payment-watchdog/src/main.ts --once"
+}
+```
+
+- [ ] **Step 7: Run focused and aggregate GREEN**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/watchdog.test.ts`
+
+Run: `FREELAND_QA_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run payment:watchdog:once` against the synthetic test database.
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan && git diff --check`
+
+Expected: PASS; no payment-data value appears in stdout/stderr.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add config/payment-data-backends.v1.yaml packages/payment/src/watchdog.ts packages/payment/src/data-artifacts.ts packages/payment/src/scrubber.ts apps/payment-watchdog/src/main.ts tests/payment/watchdog.test.ts package.json
+git commit -m "feat(payment): scrub payment data with independent watchdog"
+```
+
+### Task 11: Separate Staging/Production Profiles, Program Gate, and Kill Switches
+
+**Files:**
+- Create: `config/payment-profiles/staging/vpn.v1.yaml`
+- Create: `config/payment-profiles/staging/esim.v1.yaml`
+- Create: `config/payment-profiles/staging/virtual-number.v1.yaml`
+- Create: `config/payment-profiles/production/vpn.v1.yaml`
+- Create: `config/payment-profiles/production/esim.v1.yaml`
+- Create: `config/payment-profiles/production/virtual-number.v1.yaml`
+- Create: `packages/payment/src/profiles.ts`
+- Create: `packages/payment/src/program-gate.ts`
+- Create: `tools/payment/record-program-gate.ts`
+- Create: `tools/payment/set-kill-switch.ts`
+- Create: `tests/payment/fixtures/profiles/staging-vpn.v1.yaml`
+- Create: `tests/payment/fixtures/profiles/production-vpn.v1.yaml`
+- Create: `tests/payment/profiles.test.ts`
+- Create: `tests/payment/program-gate.test.ts`
+- Modify: `packages/contracts/src/payment-control.ts`
+- Modify: `packages/contracts/schemas/payment-profile.v1.schema.json`
+- Modify: `package.json`
+
+**Interfaces:**
+- Consumes: immutable program-gate rows, kill switches, resolved environment variables, candidate/catalog attestation, persona lease, and provider/backend health.
+- Produces: one frozen `ResolvedPaymentProfile` and `PaymentProgramGateReceipt` bound into the submit permit.
+
+```ts
+export interface PaymentProfileV1 {
+  schemaVersion: 1;
+  profileId: string;
+  revision: 1;
+  environment: PaymentEnvironment;
+  product: PaymentProduct;
+  entryMode: 'direct-computer-use' | 'provider-token';
+  allowedMethods: ['card'];
+  originVariable: string;
+  providerOriginsVariable: string;
+  providerVariable: string;
+  merchantVariable: string;
+  accountAliasVariable: string;
+  instrumentAliasVariable: string;
+  skuVariable: string;
+  currencyVariable: string;
+  recurrenceVariable: string;
+  maxQuotedAmountMinorVariable: string;
+  settlementHorizonSecondsVariable: string;
+  terminalClosureMode: 'authoritative-provider-attestation' | 'hold-indefinitely';
+  catalogDigestVariable: string;
+  evidenceNamespace: string;
+  requiredBackendIds: string[];
+  expectedEntitlement: 'vpn' | 'esim' | 'virtual-number';
+  postPurchaseAssertionId: string;
+}
+
+export interface ResolvedPaymentProfile {
+  profile: PaymentProfileV1;
+  origin: string;
+  providerOrigins: string[];
+  provider: string;
+  merchant: string;
+  accountAlias: string;
+  instrumentAlias: string;
+  sku: string;
+  currency: string;
+  recurrence: 'one-time' | 'recurring';
+  maxQuotedAmountMinor: number;
+  settlementHorizonSeconds: number;
+  terminalClosureMode: 'authoritative-provider-attestation' | 'hold-indefinitely';
+  catalogDigest: string;
+  resolvedProfileDigest: string;
+}
+
+export interface PaymentProgramGateReceipt {
+  requiredGateIds: [
+    'N1_TYPED_RUNNER',
+    'N2_MANUAL_SLICE',
+    'N3_COMPUTER_USE',
+    'N3_PERSONA_CUSTODY',
+    'N4_ASSIST_CALIBRATION',
+    'N5_FAULT_INJECTION_ACCEPTED',
+  ];
+  candidateDigest: string;
+  resolvedProfileDigest: string;
+  personaFencingEpoch: number;
+  watchdogHeartbeatDigest: string;
+  providerPreflightDigest: string;
+  switchRevisionDigest: string;
+  receiptDigest: string;
+  issuedAt: string;
+}
+
+export interface PaymentProgramGate {
+  assertReady(input: ProgramGateInput): Promise<PaymentProgramGateReceipt>;
+}
+```
+
+Resolve `settlementHorizonSeconds` as a reviewed positive safe integer in the
+range `60..86400`; bind it into `resolvedProfileDigest` and derive every
+`settlementHorizonEndsAt` from the authoritative submit timestamp plus that
+exact value. A runtime environment change therefore changes the profile digest
+and invalidates the existing authorization/program gate before submit.
+
+- [ ] **Step 1: Write failing profile-separation tests**
+
+```ts
+test('staging and production resolve to disjoint identities', () => {
+  const staging = resolvePaymentProfile(loadProfile('staging/vpn.v1.yaml'), stagingEnv());
+  const production = resolvePaymentProfile(loadProfile('production/vpn.v1.yaml'), productionEnv());
+  assert.notEqual(staging.resolvedProfileDigest, production.resolvedProfileDigest);
+  assert.notEqual(staging.origin, production.origin);
+  assert.notEqual(staging.accountAlias, production.accountAlias);
+  assert.notEqual(staging.catalogDigest, production.catalogDigest);
+  assert.notEqual(staging.profile.evidenceNamespace, production.profile.evidenceNamespace);
+});
+test('settlement horizon is bounded digest-bound and cannot change after authorization');
+test('provider without reviewed authoritative closure resolves to hold-indefinitely');
+```
+
+- [ ] **Step 2: Write failing program-gate tests**
+
+Assert readiness fails independently for every inactive/expired required gate, paused global/environment/provider/product switch, candidate mismatch, profile mismatch, persona account/environment/epoch mismatch, watchdog heartbeat older than 15 seconds, provider preflight failure, unreachable reconciliation endpoint, and backend capability downgrade.
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/profiles.test.ts tests/payment/program-gate.test.ts`
+
+Expected: FAIL because profile/gate modules do not exist.
+
+- [ ] **Step 3: Create six closed profile files with environment-specific variable names**
+
+Each staging file uses only `FREELAND_STAGING_PAYMENT_*` variable names and evidence namespace `freeland-payment-staging-v1`; each production file uses only `FREELAND_PRODUCTION_PAYMENT_*` names and namespace `freeland-payment-production-v1`. Product-specific SKU and post-purchase variable/assertion names include `VPN`, `ESIM`, or `VIRTUAL_NUMBER`. No profile contains a secret or live amount guessed by the implementer.
+
+Resolution requires exact runtime values, canonicalizes them, computes `resolvedProfileDigest`, and rejects a variable name shared across staging/production identity fields. The owner authorization must equal the resolved digest and exact resolved amount/currency/recurrence/catalog.
+
+- [ ] **Step 4: Implement all-program readiness and switch read-back**
+
+`PaymentProgramGate.assertReady` reads the six gate rows in one repeatable snapshot, verifies every evidence digest and time bound, reads all four switch scopes and revisions, verifies exact candidate/profile/persona/provider/backend facts, rereads the fresh watchdog heartbeat, then hashes the canonical receipt. It does not activate gates or unpause switches.
+
+`record-program-gate.ts` and `set-kill-switch.ts` connect only through `FREELAND_PAYMENT_OWNER_DATABASE_URL`, accept one absolute mode-0600 closed JSON file named by `FREELAND_PAYMENT_PROGRAM_GATE_FILE` or `FREELAND_PAYMENT_SWITCH_CHANGE_FILE`, reject symlinks, write one append-only program action, and print its sanitized read-back digest. Neither tool accepts or changes authorization, SKU, amount, currency, or submit state.
+
+After both entrypoints exist, add their owning scripts:
+
+```json
+{
+  "payment:program-gate:record": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/payment/record-program-gate.ts",
+  "payment:kill-switch:set": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/payment/set-kill-switch.ts"
+}
+```
+
+- [ ] **Step 5: Prove payment authority is independent from routing authority**
+
+Add a fixture whose Flow journey mode is `Assist` but whose six payment program gates are active. Assert payment readiness succeeds without a `Ready for prod` transition right. Add a fixture with an Auto routing grant but missing payment fault gate; assert payment readiness fails.
+
+- [ ] **Step 6: Drill hierarchical switches without live submit**
+
+Through owner-role test routines, unpause then pause global, environment, provider, and product rows. Assert each pause blocks a synthetic submit permit immediately, in-flight unarmed work stops, armed/unknown work enters reconciliation, and only an owner program action can unpause. Store the switch-drill digest as one input to the Task 14 acceptance digest; do not activate `N5_FAULT_INJECTION_ACCEPTED` yet.
+
+- [ ] **Step 7: Run focused and aggregate GREEN**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/profiles.test.ts tests/payment/program-gate.test.ts`
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration && git diff --check`
+
+Expected: PASS; a production profile/input presented to the N5 entrypoint remains rejected.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add config/payment-profiles packages/contracts/src/payment-control.ts packages/contracts/schemas/payment-profile.v1.schema.json packages/payment/src/profiles.ts packages/payment/src/program-gate.ts tools/payment/record-program-gate.ts tools/payment/set-kill-switch.ts tests/payment/fixtures/profiles tests/payment/profiles.test.ts tests/payment/program-gate.test.ts package.json
+git commit -m "feat(payment): gate separate staging and production profiles"
+```
+
+### Task 12: Provider Handle Vault and Three-Way Reconciliation
+
+**Files:**
+- Create: `db/migrations/0024_payment_reconciliation.sql`
+- Create: `packages/payment/src/reconciliation.ts`
+- Create: `tests/payment/reconciliation.test.ts`
+- Modify: `packages/payment/src/ledger-store.ts`
+
+**Interfaces:**
+- Consumes: an armed/submitted canonical intent, encrypted provider handle alias, resolved profile, and independent provider/order/entitlement/post-purchase adapters.
+- Produces: sanitized facts, one deterministic `PaymentLifecycle`, settled/held budget, and a reconciliation digest.
+
+```ts
+export interface ReconciliationCutoff {
+  cutoffId: string;
+  asOf: string;
+  submittedAt: string | null;
+  settlementHorizonEndsAt: string;
+}
+
+export interface ProviderFinalityAttestation {
+  canonicalIntentId: string;
+  provider: string;
+  terminalStatus: 'DECLINED' | 'CANCELLED';
+  terminalProviderSequence: string;
+  drainedThroughProviderSequence: string;
+  ingressWatermarkDigest: string;
+  latePaidImpossible: true;
+  signatureVerified: true;
+  effectiveAt: string;
+  issuedAt: string;
+  attestationDigest: string;
+}
+
+export interface ProviderFact {
+  status: 'MATCHED' | 'DECLINED' | 'CANCELLED' | 'UNKNOWN';
+  finality: 'FINAL' | 'PROVISIONAL' | 'UNKNOWN';
+  amountMinor: number | null;
+  currency: string | null;
+  eventId: string | null;
+  providerSequence: string | null;
+  effectiveAt: string | null;
+  cutoffId: string;
+  factDigest: string;
+  observedAt: string;
+}
+
+export interface OrderFact {
+  status: 'MATCHED' | 'NOT_CREATED' | 'UNKNOWN';
+  orderAlias: string | null;
+  cutoffId: string;
+  factDigest: string;
+  observedAt: string;
+}
+
+export interface EntitlementFact {
+  status: 'PROVISIONED' | 'NOT_EXPECTED' | 'MISSING' | 'UNKNOWN';
+  entitlementAlias: string | null;
+  cutoffId: string;
+  factDigest: string;
+  observedAt: string;
+}
+
+export interface PostPurchaseFact {
+  status: 'PASS' | 'FAIL' | 'NOT_EXPECTED' | 'UNKNOWN';
+  assertionId: string;
+  cutoffId: string;
+  factDigest: string;
+  observedAt: string;
+}
+
+export interface PaymentCheckoutAdapter {
+  createOrResumeCheckout(permit: CheckoutPermit, signal: AbortSignal): Promise<CheckoutReceipt>;
+}
+
+export interface ProviderReconciliationAdapter {
+  readProviderFact(handleAlias: string, cutoff: ReconciliationCutoff, signal: AbortSignal): Promise<ProviderFact>;
+  drainAndReadTerminalClosure(
+    handleAlias: string,
+    cutoff: ReconciliationCutoff,
+    signal: AbortSignal,
+  ): Promise<ProviderFinalityAttestation | null>;
+}
+
+export interface OrderAdapter {
+  readOrderFact(canonicalIntentId: string, cutoff: ReconciliationCutoff, signal: AbortSignal): Promise<OrderFact>;
+}
+
+export interface EntitlementAdapter {
+  readEntitlementFact(canonicalIntentId: string, cutoff: ReconciliationCutoff, signal: AbortSignal): Promise<EntitlementFact>;
+}
+
+export interface PostPurchaseOracle {
+  check(canonicalIntentId: string, assertionId: string, cutoff: ReconciliationCutoff, signal: AbortSignal): Promise<PostPurchaseFact>;
+}
+```
+
+- [ ] **Step 1: Write failing reconciliation truth-table tests**
+
+```ts
+test('paid requires provider, order, entitlement, and post-purchase agreement', async () => {
+  const result = await reconcilePayment(paidFacts());
+  assert.equal(result.lifecycle.state, 'RECONCILED_PAID');
+  assert.equal(result.lifecycle.settledAmountMinor, 1200);
+});
+
+test('provider paid with missing entitlement remains unknown and held', async () => {
+  const result = await reconcilePayment({ ...paidFacts(), entitlement: missingEntitlement() });
+  assert.equal(result.lifecycle.state, 'UNKNOWN_HELD');
+  assert.equal(result.lifecycle.reservedAmountMinor, 1200);
+  assert.equal(await isInstrumentClosed(), true);
+});
+
+test('provisional or pre-horizon decline and cancellation remain unknown and held');
+test('final decline at the horizon remains held without authoritative terminal closure');
+test('atomic event drain plus terminal closure releases the hold at the exact watermark');
+test('a provider without late-paid-impossible capability never releases automatically');
+test('all provider order entitlement and post-purchase facts share one immutable cutoff');
+test('provider sequence is monotonic and exact replay is idempotent');
+test('a contract-violating late paid event restores the reservation recloses the instrument and globally pauses payment');
+```
+
+- [ ] **Step 2: Run focused RED**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/reconciliation.test.ts`
+
+Expected: FAIL because reconciliation contracts/migration do not exist.
+
+- [ ] **Step 3: Create restricted provider-handle and fact tables**
+
+`payment_provider_handles` stores `handle_alias`, `canonical_intent_id`, AES-256-GCM ciphertext, 96-bit IV, authentication tag, key alias, ciphertext digest, and creation time. No ordinary runtime/evidence role has `SELECT` on ciphertext/IV/tag. An injected reconciler-only envelope cipher resolves clear bytes in memory, passes them to the read-only provider reconciliation adapter, and zeroizes them in `finally`.
+
+`payment_provider_events` has unique `(provider, provider_event_id)` plus a
+strictly increasing provider sequence per canonical intent and records only
+verified signature/finality status, effective time, and fact digest.
+`payment_provider_ingress_watermarks` and append-only
+`payment_provider_finality_attestations` bind the exact event-stream drain to
+one terminal sequence and signed closure digest. `payment_reconciliation_facts`
+stores typed statuses/digests/aliases and the shared `cutoff_id`, never raw
+bodies. `payment_reconciliation_runs` records the immutable cutoff,
+start/deadline/outcome/digest and is append-only. A provider event at or below
+the last sequence is accepted only as an exact replay; a changed digest or
+status is a conflict. A finality attestation is accepted only for a provider
+profile whose reviewed adapter declares authoritative terminal closure; an
+ordinary poll result, absence of an event, or elapsed horizon can never mint
+one.
+
+- [ ] **Step 4: Implement the exact deterministic truth table**
+
+- Provider `MATCHED` with `finality: FINAL`, monotonic sequence, exact amount/currency + order `MATCHED` + expected entitlement `PROVISIONED` + post-purchase `PASS`, all at the exact cutoff → `RECONCILED_PAID`, reserved decreases by settled amount, spent increases, pending unknown clears, mutex releases after persona reset eligibility.
+- After a submit, provider `DECLINED` with `finality: FINAL` + order `NOT_CREATED` + entitlement `NOT_EXPECTED` + post-purchase `NOT_EXPECTED`, all at one cutoff whose `asOf >= settlementHorizonEndsAt`, remains `UNKNOWN_HELD`/`FINALITY_HOLD` until an authoritative matching `ProviderFinalityAttestation` is accepted. The acceptance transaction verifies the drained ingress watermark and then atomically emits `RECONCILED_DECLINED`, releases the reservation/mutex, and leaves submit cardinality consumed.
+- A pre-submit user cancellation with zero submit may become `RECONCILED_CANCELLED` from a verified checkout-cancel fact. After a submit, provider `CANCELLED` follows the same horizon + drained watermark + authoritative terminal-closure requirement as decline; without closure it never releases automatically.
+- Any `UNKNOWN`, disagreement, missing expected entitlement, wrong amount/currency, duplicate conflicting event, or post-purchase failure → `UNKNOWN_HELD`, reservation retained, `pendingUnknown = reserved`, mutex closed, payment lane paused.
+- Any `PROVISIONAL` provider fact, non-monotonic sequence, mixed cutoff, future fact, decline/cancel before the horizon, missing ingress drain, or missing/untrusted terminal closure → `UNKNOWN_HELD` plus `FINALITY_HOLD`; it cannot release budget, persona, or mutex. A provider whose profile lacks authoritative closure support remains held indefinitely rather than using a timer guess.
+- A higher-sequence verified `MATCHED` event observed after an accepted provider closure is a provider-contract violation. Its ingress routine uses the same canonical row locks to restore `reserved` and `pendingUnknown` to the exact charged amount, reclose/increment the instrument fence, retain consumed submit cardinality, pause `GLOBAL/*` plus environment/provider/product, append an incident event, and allow only reconciliation. It never remains a rejected event with released money.
+
+- [ ] **Step 5: Implement atomic settlement routines**
+
+Add SQL functions `payment_record_provider_event`,
+`payment_record_ingress_watermark`, `payment_accept_finality_attestation`,
+`payment_record_reconciliation_fact`, `payment_settle_paid`,
+`payment_settle_declined`, `payment_settle_cancelled`,
+`payment_hold_unknown`, `payment_release_terminal_hold`, and
+`payment_hold_late_paid`. Each uses the global privileged-routine hardening,
+locks only its rows in the canonical relative order, checks the shared cutoff,
+horizon, exact fact digests, monotonic provider sequence, current ingress
+watermark, authoritative closure capability/attestation, finality, and current
+epoch, writes one event, and
+returns a row that `ledger-store.ts` maps to `PaymentLifecycle`. Repeating the
+exact reconciliation is idempotent. A changed same-sequence digest is an
+immutable conflict and holds; a higher-sequence verified late-paid fact invokes
+`payment_hold_late_paid` instead of being discarded.
+
+- [ ] **Step 6: Add provider-event and refund-boundary tests**
+
+Reject forged/unsigned events, duplicate ID or sequence with changed digest,
+backward sequence, provisional terminal release, pre-horizon release, release
+without a drained watermark, forged/unsupported terminal closure, mixed or
+future cutoffs, provider amount/currency mismatch, order belonging to another
+intent, entitlement alias reuse, first-party-only paid claim, and provider fact
+without decrypt permission. Race 32 terminal-hold release attempts,
+provider-event ingress, and new instrument acquisitions. Prove the release
+transaction and ingress use the same watermark/mutex locks, no new canary
+acquires before authoritative closure, and providers without closure remain
+held. Inject a higher-sequence paid event after an accepted closure; assert
+reservation restoration, instrument reclosure, global pause, immutable prior
+facts, and reconciliation-only recovery. Assert a refund/reversal fact is
+observable but no adapter exposes a refund-initiation method.
+
+- [ ] **Step 7: Migrate and run focused GREEN**
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test`
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/reconciliation.test.ts`
+
+Expected: PASS for the complete truth table and role boundary.
+
+- [ ] **Step 8: Run aggregate verification and commit**
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan && git diff --check`
+
+Expected: PASS.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add db/migrations/0024_payment_reconciliation.sql packages/payment/src/reconciliation.ts packages/payment/src/ledger-store.ts tests/payment/reconciliation.test.ts
+git commit -m "feat(payment): reconcile provider order and entitlement facts"
+```
+
+### Task 13: Fail-Closed Canary Orchestrator and Outcome Cases
+
+**Files:**
+- Create: `packages/payment/src/canary.ts`
+- Create: `tests/payment/canary.test.ts`
+- Create: `packages/payment/src/index.ts`
+
+**Interfaces:**
+- Consumes: all prior N5 services plus the private `PaymentSubmitAdapter`.
+- Produces: one schema-valid `PaymentCanaryResult`; retries can observe/reconcile but cannot call Submit twice.
+
+```ts
+export interface PaymentSubmitAdapter {
+  submit(
+    permit: SubmitPermit,
+    signal: AbortSignal,
+  ): Promise<PaymentSubmitResultV1>;
+}
+
+export interface PaymentCanaryDependencies {
+  authorizationStore: RuntimeAuthorizationStore;
+  profileLoader: PaymentProfileLoader;
+  programGate: PaymentProgramGate;
+  personaService: PersonaLeaseService;
+  ledger: PaymentLedgerStore;
+  checkout: PaymentCheckoutAdapter;
+  provider: ProviderReconciliationAdapter;
+  secretHandles: PaymentSecretHandleProvider;
+  fieldInjector: PaymentFieldInjector;
+  scrubber: CvvScrubber;
+  submitter: PaymentSubmitAdapter;
+  reconciler: PaymentReconciler;
+  faultInjector: PaymentFaultInjector;
+  clock: Clock;
+}
+
+export function runPaymentCanary(
+  input: PaymentCanaryInputV1,
+  dependencies: PaymentCanaryDependencies,
+  signal: AbortSignal,
+): Promise<PaymentCanaryResult>;
+```
+
+- [ ] **Step 1: Write the failing normal-canary sequence test**
+
+```ts
+test('normal canary executes the exact gated sequence once', async () => {
+  const calls: string[] = [];
+  const result = await runPaymentCanary(validCanaryInput(), paidDependencies(calls), signal());
+  assert.deepEqual(calls, [
+    'resolve-profile', 'consume-authorization', 'assert-program-gates', 'hold-persona',
+    'reserve-budget', 'acquire-instrument-fence', 'arm-checkout', 'create-or-resume-checkout',
+    'record-checkout', 'acquire-secret-handles', 'register-artifacts', 'fill-fields',
+    'scrub-non-field-cvv', 'recheck-quote-origin-gates', 'arm-submit', 'submit-once',
+    'record-submit-observation', 'reconcile-provider', 'reconcile-order',
+    'reconcile-entitlement', 'assert-post-purchase', 'settle-ledger', 'publish-sanitized-result',
+  ]);
+  assert.equal(result.lifecycle.state, 'RECONCILED_PAID');
+});
+test('submit adapter result is the exact closed PaymentSubmitResultV1 including schemaVersion');
+```
+
+- [ ] **Step 2: Run focused RED**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/canary.test.ts`
+
+Expected: FAIL because the orchestrator does not exist.
+
+- [ ] **Step 3: Implement the exact state-driven sequence**
+
+The orchestrator first rereads existing intent state. If submit is already armed/observed, it skips checkout, secret, field, scrub, and submit adapters and invokes reconciliation only. Before first submit it performs a second candidate/profile/authorization/quote/origin/persona/fence/program-gate/switch/heartbeat read, then arms submit in PostgreSQL and calls `submitter.submit` exactly once.
+
+No catch block retries submit. An exception after submit arm calls `payment_hold_unknown`, enqueues watchdog/reconciliation, returns `UNKNOWN_HELD`, and pauses the lane.
+
+- [ ] **Step 4: Add declined and cancelled cases**
+
+Assert an authoritative decline produces `RECONCILED_DECLINED`, an authoritative cancellation produces `RECONCILED_CANCELLED`, both have one canonical checkout, at most one submit, zero spent, zero pending unknown after terminal reconciliation, and no second canary effect on replay.
+
+- [ ] **Step 5: Add unknown/conflict cases**
+
+Cover submit timeout, worker death after submit, provider unreachable, order unknown, entitlement missing, post-purchase fail, wrong amount/currency, late conflicting event, and provider handle decrypt failure. Assert `UNKNOWN_HELD`, reservation retained, pending unknown equal to reservation, fence closed, lane paused, and replay calls reconciliation only.
+
+- [ ] **Step 6: Add pre-submit blocked cases**
+
+Cover inactive program gate, paused switch, expired authorization, changed candidate/catalog/profile/quote/recurrence, wrong origin/redirect, persona epoch loss, unhealthy watchdog, backend capability downgrade, scrub failure, CAPTCHA, 3DS, security warning, and new binding terms. Assert zero external submit and the exact typed `PROVIDER_BLOCKED` or `HARNESS_FAIL` mapping in the enclosing `QaRunResult` fixture.
+
+- [ ] **Step 7: Run focused and aggregate GREEN**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/canary.test.ts`
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit && /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration && git diff --check`
+
+Expected: PASS; spies prove zero duplicate submit across every case.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/payment/src/canary.ts packages/payment/src/index.ts tests/payment/canary.test.ts
+git commit -m "feat(payment): orchestrate one fail-closed payment canary"
+```
+
+### Task 14: Full Fault-Canary Acceptance Without Live Spend
+
+**Files:**
+- Create: `tests/payment-integration/payment-fault-canaries.test.ts`
+- Modify: `tests/security/evidence-sanitization.test.ts`
+- Modify: `tools/security/scan-repository.ts`
+- Modify: `package.json`
+
+**Interfaces:**
+- Consumes: the production orchestrator with PostgreSQL plus fake private-control/provider/order/entitlement backends.
+- Produces: one deterministic fault-acceptance digest eligible for the owner/reviewer to record as `N5_FAULT_INJECTION_ACCEPTED`.
+
+- [ ] **Step 1: Write the failing end-to-end fault matrix**
+
+Create one table-driven test with these exact cases and expected terminal behavior:
+
+```text
+normal-paid                         RECONCILED_PAID       spent, released fence
+provider-declined                   RECONCILED_DECLINED   released reservation, consumed submit
+user-cancelled-before-submit        RECONCILED_CANCELLED  zero submit, consumed checkout
+submit-timeout                      UNKNOWN_HELD          reserved + pending unknown, closed fence
+worker-death-after-submit           UNKNOWN_HELD          reconciliation-only takeover
+two-workers-different-accounts      one canonical intent  one checkout, one submit fence
+redirect-to-unlisted-origin         blocked before submit global pause
+delete-receipt-without-tombstone    blocked before submit global pause
+missed-cvv-callback                 watchdog scrub        zero overdue CVV
+pan-copy-at-24-hours                watchdog delete       receipt + tombstone
+provider-paid-order-missing         UNKNOWN_HELD          no PASS
+provider-paid-entitlement-missing   UNKNOWN_HELD          no PASS
+provisional-decline-before-horizon  UNKNOWN_HELD          reserved + closed fence
+final-decline-at-horizon-no-closure UNKNOWN_HELD          finality hold remains
+final-decline-with-closure          RECONCILED_DECLINED   drained watermark + atomic release
+late-paid-after-decline-release     UNKNOWN_HELD          reservation restored + fence reclosed + pause
+same-sequence-conflicting-event     UNKNOWN_HELD          immutable prior facts
+```
+
+After writing that RED file, add its owning serial database script:
+
+```json
+{
+  "test:payment:faults": "FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/payment-integration/payment-fault-canaries.test.ts"
+}
+```
+
+- [ ] **Step 2: Run focused RED**
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:faults`
+
+Expected: FAIL because the integrated matrix and expanded scanners are absent.
+
+- [ ] **Step 3: Wire only fake external adapters into the production orchestrator**
+
+Use real PostgreSQL stores, migrations, serializable transactions, child processes, state machine, scrubber, and watchdog. Fake adapters accept `.invalid` origins and opaque aliases only. The test cannot import or construct the live submit adapter.
+
+- [ ] **Step 4: Extend evidence/repository scanning**
+
+Reject normalized keys and values matching PAN-shaped 12–19 digits, CVV/CVC labels plus 3–4 digits, checkout/provider URLs, reversible handles, raw provider bodies, payment field screenshots, and secret-handle resolver output. Scan ordinary logs, thrown errors, canary result JSON, Playwright output, Nuanu artifact fixtures, and repository history.
+
+- [ ] **Step 5: Prove automatic pause/read-back**
+
+For duplicate-effect attempts, wrong origin, out-of-boundary payment data, missed CVV deadline, PAN older than 24 hours, or conflicting provider facts, assert the expected global/environment/provider/product switch row is paused, revision increased, read-back matches, and a new canary fails at the program gate.
+
+- [ ] **Step 6: Produce a deterministic acceptance digest**
+
+Canonicalize case name, expected/observed state, database invariant digest, scrub/watchdog report digest, reconciliation digest, scanner digest, and test source SHA. Hash to one lowercase SHA-256 and print only that digest plus pass counts. Do not activate a program gate from the test process.
+
+- [ ] **Step 7: Run focused GREEN repeatedly**
+
+Run: `/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:faults` three times against newly seeded databases.
+
+Expected each time: all cases PASS, one checkout/submit maximum, no unsafe artifact, and the same acceptance digest for identical source/fixtures.
+
+- [ ] **Step 8: Run full non-live aggregate and commit**
+
+Run:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:faults
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan
+git diff --check
+```
+
+Expected: PASS. None of these commands opens a provider checkout or submits payment.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add tests/payment-integration/payment-fault-canaries.test.ts tests/security/evidence-sanitization.test.ts tools/security/scan-repository.ts package.json
+git commit -m "test(payment): accept payment safety fault matrix"
+```
+
+### Task 15: Staging Live-Canary Boundary, Reconciliation Entry, and N5 Definition of Done
+
+**Repositories:** `FreelandQA-I1` and `NuanuFlowQA`
+
+**Files:**
+- Create: `packages/payment/src/computer-use-submit-adapter.ts`
+- Create: `packages/payment/src/computer-use-submit-handler.ts`
+- Create: `packages/payment/src/host-control-bootstrap.ts`
+- Create: `packages/payment/src/runner-lane.ts`
+- Create: `tests/payment/computer-use-submit-adapter.test.ts`
+- Create: `tests/payment/host-control-bootstrap.test.ts`
+- Create: `tests/payment/runner-payment-integration.test.ts`
+- Create: `tests/payment/nuanu-worker-payment-integration.test.ts`
+- Create: `tools/payment/run-payment-host.ts`
+- Create: `tools/payment/reconcile-canary.ts`
+- Create: `docs/runbooks/payment-canary.md`
+- Modify: `packages/runner/src/commands.ts`
+- Modify: `packages/runner/src/selection.ts`
+- Modify: `packages/runner/src/run-authority.ts`
+- Modify: `packages/runner/src/evaluator.ts`
+- Modify: `packages/runner/src/evidence.ts`
+- Modify: `packages/runner/src/nuanu-worker-dependencies.ts`
+- Modify: `tests/runner/selection.test.ts`
+- Modify: `tests/runner/run-authority.test.ts`
+- Modify: `tests/payment/canary.test.ts`
+- Modify: `package.json`
+- Create in NuanuFlowQA: `src/nuanu/payment-canary-trigger-wire.ts`
+- Create in NuanuFlowQA: `src/nuanu/payment-canary-trigger-server.ts`
+- Create in NuanuFlowQA: `src/nuanu/payment-canary-trigger-launcher.ts`
+- Create in NuanuFlowQA: `src/nuanu/schemas/payment-canary-trigger-request.v1.schema.json`
+- Create in NuanuFlowQA: `src/nuanu/schemas/payment-canary-trigger-result.v1.schema.json`
+- Create in NuanuFlowQA: `src/nuanu/schemas/payment-canary-trigger-envelope.v1.schema.json`
+- Create in NuanuFlowQA: `src/nuanu/schemas/payment-canary-trigger-response.v1.schema.json`
+- Create in NuanuFlowQA: `src/nuanu/schemas/payment-canary-wait-result.v1.schema.json`
+- Create in NuanuFlowQA: `tools/nuanu/run-freeland-payment-canary-trigger.ts`
+- Create in NuanuFlowQA: `tools/nuanu/launch-freeland-payment-canary-trigger.ts`
+- Create in NuanuFlowQA: `tools/nuanu/wait-freeland-payment-canary.ts`
+- Create in NuanuFlowQA: `tools/nuanu/pin-freeland-payment-canary-trigger.ts`
+- Create in NuanuFlowQA: `tests/program/nuanu/payment-canary-trigger.spec.ts`
+- Create in NuanuFlowQA: `config/nuanu/freeland-payment-canary-trigger.v1.json`
+- Modify in NuanuFlowQA: `package.json`
+- Modify in NuanuFlowQA: `package-lock.json`
+
+**Interfaces:**
+- Consumes: one existing staging authorization ID, exact Nuanu task envelope, resolved staging profile, all active program gates, the N3 closed `payment-submit-v1` control command, and all N5 services.
+- Produces: one sanitized staging `PaymentCanaryResult`, one normalized payment
+  `QaLaneExecution`, and a full published `QaRunResult`; or a
+  reconciliation-only update. Production input is rejected.
+
+```ts
+export type VerifiedPaymentSubmitRequest = Extract<
+  VerifiedHostControlRequest,
+  { commandId: 'payment-submit-v1' }
+>;
+
+export interface PaymentSubmitActivationGuard {
+  envelopeDigest: string;
+  commandDigest: string;
+  actionNonce: string;
+  issuedAt: string;
+  expiresAt: string;
+  guardDigest: string;
+  guardMac: string;
+}
+
+export interface PaymentSubmitHandlerDependencies {
+  permitStore: {
+    reread(command: PaymentSubmitCommandV1): Promise<SubmitPermit>;
+    rereadInstrumentFence(command: PaymentSubmitCommandV1): Promise<PaymentFence>;
+    claimForUiSubmit(command: PaymentSubmitCommandV1, guard: PaymentSubmitActivationGuard, observedAt: string): Promise<void>;
+  };
+  computerUse: {
+    beginGuardedSubmit(request: VerifiedPaymentSubmitRequest, signal: AbortSignal): Promise<PaymentSubmitActivationGuard>;
+    activateGuardedSubmitOnce(request: VerifiedPaymentSubmitRequest, guard: PaymentSubmitActivationGuard, signal: AbortSignal): Promise<PaymentSubmitResultV1>;
+    abortGuardedSubmit(guard: PaymentSubmitActivationGuard): Promise<void>;
+  };
+  clock: Clock;
+}
+
+export function createPaymentSubmitHandler(
+  dependencies: PaymentSubmitHandlerDependencies,
+): (
+  request: VerifiedPaymentSubmitRequest,
+  signal: AbortSignal,
+) => Promise<PaymentSubmitResultV1>;
+
+export type ActivePaymentHostControlRegistry = {
+  'payment-fill-fields-v1': NonNullable<
+    HostControlHandlerRegistry['payment-fill-fields-v1']
+  >;
+  'payment-submit-v1': NonNullable<
+    HostControlHandlerRegistry['payment-submit-v1']
+  >;
+};
+
+export interface PaymentHostBootstrapDependencies {
+  daemon: Omit<CdpDaemonDependencies, 'hostControlHandlers'>;
+  fill: PaymentFillFieldsHandlerDependencies;
+  submit: PaymentSubmitHandlerDependencies;
+  runDaemon(
+    args: string[],
+    dependencies: CdpDaemonDependencies,
+  ): Promise<number>;
+}
+
+export function createActivePaymentHostControlRegistry(input: {
+  fill: PaymentFillFieldsHandlerDependencies;
+  submit: PaymentSubmitHandlerDependencies;
+}): ActivePaymentHostControlRegistry;
+
+export function runPaymentHostDaemon(
+  args: string[],
+  dependencies: PaymentHostBootstrapDependencies,
+): Promise<number>;
+
+export interface PaymentCanaryTriggerRequestV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-payment-canary-trigger-v1';
+  flowItemId: string;
+  paymentAuthorizationId: string;
+  expectedCandidateDigest: string;
+  requestedAt: string;
+  expiresAt: string;
+}
+
+export interface PaymentCanaryTriggerResultV1 {
+  schemaVersion: 1;
+  commandId: 'freeland-payment-canary-trigger-v1';
+  outcome: 'ENQUEUED' | 'ALREADY_ENQUEUED';
+  flowItemId: string;
+  taskId: string;
+  seedDigest: string;
+  workerHandlerPinDigest: string;
+}
+
+export interface PaymentCanaryTriggerEnvelopeV1 {
+  schemaVersion: 1;
+  requestId: string;
+  sessionId: string;
+  deploymentPinDigest: string;
+  issuedAt: string;
+  expiresAt: string;
+  nonce: string;
+  payloadDigest: string;
+  payload: PaymentCanaryTriggerRequestV1;
+  mac: string;
+}
+
+export interface PaymentCanaryTriggerResponseV1 {
+  schemaVersion: 1;
+  requestId: string;
+  sessionId: string;
+  resultDigest: string;
+  result: PaymentCanaryTriggerResultV1;
+  mac: string;
+}
+
+export type PaymentCanaryWaitResultV1 =
+  | { schemaVersion: 1; outcome: 'TERMINAL'; taskId: string; seedDigest: string; workerHandlerPinDigest: string; result: QaWorkerOutputV1 }
+  | { schemaVersion: 1; outcome: 'TIMEOUT' | 'IDENTITY_MISMATCH'; taskId: string; reasonCode: string };
+
+export interface PaymentCanaryFrozenQaItemV1 {
+  flowItemId: string;
+  projectId: string;
+  bindingId: string;
+  qaStateId: string;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateDigest: string;
+}
+
+export interface NuanuPaymentCanaryTriggerPort {
+  freezeEligibleQaItem(flowItemId: string): Promise<PaymentCanaryFrozenQaItemV1>;
+  enqueueExactWorkerSeed(input: {
+    issue: PaymentCanaryFrozenQaItemV1;
+    paymentAuthorizationId: string;
+    expectedCandidateDigest: string;
+    idempotencyKey: string;
+    workerHandlerPinDigest: string;
+  }): Promise<PaymentCanaryTriggerResultV1>;
+}
+
+export function executePaymentCanaryTrigger(
+  input: unknown,
+  port: NuanuPaymentCanaryTriggerPort,
+): Promise<PaymentCanaryTriggerResultV1>;
+
+export type PaymentLaneExecutor = RunnerExtensionLaneExecutor<'payment'>;
+
+export interface PaymentLaneFactoryDependencies {
+  loadAuthorizationRef(
+    authorizationId: string,
+  ): Promise<PaymentAuthorizationRef>;
+  startPaymentHost(
+    envelope: NuanuTaskEnvelope,
+  ): Promise<{ client: PrivateControlClient; stop(): Promise<void> }>;
+  createCanaryDependencies(input: {
+    environment: 'staging';
+    authorization: PaymentAuthorizationRef;
+    client: PrivateControlClient;
+  }): Promise<PaymentCanaryDependencies>;
+}
+
+export function createPaymentLaneExecutorFactory(input: {
+  environment: 'staging';
+  dependencies: PaymentLaneFactoryDependencies;
+}): PaymentLaneExecutorFactory;
+
+export function createPaymentLaneExecutor(
+  dependencies: PaymentCanaryDependencies,
+): PaymentLaneExecutor;
+
+export function createOfficialPaymentCanaryTriggerServer(input: {
+  controlFd: 3;
+  deploymentPinDigest: string;
+  workerHandlerPinDigest: string;
+  expectedPeerUid: number;
+  expectedPeerPid: number;
+  port: NuanuPaymentCanaryTriggerPort;
+}): Promise<{ close(): Promise<void> }>;
+```
+
+- [ ] **Step 1: Write the failing real Computer Use submit-adapter test**
+
+```ts
+test('live adapter invokes one closed Computer Use submit command', async () => {
+  const calls: unknown[] = [];
+  const adapter = new ComputerUsePaymentSubmitAdapter(fakeControlClient(calls), resolvedStagingProfile());
+  const result = await adapter.submit(validSubmitPermit(), AbortSignal.timeout(1000));
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], {
+    schemaVersion: 1,
+    commandId: 'payment-submit-v1',
+    canonicalIntentId: '1'.repeat(64),
+    authorizationId: '00000000-0000-4000-8000-000000000001',
+    expectedWindowId: 'window-1',
+    expectedCandidateDigest: 'b'.repeat(64),
+    personaId: 'staging-paid-vpn-1',
+    personaFencingEpoch: 11,
+    fencingEpoch: 7,
+    submitPermitDigest: '2'.repeat(64),
+    expectedTopOrigin: 'https://shop.staging.invalid',
+    expectedFrameOrigin: 'https://pay.provider.invalid',
+  });
+  assert.deepEqual(Object.keys(result).sort(), [
+    'observationDigest', 'providerHandleAlias', 'schemaVersion', 'submittedAt',
+  ]);
+});
+
+test('adapter never retries an ambiguous Computer Use submit', async () => {
+  const calls: unknown[] = [];
+  const adapter = new ComputerUsePaymentSubmitAdapter(ambiguousControlClient(calls), resolvedStagingProfile());
+  await assert.rejects(() => adapter.submit(validSubmitPermit(), AbortSignal.timeout(1000)));
+  assert.equal(calls.length, 1);
+});
+
+test('host handler rereads fence, claims once, and performs one guarded submit', async () => {
+  const calls: string[] = [];
+  const handler = createPaymentSubmitHandler(validHandlerDependencies(calls));
+  const result = await handler(validVerifiedPaymentSubmitRequest(), AbortSignal.timeout(1000));
+  assert.deepEqual(calls, [
+    'reread-submit-permit', 'reread-instrument-fence',
+    'begin-guarded-submit', 'claim-ui-submit',
+    'activate-guarded-submit-once',
+  ]);
+  assert.equal(result.observationDigest.length, 64);
+});
+
+test('window origin candidate or persona switch between begin and activate emits no UI action');
+test('expired reused altered or wrong-session submit guard emits no UI action');
+test('claim failure aborts the host guard while post-claim ambiguity consumes the fence');
+test('payment host bootstrap installs exact non-null fill and submit handlers before daemon bind');
+test('payment host bootstrap rejects partial registries and exposes no dynamic module selection');
+test('payment host receives only a fresh one-shot host key pipe never Nuanu worker control');
+test('payment host closes its key descriptor before bind and every descendant sees EBADF');
+test('payment host env contains only runtime DB and secret-broker custody never owner migration test or worker sentinels');
+test('browser watchdog and provider-observation children receive separate zero-minimal env allowlists');
+```
+
+- [ ] **Step 2: Run the focused adapter test and verify RED**
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/computer-use-submit-adapter.test.ts tests/payment/host-control-bootstrap.test.ts`
+
+Expected: FAIL because the live adapter does not exist.
+
+- [ ] **Step 3: Implement the only live submit adapter**
+
+`ComputerUsePaymentSubmitAdapter` implements `PaymentSubmitAdapter` and calls
+the N3 `PrivateControlClient.submitPayment(PaymentSubmitCommandV1)` exactly
+once. The client was constructed with the exact `qaRunKey`/host session and
+owns outer envelope signing; the adapter sends only the closed payload and
+never flattens or rebuilds the envelope. Before the call it validates the
+submit-permit digest, exact authorization/intent/fencing epoch, resolved
+staging top origin, and the single profile-selected provider frame origin.
+
+`computer-use-submit-handler.ts` registers `payment-submit-v1` in the N3 host
+Computer Use daemon's typed handler registry; it does not extend `CdpCommand`
+and is not reachable as a Nuanu command. The handler receives only a request
+whose outer HMAC has already bound `qaRunKey` and host session to the closed N3
+payload. Its exact registry signature is
+`(VerifiedPaymentSubmitRequest, AbortSignal) => Promise<PaymentSubmitResultV1>`;
+the handler reads the command only from `request.envelope.payload`. It rereads
+the durable permit/fence, then calls
+`beginGuardedSubmit`. Under one exclusive host action mutex, that operation
+focuses the reviewed Submit control and binds a maximum-five-second single-use
+MAC guard to app/window, top/frame origin, candidate, persona epoch, payment
+fence, permit digest, exact action, and nonce. The handler durably calls
+`claimForUiSubmit` before any click, then calls
+`activateGuardedSubmitOnce`. The host atomically rereads every bound value
+immediately before dispatch and consumes the nonce; any change produces no UI
+action. If it occurs after the durable claim, the payment stays
+`UNKNOWN_HELD`/reconciliation-only. A pre-claim failure calls
+`abortGuardedSubmit` in `finally`. Success returns the closed
+`PaymentSubmitResultV1` with `schemaVersion` plus only `submittedAt`,
+`observationDigest`, and `providerHandleAlias`. Direct CDP, Playwright,
+provider-API, DOM-script, or raw mouse-coordinate submit is forbidden; CDP may
+provide custody and observation guards only.
+
+`host-control-bootstrap.ts` is the only payment-enabled composition root. It
+statically imports `createPaymentFillFieldsHandler` and
+`createPaymentSubmitHandler`, constructs an
+`ActivePaymentHostControlRegistry` with both exact non-null slots, and injects
+that complete registry into `CdpDaemonDependencies.hostControlHandlers` before
+calling `runCdpDaemon`. `tools/payment/run-payment-host.ts` invokes only this
+factory with fixed dependencies and the N3 one-shot host-control key custody.
+The static launcher maps a freshly created key pipe to the reviewed child-local
+descriptor, never copies or aliases the Nuanu worker-control endpoint, and
+inherits no other descriptor. The payment host reads exactly 32 bytes, proves
+pipe/socket non-aliasing, zeroes and closes the pipe before binding; browser,
+watchdog, and provider-observation descendants then observe it as `EBADF`.
+The launcher builds the payment-host environment from nothing and copies only
+fixed `PATH`/`TZ`/`LANG`, custody `TMPDIR`, staging origin/release pins,
+runtime-role `FREELAND_QA_DATABASE_URL`, and the secret-broker socket/pin. It
+never copies the reconciler DSN into the field-entry host and rejects owner,
+migration/test, authorization/program/switch, Nuanu, browser login, Node/DYLD/
+npm/proxy, or unknown parent values. Browser, watchdog, and provider-observation
+children each receive a fresh purpose-specific minimal allowlist; no child
+inherits the host environment. Hostile-parent sentinels prove worker→host and
+host→descendant isolation. The
+daemon rejects a partial payment registry before binding either socket. There
+is no module path, callback name, plugin key, dynamic import, or CLI argument
+that can select a handler. The inert `PaymentLaneExecutorFactory` captures only
+the fixed bootstrap dependencies and a durable exact-authorization loader. It
+does not capture a task authorization, envelope, persona, secret, or host.
+Only its `create` method receives the runner-validated identity, reads the exact
+authorization ID from `identity.payment`, reloads that immutable row, and
+requires its candidate/profile/environment/scope to match before it starts the
+fixed host. This call occurs only after the runner has completed every
+non-spending gate; it constructs both the field injector and submit adapter
+from the returned `PrivateControlClient`, and returns an executor that stops
+the same owned host during terminal cleanup. Constructing the factory itself
+may not touch Computer Use, secrets, authorization storage, checkout, or the
+host daemon.
+
+The adapter has no retry loop and no API submit fallback. Timeout, disconnect, or ambiguous observation returns to the orchestrator as `UNKNOWN_HELD`. `ProviderReconciliationAdapter` remains read-only and exposes only `readProviderFact`; it cannot import `PaymentSubmitAdapter` or send a provider mutation.
+
+- [ ] **Step 4: Run focused adapter GREEN and boundary checks**
+
+Add cases for wrong top origin, wrong frame origin, app/window switch, candidate
+change, stale payment or persona epoch, changed permit/action/guard digest,
+expired/reused nonce, wrong host session, production profile, duplicate call,
+pre-claim failure, post-claim disconnect, control timeout, and response with an
+extra/raw field. Inject the race after `beginGuardedSubmit` and prove zero UI
+activations; after a durable claim, assert the consumed fence is
+`UNKNOWN_HELD` and no second submit call exists. Assert zero or one control
+calls as appropriate, never two.
+
+Run: `/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/computer-use-submit-adapter.test.ts tests/payment/host-control-bootstrap.test.ts`
+
+Expected: PASS; only the exact staging Computer Use command can reach the submit action.
+
+- [ ] **Step 5: Write the Nuanu trigger and no-second-entrypoint RED tests**
+
+In NuanuFlowQA, independently validate every request/result/envelope field and
+prove that the parent launcher accepts only the exact
+`freeland-payment-canary-trigger-v1` operation. Cover wrong uid/pid/session,
+deployment/worker pin, candidate, QA state/revision, digest, MAC, expiry, replay,
+oversized input, duplicate delivery, and a hostile parent environment. The
+server freezes the exact existing QA item, verifies its candidate digest and
+binding, and enqueues one N0 `QaWorkerSeedV1` whose sole new opaque field is the
+already-minted authorization ID. It cannot create/edit authorization, execute a
+runner, open checkout, publish a result, or mutate ticket status. Repeating the
+same `(flowItemId, authorizationId, candidateDigest, workerPin)` returns the same
+task and seed digest.
+
+The bounded read-only waiter accepts only the returned task ID, seed digest,
+and worker-handler pin, follows that exact task/result, and never creates,
+retries, cancels, or reassigns a task or invokes a payment operation. Wrong
+task/seed/result/Artifact identity, timeout, or lease churn returns a typed
+non-terminal status without retriggering.
+
+The pin-writer test proves that its only accepted phase is literal `n5`, that
+it resolves the fixed clean Freeland root and current committed OID itself,
+requires the official N0 handler-registry read-back for that same OID, writes
+only `config/nuanu/freeland-payment-canary-trigger.v1.json`, and reproduces the
+same bytes in `--verify` mode. Caller-provided roots, OIDs, handler pins,
+executables, environment-key lists, or schema paths are rejected.
+
+In Freeland, add assertions that `package.json` contains no
+`acceptance:payment:staging` script and there is no product main that can call
+`executeFreelandQaRun` for a canary. Only `run-nuanu-worker.ts` may reach the
+runner; production input remains rejected before factory construction.
+
+- [ ] **Step 6: Run trigger RED before implementing either trigger or worker composition**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/payment-canary-trigger.spec.ts
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/canary.test.ts
+```
+
+Expected: RED because the Nuanu trigger and no-second-entrypoint guard do not
+exist. No worker task is enqueued and no payment component is constructed.
+
+- [ ] **Step 7: Implement the non-spending Nuanu trigger only**
+
+The Nuanu parent launcher reads exactly
+`FREELAND_PAYMENT_AUTHORIZATION_ID`, `FREELAND_QA_FLOW_ITEM_ID`, and
+`FREELAND_EXPECTED_CANDIDATE_DIGEST`, plus its server-owned deployment/token
+custody. It accepts no argv, amount, currency, SKU, URL, selector, executable,
+module, profile, state UUID, or worker command. It builds one closed trigger
+request, creates a fresh socketpair/session/32-byte key, and directly spawns the
+fixed child `run-freeland-payment-canary-trigger.ts` under Node 20 with only its
+endpoint on FD `3`; the child receives no Nuanu token or ambient environment.
+The parent reads a closed positive environment tuple only: the three opaque
+request identifiers, fixed Nuanu API origin/token custody, locale/temp, and
+deployment pin. It rejects owner/migration/test/reconciler DSNs, payment secret
+handles, browser credentials, NODE_OPTIONS/DYLD/npm/proxy injection, and every
+unknown task value; the child env is built from nothing.
+The peer-authenticated one-shot bootstrap binds uid/pid, command, pins, payload,
+nonce and <=30 second expiry under constant-time HMAC, with bounded frames,
+atomic idempotency, zeroization, and fail-closed cleanup.
+
+The privileged parent exposes only `freezeEligibleQaItem` and
+`enqueueExactWorkerSeed`; it always pins the existing `qa:nuanu-worker` handler
+and cannot invoke it inline. The resulting task is processed through the same
+N0/N1 prepared-invocation, freshness, Artifact, reclaim, and nine-field result
+path as any QA-column ticket. The separate
+`wait-freeland-payment-canary.ts` parent tool is read-only: it accepts only the
+trigger receipt's task ID/seed digest/handler pin, follows server-authoritative
+task and Artifact read-back until a terminal nine-field result or a fixed
+deadline, and emits `TERMINAL|TIMEOUT|IDENTITY_MISMATCH`. It cannot enqueue,
+claim, retry, cancel, or mutate anything, and a non-terminal outcome never
+re-invokes the trigger.
+
+`pin-freeland-payment-canary-trigger.ts` is a deployment-only parent tool. Its
+`--phase=n5` mode derives the exact clean Freeland HEAD from the fixed root,
+reads the N0 registry's authoritative N5 handler/environment/schema pin, and
+atomically materializes the trigger config. Its `--verify` mode is read-only;
+neither mode accepts values from a QA item or payment authorization.
+
+Pin `tsx` exactly at `4.22.4` in NuanuFlowQA's
+package and lock using the pinned Node 20 npm CLI, then prove GREEN:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js install --save-dev --save-exact tsx@4.22.4
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/payment-canary-trigger.spec.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Require non-zero executed assertions and no skip/TODO. Do not yet edit the
+worker payment factory in this step.
+
+- [ ] **Step 8: Integrate payment lifecycle into the single packaged worker result**
+
+Write `tests/payment/runner-payment-integration.test.ts` and
+`tests/payment/nuanu-worker-payment-integration.test.ts` first. Cover a paid,
+declined, cancelled, pre-submit blocked, post-submit unknown, duplicate Nuanu
+delivery, and non-payment run. Assert:
+
+- the exact `freeland-payment` `QaPlannedLane` requires a non-null exact
+  `paymentAuthorizationId` and invokes
+  `RunnerDependencies.extensionLanes.payment.create` once and its returned
+  executor once;
+- `selection.ts` maps only reviewed payment checks to `freeland-payment`,
+  requires one exact reviewed `paymentProfileId`, and rejects any payment lane
+  on a non-payment requirement or any non-payment lane carrying a profile;
+- `run-authority.ts` requires the envelope authorization to match the consumed
+  authorization, resolves the immutable payment-profile revision locally, sets
+  `QaRunIdentity.payment` to that exact pair before deriving `qaRunKey`, and
+  rejects null, stale, production, mismatched, or caller-supplied profile facts;
+- the runner completes all mandatory non-spending Computer Use, Telegram,
+  CDP, Playwright, API, identity, freshness, and cleanup gates before invoking
+  the payment factory; the payment lane is always the final external-effect lane;
+- a non-payment plan never invokes the payment factory and keeps
+  `payment:null` with payment lane `NOT_REQUIRED`;
+- paid/declined/cancelled/unknown lifecycle cardinalities survive unchanged in
+  `QaRunResult.payment` and the JSON Schema;
+- the normalized payment lane uses the same `qaRunKey` and candidate digests;
+- `UNKNOWN_HELD`, missing reconciliation, or incomplete scrub/evidence cannot
+  produce ticket PASS or candidate readiness;
+- retrying the same envelope after checkout/submit arm calls only
+  observation/reconciliation and cannot construct a second submit adapter;
+- the sanitized bundle contains lifecycle IDs/digests/counts and no PAN, CVV,
+  secret handle, checkout URL, provider payload, account alias, or raw order ID.
+- the sole packaged `qa:nuanu-worker` path preserves all N3 ports, creates the
+  payment factory only after their non-spending gates, loads the exact envelope
+  authorization at `factory.create`, executes payment once, publishes once, and
+  returns the same nine-field N0 projection;
+- reclaim of that packaged worker replays the prepared key and exact Artifact
+  reference without loading a different authorization, opening a second
+  checkout, constructing a second submit adapter, or submitting again.
+
+Run RED:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/runner-payment-integration.test.ts tests/payment/nuanu-worker-payment-integration.test.ts tests/runner/selection.test.ts tests/runner/run-authority.test.ts
+```
+
+Implement `packages/payment/src/runner-lane.ts` as the exact
+`RunnerExtensionLaneExecutor<'payment'>`. It returns only
+`{ laneExecution, payment: PaymentLifecycle }`; the sanitized canary digest is
+bound into the lane/evidence digest rather than added as an extra port field.
+Implement `createPaymentLaneExecutorFactory` as the exact N1
+`PaymentLaneExecutorFactory`; construction captures only fixed services and the
+exact-row loader and is side-effect free. Its sole `create` call obtains the
+validated authorization ID from the N1 identity, reloads and revalidates the
+row, then builds the host-backed executor. Register only that factory at
+`RunnerDependencies.extensionLanes.payment` and extend the
+existing `selection.ts`, `run-authority.ts`, rule table, and evidence projector
+without creating another evaluator. The canonical execution order is
+Computer Use/Telegram primary observation, CDP custody/observation,
+Playwright/API secondary verification, and payment last. The payment factory is
+unreachable until every preceding required lane and identity/cleanup gate is
+complete.
+Only after the RED above, modify the sole N1
+`packages/runner/src/nuanu-worker-dependencies.ts` factory in place. It
+statically constructs this inert loader-backed payment factory and installs it
+as `extensionLanes.payment` while preserving the three N3 ports and the
+inherited-control freshness/publisher adapters. It constructs stores only from
+the phase-pinned runtime/reconciler DSNs and owned secret-broker socket/pin;
+owner/migration/test DSNs and unknown/task-controlled environment values are
+rejected. It accepts no authorization ID, factory, module, host, secret value,
+or profile from the worker seed beyond the already validated opaque envelope
+reference. Do not fork `run-nuanu-worker.ts` and do not create a second
+effect-capable command.
+
+If the canonical intent is already checkout/submit armed or observed, the
+factory creates no field injector or submit adapter and enters reconciliation
+only. The Nuanu trigger and packaged worker integration test must prove that
+trigger delivery reaches this exact factory once, while a duplicate trigger or
+worker reclaim reaches the same ledger without a second checkout/submit.
+`candidateVerdict` remains `CANDIDATE_RELEASE_INCONCLUSIVE`; N6 alone aggregates
+release readiness. Run the focused tests plus contracts/evaluator/evidence and
+require GREEN:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/payment/runner-payment-integration.test.ts tests/payment/nuanu-worker-payment-integration.test.ts tests/runner/selection.test.ts tests/runner/run-authority.test.ts tests/runner/evaluator.test.ts tests/runner/evidence.test.ts
+```
+
+- [ ] **Step 9: Implement reconciliation-only recovery command**
+
+Add package script:
+
+```json
+{
+  "payment:host": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/payment/run-payment-host.ts",
+  "payment:reconcile": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/payment/reconcile-canary.ts"
+}
+```
+
+There is intentionally no staging acceptance package script: the sole trigger
+is the pinned Nuanu parent tool, and the sole effect runtime is
+`qa:nuanu-worker`.
+
+`reconcile-canary.ts` reads the same authorization ID, requires an existing canonical intent, cannot import `PaymentSubmitAdapter`, runs watchdog scrub first, then provider/order/entitlement reconciliation, and prints one sanitized lifecycle/result digest.
+
+- [ ] **Step 10: Write the exact automatic pre-live runbook gate**
+
+`docs/runbooks/payment-canary.md` states that the automated acceptance worker invokes the live command without a prompt only when all of these are simultaneously true:
+
+1. Tasks 1–14 plus both Task 15 code commits are reviewed, both worktrees are
+   clean, and the Nuanu trigger pin read-back names the exact Freeland worker
+   commit.
+2. `/opt/homebrew/opt/node@20/bin/node` is exactly `v20.20.2`; package
+   installation invokes
+   `/opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js ci` through
+   that binary, and typecheck, unit, integration, fault, deterministic, and
+   security commands are green at the exact HEAD.
+3. PostgreSQL migrations `0010` and `0020`–`0024` have exact reviewed SHA-256 values and no drift.
+4. Required program gates N1–N5 are active with immutable evidence digests; N5 uses the Task 14 acceptance digest.
+5. Global, staging, exact provider, and exact product switches are unpaused only after their dry drill and have successful read-back.
+6. Candidate full SHA/digest, catalog digest, resolved profile digest, SKU, amount, currency, recurrence, merchant, account alias, and authorization policy match exactly before and after preflight.
+7. The authorization is effective, unexpired, owner-minted, and has zero prior checkout/submit or an existing canonical intent eligible only for observation/reconciliation.
+8. Persona lease is `PAYMENT_HOLD` at the exact epoch; worker, control port, provider read, order read, entitlement read, and post-purchase oracle are healthy.
+9. Every payment-data backend proves required deletion/absent-check capabilities; watchdog heartbeat is at most 15 seconds old.
+10. Quote, origin/frame origin, redirect chain, recurrence, and provider challenge preflight are exact; CAPTCHA, 3DS, security warning, or new terms block.
+
+- [ ] **Step 11: Run all non-live acceptance commands**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+test "$(/opt/homebrew/opt/node@20/bin/node --version)" = "v20.20.2"
+git merge-base --is-ancestor 72378f3e32f8da3d1e5226e8737a3717e48a6347 HEAD
+git status --porcelain=v1 --untracked-files=all | awk '
+  BEGIN {
+    allowed["packages/payment/src/computer-use-submit-adapter.ts"] = 1
+    allowed["packages/payment/src/computer-use-submit-handler.ts"] = 1
+    allowed["packages/payment/src/host-control-bootstrap.ts"] = 1
+    allowed["packages/payment/src/runner-lane.ts"] = 1
+    allowed["packages/runner/src/commands.ts"] = 1
+    allowed["packages/runner/src/selection.ts"] = 1
+    allowed["packages/runner/src/run-authority.ts"] = 1
+    allowed["packages/runner/src/evaluator.ts"] = 1
+    allowed["packages/runner/src/evidence.ts"] = 1
+    allowed["packages/runner/src/nuanu-worker-dependencies.ts"] = 1
+    allowed["tests/payment/computer-use-submit-adapter.test.ts"] = 1
+    allowed["tests/payment/host-control-bootstrap.test.ts"] = 1
+    allowed["tests/payment/runner-payment-integration.test.ts"] = 1
+    allowed["tests/payment/nuanu-worker-payment-integration.test.ts"] = 1
+    allowed["tests/runner/selection.test.ts"] = 1
+    allowed["tests/runner/run-authority.test.ts"] = 1
+    allowed["tests/payment/canary.test.ts"] = 1
+    allowed["tools/payment/run-payment-host.ts"] = 1
+    allowed["tools/payment/reconcile-canary.ts"] = 1
+    allowed["docs/runbooks/payment-canary.md"] = 1
+    allowed["package.json"] = 1
+  }
+  {
+    path = substr($0, 4)
+    if (!(path in allowed)) {
+      print "unexpected Task 15 path: " $0 > "/dev/stderr"
+      unexpected = 1
+    }
+  }
+  END { exit unexpected }
+'
+git diff --check
+/opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js ci
+docker compose -f config/postgres/payment-test.compose.yaml up -d --wait
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:faults
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan
+```
+
+Expected: every test command exits `0`; no command in this block opens a
+provider checkout or spends funds. `git status --short` contains only the exact
+Task 15 source/test/runbook/package files listed below and no runtime evidence,
+database file, secret, provider response, checkout URL, account identifier, or
+live result.
+
+- [ ] **Step 12: Commit and review the live entrypoints before granting live authority**
+
+First commit the effect-capable worker code and require its checkout clean:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/payment/src/computer-use-submit-adapter.ts packages/payment/src/computer-use-submit-handler.ts packages/payment/src/host-control-bootstrap.ts packages/payment/src/runner-lane.ts packages/runner/src/commands.ts packages/runner/src/selection.ts packages/runner/src/run-authority.ts packages/runner/src/evaluator.ts packages/runner/src/evidence.ts packages/runner/src/nuanu-worker-dependencies.ts tests/payment/computer-use-submit-adapter.test.ts tests/payment/host-control-bootstrap.test.ts tests/payment/runner-payment-integration.test.ts tests/payment/nuanu-worker-payment-integration.test.ts tests/runner/selection.test.ts tests/runner/run-authority.test.ts tools/payment/run-payment-host.ts tools/payment/reconcile-canary.ts docs/runbooks/payment-canary.md package.json tests/payment/canary.test.ts
+git diff --cached --check
+git commit -m "feat(payment): add bounded worker payment lane"
+git status --short
+```
+
+Next, use the N0 official direct-handler registry to stop the prior phase
+worker, register the matching authoritative execution-mode handler against that
+new clean Freeland commit, add only the N5 reconciler and secret-broker
+deployment keys, and read back the complete product/root/adapter/handler/schema/
+environment pin. Run one non-payment seed through that exact handler to prove
+the nine-field publication/reclaim path. Only after this read-back, write its
+exact digest and product commit into
+`config/nuanu/freeland-payment-canary-trigger.v1.json`; the config must not reuse
+the N3 pin or name an in-place checkout.
+
+Materialize and verify that config only through the reviewed pin tool, then
+rerun the Nuanu trigger/waiter tests against that exact pin and commit the
+parent-only trigger:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-payment-canary-trigger.ts --phase=n5
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/pin-freeland-payment-canary-trigger.ts --phase=n5 --verify
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/payment-canary-trigger.spec.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git add src/nuanu/payment-canary-trigger-wire.ts src/nuanu/payment-canary-trigger-server.ts src/nuanu/payment-canary-trigger-launcher.ts src/nuanu/schemas/payment-canary-trigger-request.v1.schema.json src/nuanu/schemas/payment-canary-trigger-result.v1.schema.json src/nuanu/schemas/payment-canary-trigger-envelope.v1.schema.json src/nuanu/schemas/payment-canary-trigger-response.v1.schema.json src/nuanu/schemas/payment-canary-wait-result.v1.schema.json tools/nuanu/run-freeland-payment-canary-trigger.ts tools/nuanu/launch-freeland-payment-canary-trigger.ts tools/nuanu/wait-freeland-payment-canary.ts tools/nuanu/pin-freeland-payment-canary-trigger.ts tests/program/nuanu/payment-canary-trigger.spec.ts config/nuanu/freeland-payment-canary-trigger.v1.json package.json package-lock.json
+git diff --cached --check
+git commit -m "feat: enqueue pinned Freeland payment canaries"
+git status --short
+```
+
+Expected: both exact Task 15 commits are reviewed and recorded, both final
+status commands are empty, and the Nuanu deployment record read-back pins the
+new Freeland worker commit plus handler/schema digests. No owner authorization,
+switch change, checkout, or payment has been performed by this commit step.
+Live authority is evaluated only against these immutable committed HEADs.
+
+- [ ] **Step 13: Record the reviewed fault gate without creating payment authority**
+
+Through the owner program-administration path, record the exact Task 14 digest as active `N5_FAULT_INJECTION_ACCEPTED`, rerun the switch drill/read-back, and verify that this action cannot insert or widen `payment_authorizations`. This is a program activation, not a purchase confirmation.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+FREELAND_PAYMENT_OWNER_DATABASE_URL="$FREELAND_PAYMENT_OWNER_DATABASE_URL" \
+FREELAND_PAYMENT_PROGRAM_GATE_FILE="$FREELAND_PAYMENT_PROGRAM_GATE_FILE" \
+  /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run payment:program-gate:record
+FREELAND_PAYMENT_OWNER_DATABASE_URL="$FREELAND_PAYMENT_OWNER_DATABASE_URL" \
+FREELAND_PAYMENT_SWITCH_CHANGE_FILE="$FREELAND_PAYMENT_SWITCH_CHANGE_FILE" \
+  /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run payment:kill-switch:set
+```
+
+Expected: both commands emit read-back digests only; the gate/switch action files contain no authorization or financial fields. The second command is repeated for the already reviewed global, staging, exact-provider, and exact-product scope changes before the worker evaluates the atomic boundary.
+
+- [ ] **Step 14: Enqueue the sole automatic worker path after machine verification**
+
+The next parent command itself cannot create a checkout or submit; it enqueues
+one exact seed for the sole effect-capable worker, which may then create a real
+provider checkout and submit one owner-authorized staging purchase. It is never
+run by a unit/integration test or generic aggregate. Automation invokes it once
+when the already minted policy and all ten runbook gates pass atomically; there
+is no additional human review, Decision, confirmation, or prompt:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+FREELAND_PAYMENT_AUTHORIZATION_ID="$FREELAND_PAYMENT_AUTHORIZATION_ID" \
+FREELAND_QA_FLOW_ITEM_ID="$FREELAND_QA_FLOW_ITEM_ID" \
+FREELAND_EXPECTED_CANDIDATE_DIGEST="$FREELAND_EXPECTED_CANDIDATE_DIGEST" \
+  /opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/launch-freeland-payment-canary-trigger.ts
+```
+
+The parent emits only the enqueued task/seed/handler-pin receipt. The ordinary
+Nuanu worker then executes the task through the single prepared-invocation path
+and publishes the nine-field result. Automation triggers once for each required
+staging product/candidate-class authorization selected by reviewed coverage.
+Rerunning the same tuple must return the same task; redelivery of that task must
+report the existing canonical lifecycle and perform observation/reconciliation
+only.
+Automation parses that one schema-validated stdout line and carries its task
+ID, seed digest, and handler pin in restricted runtime memory directly into
+Step 15; it does not scrape logs, write a request/result file into either repo,
+or accept replacement values from task content.
+
+- [ ] **Step 15: Wait for the exact worker result without retriggering**
+
+Feed only the task ID, seed digest, and worker-handler pin returned by Step 14
+to the read-only Nuanu waiter:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+FREELAND_QA_TASK_ID="$FREELAND_QA_TASK_ID" \
+FREELAND_QA_SEED_DIGEST="$FREELAND_QA_SEED_DIGEST" \
+FREELAND_QA_WORKER_HANDLER_PIN_DIGEST="$FREELAND_QA_WORKER_HANDLER_PIN_DIGEST" \
+  /opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/wait-freeland-payment-canary.ts
+```
+
+Proceed only on `TERMINAL` with the matching nine-field result and exact
+Artifact read-back. `TIMEOUT` or `IDENTITY_MISMATCH` is a blocked result: do not
+invoke the trigger again and do not run reconciliation until the same task has
+durably established its canonical intent/result.
+
+- [ ] **Step 16: Verify the terminal live result without resubmission**
+
+Run:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+FREELAND_PAYMENT_AUTHORIZATION_ID="$FREELAND_PAYMENT_AUTHORIZATION_ID" \
+  /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run payment:reconcile
+```
+
+Expected normal outcome: `RECONCILED_PAID`, exactly one checkout, exactly one submitted payment, exact provider/order/entitlement/post-purchase facts, spent amount within authorization, reservation released, complete scrub/watchdog proofs, and a sanitized result/evidence digest.
+
+Expected decline/cancel outcome: before submit, a verified cancellation may
+release with zero submissions; after submit, exact authoritative
+`RECONCILED_DECLINED` or `RECONCILED_CANCELLED` requires a final monotonic
+provider fact at or after the settlement horizon plus an atomically drained
+ingress watermark and provider-authoritative terminal-closure attestation, no
+second submit, released reservation, and no unexpected order/entitlement.
+Until then it remains `UNKNOWN_HELD`/`FINALITY_HOLD`; a provider without that
+capability never releases automatically.
+
+Expected unknown/fault outcome: `UNKNOWN_HELD`, reservation retained, `pendingUnknown` equal to reserved amount, fence closed, affected lane paused, watchdog cleanup complete, reconciliation/escalation scheduled, and no resubmit command available.
+
+- [ ] **Step 17: Prove live execution left the committed checkout clean**
+
+Run `git status --short`, `git diff --check`, and the repository security scan.
+Status must be empty: database state, secrets, raw evidence, provider responses,
+checkout URLs, account identifiers, and live result files stay outside Git. Read
+back the Step 12 commit OID and bind only sanitized run/artifact/reconciliation
+digests into the Nuanu acceptance record; do not amend the reviewed live-code
+commit or create a commit containing runtime evidence.
+
+---
+
+## N5 Definition of Done
+
+N5.1–N5.4 are complete only when every statement below has direct immutable evidence:
+
+- Owner role alone minted each authorization; runtime/worker/planner attempts to mint, update, widen, renew, or delete failed at PostgreSQL permissions and immutability triggers.
+- Every granted state-changing routine was schema-qualified, owner-owned,
+  `SECURITY DEFINER` with fixed safe `search_path`, absent from `PUBLIC`, and
+  immune to hostile schema/temp object/function/operator/overload resolution.
+- The canonical slot excludes run/account/retry/profile dimensions and one exact slot owns one budget, intent, checkout arm, checkout observation, and submit fence.
+- Thirty-two real processes and every named crash point produced zero duplicate checkout/submit and no budget invariant violation.
+- `authorized`, `reserved`, `spent`, and subset `pendingUnknown` remained arithmetically valid across paid, declined, cancelled, timeout, worker-loss, and conflicting-fact cases.
+- The instrument fence epoch increased monotonically; stale workers, persona epochs, and retries could observe/reconcile but could not submit.
+- Ordinary inputs, logs, errors, Git, Nuanu fixtures, Playwright outputs, and sanitized evidence contained zero PAN/CVV/provider payload/reversible handle findings.
+- Every non-field CVV copy had a deletion receipt plus independent absent proof before submit; missed callbacks and lease loss were recovered independently before the ten-minute deadline.
+- Every durable PAN-bearing copy had encryption, inventory registration, deletion receipt, and independent absent proof by 24 hours.
+- Staging and production profiles/identities were structurally and digest-wise disjoint; N5 rejected production before constructing a live adapter.
+- Provider, order, entitlement, and post-purchase facts joined deterministically; first-party UI success alone never produced paid/release evidence.
+- Provider facts were signature-verified, finality-aware, monotonically
+  sequenced, and joined with all other facts at one immutable cutoff; no
+  post-submit decline/cancel released before the settlement horizon, atomic
+  ingress drain/watermark, and authoritative terminal closure.
+- Providers without authoritative late-paid-impossible closure remained in a
+  durable finality hold and could not release the instrument to another canary.
+- A higher-sequence late-paid fact after terminal decline/cancel restored the
+  exact reservation, reclosed the instrument, paused the lane, preserved prior
+  facts, and entered reconciliation-only handling before any other canary.
+- The single `freeland-qa-run-v1` path produced the payment lane, non-null exact
+  lifecycle, sanitized Artifact, and ticket verdict; no side CLI result bypassed
+  the deterministic evaluator.
+- Normal, declined, cancelled, unknown, wrong-origin, duplicate, worker-death, scrub-failure, provider-error, missing-order, missing-entitlement, and PAN-TTL canaries passed their exact expected outcomes.
+- Every global/environment/provider/product kill switch drill passed; a safety breach paused and read back the affected scopes before another submit.
+- The automated live staging canary, when machine gates crossed the explicit boundary, used only a pre-existing owner authorization and all program gates, never an interactive purchase approval.
+- A forced unknown retained budget reservation, closed its fence, paused the lane, entered reconciliation/escalation, and exposed no path to resubmit.
+- No production payment, refund initiation, Nuanu state transition, product deployment, or Auto-routing authority was performed or implied by this plan.
+
+## Final Verification Commands
+
+The authoritative non-live handoff is:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js ci
+docker compose -f config/postgres/payment-test.compose.yaml up -d --wait
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:unit
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:integration
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:payment:faults
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan
+git diff --check
+
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+/opt/homebrew/opt/node@20/bin/node node_modules/@playwright/test/cli.js test --project=program tests/program/nuanu/payment-canary-trigger.spec.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+git diff --check
+```
+
+The staging trigger is deliberately separate from generic aggregates. It only
+enqueues the ordinary pinned worker and automation invokes it without a prompt
+after the owner authorization and all program gates already exist:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program
+FREELAND_PAYMENT_AUTHORIZATION_ID="$FREELAND_PAYMENT_AUTHORIZATION_ID" \
+FREELAND_QA_FLOW_ITEM_ID="$FREELAND_QA_FLOW_ITEM_ID" \
+FREELAND_EXPECTED_CANDIDATE_DIGEST="$FREELAND_EXPECTED_CANDIDATE_DIGEST" \
+  /opt/homebrew/opt/node@20/bin/node --import tsx tools/nuanu/launch-freeland-payment-canary-trigger.ts
+```
+
+Production payment remains blocked until the separate N6/N7 release-certification plan independently attests production and supplies a production-only authorization, account, catalog, profile, candidate, and evidence identity.
+
+## Execution Handoff
+
+Execute Tasks 1–15 with `superpowers:subagent-driven-development`, using a fresh implementer and two-stage review per task. Record each RED/GREEN command, commit OID, migration digest, fault-acceptance digest, sanitized canary result digest, and remaining gate in the program execution index. Do not combine the live staging-spend boundary with ordinary implementation or aggregate verification.

@@ -1,0 +1,71 @@
+# NuanuFlowQA
+
+Agent-driven QA platform for checking external web products with available browser/API/Playwright capabilities, reporting evidence, and recording confirmed bugs in the product-selected tracker when authorized.
+
+## Codex Entry Points
+
+- Use the current `$freeland-release-qa` for explicit Freeland work. Resolve its accepted Freeland checkout plus the active owner, environment, and checkpoint before commands; do not run the historical NuanuFlowQA Freeland package automatically. A manual or У0/У1/У2 label alone is not a reason to delegate: use supported agent evidence where the current pack accepts it, ask a human only for a concrete capability/authority gap, and keep unsupported acceptance evidence pending.
+- Use `$qa-check` for product QA routing and generic fallback. It resolves the registered product/workspace, owner checkpoint, environment, specialist, and product-selected tracker before execution. Existing QA Starter work routes to `$qa-product-v0`; use `$qa-init` only when setup or registration is actually missing. Once selected, the specialist's current pack governs and the generic checklist stops.
+- Use `$qa-bugfix` for backlog processing: fetch open Linear bugs, cluster by root cause, and generate self-contained fix prompts.
+- If ECC skills are installed locally, compose them with this project:
+  - `$e2e-testing` for Playwright suite structure, POM, flake handling, and CI patterns.
+  - `$browser-qa` for visual/browser interaction verification.
+  - `$verification-loop` before handing work back.
+
+The repository `skills/` directory contains legacy sources, not an instruction to overwrite installed skills. `npm run codex:install-skills` is retired and refuses installation without writes. Do not bulk-copy these skills into Codex or Claude. Resolve the selected project's current reviewed source and installation procedure first; on this machine `~/.codex/qa-workspaces.md` locates accepted sources. Missing registration is a setup gap, not permission to use the legacy installer. Any later selective installation requires its own scope, backup and installed-byte verification.
+
+<!-- FREELAND_PRODUCT_GRAPH_V1_START -->
+### Legacy Freeland graph-first preflight
+
+Do not run this block merely because NuanuFlowQA is the current directory. First
+use `$freeland-release-qa` to resolve the accepted current pack and checkout. If
+that pack explicitly selects this V1 graph, rebuild it against
+the exact candidate commit, validate it, compute the baseline→candidate impact
+plan, and inspect the generated test plan before touching the product. The
+entrypoint is `tools/freeland-graph/cli.mjs`; the canonical private state lives
+under `docs/local/freeland/product-graph/`.
+
+- Never guess a narrow test scope for an unmapped changed file. V1 selects the
+  full automated staging suite and the manual safety tier.
+- `manualStatus` remains `pending` until adequate evidence is recorded in the
+  accepted lane and format. A manual label alone does not require a human, but
+  unsupported agent evidence does not close the acceptance gap.
+- When E2E or code review reveals a real dependency, add the exact source→node
+  or node→test mapping, rebuild, and validate before the next consequential
+  action.
+- The V1 graph is source-only. It helps select tests but does not prove that the
+  candidate SHA is the live deployment; verify `/api/environment` separately.
+- Execution is staging-only. Start with `run ... --dry-run`; `--execute` is a
+  separate deliberate step and does not authorize purchases or other
+  irreversible actions.
+<!-- FREELAND_PRODUCT_GRAPH_V1_END -->
+
+## Stack
+
+TypeScript + Playwright. One Playwright project per product under test; projects are enabled only when `<PRODUCT>_BASE_URL` is set.
+
+Commands:
+
+- `npm test` - run all configured Playwright projects.
+- `npx playwright test --project=<product>` - run one product.
+- `npm run test:ui` - interactive Playwright UI.
+- `npm run typecheck` - TypeScript check.
+
+## Layout
+
+- `skills/qa-check` and `skills/qa-bugfix` - Codex-compatible project skills.
+- `.claude/skills/` - Claude Code compatibility layer.
+- `tests/_template/` - copy into `tests/<product>/` for a new product suite.
+- `docs/templates/TEST-CASES.md` - living test-case template.
+- `docs/local/` - private per-product test cases and notes, gitignored.
+- `templates/` - bug report and fix prompt formats.
+- `.env` - private product URLs and test credentials, gitignored.
+
+## QA Rules
+
+- Never hardcode credentials; read them from `.env`.
+- Tests are read-only by default: no purchases, no settings mutations, no real payment confirmation, and no password-reset emails to third-party addresses.
+- Payment flows may be checked only up to the external/irreversible step unless the owner explicitly authorizes a real-money verification.
+- A failing test is not automatically a product bug. First rule out locale assumptions, SPA hydration timing, strict selector collisions, bot protection, and rollout skew.
+- Report-only QA creates no tracker side effects. Authorized issue writes use the product-selected tracker, dedupe first, follow its actual template/state/severity contract, and read back persisted state; `templates/bug-report.md` and `test.fail()` remain the Linear/Playwright legacy path when selected.
+- An unexpected regression PASS triggers assertion, fixture, reproduction, candidate, and environment checks; it is not sufficient FIXED evidence. Apply ticket transitions only after the selected product's required deployed-fix evidence.

@@ -1,0 +1,918 @@
+import { digestJson } from "./model.mjs";
+import {
+  MIN_TELEMETRY_COHORT_SIZE,
+  P75_METRIC_IDS,
+  TELEMETRY_DIMENSIONS,
+  TELEMETRY_METRIC_IDS,
+  TELEMETRY_SCHEMA_VERSION,
+  digestP75Pair,
+} from "./telemetry-contract.mjs";
+
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const CATALOG_LOCAL_ID = /^napp-telemetry-bucket-([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/;
+const MAX_TELEMETRY_ARRAY_LENGTH = 10_000;
+const TELEMETRY_METRIC_ID_SET = new Set(TELEMETRY_METRIC_IDS);
+const P75_METRIC_ID_SET = new Set(P75_METRIC_IDS);
+const TELEMETRY_DIMENSION_SET = new Set(TELEMETRY_DIMENSIONS);
+const INPUT_STATUSES = new Set(["AVAILABLE", "NOT_INSTRUMENTED", "UNAVAILABLE", "BLOCKED"]);
+const OUTPUT_STATUSES = new Set([...INPUT_STATUSES, "SUPPRESSED"]);
+const LIMITATION_CODES = new Set([
+  "NO_REVIEWED_THRESHOLD",
+  "FIELD_NOT_PROVEN",
+  "EVENT_NOT_PROVEN",
+  "QUERY_UNAVAILABLE",
+  "ACCESS_BLOCKED",
+  "CAPABILITY_MATRIX_BLOCKED",
+  "APP_HOST_SCOPE_BLOCKED",
+  "SCOPED_TRANSPORT_BLOCKED",
+  "STRUCTURED_QUERY_BLOCKED",
+  "P75_COUNT_COMPANION_UNAVAILABLE",
+  "P75_COUNT_PAIR_MISMATCH",
+  "P75_COUNT_PAIR_AMBIGUOUS",
+  "HTTP_AUTH_BLOCKED",
+  "HTTP_RATE_LIMIT_BLOCKED",
+  "HTTP_PROVIDER_BLOCKED",
+  "LOW_SAMPLE_SUPPRESSED",
+  "FRESHNESS_UNKNOWN",
+]);
+const POST_QUERY_BLOCK_CODES = new Set([
+  "HTTP_AUTH_BLOCKED",
+  "HTTP_RATE_LIMIT_BLOCKED",
+  "HTTP_PROVIDER_BLOCKED",
+]);
+const PRE_QUERY_BLOCK_CODES = new Set([
+  "ACCESS_BLOCKED",
+  "CAPABILITY_MATRIX_BLOCKED",
+  "APP_HOST_SCOPE_BLOCKED",
+  "SCOPED_TRANSPORT_BLOCKED",
+  "STRUCTURED_QUERY_BLOCKED",
+]);
+const FORBIDDEN_FIELD_NAMES = new Set([
+  "rawEvents",
+  "persons",
+  "sessionReplay",
+  "exports",
+  "exactUrl",
+  "queryValue",
+  "distinctId",
+  "sessionId",
+  "deviceId",
+  "ipAddress",
+  "latitude",
+  "longitude",
+  "email",
+  "phone",
+  "searchText",
+  "exceptionMessage",
+  "stackTrace",
+  "codeVariables",
+  "requestHeaders",
+  "requestBody",
+  "responseBody",
+  "fingerprintCohort",
+]);
+const CANDIDATE_KEYS = [
+  "queryId",
+  "queryHash",
+  "p75Pairing",
+  "metricId",
+  "status",
+  "capturedAt",
+  "bucketEndedAt",
+  "aggregate",
+  "breakdowns",
+  "exceptionGroups",
+  "providerExceptionFingerprintAttestation",
+  "limitations",
+];
+const NORMALIZED_METRIC_KEYS = [
+  "queryId",
+  "queryHash",
+  "p75Pairing",
+  "metricId",
+  "status",
+  "bucketEndedAt",
+  "aggregate",
+  "breakdowns",
+  "exceptionGroups",
+  "suppressedCohortCount",
+  "limitations",
+];
+
+function telemetryError(code, message, path = undefined) {
+  const error = new Error(message);
+  error.code = code;
+  if (path !== undefined) error.path = path;
+  return error;
+}
+
+function fail(message, path = "$", code = "INVALID_TELEMETRY_DATA") {
+  throw telemetryError(code, message, path);
+}
+
+function compareCodeUnits(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function assertCallObject(value, expectedKeys, path) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    fail(`${path} must be a plain object`, path);
+  }
+  if (Object.getPrototypeOf(value) !== Object.prototype) {
+    fail(`${path} must use the plain object prototype`, path);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail(`${path} must not contain symbol keys`, path);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  for (const [key, descriptor] of Object.entries(descriptors)) {
+    if (!("value" in descriptor) || !descriptor.enumerable) {
+      fail(`${path}.${key} must be an enumerable data property`, `${path}.${key}`);
+    }
+  }
+  const actual = Object.keys(value).sort(compareCodeUnits);
+  const expected = [...expectedKeys].sort(compareCodeUnits);
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    fail(`${path} has missing or extra keys`, path);
+  }
+}
+
+function assertJsonTree(value, path = "$", seen = new WeakSet()) {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || Object.is(value, -0)) {
+      fail(`${path} must be a finite JSON number and not negative zero`, path);
+    }
+    return;
+  }
+  if (typeof value !== "object") {
+    fail(`${path} must contain JSON data only`, path);
+  }
+  if (seen.has(value)) {
+    fail(`${path} must not contain cycles or shared references`, path);
+  }
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    if (Object.getPrototypeOf(value) !== Array.prototype) {
+      fail(`${path} must use the plain array prototype`, path);
+    }
+    if (!Number.isSafeInteger(value.length) || value.length > MAX_TELEMETRY_ARRAY_LENGTH) {
+      fail(`${path} exceeds the telemetry array length limit`, path);
+    }
+    if (Object.getOwnPropertySymbols(value).length !== 0) {
+      fail(`${path} must not contain symbol keys`, path);
+    }
+    const keys = Object.getOwnPropertyNames(value);
+    if (keys.length !== value.length + 1 || !keys.includes("length")) {
+      fail(`${path} must be dense and contain no extra keys`, path);
+    }
+    for (const key of keys) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !("value" in descriptor)) {
+        fail(`${path} must contain data entries only`, path);
+      }
+      if (key === "length") continue;
+      if (!/^(0|[1-9][0-9]*)$/.test(key)) {
+        fail(`${path} contains a non-canonical array index`, path);
+      }
+      const index = Number(key);
+      if (!Number.isSafeInteger(index) || index < 0 || index >= value.length || !descriptor.enumerable) {
+        fail(`${path} contains an invalid array index`, path);
+      }
+      assertJsonTree(descriptor.value, `${path}[${index}]`, seen);
+    }
+    return;
+  }
+
+  if (Object.getPrototypeOf(value) !== Object.prototype) {
+    fail(`${path} must use the plain object prototype`, path);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail(`${path} must not contain symbol keys`, path);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  for (const [key, descriptor] of Object.entries(descriptors)) {
+    if (!("value" in descriptor) || !descriptor.enumerable) {
+      fail(`${path}.${key} must be an enumerable data property`, `${path}.${key}`);
+    }
+    assertJsonTree(descriptor.value, `${path}.${key}`, seen);
+  }
+}
+
+function assertExactKeys(value, expectedKeys, path) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    fail(`${path} must be a plain object`, path);
+  }
+  const actual = Object.keys(value).sort(compareCodeUnits);
+  const expected = [...expectedKeys].sort(compareCodeUnits);
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    fail(`${path} has missing or extra keys`, path);
+  }
+}
+
+function rejectForbiddenFields(value, path = "$", seen = new WeakSet()) {
+  if (value === null || typeof value !== "object" || seen.has(value)) return;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    value.forEach((child, index) => rejectForbiddenFields(child, `${path}[${index}]`, seen));
+    return;
+  }
+  for (const [key, child] of Object.entries(value)) {
+    if (FORBIDDEN_FIELD_NAMES.has(key)) {
+      fail(`Forbidden telemetry field ${key}`, `${path}.${key}`, "FORBIDDEN_TELEMETRY_FIELD");
+    }
+    rejectForbiddenFields(child, `${path}.${key}`, seen);
+  }
+}
+
+function assertSha256(value, path) {
+  if (typeof value !== "string" || !SHA256_HEX.test(value)) {
+    fail(`${path} must be a lowercase SHA-256 digest`, path);
+  }
+}
+
+function assertUtcIso(value, path) {
+  if (typeof value !== "string") fail(`${path} must be a UTC ISO timestamp`, path);
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
+    fail(`${path} must be a canonical UTC ISO timestamp`, path);
+  }
+}
+
+function assertNonEmptyString(value, path) {
+  if (typeof value !== "string" || value.length === 0) {
+    fail(`${path} must be a non-empty string`, path);
+  }
+}
+
+function assertSampleSize(value, path) {
+  if (!Number.isSafeInteger(value) || value < 0 || Object.is(value, -0)) {
+    fail(`${path} must be a non-negative safe integer`, path);
+  }
+}
+
+function assertNonNegativeFinite(value, path) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || Object.is(value, -0)) {
+    fail(`${path} must be a finite non-negative number`, path);
+  }
+}
+
+function assertRate(value, path) {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > 1 ||
+    Object.is(value, -0)
+  ) {
+    fail(`${path} must be a finite rate from zero through one`, path);
+  }
+}
+
+function validateLimitations(limitations, path) {
+  if (!Array.isArray(limitations)) fail(`${path} must be an array`, path);
+  const seen = new Set();
+  for (const [index, limitation] of limitations.entries()) {
+    if (typeof limitation !== "string" || !LIMITATION_CODES.has(limitation)) {
+      fail(`${path}[${index}] is not a stable limitation code`, `${path}[${index}]`);
+    }
+    if (seen.has(limitation)) fail(`${path} must not contain duplicates`, path);
+    seen.add(limitation);
+  }
+  return [...limitations].sort(compareCodeUnits);
+}
+
+function validateAggregate(aggregate, metricId, path) {
+  assertExactKeys(aggregate, ["sampleSize", "count", "rate", "p75"], path);
+  assertSampleSize(aggregate.sampleSize, `${path}.sampleSize`);
+  if (aggregate.count !== null) assertNonNegativeFinite(aggregate.count, `${path}.count`);
+  if (aggregate.rate !== null) assertRate(aggregate.rate, `${path}.rate`);
+  if (aggregate.p75 !== null) assertNonNegativeFinite(aggregate.p75, `${path}.p75`);
+  const populated = ["count", "rate", "p75"].filter((key) => aggregate[key] !== null);
+  if (populated.length !== 1) fail(`${path} must contain exactly one aggregate value`, path);
+  const kind = populated[0];
+  if (P75_METRIC_ID_SET.has(metricId) && kind !== "p75") {
+    fail(`${path} for a p75 metric must contain only p75`, path);
+  }
+  if (!P75_METRIC_ID_SET.has(metricId) && kind === "p75") {
+    fail(`${path} for a non-p75 metric cannot contain p75`, path);
+  }
+  return kind;
+}
+
+function validateP75Pairing(pairing, metricId, queryHash, path) {
+  assertExactKeys(pairing, ["p75PairDigestInput", "pairDigest", "sampleSizeSource"], path);
+  if (pairing.sampleSizeSource !== "independent_total_count") {
+    fail(`${path}.sampleSizeSource must be independent_total_count`, `${path}.sampleSizeSource`);
+  }
+  assertSha256(pairing.pairDigest, `${path}.pairDigest`);
+  let expectedDigest;
+  try {
+    expectedDigest = digestP75Pair(pairing.p75PairDigestInput);
+  } catch (error) {
+    throw telemetryError("INVALID_TELEMETRY_P75_PAIR", error.message, `${path}.p75PairDigestInput`);
+  }
+  if (pairing.p75PairDigestInput.metricId !== metricId) {
+    fail(`${path} metricId does not match the candidate`, `${path}.p75PairDigestInput.metricId`);
+  }
+  if (pairing.p75PairDigestInput.percentile.queryHash !== queryHash) {
+    fail(`${path} percentile hash does not match queryHash`, `${path}.p75PairDigestInput.percentile.queryHash`);
+  }
+  if (pairing.pairDigest !== expectedDigest) {
+    fail(`${path}.pairDigest does not match its canonical input`, `${path}.pairDigest`);
+  }
+}
+
+function cloneP75Pairing(pairing) {
+  if (pairing === null) return null;
+  return {
+    p75PairDigestInput: {
+      metricId: pairing.p75PairDigestInput.metricId,
+      dimensions: [...pairing.p75PairDigestInput.dimensions],
+      percentile: {
+        role: pairing.p75PairDigestInput.percentile.role,
+        queryHash: pairing.p75PairDigestInput.percentile.queryHash,
+      },
+      sampleCount: {
+        role: pairing.p75PairDigestInput.sampleCount.role,
+        queryHash: pairing.p75PairDigestInput.sampleCount.queryHash,
+      },
+    },
+    pairDigest: pairing.pairDigest,
+    sampleSizeSource: pairing.sampleSizeSource,
+  };
+}
+
+function validateBreakdowns(breakdowns, metricId, aggregateKind, path) {
+  if (!Array.isArray(breakdowns)) fail(`${path} must be an array`, path);
+  const coordinateKeys = new Set();
+  for (const [index, breakdown] of breakdowns.entries()) {
+    const itemPath = `${path}[${index}]`;
+    assertExactKeys(breakdown, ["dimension", "value", "sampleSize", "count", "rate", "p75"], itemPath);
+    if (!TELEMETRY_DIMENSION_SET.has(breakdown.dimension)) {
+      fail(`${itemPath}.dimension is not reviewed`, `${itemPath}.dimension`);
+    }
+    assertNonEmptyString(breakdown.value, `${itemPath}.value`);
+    const key = `${breakdown.dimension}\u0000${breakdown.value}`;
+    if (coordinateKeys.has(key)) fail(`${path} contains a duplicate coordinate`, itemPath);
+    coordinateKeys.add(key);
+    const kind = validateAggregate({
+      sampleSize: breakdown.sampleSize,
+      count: breakdown.count,
+      rate: breakdown.rate,
+      p75: breakdown.p75,
+    }, metricId, itemPath);
+    if (kind !== aggregateKind) {
+      fail(`${itemPath} aggregate kind must match the overall metric`, itemPath);
+    }
+  }
+}
+
+function validateFingerprintAttestation(attestation, path) {
+  assertExactKeys(attestation, ["propertyIdentifier", "officialSchemaEvidenceDigest"], path);
+  assertNonEmptyString(attestation.propertyIdentifier, `${path}.propertyIdentifier`);
+  assertSha256(attestation.officialSchemaEvidenceDigest, `${path}.officialSchemaEvidenceDigest`);
+}
+
+function validateExceptionGroups(groups, path) {
+  if (!Array.isArray(groups)) fail(`${path} must be an array`, path);
+  const fingerprints = new Set();
+  for (const [index, group] of groups.entries()) {
+    const itemPath = `${path}[${index}]`;
+    assertExactKeys(group, ["providerFingerprint", "sampleSize", "count", "rate"], itemPath);
+    assertNonEmptyString(group.providerFingerprint, `${itemPath}.providerFingerprint`);
+    if (fingerprints.has(group.providerFingerprint)) {
+      fail(`${path} contains a duplicate provider fingerprint`, itemPath);
+    }
+    fingerprints.add(group.providerFingerprint);
+    assertSampleSize(group.sampleSize, `${itemPath}.sampleSize`);
+    assertNonNegativeFinite(group.count, `${itemPath}.count`);
+    assertRate(group.rate, `${itemPath}.rate`);
+  }
+}
+
+function validatePublicValueAllowlists(publicValueAllowlists) {
+  assertJsonTree(publicValueAllowlists, "publicValueAllowlists");
+  for (const key of Object.keys(publicValueAllowlists)) {
+    if (!TELEMETRY_DIMENSION_SET.has(key)) {
+      fail(`publicValueAllowlists.${key} is not a reviewed dimension`, `publicValueAllowlists.${key}`);
+    }
+    const values = publicValueAllowlists[key];
+    if (!Array.isArray(values) || values.length === 0) {
+      fail(`publicValueAllowlists.${key} must be a non-empty array`, `publicValueAllowlists.${key}`);
+    }
+    let previous = null;
+    values.forEach((value, index) => {
+      assertNonEmptyString(value, `publicValueAllowlists.${key}[${index}]`);
+      if (previous !== null && compareCodeUnits(previous, value) >= 0) {
+        fail(`publicValueAllowlists.${key} must be sorted and unique`, `publicValueAllowlists.${key}`);
+      }
+      previous = value;
+    });
+  }
+}
+
+function validatePublicModeBreakdownValues(candidate, publicValueAllowlists) {
+  for (const breakdown of candidate.breakdowns) {
+    if (
+      Object.hasOwn(publicValueAllowlists, breakdown.dimension) &&
+      !publicValueAllowlists[breakdown.dimension].includes(breakdown.value)
+    ) {
+      fail(
+        "public-mode breakdown value is outside its reviewed allowlist",
+        `candidate.breakdowns.${breakdown.dimension}`,
+        "UNREVIEWED_PUBLIC_VALUE",
+      );
+    }
+  }
+}
+
+function validateCandidate(candidate) {
+  assertJsonTree(candidate, "candidate");
+  rejectForbiddenFields(candidate, "candidate");
+  assertExactKeys(candidate, CANDIDATE_KEYS, "candidate");
+  if (!TELEMETRY_METRIC_ID_SET.has(candidate.metricId)) {
+    fail("candidate.metricId is not reviewed", "candidate.metricId");
+  }
+  if (candidate.queryId !== candidate.metricId) {
+    fail("candidate.queryId must equal candidate.metricId", "candidate.queryId");
+  }
+  if (!INPUT_STATUSES.has(candidate.status)) {
+    fail("candidate.status is not an input status", "candidate.status");
+  }
+  assertUtcIso(candidate.capturedAt, "candidate.capturedAt");
+  const limitations = validateLimitations(candidate.limitations, "candidate.limitations");
+  const hasPostQueryLimitation = candidate.limitations.some((code) => POST_QUERY_BLOCK_CODES.has(code));
+
+  if (candidate.queryHash !== null) assertSha256(candidate.queryHash, "candidate.queryHash");
+  if (candidate.status === "AVAILABLE" && candidate.queryHash === null) {
+    fail("AVAILABLE candidates require queryHash", "candidate.queryHash");
+  }
+  if (candidate.status === "UNAVAILABLE" && candidate.queryHash === null) {
+    fail("UNAVAILABLE candidates require queryHash", "candidate.queryHash");
+  }
+  if (candidate.status === "NOT_INSTRUMENTED" && candidate.queryHash !== null) {
+    fail("NOT_INSTRUMENTED candidates require null queryHash", "candidate.queryHash");
+  }
+  if (candidate.status === "BLOCKED" && candidate.queryHash === null && hasPostQueryLimitation) {
+    fail("post-query BLOCKED candidates require queryHash", "candidate.queryHash");
+  }
+  if (
+    candidate.status === "BLOCKED" && candidate.queryHash === null &&
+    (
+      candidate.limitations.length === 0 ||
+      candidate.limitations.some((code) => !PRE_QUERY_BLOCK_CODES.has(code))
+    )
+  ) {
+    fail("null-query BLOCKED candidates require only explicit pre-query limitations", "candidate.limitations");
+  }
+
+  if (candidate.status !== "AVAILABLE") {
+    if (
+      candidate.bucketEndedAt !== null ||
+      candidate.aggregate !== null ||
+      !Array.isArray(candidate.breakdowns) || candidate.breakdowns.length !== 0 ||
+      !Array.isArray(candidate.exceptionGroups) || candidate.exceptionGroups.length !== 0 ||
+      candidate.providerExceptionFingerprintAttestation !== null ||
+      candidate.p75Pairing !== null
+    ) {
+      fail("non-AVAILABLE candidates must not contain measured payload", "candidate");
+    }
+    return { aggregateKind: null, limitations };
+  }
+
+  assertUtcIso(candidate.bucketEndedAt, "candidate.bucketEndedAt");
+  const aggregateKind = validateAggregate(candidate.aggregate, candidate.metricId, "candidate.aggregate");
+  if (P75_METRIC_ID_SET.has(candidate.metricId)) {
+    if (candidate.p75Pairing === null) {
+      fail("AVAILABLE p75 candidates require p75Pairing", "candidate.p75Pairing");
+    }
+    validateP75Pairing(candidate.p75Pairing, candidate.metricId, candidate.queryHash, "candidate.p75Pairing");
+  } else if (candidate.p75Pairing !== null) {
+    fail("non-p75 candidates require null p75Pairing", "candidate.p75Pairing");
+  }
+  validateBreakdowns(candidate.breakdowns, candidate.metricId, aggregateKind, "candidate.breakdowns");
+  validateExceptionGroups(candidate.exceptionGroups, "candidate.exceptionGroups");
+  if (candidate.providerExceptionFingerprintAttestation !== null) {
+    validateFingerprintAttestation(
+      candidate.providerExceptionFingerprintAttestation,
+      "candidate.providerExceptionFingerprintAttestation",
+    );
+  }
+  if (
+    candidate.metricId !== "js-exception-rate" &&
+    (candidate.exceptionGroups.length !== 0 || candidate.providerExceptionFingerprintAttestation !== null)
+  ) {
+    fail("exception evidence is valid only for js-exception-rate", "candidate.exceptionGroups");
+  }
+  return { aggregateKind, limitations };
+}
+
+function cloneAggregate(aggregate) {
+  return {
+    sampleSize: aggregate.sampleSize,
+    count: aggregate.count,
+    rate: aggregate.rate,
+    p75: aggregate.p75,
+  };
+}
+
+function withLowSampleLimitation(limitations) {
+  return [...new Set([...limitations, "LOW_SAMPLE_SUPPRESSED"])].sort(compareCodeUnits);
+}
+
+function sortBreakdownCandidates(left, right) {
+  return compareCodeUnits(left.dimension, right.dimension) || compareCodeUnits(left.value, right.value);
+}
+
+function sortNormalizedBreakdowns(left, right) {
+  const leftPublic = left.publicValue !== null;
+  const rightPublic = right.publicValue !== null;
+  if (leftPublic !== rightPublic) return leftPublic ? -1 : 1;
+  if (leftPublic) {
+    return compareCodeUnits(left.dimension, right.dimension) ||
+      compareCodeUnits(left.publicValue, right.publicValue);
+  }
+  return compareCodeUnits(left.catalogLocalId, right.catalogLocalId);
+}
+
+export function normalizeAggregateMetric(input) {
+  assertCallObject(
+    input,
+    ["candidate", "publicValueAllowlists", "randomIdForValue"],
+    "normalizeAggregateMetric input",
+  );
+  const { candidate, publicValueAllowlists, randomIdForValue } = input;
+  if (typeof randomIdForValue !== "function") {
+    fail("randomIdForValue must be a function", "randomIdForValue");
+  }
+  validatePublicValueAllowlists(publicValueAllowlists);
+  const { limitations: sortedLimitations } = validateCandidate(candidate);
+  validatePublicModeBreakdownValues(candidate, publicValueAllowlists);
+
+  const base = {
+    queryId: candidate.queryId,
+    queryHash: candidate.queryHash,
+    p75Pairing: cloneP75Pairing(candidate.p75Pairing),
+    metricId: candidate.metricId,
+  };
+  if (candidate.status !== "AVAILABLE") {
+    return {
+      ...base,
+      status: candidate.status,
+      bucketEndedAt: null,
+      aggregate: null,
+      breakdowns: [],
+      exceptionGroups: [],
+      suppressedCohortCount: 0,
+      limitations: sortedLimitations,
+    };
+  }
+
+  if (candidate.aggregate.sampleSize < MIN_TELEMETRY_COHORT_SIZE) {
+    return {
+      ...base,
+      status: "SUPPRESSED",
+      bucketEndedAt: null,
+      aggregate: null,
+      breakdowns: [],
+      exceptionGroups: [],
+      suppressedCohortCount: 1,
+      limitations: withLowSampleLimitation(sortedLimitations),
+    };
+  }
+
+  let suppressedCohortCount = 0;
+  const breakdowns = [];
+  const rawValueByCatalogLocalId = new Map();
+  const catalogLocalIdByRawValue = new Map();
+  try {
+    for (const breakdown of [...candidate.breakdowns].sort(sortBreakdownCandidates)) {
+      if (breakdown.sampleSize < MIN_TELEMETRY_COHORT_SIZE) {
+        suppressedCohortCount += 1;
+        continue;
+      }
+      const normalized = {
+        dimension: breakdown.dimension,
+        publicValue: null,
+        catalogLocalId: null,
+        sampleSize: breakdown.sampleSize,
+        count: breakdown.count,
+        rate: breakdown.rate,
+        p75: breakdown.p75,
+      };
+      if (Object.hasOwn(publicValueAllowlists, breakdown.dimension)) {
+        if (!publicValueAllowlists[breakdown.dimension].includes(breakdown.value)) {
+          fail(
+            "public-mode breakdown value is outside its reviewed allowlist",
+            `candidate.breakdowns.${breakdown.dimension}`,
+            "UNREVIEWED_PUBLIC_VALUE",
+          );
+        }
+        normalized.publicValue = breakdown.value;
+      } else {
+        const catalogLocalId = randomIdForValue(breakdown.value);
+        if (typeof catalogLocalId !== "string" || !CATALOG_LOCAL_ID.test(catalogLocalId)) {
+          fail("randomIdForValue returned a malformed catalog-local ID", "randomIdForValue");
+        }
+        if (
+          catalogLocalIdByRawValue.has(breakdown.value) &&
+          catalogLocalIdByRawValue.get(breakdown.value) !== catalogLocalId
+        ) {
+          fail(
+            "randomIdForValue returned inconsistent IDs for one cohort value",
+            "randomIdForValue",
+            "RANDOM_UUID_COLLISION",
+          );
+        }
+        if (
+          rawValueByCatalogLocalId.has(catalogLocalId) &&
+          rawValueByCatalogLocalId.get(catalogLocalId) !== breakdown.value
+        ) {
+          fail(
+            "randomIdForValue collided for distinct cohort values",
+            "randomIdForValue",
+            "RANDOM_UUID_COLLISION",
+          );
+        }
+        catalogLocalIdByRawValue.set(breakdown.value, catalogLocalId);
+        rawValueByCatalogLocalId.set(catalogLocalId, breakdown.value);
+        normalized.catalogLocalId = catalogLocalId;
+      }
+      breakdowns.push(normalized);
+    }
+  } finally {
+    catalogLocalIdByRawValue.clear();
+    rawValueByCatalogLocalId.clear();
+  }
+
+  const exceptionGroups = [];
+  if (candidate.providerExceptionFingerprintAttestation !== null) {
+    for (const group of candidate.exceptionGroups) {
+      if (group.sampleSize < MIN_TELEMETRY_COHORT_SIZE) {
+        suppressedCohortCount += 1;
+        continue;
+      }
+      exceptionGroups.push({
+        providerFingerprint: group.providerFingerprint,
+        sampleSize: group.sampleSize,
+        count: group.count,
+        rate: group.rate,
+      });
+    }
+  }
+
+  return {
+    ...base,
+    status: "AVAILABLE",
+    bucketEndedAt: candidate.bucketEndedAt,
+    aggregate: cloneAggregate(candidate.aggregate),
+    breakdowns: breakdowns.sort(sortNormalizedBreakdowns),
+    exceptionGroups: exceptionGroups.sort((left, right) =>
+      compareCodeUnits(left.providerFingerprint, right.providerFingerprint)),
+    suppressedCohortCount,
+    limitations: suppressedCohortCount > 0
+      ? withLowSampleLimitation(sortedLimitations)
+      : sortedLimitations,
+  };
+}
+
+function validateNormalizedBreakdown(breakdown, metricId, aggregateKind, path) {
+  assertExactKeys(
+    breakdown,
+    ["dimension", "publicValue", "catalogLocalId", "sampleSize", "count", "rate", "p75"],
+    path,
+  );
+  if (!TELEMETRY_DIMENSION_SET.has(breakdown.dimension)) {
+    fail(`${path}.dimension is not reviewed`, `${path}.dimension`);
+  }
+  const publicMode = breakdown.publicValue !== null;
+  const randomMode = breakdown.catalogLocalId !== null;
+  if (publicMode === randomMode) {
+    fail(`${path} must contain exactly one cohort identity mode`, path);
+  }
+  if (publicMode) assertNonEmptyString(breakdown.publicValue, `${path}.publicValue`);
+  if (randomMode && (typeof breakdown.catalogLocalId !== "string" || !CATALOG_LOCAL_ID.test(breakdown.catalogLocalId))) {
+    fail(`${path}.catalogLocalId is malformed`, `${path}.catalogLocalId`);
+  }
+  const kind = validateAggregate({
+    sampleSize: breakdown.sampleSize,
+    count: breakdown.count,
+    rate: breakdown.rate,
+    p75: breakdown.p75,
+  }, metricId, path);
+  if (kind !== aggregateKind) fail(`${path} aggregate kind does not match its metric`, path);
+  if (breakdown.sampleSize < MIN_TELEMETRY_COHORT_SIZE) {
+    fail(`${path} is below the privacy floor`, `${path}.sampleSize`);
+  }
+}
+
+function validateNormalizedMetric(metric, path) {
+  assertExactKeys(metric, NORMALIZED_METRIC_KEYS, path);
+  if (!TELEMETRY_METRIC_ID_SET.has(metric.metricId) || metric.queryId !== metric.metricId) {
+    fail(`${path} has an invalid metric/query ID`, `${path}.metricId`);
+  }
+  if (!OUTPUT_STATUSES.has(metric.status)) fail(`${path}.status is invalid`, `${path}.status`);
+  if (metric.queryHash !== null) assertSha256(metric.queryHash, `${path}.queryHash`);
+  const limitations = validateLimitations(metric.limitations, `${path}.limitations`);
+  if (limitations.some((value, index) => value !== metric.limitations[index])) {
+    fail(`${path}.limitations must be sorted`, `${path}.limitations`);
+  }
+  assertSampleSize(metric.suppressedCohortCount, `${path}.suppressedCohortCount`);
+  const hasLowSample = metric.limitations.includes("LOW_SAMPLE_SUPPRESSED");
+  if ((metric.suppressedCohortCount > 0) !== hasLowSample) {
+    fail(`${path} suppression count and limitation disagree`, path);
+  }
+  if (metric.status === "AVAILABLE" && metric.queryHash === null) {
+    fail(`${path} AVAILABLE status requires queryHash`, `${path}.queryHash`);
+  }
+  if (metric.status === "UNAVAILABLE" && metric.queryHash === null) {
+    fail(`${path} UNAVAILABLE status requires queryHash`, `${path}.queryHash`);
+  }
+  if (metric.status === "NOT_INSTRUMENTED" && metric.queryHash !== null) {
+    fail(`${path} NOT_INSTRUMENTED status requires null queryHash`, `${path}.queryHash`);
+  }
+  if (
+    metric.status === "BLOCKED" && metric.queryHash === null &&
+    metric.limitations.some((code) => POST_QUERY_BLOCK_CODES.has(code))
+  ) {
+    fail(`${path} post-query BLOCKED status requires queryHash`, `${path}.queryHash`);
+  }
+  if (
+    metric.status === "BLOCKED" && metric.queryHash === null &&
+    (
+      metric.limitations.length === 0 ||
+      metric.limitations.some((code) => !PRE_QUERY_BLOCK_CODES.has(code))
+    )
+  ) {
+    fail(`${path} null-query BLOCKED status requires pre-query limitations`, `${path}.limitations`);
+  }
+
+  const isP75 = P75_METRIC_ID_SET.has(metric.metricId);
+  if (isP75 && ["AVAILABLE", "SUPPRESSED"].includes(metric.status)) {
+    if (metric.p75Pairing === null) fail(`${path} requires p75Pairing`, `${path}.p75Pairing`);
+    validateP75Pairing(metric.p75Pairing, metric.metricId, metric.queryHash, `${path}.p75Pairing`);
+  } else if (metric.p75Pairing !== null) {
+    fail(`${path} requires null p75Pairing`, `${path}.p75Pairing`);
+  }
+
+  if (metric.status === "AVAILABLE") {
+    assertUtcIso(metric.bucketEndedAt, `${path}.bucketEndedAt`);
+    const aggregateKind = validateAggregate(metric.aggregate, metric.metricId, `${path}.aggregate`);
+    if (metric.aggregate.sampleSize < MIN_TELEMETRY_COHORT_SIZE) {
+      fail(`${path}.aggregate is below the privacy floor`, `${path}.aggregate.sampleSize`);
+    }
+    if (!Array.isArray(metric.breakdowns) || !Array.isArray(metric.exceptionGroups)) {
+      fail(`${path} cohort fields must be arrays`, path);
+    }
+    metric.breakdowns.forEach((breakdown, index) =>
+      validateNormalizedBreakdown(breakdown, metric.metricId, aggregateKind, `${path}.breakdowns[${index}]`));
+    metric.exceptionGroups.forEach((group, index) => {
+      const itemPath = `${path}.exceptionGroups[${index}]`;
+      assertExactKeys(group, ["providerFingerprint", "sampleSize", "count", "rate"], itemPath);
+      assertNonEmptyString(group.providerFingerprint, `${itemPath}.providerFingerprint`);
+      assertSampleSize(group.sampleSize, `${itemPath}.sampleSize`);
+      if (group.sampleSize < MIN_TELEMETRY_COHORT_SIZE) fail(`${itemPath} is below the privacy floor`, itemPath);
+      assertNonNegativeFinite(group.count, `${itemPath}.count`);
+      assertRate(group.rate, `${itemPath}.rate`);
+    });
+    if (metric.metricId !== "js-exception-rate" && metric.exceptionGroups.length !== 0) {
+      fail(`${path} exception groups are valid only for js-exception-rate`, `${path}.exceptionGroups`);
+    }
+    const sortedBreakdowns = [...metric.breakdowns].sort(sortNormalizedBreakdowns);
+    if (sortedBreakdowns.some((entry, index) => entry !== metric.breakdowns[index])) {
+      fail(`${path}.breakdowns must be sorted`, `${path}.breakdowns`);
+    }
+    const sortedGroups = [...metric.exceptionGroups].sort((left, right) =>
+      compareCodeUnits(left.providerFingerprint, right.providerFingerprint));
+    if (sortedGroups.some((entry, index) => entry !== metric.exceptionGroups[index])) {
+      fail(`${path}.exceptionGroups must be sorted`, `${path}.exceptionGroups`);
+    }
+    return;
+  }
+
+  if (
+    metric.bucketEndedAt !== null || metric.aggregate !== null ||
+    !Array.isArray(metric.breakdowns) || metric.breakdowns.length !== 0 ||
+    !Array.isArray(metric.exceptionGroups) || metric.exceptionGroups.length !== 0
+  ) {
+    fail(`${path} non-AVAILABLE status must not contain measured payload`, path);
+  }
+  if (metric.status === "SUPPRESSED") {
+    if (metric.queryHash === null || metric.suppressedCohortCount < 1 || !hasLowSample) {
+      fail(`${path} has an invalid SUPPRESSED union`, path);
+    }
+  } else if (metric.suppressedCohortCount !== 0) {
+    fail(`${path} non-suppressed status cannot have suppressed cohorts`, `${path}.suppressedCohortCount`);
+  }
+}
+
+export function validateTelemetryCatalog(catalog) {
+  assertJsonTree(catalog, "catalog");
+  rejectForbiddenFields(catalog, "catalog");
+  assertExactKeys(
+    catalog,
+    ["schemaVersion", "provider", "accessLockDigest", "capturedAt", "metrics", "catalogDigest"],
+    "catalog",
+  );
+  if (catalog.schemaVersion !== TELEMETRY_SCHEMA_VERSION) {
+    fail("catalog.schemaVersion is unsupported", "catalog.schemaVersion");
+  }
+  if (catalog.provider !== "posthog") fail("catalog.provider must be posthog", "catalog.provider");
+  assertSha256(catalog.accessLockDigest, "catalog.accessLockDigest");
+  assertUtcIso(catalog.capturedAt, "catalog.capturedAt");
+  assertSha256(catalog.catalogDigest, "catalog.catalogDigest");
+  if (!Array.isArray(catalog.metrics)) fail("catalog.metrics must be an array", "catalog.metrics");
+  let previousMetricId = null;
+  catalog.metrics.forEach((metric, index) => {
+    validateNormalizedMetric(metric, `catalog.metrics[${index}]`);
+    if (previousMetricId !== null && compareCodeUnits(previousMetricId, metric.metricId) >= 0) {
+      fail("catalog.metrics must be sorted and unique", "catalog.metrics");
+    }
+    previousMetricId = metric.metricId;
+  });
+  const expectedDigest = digestJson({
+    schemaVersion: catalog.schemaVersion,
+    provider: catalog.provider,
+    accessLockDigest: catalog.accessLockDigest,
+    capturedAt: catalog.capturedAt,
+    metrics: catalog.metrics,
+  });
+  if (catalog.catalogDigest !== expectedDigest) {
+    fail("catalog.catalogDigest does not match its canonical content", "catalog.catalogDigest");
+  }
+  return { ok: true, errors: [] };
+}
+
+export function buildTelemetryCatalog(input) {
+  assertCallObject(
+    input,
+    ["accessLockDigest", "capturedAt", "candidates", "publicValueAllowlists", "randomUUID"],
+    "buildTelemetryCatalog input",
+  );
+  const { accessLockDigest, capturedAt, candidates, publicValueAllowlists, randomUUID } = input;
+  assertSha256(accessLockDigest, "accessLockDigest");
+  assertUtcIso(capturedAt, "capturedAt");
+  if (typeof randomUUID !== "function") fail("randomUUID must be a function", "randomUUID");
+  assertJsonTree(candidates, "candidates");
+  if (!Array.isArray(candidates)) fail("candidates must be an array", "candidates");
+  validatePublicValueAllowlists(publicValueAllowlists);
+
+  const sortedCandidates = [...candidates].sort((left, right) =>
+    compareCodeUnits(String(left.metricId), String(right.metricId)));
+  const memo = new Map();
+  const rawValueById = new Map();
+  const randomIdForValue = (rawValue) => {
+    assertNonEmptyString(rawValue, "randomIdForValue rawValue");
+    if (memo.has(rawValue)) return memo.get(rawValue);
+    const uuid = randomUUID();
+    if (typeof uuid !== "string" || !UUID_V4.test(uuid)) {
+      fail("randomUUID returned a malformed UUID", "randomUUID", "INVALID_RANDOM_UUID");
+    }
+    const id = `napp-telemetry-bucket-${uuid}`;
+    if (rawValueById.has(id) && rawValueById.get(id) !== rawValue) {
+      fail("randomUUID collided for distinct cohort values", "randomUUID", "RANDOM_UUID_COLLISION");
+    }
+    memo.set(rawValue, id);
+    rawValueById.set(id, rawValue);
+    return id;
+  };
+
+  let metrics;
+  try {
+    const seenMetricIds = new Set();
+    metrics = sortedCandidates.map((entry) => {
+      if (entry.capturedAt !== capturedAt) {
+        fail("every candidate capturedAt must equal catalog capturedAt", "candidate.capturedAt");
+      }
+      if (seenMetricIds.has(entry.metricId)) {
+        fail("catalog candidates must have unique metric IDs", "candidates", "DUPLICATE_TELEMETRY_METRIC");
+      }
+      seenMetricIds.add(entry.metricId);
+      return normalizeAggregateMetric({
+        candidate: entry,
+        publicValueAllowlists,
+        randomIdForValue,
+      });
+    });
+  } finally {
+    memo.clear();
+    rawValueById.clear();
+  }
+
+  const content = {
+    schemaVersion: TELEMETRY_SCHEMA_VERSION,
+    provider: "posthog",
+    accessLockDigest,
+    capturedAt,
+    metrics,
+  };
+  const catalog = {
+    ...content,
+    catalogDigest: digestJson(content),
+  };
+  validateTelemetryCatalog(catalog);
+  return catalog;
+}

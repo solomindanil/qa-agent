@@ -1,0 +1,168 @@
+import { digestJson } from "./model.mjs";
+
+export const TELEMETRY_SCHEMA_VERSION = 1;
+export const MIN_TELEMETRY_COHORT_SIZE = 20;
+export const TELEMETRY_METRIC_IDS = Object.freeze([
+  "telemetry-freshness",
+  "route-health",
+  "funnel-discovery",
+  "funnel-search",
+  "funnel-place-detail",
+  "js-exception-rate",
+  "web-vitals-lcp-p75",
+  "web-vitals-cls-p75",
+  "web-vitals-inp-p75",
+]);
+export const P75_METRIC_IDS = Object.freeze([
+  "web-vitals-lcp-p75",
+  "web-vitals-cls-p75",
+  "web-vitals-inp-p75",
+]);
+export const TELEMETRY_DIMENSIONS = Object.freeze([
+  "browser",
+  "os",
+  "device",
+  "pwa_mode",
+  "release",
+]);
+
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+const P75_METRIC_ID_SET = new Set(P75_METRIC_IDS);
+const TELEMETRY_DIMENSION_SET = new Set(TELEMETRY_DIMENSIONS);
+
+function contractError(message) {
+  const error = new Error(message);
+  error.code = "INVALID_TELEMETRY_P75_PAIR";
+  return error;
+}
+
+function compareCodeUnits(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function assertExactPlainObject(value, keys, path) {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw contractError(`${path} must be a plain object`);
+  }
+  if (Object.getPrototypeOf(value) !== Object.prototype) {
+    throw contractError(`${path} must use the plain object prototype`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    throw contractError(`${path} must not contain symbol keys`);
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  for (const descriptor of Object.values(descriptors)) {
+    if (!("value" in descriptor) || !descriptor.enumerable) {
+      throw contractError(`${path} must contain enumerable data properties only`);
+    }
+  }
+  const actual = Object.keys(value).sort(compareCodeUnits);
+  const expected = [...keys].sort(compareCodeUnits);
+  if (actual.length !== expected.length || actual.some((key, index) => key !== expected[index])) {
+    throw contractError(`${path} has missing or extra keys`);
+  }
+}
+
+function assertDensePlainArray(value, path) {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) {
+    throw contractError(`${path} must be a plain array`);
+  }
+  if (!Number.isSafeInteger(value.length) || value.length > TELEMETRY_DIMENSIONS.length) {
+    throw contractError(`${path} exceeds the reviewed dimension limit`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    throw contractError(`${path} must not contain symbol keys`);
+  }
+  const keys = Object.getOwnPropertyNames(value);
+  if (keys.length !== value.length + 1 || !keys.includes("length")) {
+    throw contractError(`${path} must be dense and contain no extra keys`);
+  }
+  for (const key of keys) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || !("value" in descriptor)) {
+      throw contractError(`${path} must be dense and contain data entries only`);
+    }
+    if (key === "length") continue;
+    if (!/^(0|[1-9][0-9]*)$/.test(key)) {
+      throw contractError(`${path} contains a non-canonical array index`);
+    }
+    const index = Number(key);
+    if (!Number.isSafeInteger(index) || index < 0 || index >= value.length || !descriptor.enumerable) {
+      throw contractError(`${path} contains an invalid array index`);
+    }
+  }
+}
+
+function assertSha256(value, path) {
+  if (typeof value !== "string" || !SHA256_HEX.test(value)) {
+    throw contractError(`${path} must be a lowercase SHA-256 digest`);
+  }
+}
+
+function assertDimensions(dimensions) {
+  assertDensePlainArray(dimensions, "dimensions");
+  let previous = null;
+  for (const [index, dimension] of dimensions.entries()) {
+    if (typeof dimension !== "string" || !TELEMETRY_DIMENSION_SET.has(dimension)) {
+      throw contractError(`dimensions[${index}] is not reviewed`);
+    }
+    if (previous !== null && compareCodeUnits(previous, dimension) >= 0) {
+      throw contractError("dimensions must be sorted and unique");
+    }
+    previous = dimension;
+  }
+}
+
+function validateP75PairDigestInput(value) {
+  assertExactPlainObject(
+    value,
+    ["metricId", "dimensions", "percentile", "sampleCount"],
+    "p75PairDigestInput",
+  );
+  if (!P75_METRIC_ID_SET.has(value.metricId)) {
+    throw contractError("metricId must be a reviewed p75 metric ID");
+  }
+  assertDimensions(value.dimensions);
+  assertExactPlainObject(value.percentile, ["role", "queryHash"], "percentile");
+  assertExactPlainObject(value.sampleCount, ["role", "queryHash"], "sampleCount");
+  if (value.percentile.role !== "p75_value") {
+    throw contractError("percentile role must be p75_value");
+  }
+  if (value.sampleCount.role !== "sample_count") {
+    throw contractError("sampleCount role must be sample_count");
+  }
+  assertSha256(value.percentile.queryHash, "percentile.queryHash");
+  assertSha256(value.sampleCount.queryHash, "sampleCount.queryHash");
+  if (value.percentile.queryHash === value.sampleCount.queryHash) {
+    throw contractError("p75 role hashes must be distinct");
+  }
+  return value;
+}
+
+export function createP75PairDigestInput(input) {
+  assertExactPlainObject(
+    input,
+    ["metricId", "dimensions", "percentileQueryHash", "sampleCountQueryHash"],
+    "createP75PairDigestInput input",
+  );
+  assertDimensions(input.dimensions);
+  const digestInput = {
+    metricId: input.metricId,
+    dimensions: [...input.dimensions],
+    percentile: {
+      role: "p75_value",
+      queryHash: input.percentileQueryHash,
+    },
+    sampleCount: {
+      role: "sample_count",
+      queryHash: input.sampleCountQueryHash,
+    },
+  };
+  validateP75PairDigestInput(digestInput);
+  return digestInput;
+}
+
+export function digestP75Pair(p75PairDigestInput) {
+  validateP75PairDigestInput(p75PairDigestInput);
+  return digestJson(p75PairDigestInput);
+}

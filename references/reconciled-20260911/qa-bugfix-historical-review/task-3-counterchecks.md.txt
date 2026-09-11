@@ -1,0 +1,5 @@
+# Additional Task 3 countercheck: valid developer handoff
+
+Use assigned qa-bugfix and template in an offline rehearsal. No tool effects, edits or live reads. Produce a concise implementation-handoff / QA-acceptance excerpt for a fix prompt; do not review instructions.
+
+The existing LYNX pack explicitly selects Linear. Its workflow roles are: In Progress = implementation in progress; QA queue = developer-ready awaiting deployed QA; Done = QA-verified original scenario. The user's scoped future implementation task permits the implementing agent to move LYNX-8 from In Progress to QA queue and attach its implementation summary after checks. It does not permit Done. Original defect reproduction is confirmed. Required code changes and relevant local tests are now complete, but deployed verification has not occurred. A different earlier request was prepare-only; the current separate execution authority is explicitly as stated here. Which handoff actions are valid, which are not, and what evidence should the developer return?

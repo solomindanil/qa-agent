@@ -1,0 +1,199 @@
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, resolve } from "node:path";
+
+import { buildProductCiRun, validateProductTestCatalog } from "../src/model.mjs";
+import {
+  assertEverySelectedProductTestPassed,
+  buildObservedProductCiRows,
+  readProductCiMachineReports,
+} from "../src/product-ci-proof.mjs";
+
+const NODE_TEST_REPORTER = `export default async function* productCiReporter(source) {
+  for await (const event of source) {
+    if (event.type === "test:pass" || event.type === "test:fail") {
+      yield \`${"${JSON.stringify(event)}"}\\n\`;
+    }
+  }
+}
+`;
+
+const PRODUCTION_RELEASE_EXACT_NODE_TESTS = new Set([
+  "scripts/infra/tests/joglo-production-candidate.test.mjs",
+  "scripts/infra/tests/joglo-active-cutover.test.mjs",
+]);
+let productionReleaseSelectionVerified = false;
+
+const sourceRoot = argument("--source-root");
+const catalogPath = argument("--catalog");
+const outputPath = argument("--output");
+if (!sourceRoot || !catalogPath || !outputPath) {
+  throw new TypeError("--source-root, --catalog and --output are required");
+}
+const resolvedSourceRoot = resolve(sourceRoot);
+
+const catalog = validateProductTestCatalog(JSON.parse(await readFile(resolve(catalogPath), "utf8")));
+const sourceSha = git(["rev-parse", "HEAD"]).trim();
+if (sourceSha !== catalog.sourceSha) throw new TypeError("PRODUCT_CI_SOURCE_SHA_MISMATCH");
+if (git(["status", "--porcelain", "--untracked-files=no"]).trim()) {
+  throw new TypeError("PRODUCT_CI_SOURCE_TREE_DIRTY_BEFORE_RUN");
+}
+for (const test of catalog.tests) await verifySelectedByTestCi(test);
+
+const instrumentation = await createReporterInstrumentation();
+let rows;
+try {
+  const result = spawnSync("pnpm", ["test:ci"], {
+    cwd: resolvedSourceRoot,
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      PATH: `${instrumentation.binDirectory}:${process.env.PATH ?? ""}`,
+    },
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new TypeError(`PRODUCT_CI_FAILED ${result.status}`);
+  if (git(["rev-parse", "HEAD"]).trim() !== sourceSha) throw new TypeError("PRODUCT_CI_SOURCE_SHA_DRIFT");
+  if (git(["status", "--porcelain", "--untracked-files=no"]).trim()) {
+    throw new TypeError("PRODUCT_CI_SOURCE_TREE_DIRTY_AFTER_RUN");
+  }
+  const observations = await readProductCiMachineReports({
+    reportDirectory: instrumentation.reportDirectory,
+    sourceRoot: resolvedSourceRoot,
+  });
+  rows = buildObservedProductCiRows({ catalog, observations });
+  assertEverySelectedProductTestPassed(rows);
+} finally {
+  await rm(instrumentation.root, { recursive: true, force: true });
+}
+
+const run = buildProductCiRun({
+  catalog,
+  state: "completed",
+  observedAt: new Date().toISOString(),
+  execution: {
+    command: "pnpm test:ci",
+    exitCode: 0,
+    selectionVerified: true,
+    sourceTreeClean: true,
+  },
+  rows,
+});
+const payload = `${JSON.stringify(run, null, 2)}\n`;
+const target = resolve(outputPath);
+const temporary = resolve(dirname(target), `.${target.split("/").at(-1)}.tmp`);
+await writeFile(temporary, payload, { mode: 0o600 });
+await rename(temporary, target);
+
+async function verifySelectedByTestCi(test) {
+  if (/\.integration\.test\.[cm]?[jt]sx?$/.test(test.file)) {
+    throw new TypeError(`PRODUCT_CI_TEST_EXCLUDED_BY_RUNNER ${test.file}`);
+  }
+  const selected = /^apps\/api\/tests\/.*\.test\.ts$/.test(test.file)
+    || /^apps\/web\/tests\/.*\.behavior\.test\.tsx?$/.test(test.file)
+    || /^apps\/web\/tests\/.*\.test\.mjs$/.test(test.file)
+    || /^scripts\/prod\/tests\/[^/]+\.test\.mjs$/.test(test.file)
+    || PRODUCTION_RELEASE_EXACT_NODE_TESTS.has(test.file);
+  if (!selected) throw new TypeError(`PRODUCT_CI_TEST_NOT_SELECTED ${test.file}`);
+  if (isProductionReleaseNodeTest(test.file)) verifyProductionReleaseSelectedByTestCi();
+  execFileSync("git", ["cat-file", "-e", `${sourceSha}:${test.file}`], { cwd: resolvedSourceRoot });
+  const source = await readFile(resolve(resolvedSourceRoot, test.file), "utf8");
+  if (!sourceContainsSelector(source, test.selector)) throw new TypeError(`PRODUCT_CI_SELECTOR_MISSING ${test.id}`);
+  if (new RegExp(`(?:it|test)\\.(?:skip|todo)\\s*\\(\\s*['\"]${escapeRegExp(test.selector)}['\"]`).test(source)) {
+    throw new TypeError(`PRODUCT_CI_SELECTOR_SKIPPED ${test.id}`);
+  }
+}
+
+function verifyProductionReleaseSelectedByTestCi() {
+  if (productionReleaseSelectionVerified) return;
+  let packageJson;
+  try {
+    packageJson = JSON.parse(git(["show", `${sourceSha}:package.json`]));
+  } catch {
+    throw new TypeError("PRODUCT_CI_COMMITTED_PACKAGE_INVALID");
+  }
+  const testCi = packageJson?.scripts?.["test:ci"];
+  if (
+    typeof testCi !== "string"
+    || !/(?:^|&&)\s*pnpm(?:\s+run)?\s+test:production-release\s*(?=&&|$)/u.test(testCi)
+  ) {
+    throw new TypeError("PRODUCT_CI_PRODUCTION_RELEASE_NOT_SELECTED");
+  }
+  productionReleaseSelectionVerified = true;
+}
+
+function isProductionReleaseNodeTest(file) {
+  return /^scripts\/prod\/tests\/[^/]+\.test\.mjs$/.test(file)
+    || PRODUCTION_RELEASE_EXACT_NODE_TESTS.has(file);
+}
+
+async function createReporterInstrumentation() {
+  const root = await mkdtemp(resolve(tmpdir(), "freeland-product-ci-reports-"));
+  const binDirectory = resolve(root, "bin");
+  const reportDirectory = resolve(root, "reports");
+  const nodeReporter = resolve(root, "node-test-reporter.mjs");
+  await mkdir(binDirectory);
+  await mkdir(reportDirectory);
+  await writeFile(nodeReporter, NODE_TEST_REPORTER, { mode: 0o600 });
+  await writeFile(resolve(binDirectory, "node"), nodeWrapper({ reportDirectory, nodeReporter }), { mode: 0o700 });
+  return { root, binDirectory, reportDirectory };
+}
+
+function nodeWrapper({ reportDirectory, nodeReporter }) {
+  return `#!/bin/sh
+real_node=${shellQuote(process.execPath)}
+report_directory=${shellQuote(reportDirectory)}
+node_reporter=${shellQuote(nodeReporter)}
+
+case "$1" in
+  */vitest.mjs)
+    if [ "\${FREELAND_PRODUCT_CI_NESTED_REPORTER:-}" = "1" ]; then
+      exec "$real_node" "$@"
+    fi
+    output="$(mktemp "$report_directory/vitest.XXXXXX")" || exit 70
+    FREELAND_PRODUCT_CI_NESTED_REPORTER=1 exec "$real_node" "$@" --reporter=json --outputFile="$output"
+    ;;
+esac
+
+for argument in "$@"; do
+  if [ "$argument" = "--test" ]; then
+    if [ "\${FREELAND_PRODUCT_CI_NESTED_REPORTER:-}" = "1" ]; then
+      exec "$real_node" "$@"
+    fi
+    output="$(mktemp "$report_directory/node-test.XXXXXX")" || exit 70
+    FREELAND_PRODUCT_CI_NESTED_REPORTER=1 exec "$real_node" --test-reporter="$node_reporter" --test-reporter-destination="$output" "$@"
+  fi
+done
+
+exec "$real_node" "$@"
+`;
+}
+
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", `'\\''`)}'`;
+}
+
+function sourceContainsSelector(source, selector) {
+  if (source.includes(selector)) return true;
+  for (const match of source.matchAll(/(['"`])([^'"`\n]*%s[^'"`\n]*)\1/g)) {
+    const [prefix, suffix] = match[2].split("%s");
+    if (suffix === undefined || !selector.startsWith(prefix) || !selector.endsWith(suffix)) continue;
+    const substitution = selector.slice(prefix.length, selector.length - suffix.length);
+    if (substitution && source.includes(substitution)) return true;
+  }
+  return false;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function git(args) {
+  return execFileSync("git", args, { cwd: resolvedSourceRoot, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+}
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}

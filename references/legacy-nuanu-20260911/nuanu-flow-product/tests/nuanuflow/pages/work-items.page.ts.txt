@@ -1,0 +1,1285 @@
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Request,
+  type Response,
+  type Route,
+} from '@playwright/test';
+import { QA_PREFIX, SANDBOX } from '../fixtures/sandbox-data';
+
+export type CreatedWorkItem = {
+  id: string;
+  name: string;
+  projectId: string;
+  requestCount: number;
+  sequenceId: number;
+};
+
+export type ResponseOwnedWorkItem = Omit<CreatedWorkItem, 'requestCount'>;
+
+type OwnedWorkItemRecord = {
+  deleted: boolean;
+  names: Set<string>;
+  projectId: string;
+  sequenceId: number;
+};
+
+type CreateWorkItemInput = {
+  title: string;
+  description?: string;
+  doubleSubmit?: boolean;
+};
+
+const LIST_PATH =
+  `/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/issues/`;
+const ISSUE_API_PATH =
+  `/be/api/workspaces/${SANDBOX.workspaceSlug}/projects/${SANDBOX.projectId}/issues/`;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const CANONICAL_WORK_ITEM_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+export const isCanonicalWorkItemId = (value: unknown): value is string =>
+  typeof value === 'string' && CANONICAL_WORK_ITEM_ID.test(value);
+
+const parseCreatedWorkItem = (
+  body: unknown,
+  requestedName: string,
+): ResponseOwnedWorkItem => {
+  if (!requestedName.startsWith(`${QA_PREFIX} `)) {
+    throw new Error('Work-item create request name was not run-owned.');
+  }
+  if (!isRecord(body)) throw new Error('Work-item create response was not an object.');
+  const { id, name, project_id: projectId, sequence_id: sequenceId } = body;
+  if (
+    !isCanonicalWorkItemId(id) ||
+    typeof name !== 'string' ||
+    typeof projectId !== 'string' ||
+    typeof sequenceId !== 'number'
+  ) {
+    throw new Error('Work-item create response omitted its exact ID contract.');
+  }
+  if (!Number.isInteger(sequenceId) || sequenceId < 1) {
+    throw new Error('Work-item create response sequence was not canonical.');
+  }
+  if (name !== requestedName || projectId !== SANDBOX.projectId) {
+    throw new Error('Work-item create response identity did not match the request.');
+  }
+  return { id, name, projectId, sequenceId };
+};
+
+export const registerResponseOwnedWorkItems = (
+  bodies: unknown[],
+  requestCount: number,
+  requestedName: string,
+  register: (created: CreatedWorkItem) => void,
+): CreatedWorkItem[] => {
+  const createdItems: CreatedWorkItem[] = [];
+  let firstRegistrationError: unknown;
+  for (const body of bodies) {
+    const created = {
+      ...parseCreatedWorkItem(body, requestedName),
+      requestCount,
+    };
+    try {
+      register(created);
+    } catch (error) {
+      firstRegistrationError ??= error;
+    }
+    createdItems.push(created);
+  }
+  if (firstRegistrationError) throw firstRegistrationError;
+  return createdItems;
+};
+
+type ObservationWindowOptions = {
+  quietMs?: number;
+  maxAdmissionMs?: number;
+};
+
+export type ExactPostContractError = {
+  requestOrdinal: number;
+  observedId?: string;
+  exactId?: string;
+  error: unknown;
+};
+
+export type ExactPostRegistrationError = {
+  requestOrdinal: number;
+  id: string;
+  exactId: string;
+  error: unknown;
+};
+
+export type ExactPostCleanupError = {
+  id: string;
+  error: unknown;
+};
+
+export type ExactPostCapture = {
+  attemptCount: number;
+  responseCount: number;
+  created: CreatedWorkItem[];
+  non201: Array<{ status: number; url: string }>;
+  contractErrors: ExactPostContractError[];
+  registrationErrors: ExactPostRegistrationError[];
+  failedAttempts: Array<{ requestOrdinal: number; url: string }>;
+};
+
+type BlockedExactPostOptions = ObservationWindowOptions & {
+  page: Page;
+  endpoint: string;
+  action: () => Promise<unknown>;
+};
+
+export type BlockedExactPostResult = {
+  attemptCount: number;
+  actionError?: unknown;
+};
+
+type DisplaySectionLocatorOptions = {
+  label: string;
+  uniqueButton: string;
+  excludedLabel?: string;
+};
+
+export const displaySectionLocator = (
+  page: Page,
+  { label, uniqueButton, excludedLabel }: DisplaySectionLocatorOptions,
+): Locator => {
+  let candidates = page
+    .locator('div')
+    .filter({ has: page.getByText(label, { exact: true }) })
+    .filter({
+      has: page.getByRole('button', { name: uniqueButton, exact: true }),
+    });
+  if (excludedLabel) {
+    candidates = candidates.filter({
+      hasNot: page.getByText(excludedLabel, { exact: true }),
+    });
+  }
+  return candidates.last();
+};
+
+const FILTER_OPTION_NAMES = [
+  'State',
+  'State Group',
+  'Assignees',
+  'Priority',
+  'Mentions',
+  'Label',
+  'Cycle',
+  'Module',
+  'Start date',
+  'Target date',
+  'Created at',
+  'Updated at',
+  'Created by',
+] as const;
+
+export const assertExactVisibleOptionInventory = async (
+  listbox: Locator,
+  expectedNames: readonly string[],
+) => {
+  await expect(listbox).toBeVisible();
+  await expect(listbox.getByRole('option')).toHaveCount(expectedNames.length);
+  for (const name of expectedNames) {
+    const option = listbox.getByRole('option', { name, exact: true });
+    await expect(option).toHaveCount(1);
+    await expect(option).toBeVisible();
+  }
+};
+
+export const cleanupRegistrationFailures = async (
+  registrationErrors: ExactPostRegistrationError[],
+  cleanupExactId: (id: string) => Promise<unknown>,
+): Promise<ExactPostCleanupError[]> => {
+  const cleanupErrors: ExactPostCleanupError[] = [];
+  for (const { id } of [...registrationErrors].reverse()) {
+    try {
+      await cleanupExactId(id);
+    } catch (error) {
+      cleanupErrors.push({ id, error });
+    }
+  }
+  return cleanupErrors;
+};
+
+const exactResponseIdentity = (body: unknown) => {
+  if (!isRecord(body)) return {};
+  const observedId =
+    typeof body.id === 'string' && body.id.length > 0 ? body.id : undefined;
+  const exactId = isCanonicalWorkItemId(observedId) ? observedId : undefined;
+  return { observedId, exactId };
+};
+
+export const assertExactOwnedCleanupTarget = (
+  body: unknown,
+  exactId: string,
+  requestedName: string,
+) => {
+  if (
+    !requestedName.startsWith(`${QA_PREFIX} `) ||
+    !isCanonicalWorkItemId(exactId) ||
+    !isRecord(body) ||
+    body.id !== exactId ||
+    body.name !== requestedName ||
+    body.project_id !== SANDBOX.projectId
+  ) {
+    throw new Error(
+      'Refusing exact-ID cleanup without an exact ownership match.',
+    );
+  }
+  return body;
+};
+
+export const reconcileExactPostCaptureFailures = async (
+  capture: ExactPostCapture,
+  cleanupExactId: (id: string) => Promise<unknown>,
+): Promise<void> => {
+  const failures = [
+    ...capture.contractErrors,
+    ...capture.registrationErrors,
+  ].sort((left, right) => left.requestOrdinal - right.requestOrdinal);
+  if (failures.length === 0) return;
+
+  const seenIds = new Set<string>();
+  const cleanupTargets: ExactPostRegistrationError[] = [];
+  for (const failure of failures) {
+    if (
+      !isCanonicalWorkItemId(failure.exactId) ||
+      seenIds.has(failure.exactId)
+    ) {
+      continue;
+    }
+    seenIds.add(failure.exactId);
+    cleanupTargets.push({
+      requestOrdinal: failure.requestOrdinal,
+      id: failure.exactId,
+      exactId: failure.exactId,
+      error: failure.error,
+    });
+  }
+  const cleanupErrors = await cleanupRegistrationFailures(
+    cleanupTargets,
+    cleanupExactId,
+  );
+  const unresolvedIdentityErrors = capture.contractErrors
+    .filter(
+      ({ observedId, exactId }) =>
+        observedId !== undefined && exactId === undefined,
+    )
+    .map(
+      ({ observedId }) =>
+        new Error(`Unreconciled non-canonical response ID: ${observedId}`),
+    );
+  throw new AggregateError(
+    [
+      ...failures.map(({ error }) => error),
+      ...unresolvedIdentityErrors,
+      ...cleanupErrors.map(
+        ({ id, error }) =>
+          new AggregateError(
+            [error],
+            `Exact-ID cleanup failed; residual ID: ${id}`,
+          ),
+      ),
+    ],
+    'Exact POST capture failed after guarded cleanup.',
+  );
+};
+
+const DEFAULT_QUIET_MS = 500;
+const DEFAULT_MAX_ADMISSION_MS = 2_000;
+
+const delay = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+const waitForObservationWindow = async ({
+  startedAt,
+  lastActivityAt,
+  activityCount,
+  pendingCount,
+  quietMs,
+  maxAdmissionMs,
+  requireActivity,
+}: {
+  startedAt: number;
+  lastActivityAt: () => number;
+  activityCount: () => number;
+  pendingCount: () => number;
+  quietMs: number;
+  maxAdmissionMs: number;
+  requireActivity: boolean;
+}) => {
+  while (true) {
+    const now = Date.now();
+    const elapsed = now - startedAt;
+    const quietFor = now - lastActivityAt();
+    const hasRequiredActivity = !requireActivity || activityCount() > 0;
+    if (
+      hasRequiredActivity &&
+      pendingCount() === 0 &&
+      quietFor >= quietMs
+    ) {
+      return;
+    }
+    if (elapsed >= maxAdmissionMs) return;
+
+    const untilQuiet = Math.max(1, quietMs - quietFor);
+    const untilLimit = Math.max(1, maxAdmissionMs - elapsed);
+    await delay(Math.min(25, untilQuiet, untilLimit));
+  }
+};
+
+const isThenable = (value: unknown): value is PromiseLike<unknown> =>
+  isRecord(value) && typeof value.then === 'function';
+
+type ObservedExactPost = {
+  request: Request;
+  requestOrdinal: number;
+  responseHandled: boolean;
+  terminalResolved: boolean;
+  terminal: Promise<void>;
+  resolveTerminal: () => void;
+};
+
+export class ExactPostResponseCollector {
+  readonly #observed = new Map<Request, ObservedExactPost>();
+  readonly #createdByOrdinal = new Map<number, ResponseOwnedWorkItem>();
+  readonly #non201ByOrdinal = new Map<
+    number,
+    { status: number; url: string }
+  >();
+  readonly #contractErrorsByOrdinal = new Map<
+    number,
+    ExactPostContractError
+  >();
+  readonly #registrationErrorsByOrdinal = new Map<
+    number,
+    ExactPostRegistrationError
+  >();
+  readonly #failedByOrdinal = new Map<
+    number,
+    { requestOrdinal: number; url: string }
+  >();
+  readonly #responseOrdinals = new Set<number>();
+  #lastActivityAt = Date.now();
+  #admissionClosed = false;
+  #disposed = false;
+
+  readonly #quietMs: number;
+  readonly #maxAdmissionMs: number;
+
+  readonly #onRequest = (request: Request) => {
+    if (
+      this.#admissionClosed ||
+      request.method() !== 'POST' ||
+      request.url() !== this.endpoint
+    ) {
+      return;
+    }
+    let resolveTerminal = () => {};
+    const terminal = new Promise<void>((resolve) => {
+      resolveTerminal = resolve;
+    });
+    this.#observed.set(request, {
+      request,
+      requestOrdinal: this.#observed.size,
+      responseHandled: false,
+      terminalResolved: false,
+      terminal,
+      resolveTerminal,
+    });
+    this.#lastActivityAt = Date.now();
+  };
+
+  readonly #onResponse = (response: Response) => {
+    const observed = this.#observed.get(response.request());
+    if (!observed || observed.responseHandled) return;
+    this.#startResponseProcessing(observed, response);
+  };
+
+  readonly #onRequestFailed = (request: Request) => {
+    const observed = this.#observed.get(request);
+    if (!observed || observed.responseHandled) return;
+    observed.responseHandled = true;
+    this.#failedByOrdinal.set(observed.requestOrdinal, {
+      requestOrdinal: observed.requestOrdinal,
+      url: request.url(),
+    });
+    this.#resolveTerminal(observed);
+  };
+
+  constructor(
+    readonly page: Page,
+    readonly endpoint: string,
+    readonly requestedName: string,
+    readonly register: (created: ResponseOwnedWorkItem) => unknown,
+    options: ObservationWindowOptions = {},
+  ) {
+    if (!this.requestedName.startsWith(`${QA_PREFIX} `)) {
+      throw new Error('Exact POST collector requires a full run-owned name.');
+    }
+    this.#quietMs = options.quietMs ?? DEFAULT_QUIET_MS;
+    this.#maxAdmissionMs =
+      options.maxAdmissionMs ?? DEFAULT_MAX_ADMISSION_MS;
+    this.page.on('request', this.#onRequest);
+    this.page.on('response', this.#onResponse);
+    this.page.on('requestfailed', this.#onRequestFailed);
+  }
+
+  async settle({ requireAttempt = true }: { requireAttempt?: boolean } = {}) {
+    const settleStartedAt = Date.now();
+    this.#lastActivityAt = Math.max(this.#lastActivityAt, settleStartedAt);
+    await waitForObservationWindow({
+      startedAt: settleStartedAt,
+      lastActivityAt: () => this.#lastActivityAt,
+      activityCount: () => this.#observed.size,
+      pendingCount: () => this.#pendingCount(),
+      quietMs: this.#quietMs,
+      maxAdmissionMs: this.#maxAdmissionMs,
+      requireActivity: requireAttempt,
+    });
+    this.#closeAdmission();
+    const observed = [...this.#observed.values()].sort(
+      (left, right) => left.requestOrdinal - right.requestOrdinal,
+    );
+    try {
+      await Promise.allSettled(observed.map(({ terminal }) => terminal));
+    } finally {
+      this.#dispose();
+    }
+
+    const attemptCount = observed.length;
+    return {
+      attemptCount,
+      responseCount: this.#responseOrdinals.size,
+      created: this.#sortedValues(this.#createdByOrdinal).map((created) => ({
+        ...created,
+        requestCount: attemptCount,
+      })),
+      non201: this.#sortedValues(this.#non201ByOrdinal),
+      contractErrors: this.#sortedValues(this.#contractErrorsByOrdinal),
+      registrationErrors: this.#sortedValues(
+        this.#registrationErrorsByOrdinal,
+      ),
+      failedAttempts: this.#sortedValues(this.#failedByOrdinal),
+    } satisfies ExactPostCapture;
+  }
+
+  #dispose() {
+    if (this.#disposed) return;
+    this.#closeAdmission();
+    this.page.off('response', this.#onResponse);
+    this.page.off('requestfailed', this.#onRequestFailed);
+    this.#disposed = true;
+  }
+
+  #closeAdmission() {
+    if (this.#admissionClosed) return;
+    this.#admissionClosed = true;
+    this.page.off('request', this.#onRequest);
+  }
+
+  #startResponseProcessing(observed: ObservedExactPost, response: Response) {
+    observed.responseHandled = true;
+    this.#responseOrdinals.add(observed.requestOrdinal);
+    void this.#processResponse(observed, response)
+      .catch((error) => {
+        this.#contractErrorsByOrdinal.set(observed.requestOrdinal, {
+          requestOrdinal: observed.requestOrdinal,
+          error,
+        });
+      })
+      .finally(() => this.#resolveTerminal(observed));
+  }
+
+  async #processResponse(observed: ObservedExactPost, response: Response) {
+    const { requestOrdinal } = observed;
+    if (response.status() !== 201) {
+      this.#non201ByOrdinal.set(requestOrdinal, {
+        status: response.status(),
+        url: response.url(),
+      });
+      return;
+    }
+
+    let body: unknown;
+    let created: ResponseOwnedWorkItem;
+    try {
+      body = await response.json();
+      created = parseCreatedWorkItem(body, this.requestedName);
+    } catch (error) {
+      this.#contractErrorsByOrdinal.set(requestOrdinal, {
+        requestOrdinal,
+        ...exactResponseIdentity(body),
+        error,
+      });
+      return;
+    }
+    this.#createdByOrdinal.set(requestOrdinal, created);
+
+    try {
+      const result = this.register(created);
+      if (isThenable(result)) {
+        throw new Error('Exact-ID registration callback must be synchronous.');
+      }
+    } catch (error) {
+      this.#registrationErrorsByOrdinal.set(requestOrdinal, {
+        requestOrdinal,
+        id: created.id,
+        exactId: created.id,
+        error,
+      });
+    }
+  }
+
+  #sortedValues<T>(values: Map<number, T>): T[] {
+    return [...values.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([, value]) => value);
+  }
+
+  #pendingCount(): number {
+    let pending = 0;
+    for (const { terminalResolved } of this.#observed.values()) {
+      if (!terminalResolved) pending += 1;
+    }
+    return pending;
+  }
+
+  #resolveTerminal(observed: ObservedExactPost) {
+    if (observed.terminalResolved) return;
+    observed.terminalResolved = true;
+    observed.resolveTerminal();
+  }
+}
+
+export const withBlockedExactPosts = async ({
+  page,
+  endpoint,
+  action,
+  quietMs = DEFAULT_QUIET_MS,
+  maxAdmissionMs = DEFAULT_MAX_ADMISSION_MS,
+}: BlockedExactPostOptions): Promise<BlockedExactPostResult> => {
+  const startedAt = Date.now();
+  let lastActivityAt = startedAt;
+  let attemptCount = 0;
+  let actionError: unknown;
+  const blockExactPost = async (route: Route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    attemptCount += 1;
+    lastActivityAt = Date.now();
+    await route.abort('blockedbyclient');
+  };
+
+  await page.route(endpoint, blockExactPost);
+  try {
+    try {
+      await action();
+    } catch (error) {
+      actionError = error;
+    }
+    const settleStartedAt = Date.now();
+    lastActivityAt = Math.max(lastActivityAt, settleStartedAt);
+    await waitForObservationWindow({
+      startedAt: settleStartedAt,
+      lastActivityAt: () => lastActivityAt,
+      activityCount: () => attemptCount,
+      pendingCount: () => 0,
+      quietMs,
+      maxAdmissionMs,
+      requireActivity: false,
+    });
+  } finally {
+    await page.unroute(endpoint, blockExactPost);
+  }
+
+  return { attemptCount, actionError };
+};
+
+const ordinal = (day: number) => {
+  const mod100 = day % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${day}th`;
+  if (day % 10 === 1) return `${day}st`;
+  if (day % 10 === 2) return `${day}nd`;
+  if (day % 10 === 3) return `${day}rd`;
+  return `${day}th`;
+};
+
+const calendarName = (date: Date) => {
+  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
+  const month = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(date);
+  return `${weekday}, ${month} ${ordinal(date.getDate())}, ${date.getFullYear()}`;
+};
+
+export class WorkItemsPage {
+  readonly addWorkItem: Locator;
+  readonly title: Locator;
+  readonly commentButton: Locator;
+  readonly titleValidation: Locator;
+  readonly filterButton: Locator;
+  readonly displayButton: Locator;
+
+  #currentId?: string;
+  #currentDescription?: string;
+  readonly #ownedRecords = new Map<string, OwnedWorkItemRecord>();
+
+  constructor(readonly page: Page) {
+    this.addWorkItem = page.getByRole('button', {
+      name: 'Add work item',
+      exact: true,
+    });
+    this.title = page.getByRole('textbox', {
+      name: 'Work item title',
+      exact: true,
+    });
+    this.commentButton = page.getByRole('button', {
+      name: 'Comment',
+      exact: true,
+    });
+    this.titleValidation = page.getByText(
+      'Title should be less than 255 characters',
+      { exact: true },
+    );
+    this.filterButton = page.locator('main button:has(svg.lucide-list-filter)');
+    this.displayButton = page.getByRole('button', {
+      name: 'Display',
+      exact: true,
+    });
+  }
+
+  get description(): Locator {
+    const editor = this.page.locator('main [contenteditable="true"]');
+    return this.#currentDescription
+      ? editor.filter({ hasText: this.#currentDescription })
+      : editor;
+  }
+
+  get stateButton(): Locator {
+    return this.propertyRow('State').getByRole('button');
+  }
+
+  get priorityButton(): Locator {
+    return this.propertyRow('Priority').getByRole('button');
+  }
+
+  get detailMain(): Locator {
+    return this.page.locator('main.relative.flex.h-full.w-full.flex-col');
+  }
+
+  issueEndpoint(id: string): string {
+    if (!isCanonicalWorkItemId(id)) {
+      throw new Error('Refusing to construct an issue endpoint for a non-UUID ID.');
+    }
+    return new URL(`${ISSUE_API_PATH}${id}/`, this.page.url()).href;
+  }
+
+  async goto() {
+    await this.page.goto(LIST_PATH, { waitUntil: 'domcontentloaded' });
+    await expect(this.addWorkItem).toBeVisible({ timeout: 15_000 });
+  }
+
+  async create(
+    input: CreateWorkItemInput,
+    registerEveryCreated: (created: ResponseOwnedWorkItem) => void,
+  ): Promise<CreatedWorkItem> {
+    if (!input.title.startsWith(`${QA_PREFIX} `)) {
+      throw new Error(`Create titles must start with ${QA_PREFIX}.`);
+    }
+    await this.addWorkItem.click();
+    const dialog = this.createDialog();
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('textbox', { name: 'Title', exact: true }).fill(input.title);
+    if (input.description) {
+      await dialog.locator('[contenteditable="true"]').fill(input.description);
+    }
+
+    const save = dialog.getByRole('button', { name: 'Save', exact: true });
+    const created = await this.captureOwnedCreation(
+      input.title,
+      registerEveryCreated,
+      async () => {
+        if (input.doubleSubmit) await save.dblclick();
+        else await save.click();
+      },
+    );
+    await expect(dialog).toBeHidden();
+    this.#currentId = created.id;
+    this.#currentDescription = input.description;
+    return created;
+  }
+
+  async openByName(name: string, created: CreatedWorkItem) {
+    expect(created.name).toBe(name);
+    expect(created.projectId).toBe(SANDBOX.projectId);
+    const link = this.page.getByRole('link').filter({ hasText: name });
+    await expect(link).toHaveCount(1);
+    await link.click();
+    await expect(this.title).toHaveValue(name);
+    await this.page.goto(`/${SANDBOX.workspaceSlug}/browse/NFQAS-${created.sequenceId}/`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(this.page).toHaveURL(
+      new URL(`/${SANDBOX.workspaceSlug}/browse/NFQAS-${created.sequenceId}/`, this.page.url())
+        .href,
+    );
+    await expect(this.title).toHaveValue(name);
+    this.#currentId = created.id;
+  }
+
+  async assertCurrentResponseOwned(item: CreatedWorkItem) {
+    if (item.projectId !== SANDBOX.projectId) {
+      throw new Error('Current work item must belong to the exact sandbox project.');
+    }
+    if (
+      !isCanonicalWorkItemId(item.id) ||
+      !item.name.startsWith(`${QA_PREFIX} `) ||
+      item.requestCount !== 1 ||
+      !Number.isInteger(item.sequenceId) ||
+      item.sequenceId < 1
+    ) {
+      throw new Error('Current work item lacks a canonical response-owned identity.');
+    }
+
+    const owned = this.#ownedRecords.get(item.id);
+    if (!owned || owned.deleted) {
+      throw new Error('Current work item is absent from the create-response ledger.');
+    }
+    if (
+      this.#currentId !== item.id ||
+      owned.projectId !== item.projectId ||
+      owned.sequenceId !== item.sequenceId ||
+      !owned.names.has(item.name)
+    ) {
+      throw new Error('Current work item does not match the exact owned identity.');
+    }
+
+    const expectedPath =
+      `/${SANDBOX.workspaceSlug}/browse/NFQAS-${item.sequenceId}/`;
+    if (new URL(this.page.url()).pathname !== expectedPath) {
+      throw new Error('Current route does not match the response-owned work item.');
+    }
+    await expect(this.title).toHaveValue(item.name);
+  }
+
+  async copyLinkWithFeedback() {
+    const copyLink = this.detailMain.locator(
+      'button.grid.h-5.w-5:has(svg.lucide-link)',
+    );
+    await expect(copyLink).toHaveCount(1);
+    await copyLink.click();
+    const feedback = this.page.getByRole('dialog', {
+      name: 'Link copied!',
+      exact: true,
+    });
+    await expect(feedback).toBeVisible();
+    await expect(feedback).toContainText('Work item link copied to clipboard');
+  }
+
+  async cancelOwnedDelete() {
+    this.requireCurrentId();
+    const actionMenu = this.detailActionMenu();
+    await expect(actionMenu).toHaveCount(1);
+    await actionMenu.click();
+    const deleteItem = this.page.getByRole('menuitem', {
+      name: 'Delete',
+      exact: true,
+    });
+    await expect(deleteItem).toHaveCount(1);
+    await deleteItem.click();
+
+    const dialog = this.page.getByRole('dialog').filter({
+      has: this.page.getByRole('heading', {
+        name: 'Delete Work item',
+        exact: true,
+      }),
+    });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(this.title).toBeVisible();
+  }
+
+  async duplicateOwned(
+    name: string,
+    registerEveryCreated: (created: ResponseOwnedWorkItem) => void,
+  ): Promise<CreatedWorkItem> {
+    if (!name.startsWith(`${QA_PREFIX} `)) {
+      throw new Error(`Duplicate titles must start with ${QA_PREFIX}.`);
+    }
+    this.requireCurrentId();
+    const actionMenu = this.detailActionMenu();
+    await expect(actionMenu).toHaveCount(1);
+    await actionMenu.click();
+    const makeCopy = this.page.getByRole('menuitem', {
+      name: 'Make a copy',
+      exact: true,
+    });
+    await expect(makeCopy).toHaveCount(1);
+    await makeCopy.click();
+
+    const title = this.page.getByRole('textbox', { name: 'Title', exact: true });
+    await expect(title).toHaveCount(1);
+    await title.fill(name);
+    const save = this.page.getByRole('button', { name: 'Save', exact: true });
+    await expect(save).toHaveCount(1);
+    const created = await this.captureOwnedCreation(
+      name,
+      registerEveryCreated,
+      () => save.click(),
+    );
+    await expect(title).toBeHidden();
+    return created;
+  }
+
+  async addRelatesTo(target: CreatedWorkItem) {
+    const sourceId = this.requireCurrentId();
+    const targetOwned = this.#ownedRecords.get(target.id);
+    if (!targetOwned || target.projectId !== SANDBOX.projectId) {
+      throw new Error('Relation target must be present in the exact-ID ledger.');
+    }
+
+    await this.page.getByRole('button', { name: 'Add relation', exact: true }).click();
+    await this.page
+      .getByRole('menuitem', { name: 'Relates to', exact: true })
+      .click();
+    const option = this.page.getByRole('option', {
+      name: `NFQAS-${target.sequenceId} ${target.name}`,
+      exact: true,
+    });
+    await expect(option).toHaveCount(1);
+    await option.click();
+
+    const addSelected = this.page.getByRole('button', {
+      name: 'Add selected work items',
+      exact: true,
+    });
+    await expect(addSelected).toBeEnabled();
+    const endpoint = new URL(
+      `${ISSUE_API_PATH}${sourceId}/issue-relation/`,
+      this.page.url(),
+    ).href;
+    const responsePromise = this.page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && response.url() === endpoint,
+    );
+    await addSelected.click();
+    const response = await responsePromise;
+    expect(response.status()).toBe(201);
+    const body: unknown = await response.json();
+    expect(Array.isArray(body)).toBe(true);
+    if (!Array.isArray(body)) throw new Error('Relation response was not an array.');
+    expect(body).toContainEqual(
+      expect.objectContaining({
+        id: target.id,
+        project_id: SANDBOX.projectId,
+        relation_type: 'relates_to',
+      }),
+    );
+  }
+
+  async updateTitle(name: string) {
+    const id = this.requireCurrentId();
+    this.#registerOwnedName(id, name);
+    await this.title.fill(name);
+    const responsePromise = this.waitForIssuePatch(id);
+    await this.title.press('Enter');
+    await this.assertNoContent(responsePromise);
+  }
+
+  async updateDescription(description: string) {
+    const id = this.requireCurrentId();
+    const editor = this.description;
+    await expect(editor).toHaveCount(1);
+    await editor.fill(description);
+    const responsePromise = this.waitForIssuePatch(id);
+    await this.page.getByRole('heading', { name: 'Properties', exact: true }).click();
+    await this.assertNoContent(responsePromise);
+    this.#currentDescription = description;
+  }
+
+  async setState(name: string) {
+    const id = this.requireCurrentId();
+    await this.stateButton.click();
+    const option = this.page.getByRole('option', { name, exact: true });
+    await expect(option).toBeVisible();
+    const responsePromise = this.waitForIssuePatch(id);
+    await option.click();
+    await this.assertNoContent(responsePromise);
+  }
+
+  async setPriority(name: string) {
+    const id = this.requireCurrentId();
+    await this.priorityButton.click();
+    const option = this.page.getByRole('option', { name, exact: true });
+    await expect(option).toBeVisible();
+    const responsePromise = this.waitForIssuePatch(id);
+    await option.click();
+    await this.assertNoContent(responsePromise);
+  }
+
+  async setStartDate(date: Date) {
+    await this.setDate('Add start date', date);
+  }
+
+  async setDueDate(date: Date) {
+    await this.setDate('Add due date', date);
+  }
+
+  async reloadCurrent() {
+    await this.page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(this.title).toBeVisible({ timeout: 15_000 });
+  }
+
+  async rejectOverlongTitle(
+    title: string,
+  ): Promise<{ attemptedPosts: number; validationMessage: string }> {
+    await this.addWorkItem.click();
+    const dialog = this.createDialog();
+    await dialog.getByRole('textbox', { name: 'Title', exact: true }).fill(title);
+    const createUrl = new URL(ISSUE_API_PATH, this.page.url()).href;
+    let validationMessage = '';
+    const result = await withBlockedExactPosts({
+      page: this.page,
+      endpoint: createUrl,
+      action: async () => {
+        await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+        await expect(this.titleValidation).toBeVisible();
+        validationMessage = await this.titleValidation.innerText();
+        await this.discardCreate();
+      },
+    });
+    if (result.actionError) throw result.actionError;
+    return { attemptedPosts: result.attemptCount, validationMessage };
+  }
+
+  async rejectEmptyTitleAndDiscard(): Promise<number> {
+    await this.addWorkItem.click();
+    const dialog = this.createDialog();
+    await expect(dialog).toBeVisible();
+    const createUrl = new URL(ISSUE_API_PATH, this.page.url()).href;
+    const result = await withBlockedExactPosts({
+      page: this.page,
+      endpoint: createUrl,
+      action: async () => {
+        await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+        await expect(dialog).toBeVisible();
+        await this.discardCreate();
+      },
+    });
+    if (result.actionError) throw result.actionError;
+    return result.attemptCount;
+  }
+
+  async discardCreate() {
+    const dialog = this.createDialog();
+    await dialog.getByRole('button', { name: 'Discard', exact: true }).click();
+    const confirmDiscard = this.page.getByRole('button', {
+      name: 'Discard',
+      exact: true,
+    });
+    await expect(confirmDiscard).toBeVisible();
+    await confirmDiscard.click();
+    await expect(dialog).toBeHidden();
+  }
+
+  async fillAndDiscard(name: string): Promise<number> {
+    await this.addWorkItem.click();
+    const dialog = this.createDialog();
+    await dialog.getByRole('textbox', { name: 'Title', exact: true }).fill(name);
+    const createUrl = new URL(ISSUE_API_PATH, this.page.url()).href;
+    const result = await withBlockedExactPosts({
+      page: this.page,
+      endpoint: createUrl,
+      action: () => this.discardCreate(),
+    });
+    if (result.actionError) throw result.actionError;
+    return result.attemptCount;
+  }
+
+  async openFilters(): Promise<Locator> {
+    await this.filterButton.click();
+    const listbox = this.page.getByRole('listbox').filter({ visible: true });
+    await expect(listbox).toHaveCount(1);
+    await expect(listbox).toBeVisible();
+    return listbox;
+  }
+
+  async assertFilterOptions(listbox: Locator) {
+    await assertExactVisibleOptionInventory(listbox, FILTER_OPTION_NAMES);
+  }
+
+  async closeFilters(listbox: Locator) {
+    await this.filterButton.click();
+    await expect(listbox).toBeHidden();
+  }
+
+  async openDisplay() {
+    await this.displayButton.click();
+    await expect(this.page.getByText('Display Properties', { exact: true })).toBeVisible();
+  }
+
+  async closeDisplay() {
+    await this.displayButton.click();
+    await expect(this.page.getByText('Display Properties', { exact: true })).toBeHidden();
+  }
+
+  async assertDisplayOptions() {
+    const properties = displaySectionLocator(this.page, {
+      label: 'Display Properties',
+      uniqueButton: 'Attachment count',
+      excludedLabel: 'Group by',
+    });
+    const groupBy = displaySectionLocator(this.page, {
+      label: 'Group by',
+      uniqueButton: 'States',
+      excludedLabel: 'Order by',
+    });
+    const orderBy = displaySectionLocator(this.page, {
+      label: 'Order by',
+      uniqueButton: 'Manual',
+    });
+
+    await this.assertVisibleButtonInventory(properties, [
+      'ID',
+      'Assignee',
+      'Start date',
+      'Due date',
+      'Labels',
+      'Priority',
+      'State',
+      'Sub-work item count',
+      'Attachment count',
+      'Link',
+      'Estimate',
+      'Module',
+      'Cycle',
+    ]);
+    await this.assertVisibleButtonInventory(groupBy, [
+      'States',
+      'Priority',
+      'Cycle',
+      'Module',
+      'Labels',
+      'Assignees',
+      'Created by',
+      'None',
+    ]);
+    await this.assertVisibleButtonInventory(orderBy, [
+      'Manual',
+      'Last created',
+      'Last updated',
+      'Start date',
+      'Due date',
+      'Priority',
+    ]);
+
+    for (const name of ['Show sub-work items', 'Show empty groups']) {
+      const toggle = this.page.getByRole('button', { name, exact: true });
+      await expect(toggle).toHaveCount(1);
+      await expect(toggle).toBeVisible();
+    }
+  }
+
+  async deleteOwned(id: string, expectedName: string) {
+    const owned = this.#ownedRecords.get(id);
+    if (!owned || owned.projectId !== SANDBOX.projectId) {
+      throw new Error('Refusing to delete an ID absent from the create-response ledger.');
+    }
+    if (!expectedName.startsWith(`${QA_PREFIX} `)) {
+      throw new Error('Refusing cleanup without an owned expected-name prefix.');
+    }
+    if (!owned.deleted) {
+      await this.page.goto(`/${SANDBOX.workspaceSlug}/browse/NFQAS-${owned.sequenceId}/`, {
+        waitUntil: 'domcontentloaded',
+      });
+      await expect(this.title).toBeVisible({ timeout: 15_000 });
+      const renderedName = await this.title.inputValue();
+      if (
+        !renderedName.startsWith(`${QA_PREFIX} `) ||
+        !owned.names.has(renderedName)
+      ) {
+        throw new Error('Refusing to delete an unexpected owned-name revision.');
+      }
+
+      const response = await this.page.request.delete(this.issueEndpoint(id));
+      expect(response.status()).toBe(204);
+      owned.deleted = true;
+    }
+
+    await this.goto();
+    for (const name of owned.names) {
+      await expect(this.page.getByText(name, { exact: true })).toHaveCount(0);
+    }
+    if (this.#currentId === id) this.#currentId = undefined;
+  }
+
+  private createDialog(): Locator {
+    return this.page.getByRole('dialog').filter({
+      has: this.page.getByRole('heading', {
+        name: 'Create new work item',
+        exact: true,
+      }),
+    });
+  }
+
+  private detailActionMenu(): Locator {
+    return this.detailMain.locator(
+      'button[aria-haspopup="menu"]:has(svg.lucide-ellipsis)',
+    );
+  }
+
+  private async captureOwnedCreation(
+    requestedName: string,
+    registerEveryCreated: (created: ResponseOwnedWorkItem) => void,
+    action: () => Promise<unknown>,
+  ) {
+    const createUrl = new URL(ISSUE_API_PATH, this.page.url()).href;
+    const collector = new ExactPostResponseCollector(
+      this.page,
+      createUrl,
+      requestedName,
+      (responseOwned) => {
+        const errors: unknown[] = [];
+        try {
+          this.#registerOwned(responseOwned, requestedName);
+        } catch (error) {
+          errors.push(error);
+        }
+        try {
+          registerEveryCreated(responseOwned);
+        } catch (error) {
+          errors.push(error);
+        }
+        if (errors.length > 0) {
+          throw new AggregateError(errors, 'Exact-ID registration failed.');
+        }
+      },
+    );
+
+    let actionError: unknown;
+    try {
+      await action();
+    } catch (error) {
+      actionError = error;
+    }
+    const capture = await collector.settle({ requireAttempt: actionError === undefined });
+
+    await reconcileExactPostCaptureFailures(capture, (id) =>
+      this.deleteCapturedExactIdIfOwned(id, requestedName),
+    );
+    if (actionError) throw actionError;
+
+    expect(capture.non201).toEqual([]);
+    expect(capture.failedAttempts).toEqual([]);
+    expect(capture.attemptCount).toBe(1);
+    expect(capture.responseCount).toBe(1);
+    expect(capture.created).toHaveLength(1);
+    const [created] = capture.created;
+    if (!created) throw new Error('Work-item create produced no exact-ID response.');
+    expect(created.name).toBe(requestedName);
+    expect(created.projectId).toBe(SANDBOX.projectId);
+    return created;
+  }
+
+  private propertyRow(label: string): Locator {
+    return this.page.locator('main div.flex.h-8.items-center.gap-2', {
+      has: this.page.getByText(label, { exact: true }),
+    });
+  }
+
+  private async assertVisibleButtonInventory(
+    section: Locator,
+    expectedNames: string[],
+  ) {
+    await expect(section).toBeVisible();
+    await expect(section.getByRole('button')).toHaveCount(expectedNames.length);
+    for (const name of expectedNames) {
+      const button = section.getByRole('button', { name, exact: true });
+      await expect(button).toHaveCount(1);
+      await expect(button).toBeVisible();
+    }
+  }
+
+  private async deleteCapturedExactIdIfOwned(id: string, requestedName: string) {
+    const endpoint = this.issueEndpoint(id);
+    const inspection = await this.page.request.get(endpoint);
+    if (inspection.status() === 404) {
+      const alreadyAbsent = this.#ownedRecords.get(id);
+      if (alreadyAbsent) alreadyAbsent.deleted = true;
+      return;
+    }
+    expect(inspection.status()).toBe(200);
+    assertExactOwnedCleanupTarget(await inspection.json(), id, requestedName);
+
+    const response = await this.page.request.delete(endpoint);
+    expect(response.status()).toBe(204);
+    const owned = this.#ownedRecords.get(id);
+    if (owned) owned.deleted = true;
+  }
+
+  private requireCurrentId(): string {
+    if (!this.#currentId) throw new Error('No exact current work-item ID is registered.');
+    return this.#currentId;
+  }
+
+  #registerOwnedName(id: string, name: string) {
+    if (!name.startsWith(`${QA_PREFIX} `)) {
+      throw new Error(`Owned work-item names must start with ${QA_PREFIX}.`);
+    }
+    const owned = this.#ownedRecords.get(id);
+    if (!owned) throw new Error('Exact work-item ID is missing from the response ledger.');
+    owned.names.add(name);
+  }
+
+  #registerOwned(created: ResponseOwnedWorkItem, requestedName: string) {
+    if (
+      !isCanonicalWorkItemId(created.id) ||
+      created.name !== requestedName ||
+      created.projectId !== SANDBOX.projectId
+    ) {
+      throw new Error('Refusing to register a mismatched create response.');
+    }
+    const names = new Set([requestedName]);
+    this.#ownedRecords.set(created.id, {
+      deleted: false,
+      names,
+      projectId: created.projectId,
+      sequenceId: created.sequenceId,
+    });
+  }
+
+  private waitForIssuePatch(id: string): Promise<Response> {
+    const endpoint = this.issueEndpoint(id);
+    return this.page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' && response.url() === endpoint,
+    );
+  }
+
+  private async assertNoContent(responsePromise: Promise<Response>) {
+    const response = await responsePromise;
+    expect(response.status()).toBe(204);
+  }
+
+  private async setDate(buttonName: string, date: Date) {
+    const id = this.requireCurrentId();
+    await this.page.getByRole('button', { name: buttonName, exact: true }).click();
+    const dateButton = this.page.getByRole('button', {
+      name: calendarName(date),
+      exact: true,
+    });
+    await expect(dateButton).toBeVisible();
+    const responsePromise = this.waitForIssuePatch(id);
+    await dateButton.click();
+    await this.assertNoContent(responsePromise);
+  }
+}

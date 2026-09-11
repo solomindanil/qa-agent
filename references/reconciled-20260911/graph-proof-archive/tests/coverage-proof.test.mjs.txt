@@ -1,0 +1,217 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { buildCompleteCoverageOwnership } from "../src/coverage-builder.mjs";
+import { buildCoverageOwnershipDocument, validateCoverageOwnership } from "../src/coverage-proof.mjs";
+import { buildProductTestCatalog } from "../src/model.mjs";
+
+const sourceSha = "a".repeat(40);
+const automatedId = "product-ci:apps/api/tests/example.test.ts#proves the contract";
+const manualId = "manual:TC-EXAMPLE-01";
+const testNodes = new Map([
+  [automatedId, { id: automatedId, kind: "automated_test", runner: "product_ci" }],
+  [manualId, { id: manualId, kind: "manual_test" }],
+]);
+const productCatalog = buildProductTestCatalog({
+  sourceSha,
+  tests: [{
+    file: "apps/api/tests/example.test.ts",
+    selector: "proves the contract",
+    bindings: [
+      { nodeId: "req:A1", coverage: "full" },
+      { nodeId: "req:A2", coverage: "partial" },
+    ],
+  }],
+});
+
+function binding(testId, kind, coverage) {
+  return { testId, kind, coverage, rationale: "Executes the exact acceptance branch." };
+}
+
+test("coverage ownership distinguishes full, partial, manual and detected gaps", () => {
+  const document = buildCoverageOwnershipDocument({
+    sourceSha,
+    rows: [
+      {
+        nodeId: "req:A1",
+        classification: "fully_automated",
+        bindings: [binding(automatedId, "automated", "full")],
+        rationale: "Exact Product CI regression owns the complete requirement.",
+      },
+      {
+        nodeId: "req:A2",
+        classification: "partially_automated",
+        bindings: [binding(automatedId, "automated", "partial"), binding(manualId, "manual", "full")],
+        rationale: "Automation covers the stable branch and manual covers the provider branch.",
+      },
+      {
+        nodeId: "flow:gap",
+        classification: "gap_detected",
+        bindings: [binding(manualId, "manual", "detection")],
+        rationale: "The executable case detects the known product or coverage gap.",
+      },
+    ],
+  });
+  const result = validateCoverageOwnership({
+    document,
+    sourceSha,
+    requiredNodeIds: ["req:A1", "req:A2", "flow:gap"],
+    testNodes,
+    productCatalog,
+    passedProductCiIds: [automatedId],
+    requireComplete: true,
+  });
+  assert.equal(result.owned, 3);
+  assert.deepEqual(result.knownGaps, ["flow:gap"]);
+});
+
+test("coverage ownership rejects fake full coverage and unexecuted Product CI", () => {
+  assert.throws(() => buildCoverageOwnershipDocument({
+    sourceSha,
+    rows: [{
+      nodeId: "req:A1",
+      classification: "fully_automated",
+      bindings: [binding(automatedId, "automated", "partial")],
+      rationale: "Partial coverage must not masquerade as full automation.",
+    }],
+  }), /COVERAGE_OWNERSHIP_FULL_AUTOMATION_REQUIRED/);
+
+  const full = buildCoverageOwnershipDocument({
+    sourceSha,
+    rows: [{
+      nodeId: "req:A1",
+      classification: "fully_automated",
+      bindings: [binding(automatedId, "automated", "full")],
+      rationale: "The exact regression owns the complete requirement.",
+    }],
+  });
+  assert.throws(() => validateCoverageOwnership({
+    document: full,
+    sourceSha,
+    requiredNodeIds: ["req:A1"],
+    testNodes,
+    productCatalog,
+    passedProductCiIds: [],
+  }), /COVERAGE_OWNERSHIP_PRODUCT_CI_NOT_PASSED/);
+});
+
+test("coverage ownership requires every semantic node and gap to have an executable owner", () => {
+  const document = buildCoverageOwnershipDocument({
+    sourceSha,
+    rows: [{
+      nodeId: "req:A1",
+      classification: "manual",
+      bindings: [binding(manualId, "manual", "full")],
+      rationale: "The manual case is the explicit current owner.",
+    }],
+  });
+  assert.throws(() => validateCoverageOwnership({
+    document,
+    sourceSha,
+    requiredNodeIds: ["req:A1", "invariant:safety"],
+    testNodes,
+    productCatalog,
+    requireComplete: true,
+  }), /COVERAGE_OWNERSHIP_INCOMPLETE/);
+
+  assert.throws(() => buildCoverageOwnershipDocument({
+    sourceSha,
+    rows: [{
+      nodeId: "flow:gap",
+      classification: "gap_detected",
+      bindings: [binding(manualId, "manual", "partial")],
+      rationale: "A gap must keep an executable detector rather than a partial owner.",
+    }],
+  }), /COVERAGE_OWNERSHIP_GAP_DETECTOR_REQUIRED/);
+});
+
+test("coverage ownership binds Product CI only to the typed catalog owner and exact level", () => {
+  const unrelated = buildCoverageOwnershipDocument({
+    sourceSha,
+    rows: [{
+      nodeId: "req:A3",
+      classification: "fully_automated",
+      bindings: [binding(automatedId, "automated", "full")],
+      rationale: "A green test cannot prove an unrelated semantic owner.",
+    }],
+  });
+  assert.throws(() => validateCoverageOwnership({
+    document: unrelated,
+    sourceSha,
+    requiredNodeIds: ["req:A3"],
+    testNodes,
+    productCatalog,
+    passedProductCiIds: [automatedId],
+  }), /COVERAGE_OWNERSHIP_PRODUCT_CI_RELATION_UNKNOWN/);
+
+  const overstated = buildCoverageOwnershipDocument({
+    sourceSha,
+    rows: [{
+      nodeId: "req:A2",
+      classification: "fully_automated",
+      bindings: [binding(automatedId, "automated", "full")],
+      rationale: "A partial catalog binding cannot be promoted to full coverage.",
+    }],
+  });
+  assert.throws(() => validateCoverageOwnership({
+    document: overstated,
+    sourceSha,
+    requiredNodeIds: ["req:A2"],
+    testNodes,
+    productCatalog,
+    passedProductCiIds: [automatedId],
+  }), /COVERAGE_OWNERSHIP_PRODUCT_CI_COVERAGE_MISMATCH/);
+});
+
+test("coverage proposal cannot mint an unrelated Product CI ownership relation", () => {
+  const graph = {
+    generatedFrom: { sourceSha },
+    nodes: [
+      { id: "req:A1", kind: "requirement" },
+      { id: "req:A2", kind: "requirement" },
+      { id: "req:A3", kind: "requirement" },
+      { id: automatedId, kind: "automated_test", runner: "product_ci" },
+    ],
+    edges: [{
+      type: "verifies",
+      from: automatedId,
+      to: "req:A1",
+      evidence: "mapping:product-ci",
+      coverage: "full",
+    }],
+  };
+  const proposal = {
+    generatedForSourceSha: sourceSha,
+    unownedRequirements: [
+      {
+        nodeId: "req:A2",
+        classification: "fully_automated",
+        existingTests: [{
+          id: automatedId,
+          coverage: "full",
+          rationale: "The proposal must not upgrade the catalog's partial level.",
+        }],
+      },
+      {
+        nodeId: "req:A3",
+        classification: "fully_automated",
+        existingTests: [{
+          id: automatedId,
+          coverage: "full",
+          rationale: "This proposal relation is absent from the typed catalog.",
+        }],
+      },
+    ],
+    orphanSemanticNodes: [],
+  };
+  const document = buildCompleteCoverageOwnership({ graph, proposal, productCatalog });
+  const partialRow = document.rows.find(value => value.nodeId === "req:A2");
+  assert.equal(partialRow.classification, "gap_detected");
+  assert.deepEqual(partialRow.bindings.map(value => [value.testId, value.coverage]), [
+    ["graph-meta:known-gap:req:A2", "detection"],
+    [automatedId, "partial"],
+  ]);
+  const row = document.rows.find(value => value.nodeId === "req:A3");
+  assert.equal(row.classification, "gap_detected");
+  assert.deepEqual(row.bindings.map(value => value.testId), ["graph-meta:known-gap:req:A3"]);
+});

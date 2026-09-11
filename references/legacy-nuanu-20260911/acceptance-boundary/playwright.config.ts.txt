@@ -1,0 +1,88 @@
+import { defineConfig, devices, type Project } from '@playwright/test';
+import 'dotenv/config';
+
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+// One Playwright project per product under test. A project is registered only
+// when its <PRODUCT>_BASE_URL env var is set, so cloning the repo without any
+// configured product still yields a valid (empty) test run.
+// Run a single product with: npx playwright test --project=<name>
+//
+// Options:
+//   authSetup: adds "<name>-setup" (tests/<name>/auth.setup.ts) that logs in once
+//              and saves storageState for authenticated specs to reuse.
+//   browsers:  device list for a cross-browser matrix, e.g.
+//              ['Desktop Chrome', 'Desktop Firefox', 'Desktop Safari', 'Pixel 5'].
+//              Defaults to Desktop Chrome only. With several browsers, projects
+//              are named "<name>-desktop-chrome", "<name>-desktop-firefox", …
+//              (install engines first: npx playwright install firefox webkit).
+const product = (
+  name: string,
+  baseURL: string | undefined,
+  options: { authSetup?: boolean; browsers?: string[] } = {},
+): Project[] => {
+  if (!baseURL) return [];
+  const browsers = options.browsers ?? ['Desktop Chrome'];
+  const projects: Project[] = [];
+  if (options.authSetup) {
+    projects.push({
+      name: `${name}-setup`,
+      testDir: `./tests/${name}`,
+      testMatch: /auth\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'], baseURL },
+    });
+  }
+  for (const browser of browsers) {
+    const suffix =
+      browsers.length > 1 ? `-${browser.toLowerCase().replace(/\s+/g, '-')}` : '';
+    projects.push({
+      name: `${name}${suffix}`,
+      testDir: `./tests/${name}`,
+      testIgnore: /auth\.setup\.ts/,
+      ...(options.authSetup ? { dependencies: [`${name}-setup`] } : {}),
+      use: { ...devices[browser], baseURL },
+    });
+  }
+  return projects;
+};
+
+export default defineConfig({
+  testDir: './tests',
+  timeout: DEFAULT_TIMEOUT_MS,
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  reporter: process.env.CI
+    ? [
+        ['html', { open: 'never' }],
+        ['junit', { outputFile: 'playwright-results.xml' }],
+        ['list'],
+      ]
+    : [['html', { open: 'never' }], ['list']],
+  use: {
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+    actionTimeout: 10_000,
+    navigationTimeout: 30_000,
+  },
+  // Testing a locally built product instead of a deployed URL? Start it here:
+  // webServer: {
+  //   command: 'npm run dev',
+  //   url: 'http://localhost:3000',
+  //   reuseExistingServer: !process.env.CI,
+  //   timeout: 120_000,
+  // },
+  projects: [
+    // Program contracts are repository-owned and must run even before a product
+    // URL is configured.
+    { name: 'program', testDir: './tests/program' },
+    ...product('freeland', process.env.FREELAND_BASE_URL, { authSetup: true }),
+    ...product('magicpay', process.env.MAGICPAY_BASE_URL),
+    // Add your product here:
+    // ...product('myproduct', process.env.MYPRODUCT_BASE_URL, {
+    //   authSetup: true,
+    //   browsers: ['Desktop Chrome', 'Desktop Firefox', 'Desktop Safari'],
+    // }),
+  ],
+});

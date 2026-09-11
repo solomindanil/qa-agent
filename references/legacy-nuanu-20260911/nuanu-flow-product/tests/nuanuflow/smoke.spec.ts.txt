@@ -1,0 +1,81 @@
+import { expect, test, type Response } from '@playwright/test';
+
+const SPA_READY_TIMEOUT_MS = 15_000;
+
+const isExpectedGuestProbe = (response: Response, origin: string) => {
+  const url = new URL(response.url());
+  return (
+    url.origin === origin &&
+    url.pathname === '/be/api/users/me/' &&
+    response.status() === 401
+  );
+};
+
+test.describe('Nuanu Flow public smoke', () => {
+  test('sign-in page loads without unexpected first-party errors', async ({ page, baseURL }) => {
+    expect(baseURL, 'nuanuflow project must define baseURL').toBeTruthy();
+    const origin = new URL(baseURL!).origin;
+    const consoleErrors: string[] = [];
+    const unexpectedResponses: string[] = [];
+    let sawExpectedGuestProbe = false;
+
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text());
+    });
+    page.on('response', (response) => {
+      if (isExpectedGuestProbe(response, origin)) {
+        sawExpectedGuestProbe = true;
+        return;
+      }
+      const url = new URL(response.url());
+      if (url.origin === origin && response.status() >= 400) {
+        unexpectedResponses.push(`${response.status()} ${response.url()}`);
+      }
+    });
+
+    const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('textbox', { name: 'Email' })).toBeVisible({
+      timeout: SPA_READY_TIMEOUT_MS,
+    });
+
+    expect(response, 'no response from Nuanu Flow').not.toBeNull();
+    expect(response!.status()).toBeLessThan(400);
+    await expect(page).toHaveTitle(/Sign in - Nuanu Flow/i);
+    await expect(page.locator('html')).toHaveAttribute('lang', /\S+/);
+    expect(unexpectedResponses).toEqual([]);
+
+    const unexpectedConsole = consoleErrors.filter(
+      (message) =>
+        !(
+          sawExpectedGuestProbe &&
+          /Failed to load resource.+status of 401/i.test(message)
+        ),
+    );
+    expect(unexpectedConsole).toEqual([]);
+  });
+
+  test('declared favicon is reachable', async ({ page, request }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('textbox', { name: 'Email' })).toBeVisible({
+      timeout: SPA_READY_TIMEOUT_MS,
+    });
+    const href = await page.locator('link[rel~="icon"]').first().getAttribute('href');
+    expect(href, 'Nuanu Flow should declare a favicon').toBeTruthy();
+    const response = await request.get(new URL(href!, page.url()).toString());
+    expect(response.status()).toBeLessThan(400);
+  });
+
+  test('public document identifies Nuanu Flow and declares a language', async ({
+    page,
+  }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('textbox', { name: 'Email' })).toBeVisible({
+      timeout: SPA_READY_TIMEOUT_MS,
+    });
+    await expect(page).toHaveTitle(/Nuanu Flow/i);
+    await expect(page.locator('html')).toHaveAttribute(
+      'lang',
+      /^[a-z]{2}(?:-[A-Z]{2})?$/,
+    );
+  });
+});

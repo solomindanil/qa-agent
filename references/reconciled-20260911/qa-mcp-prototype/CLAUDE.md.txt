@@ -1,0 +1,46 @@
+# QA — Playwright E2E Test Automation
+
+E2E-тесты продукта (инструмент покупок для ИИ-агентов): веб-дашборд + MCP-сервер продукта.
+Правила безопасности — в [GUARDRAILS.md](./GUARDRAILS.md) (только staging, testnet, кап трат). ОБЯЗАТЕЛЬНЫ к соблюдению.
+
+## Setup
+
+Скопировать `.env.example` → `.env` и заполнить (staging URL, тестовые креды, MCP URL).
+Без `.env` тесты корректно скипаются.
+
+## Commands
+
+- `npm test` — run all tests (headless)
+- `npm run smoke` — только критичные пути (@smoke)
+- `npm run typecheck` — проверка типов
+- `npx playwright test --project=mcp` — только MCP-контрактные тесты
+- `npm run test:headed` — run tests with visible browser
+- `npm run test:ui` — interactive UI mode
+- `npm run test:debug` — step-through debug mode
+- `npm run report` — open the last HTML report
+- `npm run codegen` — record a new test interactively
+- `npx playwright test tests/<file>.spec.ts` — run a single spec
+- `npx playwright test --project=chromium` — single browser
+
+## Structure
+
+- `tests/dashboard/` — E2E веб-дашборда (проект `dashboard`, Chromium + storageState)
+- `tests/mcp/` — контрактные тесты MCP-сервера продукта (проект `mcp`, без браузера, клиент `@modelcontextprotocol/sdk`)
+- `tests/pages/` — Page Object Model
+- `tests/fixtures/` — `env.ts` (staging-guard, флаги наличия env), `mcp-client.ts` (фикстуры `mcp` и `buy` с капом трат)
+- `tests/auth.setup.ts` — логин → `playwright/.auth/user.json`
+- `playwright.config.ts` — проекты `setup`/`dashboard`/`mcp`, артефакты в `artifacts/`
+
+## Conventions
+
+- One spec file per feature or user flow; name specs after the behavior under test.
+- Prefer role/label-based locators (`getByRole`, `getByLabel`) over CSS selectors.
+- Use Playwright's web-first assertions (`await expect(locator).toBeVisible()`), never manual waits.
+- Extract shared page interactions into Page Object classes under `tests/pages/` once repetition appears.
+- Only Chromium is installed; add browsers with `npx playwright install firefox webkit` if cross-browser coverage is needed.
+
+## ECC
+
+ECC skills relevant here (available via the ecc plugin): `ecc:e2e-testing`,
+`ecc:browser-qa`, `ecc:verification-loop`. The `ecc:e2e-runner` agent can
+generate, maintain, and quarantine tests.

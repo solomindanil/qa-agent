@@ -1,0 +1,46 @@
+# NuanuFlowQA
+
+Agent-driven QA platform: point it at a web product, hunt bugs with Playwright + a browser agent, file confirmed defects through the configured tracker (Linear by default), then generate ready-to-paste fix prompts for any coding agent.
+
+## Two modes (skills)
+
+- **`/qa-check`** — test a product: recon → test matrix (landing, auth, core flows, payments, i18n, 404, responsive) → file bugs through the configured tracker with screenshots → add `test.fail()` regression tests. See `.claude/skills/qa-check/SKILL.md`.
+- **`/qa-bugfix`** — fetch open bugs from Linear, cluster them by root cause, and generate a self-contained fix prompt per cluster (`templates/fix-prompt.md`) that the product's own coding agent can execute. See `.claude/skills/qa-bugfix/SKILL.md`.
+
+For products other than Nuanu Flow, both modes require the **Linear MCP server**: `claude mcp add --transport http linear-server https://mcp.linear.app/mcp`.
+
+For Nuanu Flow, never use Linear. File confirmed defects through the configured Nuanu Flow MCP in workspace `nuanu-flow-qa`, project `NUANU`, and verify the issue plus screenshot attachment through MCP read-back. Generic Linear behavior for other products remains unchanged.
+
+## Stack & commands
+
+TypeScript + Playwright (`@playwright/test`). One Playwright project per product under test.
+
+- All tests: `npm test` · one product: `npx playwright test --project=<product>` · interactive: `npm run test:ui`
+- Typecheck: `npm run typecheck`
+
+## Layout
+
+- `tests/<product>/` — Playwright specs per product (a Playwright project each; enabled only when `<PRODUCT>_BASE_URL` is set)
+- `tests/_template/` — copy this to start a new product's suite
+- `docs/templates/TEST-CASES.md` — test-case document template (living checklist per product)
+- `docs/local/` (gitignored) — your real per-product test cases and notes
+- `templates/` — bug report and fix prompt formats used by the skills
+- `.env` (gitignored, copy from `.env.example`) — `<PRODUCT>_BASE_URL`, `<PRODUCT>_TEST_EMAIL`, `<PRODUCT>_TEST_PASSWORD` per product
+- `CLAUDE.local.md` (gitignored) — product-specific context that must not be published
+
+## Adding a product
+
+1. Copy `tests/_template/` → `tests/<product>/`; adjust selectors after first recon.
+2. Add `<PRODUCT>_BASE_URL` (+ test account vars) to `.env`; add a project entry in `playwright.config.ts` (follow the existing pattern).
+3. Copy `docs/templates/TEST-CASES.md` → `docs/local/<product>/TEST-CASES.md`.
+4. For products other than Nuanu Flow, create a Linear project for the product; reuse team-level labels (`Bug` + product-area label group).
+5. Run `/qa-check`.
+
+## Conventions (non-negotiable)
+
+- Product test credentials belong only in `.env` (gitignored); MCP tokens remain process-only and must not be written to repository files. Never hardcode; tests must be read-only against production accounts — no purchases, no settings mutations, no real payments without the product owner.
+- Bug reports follow `templates/bug-report.md`: title `[BUG] <symptom>`, labels `Bug` + area, priority = severity, steps/expected/actual/environment, screenshot attached. Nuanu Flow uses only `nuanu-flow-qa` / `NUANU` through its configured MCP with issue-plus-attachment read-back; every other product retains the Linear workflow.
+- Every confirmed bug gets a `test.fail()` regression test annotated with the ticket ID — when the bug is fixed, the suite flags it so the test can be flipped to a normal assertion.
+- A failing test is not automatically a bug: first rule out locale assumptions, SPA hydration timing, and strict-mode selector collisions.
+- Update the product's TEST-CASES.md whenever product functionality changes.
+- Tickets are closed (Done) only by QA after a verified re-test (regression test flipped); fixers stop at In Progress + a summary comment.

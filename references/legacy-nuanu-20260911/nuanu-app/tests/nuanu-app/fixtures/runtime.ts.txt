@@ -1,0 +1,31 @@
+import type { TestInfo } from '@playwright/test';
+import {
+  loadReviewedRuntimeContract as loadFixedReviewedRuntimeContract,
+  type RuntimeCaseGateReason,
+  type RuntimeContractGate,
+} from '../../../tools/nuanu-app-graph/runtime-contract.mjs';
+
+export type {
+  ReviewedRuntimeContract,
+  RuntimeCaseGateReason,
+  RuntimeContractGate,
+  RuntimeInventoryItem,
+  RuntimeRole,
+  RuntimeSelector,
+  RuntimeSelectorKey,
+} from '../../../tools/nuanu-app-graph/runtime-contract.mjs';
+
+export async function loadReviewedRuntimeContract(): Promise<RuntimeContractGate> {
+  return loadFixedReviewedRuntimeContract();
+}
+
+export function annotateRuntimeCase(
+  testInfo: TestInfo,
+  status: 'BLOCKED' | 'UNVERIFIED',
+  reason: RuntimeCaseGateReason,
+): void {
+  testInfo.annotations.push({
+    type: 'qa-status',
+    description: `${status}:${reason}`,
+  });
+}

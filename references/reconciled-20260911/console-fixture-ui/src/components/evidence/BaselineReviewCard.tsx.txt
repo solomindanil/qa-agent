@@ -1,0 +1,88 @@
+import type { BaselineApproval, BaselineReview } from "../../lib/evidence-flow";
+import { DigestValue, EvidenceCard, Field } from "./EvidenceFields";
+
+interface BaselineReviewCardProps {
+  baseline: BaselineReview;
+  /** Present once the approval receipt exists — the card then reads as history. */
+  approval: BaselineApproval | null;
+  canApprove: boolean;
+  blockedReason: string | null;
+  busy: boolean;
+  onApprove: () => void;
+}
+
+export function BaselineReviewCard({
+  baseline,
+  approval,
+  canApprove,
+  blockedReason,
+  busy,
+  onApprove,
+}: BaselineReviewCardProps) {
+  const environment = baseline.selectedEnvironment;
+  return (
+    <EvidenceCard
+      title="Exact baseline"
+      contract="baseline-approval-receipt.v1"
+      meta={approval !== null && <span className="ev-tag is-done mono">approved</span>}
+    >
+      <p className="ev-lede">
+        Approval binds these exact digests. If any of them changes, the approval, the plan and the run
+        readiness are all invalidated before anything reaches the network.
+      </p>
+
+      <div className="ev-digest-grid">
+        <Field label="registration receipt" wrap>
+          <DigestValue value={baseline.registrationReceiptDigest} />
+        </Field>
+        {baseline.artifacts.map((artifact) => (
+          <Field key={artifact.label} label={artifact.label} wrap>
+            <span className="ev-contract-hint">{artifact.contract}</span>
+            <DigestValue value={artifact.digest} />
+          </Field>
+        ))}
+      </div>
+
+      <div className="ev-split">
+        <Field label="environment">
+          {environment === null ? "none selectable" : `${environment.name} · ${environment.kind}`}
+        </Field>
+        <Field label="source">{baseline.declaredSource}</Field>
+        <Field label="candidate checks">{baseline.candidateChecks}</Field>
+        <Field label="unresolved oracles">{baseline.unresolvedOracles}</Field>
+      </div>
+
+      <p className="ev-caveat">
+        {baseline.unresolvedOracles} of the {baseline.candidateChecks} candidate checks still have no approved
+        business oracle. That is exactly why a successful observation can only be <b>INCONCLUSIVE</b> — I2 has
+        nothing to evaluate the product against.
+      </p>
+
+      {approval === null ? (
+        <div className="ev-actions">
+          <button
+            type="button"
+            className="pill-button ev-primary"
+            disabled={!canApprove || busy}
+            onClick={onApprove}
+            title={blockedReason ?? undefined}
+          >
+            {busy ? "approving…" : "Approve this exact baseline"}
+          </button>
+          <span className="ev-action-note">
+            {blockedReason === null
+              ? "writes one immutable receipt, then reads it back byte-for-byte"
+              : `✗ ${blockedReason}`}
+          </span>
+        </div>
+      ) : (
+        <div className="ev-split ev-receipt-strip">
+          <Field label="approval id" wrap><DigestValue value={approval.approvalId} /></Field>
+          <Field label="approval digest" wrap><DigestValue value={approval.approvalDigest} /></Field>
+          <Field label="lifecycle">{approval.lifecycle}</Field>
+          <Field label="binds">{approval.boundArtifactCount} digests</Field>
+        </div>
+      )}
+    </EvidenceCard>
+  );
+}

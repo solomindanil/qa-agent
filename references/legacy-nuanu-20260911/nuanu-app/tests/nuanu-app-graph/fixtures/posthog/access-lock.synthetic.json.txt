@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "provider": "posthog",
+  "host": "https://posthog.synthetic.invalid",
+  "organizationName": "Synthetic Nuanu Organization",
+  "projectName": "Synthetic Nuanu App",
+  "targetProjectResourceId": "424242",
+  "queryEndpointPath": "/api/projects/424242/query/",
+  "displayedRole": "Synthetic query viewer",
+  "effectiveCapabilities": {
+    "inventory": {
+      "preflightId": "napp-posthog-preflight-11111111-1111-4111-8111-111111111111",
+      "observedAt": "2026-08-26T00:02:00.000Z",
+      "evidenceDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "visibleCapabilitiesComplete": true
+    },
+    "organizationMembershipLevel": "member",
+    "accessibleProjects": [
+      {
+        "resourceId": "424242",
+        "name": "Synthetic Nuanu App",
+        "defaultVisibility": "private",
+        "resourceLevel": "view"
+      }
+    ],
+    "targetProjectResourceLevels": {
+      "project": "view",
+      "query": "view",
+      "persons": "none",
+      "replay": "none",
+      "rawEvents": "none"
+    },
+    "memberManagement": {
+      "inviteMembers": "denied",
+      "changeRoles": "denied",
+      "removeMembers": "denied"
+    },
+    "query": {
+      "aggregateStructuredRead": "allowed",
+      "scopedQueryCredential": "available"
+    },
+    "sensitiveRead": {
+      "persons": "denied",
+      "replay": "denied",
+      "rawEvents": "denied",
+      "exports": "denied"
+    },
+    "writes": {
+      "projectSettings": "denied",
+      "instrumentation": "denied",
+      "featureFlags": "denied",
+      "cohorts": "denied",
+      "dashboards": "denied",
+      "retention": "denied",
+      "annotations": "denied",
+      "projectData": "denied",
+      "members": "denied"
+    },
+    "additionalVisibleCapabilities": []
+  },
+  "leastPrivilegeProven": true,
+  "broaderMembershipConfirmed": false,
+  "acceptedAt": "2026-08-26T00:01:00.000Z",
+  "approvedWindow": {
+    "startAt": "2026-08-25T00:00:00.000Z",
+    "endAt": "2026-08-26T00:00:00.000Z",
+    "interval": "day",
+    "windowDigest": "8989bc7dcbcf94bb8c7851c3917562bdbe188ee39b93ca424cfedd90107e0b0c",
+    "schemaObservationId": "napp-posthog-preflight-11111111-1111-4111-8111-111111111111",
+    "schemaFactsDigest": "23fef3fe265b7eace86708f180aa28b5c7399934a4af424e96f475572cc2ba9f"
+  },
+  "approvedQueryHashes": {
+    "telemetry-freshness": {
+      "primary": "96a05975ae642f7ed989cee6296bd7daecdb04da679cca859c952a0b91aab9dd",
+      "sampleCount": null,
+      "pairDigest": null,
+      "auxiliary": null,
+      "windowDigest": "8989bc7dcbcf94bb8c7851c3917562bdbe188ee39b93ca424cfedd90107e0b0c"
+    },
+    "route-health": {
+      "primary": "117c88bee1bfae5b1d82bebd034ce55d72afb29c9011a447fd6dbd6eb1101717",
+      "sampleCount": null,
+      "pairDigest": null,
+      "auxiliary": null,
+      "windowDigest": "8989bc7dcbcf94bb8c7851c3917562bdbe188ee39b93ca424cfedd90107e0b0c"
+    },
+    "funnel-discovery": {
+      "primary": "b0dbabfa2a1f1de9a7c2a2870f43de700ddac734764ce6636642b20f2d74a7b4",
+      "sampleCount": null,
+      "pairDigest": null,
+      "auxiliary": null,
+      "windowDigest": "8989bc7dcbcf94bb8c7851c3917562bdbe188ee39b93ca424cfedd90107e0b0c"
+    },
+    "funnel-place-detail": {
+      "primary": "b323e907b9af1be5f56e73d057946ec645290ab8b4ce63df3169a0d4e2c1bda1",
+      "sampleCount": null,
+      "pairDigest": null,
+      "auxiliary": null,
+      "windowDigest": "8989bc7dcbcf94bb8c7851c3917562bdbe188ee39b93ca424cfedd90107e0b0c"
+    },
+    "js-exception-rate": {
+      "primary": "9c1249f59baae8b0b6195687d77f1cd5864ae9e57ad70714e58b5dc900fdc6f1",
+      "sampleCount": null,
+      "pairDigest": null,
+      "auxiliary": {
+        "exceptionFingerprint": "ad6c02590a3caa1ef85a09c8b087799b315a9efcb4e94f87ba1a9dba1168e9b8"
+      },
+      "windowDigest": "8989bc7dcbcf94bb8c7851c3917562bdbe188ee39b93ca424cfedd90107e0b0c"
+    },
+    "web-vitals-lcp-p75": {
+      "primary": "78d0c00aa373beb9a7af0371ed7d3968516adce11576e8df7f641e2764aecbad",
+      "sampleCount": "816abc377ec132a4e5531145b1758258d45bf0ddf470b73be062417b52be94df",
+      "pairDigest": "4fe2223bc142d70d10848c03c3a9ac4693ddfd86e9b839e363ed8b85e98f5cad",
+      "auxiliary": null,
+      "windowDigest": "8989bc7dcbcf94bb8c7851c3917562bdbe188ee39b93ca424cfedd90107e0b0c"
+    }
+  }
+}

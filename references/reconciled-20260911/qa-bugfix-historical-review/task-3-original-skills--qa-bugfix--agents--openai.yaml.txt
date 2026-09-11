@@ -1,0 +1,13 @@
+interface:
+  display_name: "QA Bugfix"
+  short_description: "Prepare Linear-backed fix prompts"
+  default_prompt: "Use $qa-bugfix to process the bug backlog and generate self-contained fix prompts."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "linear-server"
+      description: "Linear MCP server for reading bug tickets, comments, and attachments."
+      transport: "streamable_http"
+      url: "https://mcp.linear.app/mcp"
+

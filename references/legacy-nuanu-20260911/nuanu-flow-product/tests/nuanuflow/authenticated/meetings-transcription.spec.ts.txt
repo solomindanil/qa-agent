@@ -1,0 +1,392 @@
+import { test, expect } from '../fixtures/authenticated.fixture';
+import {
+  MEETING_PATHS,
+  MeetingsPage,
+  captureBlockedMeetingMutations,
+  type MeetingMutationCapture,
+  type OwnedMeetingEntity,
+} from '../pages/meetings.page';
+import {
+  APPROVED_AUDIO_BASENAME,
+  loadValidatedAudioFixture,
+  validatePrivateAudioFixture,
+} from '../fixtures/audio-fixture';
+
+test.describe.configure({ mode: 'serial' });
+test.use({
+  trace: 'off',
+  screenshot: 'off',
+  video: 'off',
+  serviceWorkers: 'block',
+});
+
+const MANUAL_TRANSCRIPT_LINES = Object.freeze([
+  'Synthetic alpha confirms the agenda.',
+  'Synthetic beta records one action!',
+  'Synthetic gamma closes the meeting?',
+]);
+const MANUAL_TRANSCRIPT = MANUAL_TRANSCRIPT_LINES.join('\n');
+const RAW_OR_GENERIC_VALIDATION =
+  /(?:traceback|stack\s*trace|exception|internal server error|\/be\/api\/|https?:\/\/|request[- ]id|amazonaws|\bsql\b|<html)/iu;
+const INVALID_AUDIO_CASES = Object.freeze([
+  {
+    label: 'zero-byte MP3',
+    suffix: 'zero byte audio',
+    validation:
+      /^(?:the selected audio (?:file|recording) is empty\.?|select a non-empty audio (?:file|recording)\.?|empty audio files? (?:are|is) not supported\.?)$/iu,
+    file: {
+      name: 'qa-e2e-a.mp3',
+      mimeType: 'audio/mpeg',
+      buffer: Buffer.alloc(0),
+    },
+  },
+  {
+    label: 'corrupt MIME-spoofed MP3',
+    suffix: 'corrupt audio',
+    validation:
+      /^(?:the selected audio (?:file|recording) is invalid or corrupt\.?|select a valid audio (?:file|recording)\.?|unable to read the selected audio (?:file|recording)\.?)$/iu,
+    file: {
+      name: 'qa-e2e-b.mp3',
+      mimeType: 'audio/mpeg',
+      buffer: Buffer.from('synthetic-not-an-mp3', 'utf8'),
+    },
+  },
+  {
+    label: 'unsupported text payload',
+    suffix: 'unsupported audio',
+    validation:
+      /^(?:unsupported (?:audio )?(?:file type|format)\.?|the selected file type is not supported\.?|select a supported audio (?:file|format)\.?)$/iu,
+    file: {
+      name: 'qa-e2e-c.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('synthetic-unsupported-audio', 'utf8'),
+    },
+  },
+] as const);
+
+const expectHealthyCapture = (
+  capture: MeetingMutationCapture,
+  expectedSuccesses = 1,
+) => {
+  expect(capture.actionError).toBeUndefined();
+  expect(capture.attemptCount).toBe(expectedSuccesses);
+  expect(capture.responseCount).toBe(expectedSuccesses);
+  expect(capture.successfulEntries).toHaveLength(expectedSuccesses);
+  expect(capture.nonSuccessResponses).toEqual([]);
+  expect(capture.contractErrors).toEqual([]);
+  expect(capture.registrationErrors).toEqual([]);
+  expect(capture.requestFailedOutcomes).toEqual([]);
+  expect(capture.unexpectedMutationAttempts).toEqual([]);
+};
+
+test.describe('Nuanu Flow meetings and transcription', () => {
+  test('loads the sandbox Meetings widget and reloads without mutation', async ({
+    page,
+    assertSandbox,
+  }) => {
+    const meetings = new MeetingsPage(page, assertSandbox);
+    await meetings.gotoHome();
+    await assertSandbox();
+    await expect(meetings.addTranscriptButton).toBeVisible();
+    await expect(meetings.uploadAudioButton).toBeVisible();
+    await expect(meetings.createMeetButton).toBeVisible();
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await assertSandbox();
+    await expect(meetings.addTranscriptButton).toBeVisible();
+  });
+
+  test('validates and cancels a manual transcript with zero mutations', async ({
+    page,
+    assertSandbox,
+    ownedName,
+  }) => {
+    const meetings = new MeetingsPage(page, assertSandbox);
+    const cancelledTitle = ownedName('cancelled manual transcript');
+    await meetings.gotoHome();
+    await assertSandbox();
+    await meetings.openManualTranscript();
+
+    await expect(meetings.manualTitleInput).toBeVisible();
+    await expect(meetings.manualDateTimeInput).toHaveCount(1);
+    await expect(meetings.manualParticipantsInput).toBeVisible();
+    await expect(meetings.manualTranscriptInput).toBeVisible();
+    await expect(meetings.manualTitleInput).toHaveAttribute('maxlength', '255');
+
+    const emptyCapture = await captureBlockedMeetingMutations({
+      page,
+      guardPatterns: meetings.mutationGuardPatterns(),
+      action: () => meetings.manualSubmitButton.click(),
+    });
+    expect(emptyCapture.actionError).toBeUndefined();
+    expect(emptyCapture.attemptCount).toBe(0);
+    await expect(page.getByText('Title is required', { exact: true }))
+      .toBeVisible();
+    await expect(page.getByText('Transcript is required', { exact: true }))
+      .toBeVisible();
+
+    await meetings.fillManualTranscript({
+      title: cancelledTitle,
+      transcriptText: MANUAL_TRANSCRIPT,
+    });
+    const cancelCapture = await captureBlockedMeetingMutations({
+      page,
+      guardPatterns: meetings.mutationGuardPatterns(),
+      action: () => meetings.cancelManualTranscript(),
+    });
+    expect(cancelCapture.actionError).toBeUndefined();
+    expect(cancelCapture.attemptCount).toBe(0);
+    await expect(meetings.meetingLink(cancelledTitle)).toHaveCount(0);
+  });
+
+  test('keeps no-file and cancel upload paths mutation-free', async ({
+    page,
+    assertSandbox,
+    ownedName,
+  }) => {
+    const meetings = new MeetingsPage(page, assertSandbox);
+    const title = ownedName('cancelled audio upload');
+    await meetings.gotoHome();
+    await meetings.openUploadAudio();
+    await meetings.uploadTitleInput.fill(title);
+
+    const noFileCapture = await captureBlockedMeetingMutations({
+      page,
+      guardPatterns: meetings.mutationGuardPatterns(),
+      action: () => meetings.uploadSubmitButton.click(),
+    });
+    expect(noFileCapture.actionError).toBeUndefined();
+    expect(noFileCapture.attemptCount).toBe(0);
+    await expect(page.getByText('Select an audio recording', { exact: true }))
+      .toBeVisible();
+
+    await meetings.uploadFileInput.setInputFiles({
+      name: 'qa-e2e-corrupt.mp3',
+      mimeType: 'audio/mpeg',
+      buffer: Buffer.from('synthetic-not-an-mp3', 'utf8'),
+    });
+    const cancelCapture = await captureBlockedMeetingMutations({
+      page,
+      guardPatterns: meetings.mutationGuardPatterns(),
+      action: () => meetings.cancelUploadAudio(),
+    });
+    expect(cancelCapture.actionError).toBeUndefined();
+    expect(cancelCapture.attemptCount).toBe(0);
+    await expect(meetings.meetingLink(title)).toHaveCount(0);
+  });
+
+  test('cancels instant and scheduled meeting preconditions before OAuth or event creation', async ({
+    page,
+    assertSandbox,
+    ownedName,
+  }) => {
+    const meetings = new MeetingsPage(page, assertSandbox);
+    await meetings.gotoHome();
+    await assertSandbox();
+
+    const instantCapture = await captureBlockedMeetingMutations({
+      page,
+      guardPatterns: meetings.mutationGuardPatterns(),
+      action: async () => {
+        await meetings.openCreateMeetMenu();
+        await meetings.startInstantMeetingButton.click();
+        await meetings.disconnectedDialog.waitFor({ state: 'visible' });
+      },
+    });
+    expect(instantCapture.actionError).toBeUndefined();
+    expect(instantCapture.attemptCount).toBe(0);
+    await expect(meetings.disconnectedDialog).toBeVisible();
+    await expect(meetings.disconnectedConnectButton).toBeDisabled();
+    const notNowCapture = await captureBlockedMeetingMutations({
+      page,
+      guardPatterns: meetings.mutationGuardPatterns(),
+      action: () => meetings.disconnectedNotNowButton.click(),
+    });
+    expect(notNowCapture.actionError).toBeUndefined();
+    expect(notNowCapture.attemptCount).toBe(0);
+    await expect(meetings.disconnectedDialog).toBeHidden();
+
+    const scheduleOpen = await captureBlockedMeetingMutations({
+      page,
+      guardPatterns: meetings.mutationGuardPatterns(),
+      action: async () => {
+        await meetings.openCreateMeetMenu();
+        await meetings.scheduleWithNotetakerButton.click();
+        await meetings.scheduleDialog.waitFor({ state: 'visible' });
+      },
+    });
+    expect(scheduleOpen.actionError).toBeUndefined();
+    expect(scheduleOpen.attemptCount).toBe(0);
+    await expect(meetings.scheduleDialog).toBeVisible();
+    await expect(meetings.scheduleTitleInput).toBeVisible();
+    await expect(meetings.scheduleDateTimeInput).toBeVisible();
+    await expect(meetings.scheduleMinutesInput).toHaveValue('30');
+    await meetings.scheduleTitleInput.fill(ownedName('cancelled notetaker'));
+    const scheduleCancel = await captureBlockedMeetingMutations({
+      page,
+      guardPatterns: meetings.mutationGuardPatterns(),
+      action: () => meetings.scheduleCancelButton.click(),
+    });
+    expect(scheduleCancel.actionError).toBeUndefined();
+    expect(scheduleCancel.attemptCount).toBe(0);
+    await expect(meetings.scheduleDialog).toBeHidden();
+  });
+
+  test('creates, reads back, reloads, and exactly cleans one manual transcript', async ({
+    page,
+    assertSandbox,
+    cleanupLedger,
+    ownedName,
+  }) => {
+    test.fixme(
+      true,
+      'Live browser recon could not attach a supported response-time interceptor; exact-title recovery cleaned the single discovery record but must not be repeated.',
+    );
+    test.setTimeout(90_000);
+    const meetings = new MeetingsPage(page, assertSandbox);
+    const title = ownedName('manual transcript lifecycle');
+    const owned: OwnedMeetingEntity[] = [];
+    let cleanupAnchorRegistered = false;
+
+    const register = (entity: OwnedMeetingEntity) => {
+      owned.push(entity);
+      if (cleanupAnchorRegistered) return;
+      cleanupAnchorRegistered = true;
+      cleanupLedger.register({
+        kind: 'meeting-transaction',
+        id: entity.id,
+        name: title,
+        workspaceSlug: entity.workspaceSlug,
+        cleanup: () => meetings.cleanupOwnedEntities(owned),
+      });
+    };
+
+    try {
+      await meetings.gotoHome();
+      await assertSandbox();
+      const capture = await meetings.createOwnedManualTranscript({
+        title,
+        transcriptText: MANUAL_TRANSCRIPT,
+        register,
+      });
+      expectHealthyCapture(capture);
+      const entity = owned[0];
+      expect(entity).toBeDefined();
+      if (!entity) throw new Error('MEETING_RESPONSE_ID_MISSING');
+
+      await expect(meetings.manualDialog).toBeHidden();
+      await expect(meetings.meetingLink(title)).toHaveCount(1);
+      await meetings.openTranscript(title);
+      await expect(meetings.transcriptTitle(title)).toBeVisible();
+      for (const line of MANUAL_TRANSCRIPT_LINES) {
+        await expect(page.getByText(line, { exact: false })).toHaveCount(1);
+      }
+
+      const detail = await page.request.get(MEETING_PATHS.detailApi(entity.id));
+      expect(detail.status()).toBe(200);
+      const body = await detail.json() as Record<string, unknown>;
+      expect(body.id).toBe(entity.id);
+      expect(body.title).toBe(title);
+      expect(body.status).toBe('ready');
+      expect(body.transcript_text === MANUAL_TRANSCRIPT).toBe(true);
+
+      await meetings.gotoHome();
+      await assertSandbox();
+      await expect(meetings.meetingLink(title)).toHaveCount(1);
+      await meetings.openTranscript(title);
+      for (const line of MANUAL_TRANSCRIPT_LINES) {
+        await expect(page.getByText(line, { exact: false })).toHaveCount(1);
+      }
+    } finally {
+      if (owned.length > 0) await meetings.cleanupOwnedEntities(owned);
+    }
+  });
+
+  test('validates the optional private MP3 before any upload action', async () => {
+    const descriptor = await validatePrivateAudioFixture();
+    test.skip(
+      descriptor === undefined,
+      'NUANUFLOW_AUDIO_FIXTURE is not configured.',
+    );
+    if (!descriptor) return;
+    expect(descriptor.basename).toBe(APPROVED_AUDIO_BASENAME);
+    const payload = await loadValidatedAudioFixture(descriptor);
+    expect(payload.name).toBe(APPROVED_AUDIO_BASENAME);
+    test.fixme(
+      true,
+      'Positive upload is blocked until the empty-entity asset reservation is proven response-owned and exactly recoverable for cleanup.',
+    );
+  });
+
+  for (const invalidCase of INVALID_AUDIO_CASES) {
+    test(`rejects ${invalidCase.label} with actionable validation and zero mutation`, async ({
+      page,
+      assertSandbox,
+      ownedName,
+    }) => {
+      const meetings = new MeetingsPage(page, assertSandbox);
+      const title = ownedName(invalidCase.suffix);
+      await meetings.gotoHome();
+      await assertSandbox();
+      await meetings.openUploadAudio();
+      await expect(meetings.uploadFileInput).toHaveAttribute('accept', 'audio/*');
+      await meetings.uploadTitleInput.fill(title);
+      const feedback = meetings.uploadValidationFeedback.filter({
+        hasText: invalidCase.validation,
+      }).first();
+      let validationAssessment = {
+        actionable: false,
+        bounded: false,
+        redacted: false,
+      };
+
+      const capture = await captureBlockedMeetingMutations({
+        page,
+        guardPatterns: meetings.mutationGuardPatterns(),
+        action: async () => {
+          await meetings.uploadFileInput.setInputFiles(invalidCase.file);
+          await meetings.uploadSubmitButton.click();
+          await feedback.waitFor({ state: 'visible' });
+          const text = (await feedback.innerText()).trim();
+          validationAssessment = {
+            actionable: invalidCase.validation.test(text),
+            bounded: text.length > 0 && text.length <= 240,
+            redacted: !RAW_OR_GENERIC_VALIDATION.test(text),
+          };
+          await meetings.cancelUploadAudio();
+        },
+      });
+
+      expect(capture.actionError).toBeUndefined();
+      expect(capture.attemptCount).toBe(0);
+      expect(validationAssessment).toEqual({
+        actionable: true,
+        bounded: true,
+        redacted: true,
+      });
+      await expect(meetings.uploadDialog).toBeHidden();
+      await expect(meetings.meetingLink(title)).toHaveCount(0);
+    });
+  }
+
+  test('rejects one-byte-over-limit audio without exceeding the allocation cap', async () => {
+    test.fixme(
+      true,
+      'No exact visible or server upload byte limit at or below the 32 MiB test allocation cap has been discovered; no oversize buffer is allocated.',
+    );
+  });
+
+  test('uploads a supported alternative audio format with a private oracle', async () => {
+    test.fixme(
+      true,
+      'No alternative format allowlist, bounded private fixture, or independent runtime oracle has been proven.',
+    );
+  });
+
+  test('edits, delete-cancels, direct-routes, and double-submits an owned meeting', async () => {
+    test.fixme(
+      true,
+      'The current UI exposes meeting details only in a drawer and recon found no edit/delete controls, direct detail route, or idempotency key for safe double-submit recovery.',
+    );
+  });
+});

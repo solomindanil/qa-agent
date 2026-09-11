@@ -1,0 +1,111 @@
+import { readFile, rename, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+
+import { buildCoverageOwnershipDocument } from "../src/coverage-proof.mjs";
+
+const graphPath = argument("--graph");
+const proposalPath = argument("--proposal");
+const outputPath = argument("--output");
+if (!graphPath || !proposalPath || !outputPath) throw new TypeError("--graph, --proposal and --output are required");
+const graph = JSON.parse(await readFile(resolve(graphPath), "utf8"));
+const proposal = JSON.parse(await readFile(resolve(proposalPath), "utf8"));
+if (graph.generatedFrom?.sourceSha !== proposal.generatedForSourceSha) throw new TypeError("Coverage source identities differ");
+const nodeById = new Map(graph.nodes.map(node => [node.id, node]));
+const proposalByNode = new Map([...proposal.unownedRequirements, ...proposal.orphanSemanticNodes]
+  .map(row => [row.nodeId, row]));
+const semanticNodes = graph.nodes.filter(node => ["requirement", "flow", "route", "invariant"].includes(node.kind));
+const rows = semanticNodes.map(node => proposalByNode.has(node.id)
+  ? proposalRow(node, proposalByNode.get(node.id))
+  : inheritedRow(node));
+const document = buildCoverageOwnershipDocument({ sourceSha: proposal.generatedForSourceSha, rows });
+const target = resolve(outputPath);
+const temporary = resolve(dirname(target), `.${target.split("/").at(-1)}.tmp`);
+await writeFile(temporary, `${JSON.stringify(document, null, 2)}\n`, { mode: 0o600 });
+await rename(temporary, target);
+process.stdout.write(`${JSON.stringify({
+  rows: document.rows.length,
+  classifications: countBy(document.rows.map(row => row.classification)),
+  digest: document.ownershipDigest,
+})}\n`);
+
+function proposalRow(node, proposalRowValue) {
+  const bindings = (proposalRowValue.existingTests ?? []).map(test => bindingFromTest(test)).filter(Boolean);
+  const hasAutomatedFull = bindings.some(binding => binding.kind === "automated" && binding.coverage === "full");
+  const hasManualFull = bindings.some(binding => binding.kind === "manual" && binding.coverage === "full");
+  let classification = proposalRowValue.classification;
+  if (classification === "fully_automated" && !hasAutomatedFull) classification = "gap_detected";
+  if (classification === "partially_automated" && !hasManualFull) classification = "gap_detected";
+  if (classification === "manual" && !hasManualFull) classification = "gap_detected";
+  if (classification === "gap_detected") addGapDetector(bindings, node.id, proposalRowValue.missingClauses ?? []);
+  return {
+    nodeId: node.id,
+    classification,
+    bindings: uniqueBindings(bindings),
+    rationale: classification === "gap_detected"
+      ? `Known product or deterministic-coverage gap remains explicit; the detector prevents accidental green status for ${node.id}.`
+      : `Independent ownership review binds the exact current-source acceptance surface for ${node.id}.`,
+  };
+}
+
+function inheritedRow(node) {
+  const related = graph.edges.filter(edge =>
+    (edge.type === "verifies" || edge.type === "always_run") && edge.to === node.id
+  );
+  const bindings = related.map(edge => {
+    const test = nodeById.get(edge.from);
+    const kind = test?.kind === "manual_test" ? "manual" : "automated";
+    return {
+      testId: edge.from,
+      kind,
+      coverage: edge.coverage ?? "full",
+      rationale: `Existing typed graph relation ${edge.evidence} executes this acceptance surface.`,
+    };
+  });
+  const hasAutomatedFull = bindings.some(binding => binding.kind === "automated" && binding.coverage === "full");
+  const hasManualFull = bindings.some(binding => binding.kind === "manual" && binding.coverage === "full");
+  const classification = hasAutomatedFull ? "fully_automated" : hasManualFull ? "manual" : "gap_detected";
+  if (classification === "gap_detected") addGapDetector(bindings, node.id, []);
+  return {
+    nodeId: node.id,
+    classification,
+    bindings: uniqueBindings(bindings),
+    rationale: classification === "gap_detected"
+      ? `No full executable owner exists; a graph-level detector keeps the coverage debt visible for ${node.id}.`
+      : `The versioned contract already provides a full executable ${classification === "manual" ? "manual" : "automated"} owner for ${node.id}.`,
+  };
+}
+
+function bindingFromTest(test) {
+  const testNode = nodeById.get(test.id);
+  if (!testNode) return null;
+  return {
+    testId: test.id,
+    kind: testNode.kind === "manual_test" ? "manual" : "automated",
+    coverage: test.coverage,
+    rationale: test.rationale,
+  };
+}
+
+function addGapDetector(bindings, nodeId, missingClauses) {
+  bindings.push({
+    testId: `graph-meta:known-gap:${nodeId}`,
+    kind: "automated",
+    coverage: "detection",
+    rationale: missingClauses.length
+      ? `Fails closed while these clauses lack proof: ${missingClauses.join("; ")}`
+      : "Fails closed while no full executable owner is bound to this semantic node.",
+  });
+}
+
+function uniqueBindings(bindings) {
+  return [...new Map(bindings.map(binding => [`${binding.testId}\u0000${binding.coverage}`, binding])).values()];
+}
+
+function countBy(values) {
+  return Object.fromEntries([...values.reduce((map, value) => map.set(value, (map.get(value) ?? 0) + 1), new Map())].sort());
+}
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}

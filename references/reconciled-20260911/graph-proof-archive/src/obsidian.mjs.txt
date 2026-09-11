@@ -1,0 +1,736 @@
+import { validateGraph } from "./model.mjs";
+
+const GENERATED = "<!-- GENERATED — DO NOT EDIT -->";
+const SEMANTIC_KINDS = new Set(["flow", "route", "invariant"]);
+const STRICT_COVERAGE_CODES = new Set([
+  "REQUIREMENT_WITHOUT_TEST_OWNER",
+  "REQUIREMENT_COVERAGE_GAP",
+  "EXCLUDED_REQUIREMENT_WITHOUT_AUTOMATION",
+  "UNRESOLVED_CODE_SOURCE_LOCATOR",
+  "ORPHAN_SEMANTIC_NODE",
+  "KNOWN_COVERAGE_GAP",
+  "COVERAGE_CLASSIFICATION_MISSING",
+  "FULL_AUTOMATION_OWNER_MISSING",
+  "MANUAL_OWNER_MISSING",
+]);
+const NAV = "[[INDEX|Обзор]] · [[SYSTEM|Продукт]] · [[MONEY|Деньги и оплаты]] · [[SURFACES|Поверхности]] · [[PROVIDERS|Провайдеры]] · [[IMPACT|Влияние релиза]] · [[TEST-PLAN|План тестов]] · [[NODES|Узлы]]";
+
+const MONEY_INVARIANTS = new Set([
+  "invariant:no-early-entitlement",
+  "invariant:payment-creation-idempotency",
+  "invariant:fail-closed-payment-state",
+  "invariant:explicit-payment-fallback-only",
+  "invariant:invoice-replacement-safety",
+  "invariant:card-operation-progress",
+  "invariant:provider-backed-card-history",
+  "invariant:history-refresh-cursor-correctness",
+  "invariant:deposit-network-asset-match",
+  "invariant:vip-card-entitlement-gate",
+  "invariant:environment-account-boundary-isolation",
+]);
+
+export function renderObsidianVault({ graph = {}, impact = {}, plan = {}, productionReference = null }) {
+  const context = buildContext({ graph, impact, plan, productionReference });
+  const files = new Map([
+    ["INDEX.md", renderIndex(context)],
+    ["SYSTEM.md", renderSystem(context)],
+    ["MONEY.md", renderMoney(context)],
+    ["SURFACES.md", renderSurfaces(context)],
+    ["PROVIDERS.md", renderProviders(context)],
+    ["IMPACT.md", renderImpact(context)],
+    ["TEST-PLAN.md", renderTestPlan(context)],
+    ["NODES.md", renderRegistry(context)],
+    ["Freeland Product Map.canvas", renderCanvas()],
+    [".obsidian/app.json", `${JSON.stringify({ showInlineTitle: true }, null, 2)}\n`],
+    [".obsidian/graph.json", `${JSON.stringify(graphSettings(), null, 2)}\n`],
+  ]);
+
+  for (const node of context.semanticNodes) {
+    files.set(notePath(node), renderNodeNote(node, context));
+  }
+
+  const managedMarkdown = [...files.keys()].filter(path => path.endsWith(".md")).sort();
+  files.set(".freeland-generated.json", `${JSON.stringify({ schemaVersion: 1, managedMarkdown }, null, 2)}\n`);
+  return new Map([...files].sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function buildContext({ graph, impact, plan, productionReference }) {
+  const nodes = [...(graph.nodes ?? [])].sort((left, right) => left.id.localeCompare(right.id));
+  const nodeById = new Map(nodes.map(node => [node.id, node]));
+  const semanticNodes = nodes.filter(node => SEMANTIC_KINDS.has(node.kind));
+  const edges = [...(graph.edges ?? [])].sort(compareEdges);
+  const byKind = countBy(nodes, node => node.kind);
+  const locatorCounts = countBy(graph.sourceLocators ?? [], locator => locator.disposition);
+  const unmappedFiles = [...(plan.unmappedFiles ?? impact.unmappedFiles ?? [])].sort((left, right) => filePath(left).localeCompare(filePath(right)));
+  const impactedNodes = [...(impact.impactedNodes ?? [])].sort((left, right) => left.id.localeCompare(right.id));
+  const mappedFileIds = new Set(impactedNodes.flatMap(node => (node.reasons ?? []).flatMap(reason =>
+    reason.type === "impact" && reason.edgePath?.[0]?.startsWith("file:") ? [reason.edgePath[0]] : []
+  )));
+  const directlyAutomated = impact.automated?.length ?? directlyVerifying("automated_test", impactedNodes, edges, nodeById).length;
+  const directlyManual = impact.manual?.length ?? directlyVerifying("manual_test", impactedNodes, edges, nodeById).length;
+  const { semanticDigest: _semanticDigest, ...auditGraph } = graph;
+  const strictCoverageIssues = validateGraph(auditGraph, { strictReleaseCoverage: true }).issues
+    .filter(issue => STRICT_COVERAGE_CODES.has(issue.code));
+  return {
+    graph,
+    impact,
+    plan,
+    nodes,
+    nodeById,
+    semanticNodes,
+    edges,
+    byKind,
+    locatorCounts,
+    unmappedFiles,
+    impactedNodes,
+    mappedChangedCount: mappedFileIds.size,
+    directlyAutomated,
+    directlyManual,
+    strictCoverageIssues,
+    strictCoverageCounts: countBy(strictCoverageIssues, issue => issue.code),
+    sourceSha: graph.generatedFrom?.sourceSha ?? plan.sourceSha ?? "unknown",
+    productMapReferenceSha: graph.generatedFrom?.productMapReferenceSha ?? "unknown",
+    candidateSha: plan.candidateSha ?? graph.generatedFrom?.sourceSha ?? "unknown",
+    baselineSha: plan.baselineSha ?? "unknown",
+    graphDigest: graph.semanticDigest ?? plan.graphDigest ?? "unknown",
+    productionObservation: productionReference ?? graph.observedDeployments?.production ?? null,
+  };
+}
+
+function page({ title, body, tags = ["freeland", "product-graph"] }) {
+  return [
+    "---",
+    `tags: [${tags.join(", ")}]`,
+    "generated: true",
+    "---",
+    GENERATED,
+    `# ${title}`,
+    "",
+    NAV,
+    "",
+    body.trim(),
+    "",
+    "---",
+    NAV,
+    "",
+  ].join("\n");
+}
+
+function renderIndex(context) {
+  const { byKind, locatorCounts, plan } = context;
+  const referenceWarning = context.productMapReferenceSha !== "unknown" && context.productMapReferenceSha !== context.candidateSha
+    ? `> [!warning] Карта требует пересъёмки\n> PRODUCT-MAP описывает \`${shortSha(context.productMapReferenceSha)}\`, а candidate — \`${shortSha(context.candidateSha)}\`. Это источник для тестирования и impact-планирования, но не доказательство полного runtime-паритета.`
+    : "> [!info] Provenance\n> Reference SHA карты и candidate не конфликтуют либо reference SHA пока не извлечён.";
+  return page({
+    title: "Freeland · карта продукта и QA",
+    tags: ["freeland", "product-graph", "dashboard"],
+    body: `
+> [!abstract] Что это
+> Локальная read-only проекция канонического JSON-графа. Диаграмма ниже показывает пользовательский путь для навигации; точные зависимости находятся в заметках узлов и строятся только из канонических рёбер.
+
+${referenceWarning}
+
+${renderProductionObservation(context)}
+
+> [!warning] Текущий QA-статус
+> source identity: **${plan.sourceIdentity ?? "source_only"}** · fallback: **${plan.fallback ?? "none"}** · manual: **${plan.manualStatus ?? "pending"}** (${plan.manualPendingCount ?? plan.manualTests?.length ?? 0})
+
+\`\`\`mermaid
+flowchart LR
+  U["Пользователь"]
+  subgraph S["Поверхности"]
+    SEO["SEO-лендинги"]
+    WEB["Web / PWA"]
+    TMA["Telegram Mini App"]
+    PAY["pay.freeland.land"]
+  end
+  subgraph P["Продукты"]
+    VPN["VPN"]
+    ESIM["eSIM"]
+    VN["Virtual Numbers"]
+    CARD["Card"]
+    PASS["Passport"]
+  end
+  MONEY["Wallet + money core"]
+  CHECKOUT["PaySheet / checkout"]
+  EXT["Внешние провайдеры"]
+  U --> SEO
+  U --> WEB
+  U --> TMA
+  U --> PAY
+  SEO --> WEB
+  SEO --> TMA
+  WEB --> VPN
+  WEB --> ESIM
+  WEB --> VN
+  WEB --> CARD
+  WEB --> PASS
+  TMA --> VPN
+  TMA --> ESIM
+  TMA --> VN
+  TMA --> CARD
+  VPN --> CHECKOUT
+  ESIM --> CHECKOUT
+  VN --> CHECKOUT
+  CARD --> CHECKOUT
+  VPN --> MONEY
+  ESIM --> MONEY
+  VN --> MONEY
+  CARD --> MONEY
+  PAY --> MONEY
+  CHECKOUT --> EXT
+  MONEY --> EXT
+  EXT --> MONEY
+\`\`\`
+
+## Срез данных
+
+| Сущность | Количество |
+|---|---:|
+| Продуктовые flows | ${byKind.get("flow") ?? 0} |
+| Routes / gates | ${byKind.get("route") ?? 0} |
+| Business invariants | ${byKind.get("invariant") ?? 0} |
+| Requirements | ${byKind.get("requirement") ?? 0} |
+| Manual cases | ${byKind.get("manual_test") ?? 0} |
+| Staging Playwright catalog | ${plan.catalogCount ?? context.graph.importGuard?.catalog?.productTests ?? 0} |
+| Candidate-bound Product CI catalog | ${plan.productCiTests?.length ?? 0} selected |
+
+## Полнота привязки к коду
+
+| Статус locator | Количество |
+|---|---:|
+| resolved | ${locatorCounts.get("resolved") ?? 0} |
+| review_required | ${locatorCounts.get("review_required") ?? 0} |
+| unresolved | ${locatorCounts.get("unresolved") ?? 0} |
+
+## Strict release gate
+
+${context.strictCoverageIssues.length
+  ? `> [!danger] BLOCKED — ${context.strictCoverageIssues.length} coverage issues\n> Release Verdict Engine не может вернуть READY, пока эти долги не закрыты проверяемыми evidence-мэппингами.`
+  : "> [!success] PASS\n> Все строгие coverage-гейты закрыты."}
+
+| Reason code | Количество |
+|---|---:|
+${[...context.strictCoverageCounts].sort(([left], [right]) => left.localeCompare(right)).map(([code, count]) => `| \`${code}\` | ${count} |`).join("\n") || "| — | 0 |"}
+
+- graph digest: \`${context.graphDigest}\`
+- source SHA: \`${context.sourceSha}\`
+- baseline → candidate: \`${shortSha(context.baselineSha)}\` → \`${shortSha(context.candidateSha)}\`
+`,
+  });
+}
+
+function renderSystem(context) {
+  const groups = groupFlows(context.semanticNodes.filter(node => node.kind === "flow"));
+  const groupSections = [...groups].map(([name, nodes]) => [
+    `### ${name}`,
+    ...nodes.map(node => `- ${nodeLink(node)} — ${escapeInline(node.action ?? node.label ?? node.title ?? "")}`),
+  ].join("\n")).join("\n\n");
+  return page({
+    title: "Freeland · продуктовые flows",
+    body: `
+> [!note] Семантика
+> Группировка ниже помогает читать продукт. Реальной зависимостью считается только ребро, показанное внутри заметки конкретного узла.
+
+\`\`\`mermaid
+flowchart TB
+  STORE["Store / Products"]
+  VPN["VPN"]
+  ESIM["eSIM"]
+  VN["Virtual Numbers"]
+  CARD["Card"]
+  PASS["Passport"]
+  WALLET["Wallet"]
+  INVOICE["Invoices"]
+  REF["Referrals"]
+  STORE --> VPN
+  STORE --> ESIM
+  STORE --> VN
+  STORE --> CARD
+  STORE --> PASS
+  VPN --> WALLET
+  ESIM --> WALLET
+  VN --> WALLET
+  CARD --> WALLET
+  WALLET --> INVOICE
+  REF --> WALLET
+\`\`\`
+
+## Канонические flow-узлы
+
+${groupSections || "- Нет flow-узлов."}
+`,
+  });
+}
+
+function renderMoney(context) {
+  const flows = context.semanticNodes.filter(node => node.kind === "flow" && isMoneyFlow(node));
+  const invariants = context.semanticNodes.filter(node => node.kind === "invariant" && MONEY_INVARIANTS.has(node.id));
+  return page({
+    title: "Freeland · деньги, оплаты и fulfilment",
+    tags: ["freeland", "product-graph", "money", "payments"],
+    body: `
+> [!warning] Концептуальный lifecycle
+> Схемы объясняют ожидаемую бизнес-последовательность. Они не создают рёбер flow→provider/invariant, которых ещё нет в каноническом V1-графе.
+
+\`\`\`mermaid
+flowchart LR
+  A["Покупка / выпуск / пополнение"] --> O["Capabilities + payment options"]
+  O --> BAL["Внутренний баланс"]
+  O --> FIAT["Card / SBP"]
+  O --> CRYPTO["Crypto funding"]
+  O --> STARS["Telegram Stars · TMA only"]
+  BAL --> HOLD["Ledger hold"]
+  FIAT --> CO["Idempotent checkout"]
+  CO --> PA["PayAssist"]
+  CRYPTO --> ADDR["Network-specific address"]
+  ADDR --> QW["QwikWallet"]
+  STARS --> TG["Telegram invoice"]
+  PA --> CONF["Signed webhook / reconcile"]
+  QW --> CONF
+  TG --> CONF
+  CONF --> SETTLE["Ledger / money operation"]
+  SETTLE --> INTENT["Purchase intent ready_to_resume"]
+  HOLD --> FULFIL["Product-provider fulfilment"]
+  INTENT --> FULFIL
+  FULFIL --> PROJ["Local projection converges"]
+  PROJ --> UI["UI success; loader removed"]
+\`\`\`
+
+\`\`\`mermaid
+stateDiagram-v2
+  [*] --> Creating
+  Creating --> Pending: checkout created
+  Creating --> Failed: definite create failure
+  Creating --> ManualReview: uncertain outcome
+  Pending --> Paid: webhook or reconcile
+  Pending --> Failed: definitive failure
+  Pending --> Expired: timeout
+  Paid --> Fulfilling
+  Fulfilling --> Posted: provider and projection converge
+  Fulfilling --> ManualReview: ambiguous provider state
+  ManualReview --> Pending: status recheck
+  ManualReview --> Failed: definitive failure
+  Failed --> Creating: replacement allowed
+  Expired --> Creating: replacement allowed
+  Posted --> [*]
+\`\`\`
+
+## Денежные flows
+
+${flows.map(node => `- ${nodeLink(node)} — ${escapeInline(node.product ?? "")} · ${escapeInline(node.action ?? "")}`).join("\n") || "- Нет узлов."}
+
+## Safety invariants
+
+${invariants.map(node => `- ${nodeLink(node)} — ${escapeInline(node.title ?? "")}`).join("\n") || "- Нет узлов."}
+
+> [!danger] Fail closed
+> Неизвестный/manual-review статус не разрешает повторное списание. Deliberate legacy fallback допустим только при явном \`PAYMENT_CHECKOUT_DISABLED\`.
+`,
+  });
+}
+
+function renderSurfaces(context) {
+  const routes = context.semanticNodes.filter(node => node.kind === "route");
+  return page({
+    title: "Freeland · поверхности, маршруты и гейты",
+    body: `
+\`\`\`mermaid
+flowchart LR
+  V["Visitor"] --> ROOT["/"]
+  V --> SEO["/vpn /card /card2 /esim"]
+  SEO --> APPCTA["/app/* CTA"]
+  SEO --> ACQ["GET /api/telegram/acquisition"]
+  ACQ --> DEEP["t.me deeplink"]
+  DEEP --> TMA["/tma/*"]
+  ROOT --> AUTH["welcome / login / signup"]
+  APPCTA --> AUTH
+  AUTH --> APP["Protected /app/*"]
+  TMA --> TLINK{"Telegram linked?"}
+  TLINK -->|"yes"| APP
+  TLINK -->|"no"| UNLINKED["Link or native signup"]
+  PAY["pay.freeland.land"] --> INV["Public invoice read/payment"]
+  BOOT["Environment bootstrap gate"] -.-> ROOT
+  BOOT -.-> SEO
+  BOOT -.-> APP
+  BOOT -.-> TMA
+  API["JWT + auth-surface + idempotency + velocity"] -.-> APP
+  API -.-> TMA
+\`\`\`
+
+## Канонические route/gate-узлы
+
+${routes.map(node => `- ${nodeLink(node)} — ${escapeInline(node.label ?? node.title ?? "")}`).join("\n") || "- Нет узлов."}
+`,
+  });
+}
+
+function renderProviders(context) {
+  return page({
+    title: "Freeland · провайдеры",
+    tags: ["freeland", "product-graph", "providers", "informational"],
+    body: `
+> [!warning] Информационная проекция
+> Эта страница воспроизводит текущую продуктовую карту §3/§4. Provider-узлы пока не канонизированы в lean V1 и **не участвуют** в impact selection. До пересъёмки PRODUCT-MAP её нельзя считать доказательством live-конфигурации.
+
+\`\`\`mermaid
+flowchart LR
+  FIAT["Card / SBP"] --> PA["PayAssist"]
+  CARD["Card issue / top-up"] --> VALUT["Valut"]
+  VPN["VPN"] --> TP["TurboPatriot"]
+  VPN --> KARING["Karing handoff"]
+  ESIM["eSIM"] --> YESIM["Yesim"]
+  VN["Virtual Numbers"] --> YVN["Yesim VN"]
+  CRYPTO["Wallet + invoice crypto"] --> QW["QwikWallet"]
+  STARS["Stars balance"] --> TG["Telegram Bot API"]
+  PASS["Passport"] --> PP["External passport app"]
+  CORE["Auth / ledger / storage"] --> SB["Supabase"]
+  COMMS["Inbox / CRM / analytics"] --> RESEND["Resend"]
+  COMMS --> CIO["Customer.io"]
+  COMMS --> PH["PostHog"]
+  LEGACY["Legacy recurring / wallet fiat"] -.-> LAVA["Lava · production disabled"]
+\`\`\`
+
+- graph source SHA: \`${context.sourceSha}\`
+- PRODUCT-MAP reference SHA: \`${context.productMapReferenceSha}\`
+`,
+  });
+}
+
+function renderImpact(context) {
+  const totalChanged = context.mappedChangedCount + context.unmappedFiles.length;
+  const autoSelected = context.plan.automatedTests?.length ?? 0;
+  const productCiSelected = context.plan.productCiTests?.length ?? 0;
+  const manualSelected = context.plan.manualTests?.length ?? 0;
+  const impacted = context.impactedNodes.map(item => {
+    const node = context.nodeById.get(item.id);
+    const links = node && SEMANTIC_KINDS.has(node.kind) ? nodeLink(node) : `\`${item.id}\``;
+    const paths = (item.reasons ?? []).filter(reason => reason.type === "impact").map(reason =>
+      (reason.edgePath ?? []).map(id => id.replace(/^file:/, "")).join(" → ")
+    );
+    return `- ${links}${paths.length ? `\n${paths.map(path => `  - \`${escapeCode(path)}\``).join("\n")}` : ""}`;
+  }).join("\n");
+  return page({
+    title: "Freeland · влияние текущего релиза",
+    tags: ["freeland", "product-graph", "release-impact"],
+    body: `
+> [!warning] Conservative selection
+> mode: **${context.plan.mode ?? "unknown"}** · fallback: **${context.plan.fallback ?? "none"}** · source identity: **${context.plan.sourceIdentity ?? "source_only"}**
+
+${renderProductionObservation(context)}
+
+\`\`\`mermaid
+flowchart LR
+  DIFF["${totalChanged} changed files"] --> MAPPED["${context.mappedChangedCount} mapped files"]
+  DIFF --> UNKNOWN["${context.unmappedFiles.length} unmapped files"]
+  MAPPED --> NODES["${context.impactedNodes.length} impacted semantic nodes"]
+  NODES --> DAUTO["${context.directlyAutomated} directly mapped automated tests"]
+  NODES --> DMAN["${context.directlyManual} directly impacted manual cases"]
+  UNKNOWN --> FALLBACK["Safe fallback: ${context.plan.fallback ?? "none"}"]
+  FALLBACK --> AUTO["${autoSelected} staging automated tests"]
+  FALLBACK --> PCI["${productCiSelected} candidate-bound Product CI tests"]
+  FALLBACK --> MAN["${manualSelected} manual cases pending"]
+\`\`\`
+
+## Impacted nodes
+
+${impacted || "- Пока impact-план не построен."}
+
+## Why full fallback
+
+Неизвестный changed file не получает придуманную связь. Пока зависимость не классифицирована, план расширяется до полного staging automation и manual safety net.
+
+<details>
+<summary>${context.unmappedFiles.length} unmapped files</summary>
+
+${context.unmappedFiles.map(file => `- \`${escapeCode(filePath(file))}\` (${file.status ?? "?"})`).join("\n") || "- none"}
+
+</details>
+`,
+  });
+}
+
+function renderProductionObservation(context) {
+  const observation = context.productionObservation;
+  if (!observation) {
+    return "> [!warning] Production runtime is unverified\n> No corroborated production runtime observation is attached to this graph.";
+  }
+  return `> [!info] Production runtime observation, not normative product truth
+> release SHA: \`${escapeCode(observation.releaseSha ?? "unknown")}\` · public origin: \`${escapeCode(observation.publicOrigin ?? "unknown")}\` · profile digest: \`${escapeCode(observation.profileDigest ?? "unknown")}\` · public build digest: \`${escapeCode(observation.publicBuildDigest ?? "unknown")}\` · manifest ID: \`${escapeCode(observation.manifestId ?? "unknown")}\`
+>
+> workers: **${Array.isArray(observation.enabledWorkerFamilies) ? observation.enabledWorkerFamilies.length : 0}** · observed: **${escapeInline(observation.observedAt ?? "unknown")}** · assurance: **${escapeInline(observation.assurance ?? "unknown")}**`;
+}
+
+function renderTestPlan(context) {
+  const automated = [...(context.plan.automatedTests ?? [])].sort(compareTest);
+  const productCi = [...(context.plan.productCiTests ?? [])].sort(compareTest);
+  const manual = [...(context.plan.manualTests ?? [])].sort(compareTest);
+  const automatedGroups = groupBy(automated, test => test.file ?? "unknown spec");
+  const productCiGroups = groupBy(productCi, test => test.file ?? "unknown product test");
+  const manualGroups = groupBy(manual, test => `${test.level ?? test.tier ?? "unknown"} · ${test.actor ?? "actor not copied into plan"}`);
+  return page({
+    title: "Freeland · E2E test plan",
+    tags: ["freeland", "product-graph", "qa", "test-plan"],
+    body: `
+> [!danger] Не release verdict
+> staging automation: **${automated.length}** · candidate-bound Product CI: **${productCi.length}** · manual status: **${context.plan.manualStatus ?? "pending"}** · manual pending: **${context.plan.manualPendingCount ?? manual.length}**. Green automation не означает полный E2E PASS.
+
+\`\`\`mermaid
+flowchart LR
+  SHA["Baseline → candidate SHA"] --> BUILD["Build and validate graph"]
+  BUILD --> PLAN["Compute impact"]
+  LIVE["GET /api/environment"] --> MATCH{"Candidate live?"}
+  PLAN --> DRY["Staging dry-run"]
+  MATCH -->|"yes"| DRY
+  MATCH -->|"no"| STOP["Stop: deployment mismatch"]
+  DRY --> AUTO["Automated staging suite"]
+  DRY --> PCI["Product CI on exact candidate SHA"]
+  DRY --> MAN["Manual cases with human"]
+  AUTO --> EVID["Evidence and reconciliation"]
+  PCI --> EVID
+  MAN --> EVID
+  EVID --> UPDATE["Add discovered dependency mapping"]
+  UPDATE --> BUILD
+\`\`\`
+
+- environment: **${context.plan.environment ?? "staging"}**
+- execution project: **${context.plan.executionProject ?? "freeland-staging"}**
+- baseline → candidate: \`${shortSha(context.baselineSha)}\` → \`${shortSha(context.candidateSha)}\`
+- fallback rationale: [[IMPACT#Why full fallback|unmapped files and conservative policy]]
+
+## Automated selection
+
+${renderTestGroups(automatedGroups, "automated")}
+
+## Product CI selection
+
+${renderTestGroups(productCiGroups, "product-ci")}
+
+## Manual selection
+
+${renderTestGroups(manualGroups, "manual")}
+`,
+  });
+}
+
+function renderRegistry(context) {
+  const sections = ["flow", "route", "invariant"].map(kind => {
+    const nodes = context.semanticNodes.filter(node => node.kind === kind);
+    return `## ${kind}\n\n${nodes.map(node => `- ${nodeLink(node)} — graph node: \`${node.id}\` — search key: ${searchKey(node.id)}`).join("\n") || "- none"}`;
+  }).join("\n\n");
+  return page({
+    title: "Freeland · реестр семантических узлов",
+    body: `
+> [!info] Почему здесь 52 заметки
+> Obsidian Graph View показывает только flows, routes/gates и invariants. Требования и тесты остаются связанными внутри этих заметок и в [[TEST-PLAN]], чтобы визуальный граф не превратился в шум.
+
+${sections}
+`,
+  });
+}
+
+function renderNodeNote(node, context) {
+  const incoming = context.edges.filter(edge => edge.to === node.id);
+  const outgoing = context.edges.filter(edge => edge.from === node.id);
+  const code = incoming.filter(edge => edge.type === "implements").map(edge => context.nodeById.get(edge.from)).filter(Boolean);
+  const tests = incoming.filter(edge => ["verifies", "always_run"].includes(edge.type)).map(edge => ({ edge, node: context.nodeById.get(edge.from) })).filter(item => item.node);
+  const semanticRelations = [...incoming.map(edge => ({ direction: "incoming", edge, other: context.nodeById.get(edge.from) })),
+    ...outgoing.map(edge => ({ direction: "outgoing", edge, other: context.nodeById.get(edge.to) }))]
+    .filter(item => item.other && SEMANTIC_KINDS.has(item.other.kind));
+  const locators = (context.graph.sourceLocators ?? []).filter(locator => locator.ownerNodeId === node.id);
+  const home = node.kind === "flow" ? "[[SYSTEM|Продукт]]" : node.kind === "route" ? "[[SURFACES|Поверхности]]" : "[[MONEY|Деньги и оплаты]]";
+  return [
+    "---",
+    `id: ${JSON.stringify(node.id)}`,
+    `kind: ${JSON.stringify(node.kind)}`,
+    `graph_digest: ${JSON.stringify(context.graphDigest)}`,
+    `source_sha: ${JSON.stringify(context.sourceSha)}`,
+    "generated: true",
+    "---",
+    GENERATED,
+    `# ${nodeTitle(node)}`,
+    "",
+    `${home} · [[IMPACT|Текущий impact]] · [[TEST-PLAN|План тестов]] · [[NODES|Все узлы]]`,
+    "",
+    "## Канонический узел",
+    "",
+    `\`${node.id}\``,
+    "",
+    nodeDescription(node),
+    "",
+    "## Реализуют",
+    "",
+    code.length ? code.map(source => `- \`${escapeCode(source.path ?? source.id.replace(/^file:/, ""))}\``).join("\n") : "- Прямая code-edge пока не заведена.",
+    "",
+    "## Проверяют",
+    "",
+    tests.length ? tests.map(({ edge, node: test }) => `- ${test.kind === "manual_test" ? "manual" : "automated"} \`${test.id}\` — ${escapeInline(test.title ?? test.selector?.titlePath?.join(" › ") ?? "")} (${edge.type})`).join("\n") : "- Прямая test-edge пока не заведена.",
+    "",
+    "## Связанные семантические узлы",
+    "",
+    semanticRelations.length ? semanticRelations.map(item => `- ${item.direction} \`${item.edge.type}\` ${nodeLink(item.other)}`).join("\n") : "- Канонических semantic-to-semantic рёбер пока нет.",
+    "",
+    "## Source locators",
+    "",
+    locators.length ? [...countBy(locators, locator => locator.disposition)].sort().map(([status, count]) => `- ${status}: ${count}`).join("\n") : "- Нет locators.",
+    "",
+  ].join("\n");
+}
+
+function renderCanvas() {
+  const pages = [
+    ["index", "INDEX.md", 0, 260],
+    ["system", "SYSTEM.md", 520, 0],
+    ["money", "MONEY.md", 520, 260],
+    ["surfaces", "SURFACES.md", 520, 520],
+    ["providers", "PROVIDERS.md", 1040, 0],
+    ["impact", "IMPACT.md", 1040, 260],
+    ["tests", "TEST-PLAN.md", 1040, 520],
+    ["nodes", "NODES.md", 1560, 260],
+  ];
+  const nodes = pages.map(([id, file, x, y]) => ({ id, type: "file", file, x, y, width: 400, height: 220 }));
+  const pairs = [
+    ["index", "system"], ["index", "money"], ["index", "surfaces"],
+    ["system", "providers"], ["money", "impact"], ["surfaces", "tests"],
+    ["impact", "tests"], ["providers", "nodes"], ["tests", "nodes"],
+  ];
+  const edges = pairs.map(([fromNode, toNode], index) => ({ id: `edge-${index + 1}`, fromNode, fromSide: "right", toNode, toSide: "left" }));
+  return `${JSON.stringify({ nodes, edges }, null, 2)}\n`;
+}
+
+function graphSettings() {
+  return {
+    "collapse-filter": false,
+    "showTags": true,
+    "showAttachments": false,
+    "hideUnresolved": true,
+    "showOrphans": false,
+    "colorGroups": [
+      { query: "path:nodes/flow-", color: { a: 1, rgb: 5025616 } },
+      { query: "path:nodes/route-", color: { a: 1, rgb: 16753920 } },
+      { query: "path:nodes/invariant-", color: { a: 1, rgb: 14830514 } },
+    ],
+  };
+}
+
+function groupFlows(flows) {
+  const order = ["VPN", "eSIM", "Virtual Numbers", "Card", "Passport", "Wallet", "Invoices", "Referrals", "Cross-product"];
+  const groups = new Map(order.map(name => [name, []]));
+  for (const flow of flows) groups.get(flowGroup(flow.id)).push(flow);
+  return new Map([...groups].filter(([, nodes]) => nodes.length));
+}
+
+function flowGroup(id) {
+  if (id.startsWith("flow:vpn.")) return "VPN";
+  if (id.startsWith("flow:esim.")) return "eSIM";
+  if (id.startsWith("flow:virtual-number.")) return "Virtual Numbers";
+  if (id.startsWith("flow:card.")) return "Card";
+  if (id.startsWith("flow:passport.")) return "Passport";
+  if (id.startsWith("flow:wallet.")) return "Wallet";
+  if (id.startsWith("flow:invoice.")) return "Invoices";
+  if (id.startsWith("flow:referral.")) return "Referrals";
+  return "Cross-product";
+}
+
+function isMoneyFlow(node) {
+  return /(?:card|wallet|invoice|purchase-intents|products\.internal-balance)/.test(node.id);
+}
+
+function directlyVerifying(kind, impactedNodes, edges, nodeById) {
+  const impacted = new Set(impactedNodes.map(node => node.id));
+  return [...new Set(edges.filter(edge => edge.type === "verifies" && impacted.has(edge.to) && nodeById.get(edge.from)?.kind === kind).map(edge => edge.from))];
+}
+
+function renderTestGroups(groups, kind) {
+  if (!groups.size) return "- none";
+  return [...groups].map(([group, tests]) => [
+    "<details>",
+    `<summary>${escapeInline(group)} · ${tests.length}</summary>`,
+    "",
+    ...tests.map(test => `- ${kind} \`${test.id}\`${test.title ? ` — ${escapeInline(test.title)}` : ""} — ${renderReasons(test.reasons, kind)}`),
+    "",
+    "</details>",
+  ].join("\n")).join("\n\n");
+}
+
+function renderReasons(reasons = [], kind) {
+  if (!reasons.length) return kind === "manual" ? "manual safety net" : "selected";
+  return reasons.map(reason => {
+    if (reason.type === "impact") return `impact: ${(reason.edgePath ?? []).join(" → ")}`;
+    if (reason.type === "always_run") return `always_run: invariant=${reason.invariantId ?? "unknown"}, reason=${reason.reason ?? "unknown"}`;
+    if (reason.type === "policy_fallback") return "policy_fallback: see [[IMPACT#Why full fallback|why full fallback]]";
+    return String(reason.type ?? "unknown");
+  }).sort().join("; ");
+}
+
+function nodeLink(node) {
+  return `[[${notePath(node).replace(/\.md$/, "")}|${node.id}]]`;
+}
+
+function notePath(node) {
+  return `nodes/${slug(node.id)}.md`;
+}
+
+function slug(value) {
+  return String(value).normalize("NFKD").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function searchKey(value) {
+  return String(value).replace(/[^A-Za-z0-9]+/g, " ").trim();
+}
+
+function nodeTitle(node) {
+  if (node.kind === "flow") return `${node.product ?? "Flow"} · ${node.action ?? node.id}`;
+  if (node.kind === "route") return node.label ?? node.title ?? node.id;
+  return node.title ?? node.id;
+}
+
+function nodeDescription(node) {
+  if (node.kind === "flow") return `- product: ${escapeInline(node.product ?? "unknown")}\n- action: ${escapeInline(node.action ?? "unknown")}`;
+  if (node.kind === "route") return `- route/gate: ${escapeInline(node.label ?? "unknown")}`;
+  return `- invariant: ${escapeInline(node.title ?? "unknown")}`;
+}
+
+function groupBy(values, keyOf) {
+  const groups = new Map();
+  for (const value of values) {
+    const key = keyOf(value);
+    const group = groups.get(key) ?? [];
+    group.push(value);
+    groups.set(key, group);
+  }
+  return new Map([...groups].sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function countBy(values, keyOf) {
+  const counts = new Map();
+  for (const value of values) {
+    const key = keyOf(value);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}
+
+function compareEdges(left, right) {
+  return `${left.type}\u0000${left.from}\u0000${left.to}`.localeCompare(`${right.type}\u0000${right.from}\u0000${right.to}`);
+}
+
+function compareTest(left, right) {
+  return `${left.file ?? ""}\u0000${left.id ?? ""}`.localeCompare(`${right.file ?? ""}\u0000${right.id ?? ""}`);
+}
+
+function filePath(file) {
+  return file.path ?? file.id?.replace(/^file:/, "") ?? "unknown";
+}
+
+function shortSha(value) {
+  return /^[a-f0-9]{40}$/i.test(String(value)) ? String(value).slice(0, 12) : String(value ?? "unknown");
+}
+
+function escapeCode(value) {
+  return String(value ?? "").replaceAll("`", "'");
+}
+
+function escapeInline(value) {
+  return String(value ?? "").replaceAll("\n", " ").replaceAll("|", "\\|").trim();
+}

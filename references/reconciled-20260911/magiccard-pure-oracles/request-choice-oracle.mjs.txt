@@ -1,0 +1,113 @@
+// Pure oracle for the isolated choice flow. No credentials or network imports.
+export function evaluateChoice(records, expected) {
+  const checks = {};
+  const ok = r => r?.httpStatus === 200 && !r.response?.error && r.response?.result?.isError !== true;
+  const data = name => records[name]?.response?.result?.structuredContent;
+  const request = name => data(name)?.request;
+  const goodRequest = (name, status) => ok(records[name])
+    && data(name)?.contract === 'magicpay.runtime-request/v1'
+    && request(name)?.id === expected.requestId
+    && request(name)?.kind === 'choice' && request(name)?.user_id === expected.ownerId
+    && request(name)?.intent_session_id === expected.sessionA
+    && request(name)?.agent_id === expected.agentId
+    && request(name)?.status === status
+    && request(name)?.operation_ref === null;
+  const selected = name => goodRequest(name, 'fulfilled')
+    && request(name)?.metadata?.choice_resolution?.selected_choice_id === expected.optionId
+    && request(name)?.result_ref === expected.resultRef;
+  const exactRestSelected = r => r?.id === expected.requestId
+    && r.intent_session_id === expected.sessionA && r.user_id === expected.ownerId
+    && r.agent_id === expected.agentId && r.kind === 'choice' && r.status === 'fulfilled'
+    && r.operation_ref === null
+    && r.metadata?.choice_resolution?.selected_choice_id === expected.optionId
+    && r.result_ref === expected.resultRef;
+  const errorText = name => records[name]?.response?.result?.content?.filter(x => x.type === 'text').map(x => x.text).join('\n') ?? '';
+  const error = name => records[name]?.httpStatus === 200 && records[name]?.response?.result?.isError === true;
+  const caps = data('capabilities-before');
+  const inputs = records.__inputs ?? {};
+  const pair = (name, session, option) => inputs[name]?.tool === 'decide_request'
+    && inputs[name]?.input?.sessionId === session && inputs[name].input.requestId === expected.requestId
+    && inputs[name].input.decision === 'confirmed' && inputs[name].input.selectedChoiceId === option;
+  const restPair = (name, session) => inputs[name]?.method === 'POST'
+    && inputs[name].endpoint === '/sessions/' + session + '/requests/' + expected.requestId + '/decisions'
+    && inputs[name].input?.decision === 'confirmed'
+    && inputs[name].input.selected_choice_id === 'qa-option-a'
+    && Object.keys(inputs[name].input).length === 2;
+  checks.recorded_input_binding = pair('invalid-option', expected.sessionA, 'qa-unknown-option')
+    && pair('mismatched-decision', expected.sessionB, 'qa-option-a')
+    && pair('terminal-changed-selection', expected.sessionA, 'qa-option-a')
+    && inputs['mismatched-read']?.tool === 'get_request'
+    && inputs['mismatched-read']?.input?.sessionId === expected.sessionB
+    && inputs['mismatched-read']?.input?.requestId === expected.requestId
+    && inputs.choice?.tool === 'request_choice' && inputs.choice?.input?.sessionId === expected.sessionA
+    && inputs.choice?.input?.idempotencyKey === expected.clientRequestId
+    && JSON.stringify(inputs['pending-exact-replay']) === JSON.stringify(inputs.choice)
+    && JSON.stringify(inputs['fulfilled-exact-replay']) === JSON.stringify(inputs.choice)
+    && restPair('exact-rest-terminal-decision-control', expected.sessionA)
+    && restPair('mismatched-rest-terminal-decision', expected.sessionB);
+  checks.identity = ok(records['capabilities-before']) && caps?.environment === 'development'
+    && caps?.buildId === expected.build
+    && ['x402PaymentRun','cryptoPaymentRun','browserPaymentRun'].every(k => caps[k]?.selectedAgentId === expected.agentId);
+  checks.isolated_general_sessions = expected.sessionA !== expected.sessionB && ['a','b'].every((label, i) => {
+    const n = 'begin-' + label, s = data(n)?.session;
+    return ok(records[n]) && s?.id === [expected.sessionA, expected.sessionB][i]
+      && s.agent_id === expected.agentId && s.type === 'general' && s.method === null;
+  });
+  checks.initial_unresolved_choice = goodRequest('choice', 'waiting_user') && request('choice')?.result_ref === null;
+  checks.invalid_option_rejected = error('invalid-option')
+    && errorText('invalid-option').startsWith('Runtime request decision was rejected.');
+  checks.invalid_option_no_change = goodRequest('after-invalid-option', 'waiting_user')
+    && JSON.stringify(request('after-invalid-option')) === JSON.stringify(request('choice'));
+  checks.mismatched_mcp_read_and_decision_rejected = error('mismatched-read') && error('mismatched-decision')
+    && errorText('mismatched-read') === 'Runtime request is unavailable. Retry the same exact request when indicated.'
+    && errorText('mismatched-decision') === 'Runtime request decision is unavailable. Retry the same exact request when indicated.';
+  const exactPath = '/sessions/' + expected.sessionA + '/requests/' + expected.requestId;
+  const mismatchPath = '/sessions/' + expected.sessionB + '/requests/' + expected.requestId;
+  checks.mismatched_rest_read_404_with_healthy_exact_control = records['mismatched-rest-read']?.httpStatus === 404
+    && records['mismatched-rest-read']?.method === 'GET' && records['mismatched-rest-read']?.endpoint === mismatchPath
+    && records['mismatched-rest-read']?.body?.error === 'not_found'
+    && records['exact-rest-control']?.httpStatus === 200
+    && records['exact-rest-control']?.method === 'GET' && records['exact-rest-control']?.endpoint === exactPath
+    && records['exact-rest-control']?.body?.request?.id === expected.requestId
+    && records['exact-rest-control']?.body?.request?.intent_session_id === expected.sessionA;
+  const directControl = records['exact-rest-terminal-decision-control'];
+  const directNegative = records['mismatched-rest-terminal-decision'];
+  const afterDirect = records['after-rest-terminal-controls'];
+  checks.post_terminal_rest_decision_binding = directControl?.httpStatus === 200
+    && directControl.method === 'POST' && directControl.endpoint === exactPath + '/decisions'
+    && exactRestSelected(directControl.body?.request)
+    && directNegative?.httpStatus === 404 && directNegative.method === 'POST'
+    && directNegative.endpoint === mismatchPath + '/decisions' && directNegative.body?.error === 'not_found'
+    && afterDirect?.httpStatus === 200 && afterDirect.method === 'GET' && afterDirect.endpoint === exactPath
+    && exactRestSelected(afterDirect.body?.request);
+  checks.mismatched_decision_no_change = goodRequest('after-mismatched-decision', 'waiting_user')
+    && JSON.stringify(request('after-mismatched-decision')) === JSON.stringify(request('choice'));
+  checks.pending_replay_same_request = goodRequest('pending-exact-replay', 'waiting_user')
+    && JSON.stringify(request('pending-exact-replay')) === JSON.stringify(request('choice'));
+  checks.selected_result_delivered = selected('wait-positive')
+    && data('wait-positive')?.wait?.state === 'terminal'
+    && data('wait-positive')?.wait?.reason === 'fulfilled'
+    && data('wait-positive')?.artifact?.kind === 'choice'
+    && data('wait-positive')?.artifact?.selected_option?.id === expected.optionId;
+  checks.terminal_different_selection_preserves_result = selected('terminal-changed-selection') && selected('after-terminal-change');
+  checks.fulfilled_replay_preserves_result = selected('fulfilled-exact-replay');
+  checks.closed_sessions = ['a','b'].every((label, i) => {
+    const closure = data('cleanup-' + label), read = records['session-' + label + '-closed'];
+    return ok(records['cleanup-' + label]) && closure?.session?.id === [expected.sessionA, expected.sessionB][i]
+      && closure?.operationRef === null && closure?.cleanupDisposition === 'released_pre_submit'
+      && closure?.settlementStatus === 'not_started'
+      && read?.httpStatus === 200 && read.body?.session?.id === [expected.sessionA, expected.sessionB][i]
+      && read.body?.session?.status === 'canceled'
+      && read.body?.session?.protected_execution_close_state === 'closed'
+      && read.body?.session?.current_request_id === null;
+  });
+  checks.closed_request_preserves_result = selected('request-after-close');
+  const balance = data('balance-after');
+  checks.no_observed_debit_or_hold = ok(records['balance-after'])
+    && balance?.contract === 'magicpay.total-balance/v1' && balance?.schemaVersion === '1.0'
+    && balance?.authority === 'authoritative_unified' && balance?.presentation?.assetId === 'USD'
+    && balance?.presentation?.namespace === 'iso4217'
+    && balance.presentation.scale === 6 && balance.snapshot?.bookId === expected.balanceBook
+    && balance.posted === expected.balanceAtomic && balance.available === expected.balanceAtomic && balance.reserved === '0';
+  return { checks, passed: Object.values(checks).every(Boolean), scope: 'One own-agent general choice, two own sessions, exact read/decision/replay and cleanup. Preselection MCP negatives do not expose exact upstream HTTP status; separate REST404 controls ran after terminal closure. Not cross-owner isolation, protected Memory, arbitrary choices or native host invocation.' };
+}

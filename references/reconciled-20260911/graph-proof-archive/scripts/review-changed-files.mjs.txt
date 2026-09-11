@@ -1,0 +1,69 @@
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+
+const sourceRoot = argument("--source-root");
+const baselineSha = argument("--baseline");
+const candidateSha = argument("--candidate");
+if (!sourceRoot || !baselineSha || !candidateSha) {
+  throw new TypeError("--source-root, --baseline and --candidate are required");
+}
+for (const sha of [baselineSha, candidateSha]) {
+  const resolved = git(["rev-parse", `${sha}^{commit}`]).trim();
+  if (resolved !== sha) throw new TypeError(`Git identity does not resolve exactly: ${sha}`);
+}
+
+const fields = gitBuffer(["diff", "--name-status", "-z", "-M", baselineSha, candidateSha])
+  .toString("utf8")
+  .split("\0");
+if (fields.at(-1) === "") fields.pop();
+const changes = [];
+for (let index = 0; index < fields.length;) {
+  const status = fields[index++];
+  const pathCount = /^(?:R|C)/.test(status) ? 2 : 1;
+  const paths = fields.slice(index, index + pathCount);
+  index += pathCount;
+  if (paths.length !== pathCount) throw new TypeError(`Malformed Git name-status row: ${status}`);
+  const patch = gitBuffer(["diff", "--binary", "--no-ext-diff", baselineSha, candidateSha, "--", ...paths]);
+  changes.push({
+    status,
+    paths,
+    diffSha256: `sha256:${createHash("sha256").update(patch).digest("hex")}`,
+    byteCount: patch.length,
+    suggestedClass: suggestedClass(paths),
+  });
+}
+changes.sort((left, right) => JSON.stringify([left.status, left.paths]).localeCompare(JSON.stringify([right.status, right.paths]), "en"));
+process.stdout.write(`${JSON.stringify({
+  schemaVersion: 1,
+  baselineSha,
+  candidateSha,
+  counts: countClasses(changes),
+  changes,
+}, null, 2)}\n`);
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}
+
+function git(args) {
+  return execFileSync("git", args, { cwd: sourceRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+}
+
+function gitBuffer(args) {
+  return execFileSync("git", args, { cwd: sourceRoot, maxBuffer: 64 * 1024 * 1024 });
+}
+
+function suggestedClass(paths) {
+  if (paths.some(path => /(?:^|\/)migrations?\//i.test(path) || /(?:^|\/)config\//i.test(path))) return "runtime_or_schema_review";
+  if (paths.some(path => /(?:^|\/)(?:tests?|__tests__)(?:\/|\.)/i.test(path) || /(?:\.test|\.spec)\.[^/]+$/i.test(path))) return "assurance_review";
+  if (paths.some(path => /^\.github\/workflows\//.test(path))) return "ci_or_deploy_review";
+  if (paths.some(path => /(?:^|\/)(?:src|public|assets|scripts|infra)\//i.test(path))) return "runtime_or_operational_review";
+  return "documentation_or_tooling_review";
+}
+
+function countClasses(rows) {
+  const counts = { total: rows.length };
+  for (const row of rows) counts[row.suggestedClass] = (counts[row.suggestedClass] ?? 0) + 1;
+  return counts;
+}

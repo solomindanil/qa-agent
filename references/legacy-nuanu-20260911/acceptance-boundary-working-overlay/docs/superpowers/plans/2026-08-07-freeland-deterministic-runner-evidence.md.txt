@@ -1,0 +1,2449 @@
+# Freeland Deterministic Runner and Evidence Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Compose the existing Freeland coverage, Playwright, attestation, and evidence primitives into one closed-command deterministic N1 runner that emits schema-valid `QaRunResult` values and publishes only atomic sanitized evidence.
+
+**Architecture:** Keep selection, execution-fact ingestion, evaluation, evidence construction, and artifact publication as separate deterministic modules behind one process-facing worker operation. The CLI accepts exactly one bounded `NuanuTaskEnvelope` whose `runnerCommandId` is `freeland-qa-run-v1`, then owns the complete plan → required lanes → freshness recheck → aggregate → sanitized publication sequence. Planning, lane execution, and aggregation are private functions, never ticket-selectable command IDs. A publisher port is the sole N1 boundary to Nuanu Artifact publication; Nuanu process state, task delivery, scheduling, retry, Decisions, and routing remain outside this repository layer.
+
+**Tech Stack:** Node.js `>=20 <21`, TypeScript 6.0.3 in strict ESM mode, Playwright 1.61.1 JSON reporter, Node test runner through `tsx`, Ajv 8.20.0 plus `ajv-formats`, YAML 2.9.0, SHA-256, and POSIX atomic file publication.
+
+## Global Constraints
+
+- Planning/spec worktree: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program`.
+- Approved design source: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/qa-auto-program/docs/superpowers/specs/2026-08-07-freeland-nuanu-native-qa-control-plane-design.md`.
+- Implementation worktree: `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local`.
+- Required implementation branch and baseline: `codex/freeland-agent-first-cdp-i1-local` at `72378f3e32f8da3d1e5226e8737a3717e48a6347`.
+- Before execution, stop if that worktree has unrelated changes or if its baseline differs; review and rebase the plan deliberately instead of silently applying it to another tree.
+- Do not install from a registry or upgrade dependencies. Keep the pinned Node,
+  TypeScript, Playwright, Ajv, YAML, and `tsx` versions. Task 8 alone may add the
+  reviewed `file:vendor/nuanu-freeland-worker-adapter-1.0.0.tgz` dependency with
+  lifecycle scripts disabled and its exact integrity locked in
+  `package-lock.json`.
+- Ambient `node` is 22.23.1 and is non-authoritative. Every implementation and verification command in this plan uses `/opt/homebrew/opt/node@20/bin/node` and must report `v20.20.2`; package scripts are invoked through that executable and the pinned `/opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run` entrypoint.
+- N1 tests are offline and fixture-backed. Do not contact staging, launch Chrome, invoke Telegram, submit a payment, or call Nuanu during this plan.
+- Reuse `CoverageRegistry`, the committed inventories, staging environment contracts, CDP result contracts, and `sanitizeAttachmentValue`/`assertSafeAttachmentValue`; do not copy their logic into a second subsystem.
+- Current production-owned inventory facts remain honest: five execution-lane IDs, 180 logical checks, 205 occurrences, all outcomes `NOT_RUN`, all stability `UNKNOWN`, and no populated persona requirements. These facts cannot produce `PASS`.
+- `qaRunKey` excludes worker, account, retry, Nuanu task, and delivery IDs. No retry or executor move can create a new authoritative identity.
+- The only external command is `freeland-qa-run-v1`. Values such as `qa.plan.v1`, `qa.playwright.v1`, and `qa.aggregate.v1` may appear only as private trace labels in tests; they are not contracts, CLI inputs, registry keys, or ticket-controlled phases.
+- The verdict lane has zero Playwright retries. A retry result is diagnostic evidence and can produce `FLAKY`; it never overwrites the clean attempt.
+- The runner accepts no shell text, URL, origin, repository path, test file, grep, selector, project name, environment-variable name, artifact path, or executable path from request data.
+- Ticket title, description, comments, attachments, and acceptance prose never enter the command dispatcher. Only normalized issue identity, reviewed requirement IDs, and typed lane facts cross the runner boundary.
+- Never persist raw Playwright JSON, stdout, stderr, cookies, storage state, credentials, tokens, signed URLs, email addresses, personal data, full PAN, or CVV in the sanitized bundle.
+- N1 supports `payment: null` only. A non-null `PaymentLifecycle` remains schema-valid for the stable process contract but is rejected by N1 commands with `payment_lane_unavailable`; payment execution belongs to N5.
+- PDF/report rendering is presentation-only and absent from all predicates in this plan.
+- Nuanu journey/orchestration is not implemented here. N2 supplies concrete
+  freshness and `QaArtifactPublisher` adapters; N1 owns only the statically
+  pinned packaged worker composition that invokes those ports.
+- N1 Tasks 1–7 may proceed in parallel with N0 Tasks 1–4. Task 8 vendoring and
+  GREEN require the committed N0 Task 3 adapter builder plus its
+  `--verify-pack` tests. No N0 Task 5 live Step 3–6 probe or N0 Task 6 work may
+  begin until N1 Task 8 itself is committed with GREEN vendoring, all three
+  mode-specific handlers, direct spawn, and authenticated FD `3` integration.
+
+## File Structure
+
+**Create contracts and schemas:**
+
+- `packages/contracts/src/qa-run.ts` — closed process-facing identity, request, plan, lane-execution, result, artifact, and validator contracts.
+- `packages/contracts/schemas/qa-run-identity.v1.schema.json` — independent closed schema for canonical run identity.
+- `packages/contracts/schemas/nuanu-task-envelope.v1.schema.json` — closed schema for the one external `freeland-qa-run-v1` worker input.
+- `packages/contracts/schemas/qa-worker-seed.v1.schema.json` — closed pre-dispatch seed shared with the Nuanu adapter.
+- `packages/contracts/schemas/qa-lane-execution.v1.schema.json` — closed normalized lane facts consumed by the evaluator.
+- `packages/contracts/schemas/qa-run-result.v1.schema.json` — exact section-8 `QaRunResult` schema.
+- `packages/contracts/schemas/qa-coverage-projection.v1.schema.json` — exact Flow-item/requirement/check/capability/lane binding.
+- `packages/contracts/schemas/qa-artifact-bundle.v1.schema.json` — sanitized content-addressed bundle schema.
+- `packages/contracts/schemas/qa-run-evidence.v1.schema.json` — closed result plus exact bundle/projection evidence pair.
+
+**Create runner modules:**
+
+- `packages/runner/src/canonical-json.ts` — bounded canonical JSON bytes with lexicographically sorted object keys.
+- `packages/runner/src/identity.ts` — identity normalization and `qaRunKey` derivation.
+- `packages/runner/src/repository-authority.ts` — fixed-argv Git tracked-file proof for registry-selected authority files.
+- `packages/runner/src/run-authority.ts` — trusted registry/config projections that reconstruct the full identity behind the narrow Nuanu envelope.
+- `packages/runner/src/selection.ts` — requirement dependency expansion, maturity gates, lane mapping, and plan digest.
+- `packages/playwright-support/src/verdict-result.ts` — Playwright 1.61.1 runtime JSON parser and normalized strict facts.
+- `packages/runner/src/playwright-lane.ts` — fixed Playwright invocation derived only from an eligible plan.
+- `packages/runner/src/api-lane.ts` — explicit fail-closed N1 API-lane boundary until a reviewed normalized product-contract reporter exists.
+- `packages/runner/src/evaluator.ts` — ordered deterministic issue/candidate verdict rules.
+- `packages/runner/src/coverage-projection.ts` — registry-derived coverage and capability binding.
+- `packages/runner/src/evidence.ts` — typed sanitized bundle construction and atomic content-addressed write.
+- `packages/runner/src/publisher.ts` — local publisher plus the Nuanu-facing publisher port.
+- `packages/runner/src/commands.ts` — the one external worker entry point and private sequential phase composition.
+- `packages/runner/src/live-adapter.ts` — trusted seed preparation plus the sole runner port.
+- `packages/runner/src/nuanu-worker-binding.ts` — packaged N0 adapter plus N1 runner composition root.
+- `packages/runner/src/nuanu-worker-ports.ts` — closed inherited-control adapters for freshness and sanitized publication.
+- `packages/runner/src/nuanu-worker-dependencies.ts` — sole static dependency factory extended in-place by N3 and N5.
+- `packages/runner/src/nuanu-worker-handler.ts` — exact direct-spawn manifest and validator for the official transport.
+- `tools/runner/run-qa.ts` — bounded stdin/stdout CLI entry point.
+- `tools/runner/run-nuanu-worker.ts` — bounded seed-to-nine-output remote-worker entry point.
+- `tools/runner/vendor-nuanu-worker-adapter.ts` — build-time reviewed N0 package vendoring.
+- `config/nuanu/worker-adapter-lock.v1.json`,
+  `config/nuanu/worker-handler.manual.v1.json`,
+  `config/nuanu/worker-handler.assist.v1.json`,
+  `config/nuanu/worker-handler.auto.v1.json`, and
+  `vendor/nuanu-freeland-worker-adapter-1.0.0.tgz` — exact package provenance.
+
+**Create tests and fixtures:**
+
+- `tests/contracts/qa-run.test.ts`.
+- `tests/runner/identity.test.ts`.
+- `tests/runner/repository-authority.test.ts`.
+- `tests/runner/run-authority.test.ts`.
+- `tests/runner/selection.test.ts`.
+- `tests/runner/nuanu-worker-binding.test.ts`.
+- `tests/runner/nuanu-worker-ports.test.ts`.
+- `tests/runner/nuanu-worker-dependencies.test.ts`.
+- `tests/runner/nuanu-worker-handler.test.ts`.
+- `tests/runner/vendor-nuanu-worker-adapter.test.ts`.
+- `tests/playwright-support/verdict-result.test.ts`.
+- `tests/playwright-support/fixtures/pass.report.json`.
+- `tests/playwright-support/fixtures/fail.report.json`.
+- `tests/playwright-support/fixtures/infra.report.json`.
+- `tests/playwright-support/fixtures/empty.report.json`.
+- `tests/playwright-support/fixtures/retry.report.json`.
+- `tests/runner/playwright-lane.test.ts`.
+- `tests/runner/api-lane.test.ts`.
+- `tests/runner/fixtures/evaluation-cases.ts`.
+- `tests/runner/evaluator.test.ts`.
+- `tests/runner/coverage-projection.test.ts`.
+- `tests/runner/evidence.test.ts`.
+- `tests/runner/publisher.test.ts`.
+- `tests/runner/commands.test.ts`.
+- `tests/runner/live-adapter.test.ts`.
+- `tests/runner/cli.test.ts`.
+- `tests/runner/runtime-pinning.test.ts`.
+- `tests/runner/n1-acceptance.test.ts`.
+
+**Modify:**
+
+- `packages/contracts/src/index.ts` — export only the public QA contracts and validators.
+- `package.json` — add `qa:run` and `test:runner`; existing `test:unit` and `verify:deterministic` automatically include the new `.test.ts` files.
+
+**Reuse without modification:**
+
+- `packages/contracts/src/coverage.ts`, `packages/contracts/src/test-inventory.ts`, and their existing schemas.
+- `tools/coverage/validate-registry.ts` exports `loadCoverageRegistry`, `validateCoverageRegistry`, and `canonicalRegistryJson`.
+- `packages/playwright-support/src/environment.ts` and `packages/playwright-support/src/evidence.ts`.
+- `packages/contracts/src/cdp.ts` and `packages/cdp-broker/src/*`; N1 can consume normalized CDP facts later but does not add the N3 daemon/CLI.
+- `playwright.config.ts` and all product tests; N1 derives strict runtime arguments without changing test assertions.
+
+## Shared Interfaces
+
+The tasks below use these exact names and types. Define them once in `packages/contracts/src/qa-run.ts`; later FreelandQA plans import these exports and must not redeclare them.
+
+```ts
+export const QA_LANES = [
+  'api', 'playwright', 'cdp', 'computer-use', 'telegram', 'payment',
+] as const;
+export type QaLane = (typeof QA_LANES)[number];
+
+export type QaRunKey = string & { readonly __brand: 'QaRunKey' };
+export type QaExecutionMode = 'manual' | 'assist' | 'auto';
+
+export type Assessment = 'SATISFIED' | 'VIOLATED' | 'INCONCLUSIVE';
+export type ExecutionHealth = 'HEALTHY' | 'INFRA_FAILURE' | 'CANCELLED';
+export type Applicability = 'MATCHED' | 'STALE' | 'UNVERIFIED' | 'SUPERSEDED';
+export type EvidenceStatus = 'SUFFICIENT' | 'INCOMPLETE' | 'REDACTION_BLOCKED';
+export type IssueVerdict =
+  | 'PASS' | 'PRODUCT_FAIL' | 'AWAITING_DEPLOYMENT' | 'ENV_BLOCKED'
+  | 'PROVIDER_BLOCKED' | 'HARNESS_FAIL' | 'FLAKY' | 'NEEDS_HUMAN';
+export type CandidateVerdict =
+  | 'CANDIDATE_RELEASE_READY'
+  | 'CANDIDATE_RELEASE_BLOCKED'
+  | 'CANDIDATE_RELEASE_INCONCLUSIVE';
+
+export type PlaywrightExecutionLaneId =
+  | 'freeland-staging'
+  | 'freeland-direct-ingress'
+  | 'freeland-vpn-regression'
+  | 'freeland-webkit-release';
+
+export type ExecutionLaneId =
+  | PlaywrightExecutionLaneId
+  | 'product-contract'
+  | 'freeland-cdp'
+  | 'freeland-computer-use'
+  | 'freeland-telegram-web'
+  | 'freeland-payment';
+
+export interface QaRunIdentity {
+  schemaVersion: 1;
+  issueId: string;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateDigest: string;
+  coverageDigest: string;
+  oracleDigest: string;
+  classifierDigest: string;
+  policyDigest: string;
+  environmentDigest: string;
+  dataDigest: string;
+  catalogDigest: string;
+  processTemplateVersion: string;
+  executionMode: QaExecutionMode;
+  surfaces: string[];
+  lanes: QaLane[];
+  payment: null | {
+    authorizationId: string;
+    paymentProfileRevision: string;
+  };
+}
+
+export type QaCoverageGapCode =
+  | 'ZERO_SELECTION'
+  | 'UNKNOWN_REQUIREMENT'
+  | 'NON_AUTOMATED_REQUIREMENT'
+  | 'UNSTABLE_CHECK'
+  | 'NON_VERDICT_POLICY'
+  | 'UNTRACKED_AUTHORITY'
+  | 'UNKNOWN_EXECUTION_LANE';
+
+export type QaPlannedLane =
+  | {
+      laneId: PlaywrightExecutionLaneId;
+      lane: 'playwright';
+      projectName: PlaywrightExecutionLaneId;
+      scenarioId: null;
+      paymentProfileId: null;
+      required: true;
+      checkIds: string[];
+    }
+  | {
+      laneId: 'product-contract';
+      lane: 'api';
+      projectName: 'product-contract';
+      scenarioId: null;
+      paymentProfileId: null;
+      required: true;
+      checkIds: string[];
+    }
+  | {
+      laneId: 'freeland-cdp';
+      lane: 'cdp';
+      projectName: null;
+      scenarioId: string;
+      paymentProfileId: null;
+      required: true;
+      checkIds: string[];
+    }
+  | {
+      laneId: 'freeland-computer-use';
+      lane: 'computer-use';
+      projectName: null;
+      scenarioId: string;
+      paymentProfileId: null;
+      required: true;
+      checkIds: string[];
+    }
+  | {
+      laneId: 'freeland-telegram-web';
+      lane: 'telegram';
+      projectName: null;
+      scenarioId: string;
+      paymentProfileId: null;
+      required: true;
+      checkIds: string[];
+    }
+  | {
+      laneId: 'freeland-payment';
+      lane: 'payment';
+      projectName: null;
+      scenarioId: null;
+      paymentProfileId: string;
+      required: true;
+      checkIds: string[];
+    };
+
+export interface QaRunPlan {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  planDigest: string;
+  eligibility: 'ELIGIBLE' | 'BLOCKED';
+  requirementIds: string[];
+  checkIds: string[];
+  lanes: QaPlannedLane[];
+  gaps: Array<{
+    code: QaCoverageGapCode;
+    requirementId: string | null;
+    checkId: string | null;
+  }>;
+}
+
+export interface QaCoverageProjection {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  flowItemId: string;
+  issueRevision: string;
+  requirementIds: string[];
+  checkIds: string[];
+  capabilityIds: string[];
+  laneBindings: Array<{
+    lane: QaLane;
+    laneId: ExecutionLaneId;
+    requirementIds: string[];
+    checkIds: string[];
+    capabilityIds: string[];
+  }>;
+  projectionDigest: string;
+}
+
+export type QaCheckOutcome =
+  | 'PASS' | 'FAIL' | 'SKIPPED' | 'EXPECTED_FAIL' | 'TIMED_OUT' | 'INTERRUPTED';
+
+export type QaSanitizedLaneEvidence = {
+  schemaVersion: 1;
+  kind: 'none';
+};
+
+export interface QaLaneExecution {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  lane: QaLane;
+  laneId: string;
+  attemptKind: 'VERDICT' | 'DIAGNOSTIC' | 'CONFIRMATION';
+  attemptIndex: number;
+  candidateBeforeDigest: string;
+  candidateAfterDigest: string;
+  selectedCheckIds: string[];
+  checks: Array<{
+    checkId: string;
+    requirementIds: string[];
+    outcome: QaCheckOutcome;
+    retry: number;
+    errorDigest: string | null;
+  }>;
+  executionHealth: ExecutionHealth;
+  evidenceStatus: EvidenceStatus;
+  cleanupStatus: 'COMPLETE' | 'INCOMPLETE' | 'NOT_REQUIRED';
+  reasonCode:
+    | null
+    | 'playwright_report_invalid'
+    | 'playwright_process_failed'
+    | 'worker_unavailable'
+    | 'provider_unavailable'
+    | 'harness_invalid'
+    | 'candidate_changed'
+    | 'cleanup_failed'
+    | 'redaction_failed';
+  rawReportDigest: string | null;
+  sanitizedLaneEvidence: QaSanitizedLaneEvidence;
+  resultDigest: string;
+}
+
+export interface SanitizedArtifactRef {
+  artifactId: string;
+  versionId: string;
+  sha256: string;
+}
+
+export type QaArtifactRef = SanitizedArtifactRef;
+```
+
+`PaymentLifecycle` and `QaRunResult` must be copied exactly from section 8 of the approved design. Use this complete TypeScript shape; do not weaken any payment field even though N1 commands require `payment: null`:
+
+```ts
+export type PaymentLifecycleState =
+  | 'NOT_STARTED' | 'BUDGET_RESERVED' | 'CHECKOUT_CREATED'
+  | 'SUBMITTED_PENDING' | 'RECONCILED_PAID' | 'RECONCILED_DECLINED'
+  | 'RECONCILED_CANCELLED' | 'UNKNOWN_HELD';
+
+export interface PaymentLifecycle {
+  authorizationId: string;
+  authorizationPolicyDigest: string;
+  paymentProfileDigest: string;
+  environment: 'staging' | 'production';
+  fullReleaseSha: string;
+  sku: string;
+  purpose: string;
+  budgetReservationId: string;
+  canonicalIntentId: string;
+  currency: string;
+  authorizedAmountMinor: number;
+  reservedAmountMinor: number;
+  settledAmountMinor: number;
+  checkoutsCreated: number;
+  submittedPayments: number;
+  fencingEpoch: number;
+  state: PaymentLifecycleState;
+  reconciliation: {
+    provider: { status: 'MATCHED' | 'DECLINED' | 'CANCELLED' | 'UNKNOWN'; digest: string | null };
+    order: { status: 'MATCHED' | 'NOT_CREATED' | 'UNKNOWN'; digest: string | null };
+    entitlement: { status: 'PROVISIONED' | 'NOT_EXPECTED' | 'MISSING' | 'UNKNOWN'; digest: string | null };
+  };
+}
+
+export interface QaRunResult {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateBeforeDigest: string;
+  candidateAfterDigest: string;
+  coverageDigest: string;
+  oracleDigest: string;
+  policyDigest: string;
+  classifierDigest: string;
+  environmentDigest: string;
+  dataDigest: string;
+  catalogDigest: string;
+  assessment: Assessment;
+  executionHealth: ExecutionHealth;
+  applicability: Applicability;
+  evidenceStatus: EvidenceStatus;
+  selectedChecks: number;
+  executedChecks: number;
+  laneResults: Array<{
+    lane: QaLane;
+    resultDigest: string;
+    status: 'PASS' | 'FAIL' | 'BLOCKED' | 'NOT_REQUIRED';
+  }>;
+  issueVerdict: IssueVerdict;
+  candidateVerdict: CandidateVerdict;
+  payment: PaymentLifecycle | null;
+  artifacts: SanitizedArtifactRef[];
+}
+
+export type QaRunEvaluation = Omit<QaRunResult, 'artifacts'>;
+```
+
+The immutable pre-dispatch seed and cross-plan worker envelope are closed and
+carry no caller-selected execution primitive:
+
+```ts
+export interface QaWorkerSeedV1 {
+  schemaVersion: 1;
+  flowItemId: string;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateDigest: string;
+  requirementIds: readonly string[];
+  runnerCommandId: 'freeland-qa-run-v1';
+  deadline: string;
+  paymentAuthorizationId: string | null;
+}
+
+export interface QaWorkerInputV1 extends QaWorkerSeedV1 {
+  qaRunKey: string;
+}
+
+export interface NuanuTaskEnvelope {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  flowItemId: string;
+  issueRevision: string;
+  issueContentDigest: string;
+  candidateDigest: string;
+  requirementIds: readonly string[];
+  runnerCommandId: 'freeland-qa-run-v1';
+  deadline: string;
+  paymentAuthorizationId: string | null;
+}
+
+export function asQaRunKey(value: unknown): QaRunKey;
+export function validateNuanuTaskEnvelope(value: unknown): NuanuTaskEnvelope;
+```
+
+`asQaRunKey` is the only cast from an unbranded string. It first validates the
+lowercase 64-hex syntax; every plan, lane fact, evaluator input, publisher
+input, result, and CLI output retains `QaRunKey` rather than falling back to
+`string`.
+
+## Execution Preflight
+
+- [ ] Run these read-only checks before Task 1:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git branch --show-current
+git rev-parse HEAD
+git status --short
+/opt/homebrew/opt/node@20/bin/node --version
+```
+
+Expected: branch `codex/freeland-agent-first-cdp-i1-local`, commit
+`72378f3e32f8da3d1e5226e8737a3717e48a6347`, no status output, and Node
+`v20.20.2`. Stop on any
+other result; do not clean or rewrite user changes.
+
+---
+
+### Task 1: Closed QA Contracts and Independent JSON Schemas
+
+**Files:**
+
+- Create: `packages/contracts/src/qa-run.ts`
+- Create: `packages/contracts/schemas/qa-run-identity.v1.schema.json`
+- Create: `packages/contracts/schemas/nuanu-task-envelope.v1.schema.json`
+- Create: `packages/contracts/schemas/qa-worker-seed.v1.schema.json`
+- Create: `packages/contracts/schemas/qa-lane-execution.v1.schema.json`
+- Create: `packages/contracts/schemas/qa-run-result.v1.schema.json`
+- Modify: `packages/contracts/src/index.ts`
+- Test: `tests/contracts/qa-run.test.ts`
+
+**Interfaces:**
+
+- Produces: every type in **Shared Interfaces**.
+- Produces: `validateQaRunIdentity(input: unknown): QaRunIdentity`.
+- Produces: `asQaRunKey(input: unknown): QaRunKey`.
+- Produces: `validateNuanuTaskEnvelope(input: unknown): NuanuTaskEnvelope`.
+- Produces: `validateQaWorkerSeed(input: unknown): QaWorkerSeedV1`.
+- Produces: `validateQaWorkerInput(input: unknown): QaWorkerInputV1`.
+- Produces: `validateQaRunPlan(input: unknown): QaRunPlan`.
+- Produces: `validateQaLaneExecution(input: unknown): QaLaneExecution`.
+- Produces: `validateQaRunResult(input: unknown): QaRunResult`.
+- Produces: `canonicalQaRunResultJson(input: QaRunResult): string` with one trailing newline.
+
+- [ ] **Step 1: Write the contract RED tests**
+
+Create table-driven tests with these exact cases:
+
+```ts
+test('manual validators and all five Task 1 schemas accept the exact closed v1 values');
+test('QaRunResult retains every section-8 field and rejects every unknown field');
+test('payment is null only when the payment lane is NOT_REQUIRED');
+test('every digest is lowercase SHA-256 and every count is a safe non-negative integer');
+test('plan schema accepts each exact API Playwright CDP Computer Use Telegram and payment lane variant');
+test('plan schema rejects wrong project scenario profile or laneId combinations');
+test('N1 lane execution requires exact sanitized evidence kind none and rejects nested extra keys');
+test('worker envelope accepts only freeland-qa-run-v1 and rejects every unknown command ID');
+test('worker seed and Nuanu independent copy agree and the seed rejects qaRunKey');
+test('worker input is the seed plus one unbranded lowercase 64-hex qaRunKey');
+test('worker envelope rejects shell, URL, path, selector, project, worker, retry-id, lane, and phase fields');
+test('asQaRunKey is the sole validated bridge from a wire string to the branded key');
+test('manual validators and Ajv schemas agree for every mutation corpus member');
+test('canonicalQaRunResultJson is byte-stable and ends in exactly one newline');
+```
+
+Build the valid result fixture with runtime-generated repeated characters rather than credential-shaped literals. Include one `playwright` lane and one local artifact reference. Mutate every field independently, including payment/lane consistency and extra symbol/string keys.
+
+- [ ] **Step 2: Run the focused contract test and verify RED**
+
+Run:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/contracts/qa-run.test.ts
+```
+
+Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `packages/contracts/src/qa-run.js`.
+
+- [ ] **Step 3: Implement the exact TypeScript validators**
+
+Use closed-record inspection through `Reflect.ownKeys`, exact required/optional key sets, safe-integer checks, canonical UTC where a timestamp exists, unique bounded arrays, and these patterns:
+
+```ts
+const SHA256 = /^[0-9a-f]{64}$/u;
+const QA_RUN_KEY = /^[0-9a-f]{64}$/u;
+const ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/u;
+const CURRENCY = /^[A-Z]{3}$/u;
+```
+
+Snapshot accepted values into fresh arrays/objects and freeze the returned root. Do not return the caller's mutable object. Enforce `payment === null` when the payment lane is `NOT_REQUIRED`, and require non-null payment otherwise.
+
+N1 Playwright/API facts set
+`sanitizedLaneEvidence: { schemaVersion: 1, kind: 'none' }`. This is a closed
+union, not an arbitrary metadata bag. N3 Task 8 must modify this owned contract,
+the lane/bundle/evidence schemas, and mutation tests together before it may add
+its exact discriminated sanitized variants; no adapter can attach an unknown
+object opportunistically.
+
+- [ ] **Step 4: Implement all five independent schemas**
+
+Each root and nested object uses `additionalProperties: false`; arrays have explicit `maxItems`, unique ID arrays use `uniqueItems: true`, digests use the exact lowercase pattern, integers use `minimum: 0`, and closed variants use `oneOf` with `const` discriminators. The envelope schema fixes `runnerCommandId` with `const: "freeland-qa-run-v1"`, rejects phase/lane/project/grep fields, and validates `deadline` as canonical UTC without deriving execution authority from it. Set `$schema` to draft 2020-12 and stable `$id` values under `https://freeland.qa/schemas/`.
+
+- [ ] **Step 5: Export only the public QA contracts**
+
+Append this exact export:
+
+```ts
+export * from './qa-run.js';
+```
+
+- [ ] **Step 6: Run focused GREEN and the existing contract aggregate**
+
+Run:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/contracts/qa-run.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/cdp/cdp-contracts.test.ts tests/coverage/registry-validation.test.ts tests/contracts/qa-run.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands exit `0`.
+
+- [ ] **Step 7: Commit the contracts**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/contracts/src/qa-run.ts packages/contracts/src/index.ts packages/contracts/schemas/qa-run-identity.v1.schema.json packages/contracts/schemas/qa-worker-seed.v1.schema.json packages/contracts/schemas/nuanu-task-envelope.v1.schema.json packages/contracts/schemas/qa-lane-execution.v1.schema.json packages/contracts/schemas/qa-run-result.v1.schema.json tests/contracts/qa-run.test.ts
+git commit -m "feat: add deterministic QA run contracts"
+```
+
+### Task 2: Canonical Identity and Stable `qaRunKey`
+
+**Files:**
+
+- Create: `packages/runner/src/canonical-json.ts`
+- Create: `packages/runner/src/identity.ts`
+- Test: `tests/runner/identity.test.ts`
+
+**Interfaces:**
+
+- Consumes: `QaRunIdentity`, `validateQaRunIdentity`.
+- Produces: `canonicalJsonBytes(input: unknown): Buffer`.
+- Produces: `normalizeQaRunIdentity(input: unknown): QaRunIdentity`.
+- Produces: `deriveQaRunKey(identity: QaRunIdentity): QaRunKey`.
+- Produces: `assertQaRunKey(identity: QaRunIdentity, qaRunKey: unknown): asserts qaRunKey is QaRunKey`.
+
+- [ ] **Step 1: Write identity RED tests**
+
+```ts
+test('deriveQaRunKey is SHA-256 of canonical normalized identity bytes');
+test('surface and lane input order cannot change qaRunKey');
+test('every identity field changes qaRunKey independently');
+test('worker, account, retry, Nuanu task, and delivery fields are rejected rather than hashed');
+test('duplicate surfaces or lanes and non-canonical strings fail closed');
+test('canonical JSON rejects cycles, proxies, accessors, symbols, floats, undefined, and excessive depth');
+test('assertQaRunKey rejects a valid but mismatched digest');
+```
+
+The expected digest is calculated in the test from a literal canonical string, not by calling production canonicalization twice.
+
+- [ ] **Step 2: Run focused RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/identity.test.ts
+```
+
+Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `packages/runner/src/identity.js`.
+
+- [ ] **Step 3: Implement bounded canonical JSON**
+
+`canonicalJsonBytes` recursively copies data properties only, sorts string keys with bytewise code-point order, preserves ordinary array order, permits only null/boolean/string/safe-integer/object/array, caps depth at 16, nodes at 4096, keys at 1024, and output at 1 MiB. It emits compact UTF-8 JSON with no trailing newline.
+
+- [ ] **Step 4: Implement identity normalization and hashing**
+
+Normalize `surfaces` and `lanes` by validating, sorting with `localeCompare(right, 'en')`, and rejecting duplicates. Hash exactly, passing the digest through `asQaRunKey` before return:
+
+```ts
+return asQaRunKey(createHash('sha256')
+  .update(canonicalJsonBytes(normalizeQaRunIdentity(identity)))
+  .digest('hex'));
+```
+
+Do not prepend a domain string because the approved design defines the key as SHA-256 of canonical JSON itself.
+
+- [ ] **Step 5: Run focused GREEN and contract aggregate**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/identity.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/contracts/qa-run.test.ts tests/runner/identity.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands exit `0`.
+
+- [ ] **Step 6: Commit identity composition**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/runner/src/canonical-json.ts packages/runner/src/identity.ts tests/runner/identity.test.ts
+git commit -m "feat: derive canonical QA run identity"
+```
+
+### Task 3: Tracked Authority and Deterministic Coverage Selection
+
+**Files:**
+
+- Create: `packages/runner/src/repository-authority.ts`
+- Create: `packages/runner/src/run-authority.ts`
+- Create: `packages/runner/src/selection.ts`
+- Test: `tests/runner/repository-authority.test.ts`
+- Test: `tests/runner/run-authority.test.ts`
+- Test: `tests/runner/selection.test.ts`
+
+**Interfaces:**
+
+- Consumes: `CoverageRegistry`, `CoverageRequirement`, `QaRunIdentity`, `QaRunPlan`.
+- Consumes: `canonicalRegistryJson(registry: CoverageRegistry): string`.
+- Produces:
+
+```ts
+export interface RepositoryAuthority {
+  snapshotTracked(relativePaths: readonly string[]): Promise<readonly {
+    relativePath: string;
+    sha256: string;
+  }[]>;
+}
+
+export function createGitRepositoryAuthority(root: string): RepositoryAuthority;
+
+export interface QaRunIdentityPins {
+  processTemplateVersion: string;
+  executionMode: QaExecutionMode;
+}
+
+export function deriveAuthoritativeQaRunIdentity(input: {
+  envelope: NuanuTaskEnvelope;
+  registry: CoverageRegistry;
+  plan: QaRunPlan;
+  trackedEnvironmentFiles: readonly {
+    relativePath: string;
+    sha256: string;
+  }[];
+  pins: QaRunIdentityPins;
+}): QaRunIdentity;
+
+export async function planQaRun(
+  envelope: NuanuTaskEnvelope,
+  registry: CoverageRegistry,
+  authority: RepositoryAuthority,
+): Promise<QaRunPlan>;
+```
+
+- [ ] **Step 1: Write repository-authority RED tests**
+
+Use a temporary Git repository and prove exact success for tracked regular files with lowercase SHA-256 snapshots and exact rejection for an untracked file, ignored file, deleted index entry, absolute path, `..`, symlink, duplicate path, and a path outside the repository. Assert the production adapter invokes only `git ls-files --error-unmatch -- <registry-derived paths>` with `shell: false`; bounded file reads occur only after Git confirms every path.
+
+- [ ] **Step 2: Run authority RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/repository-authority.test.ts
+```
+
+Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `packages/runner/src/repository-authority.js`.
+
+- [ ] **Step 3: Implement the fixed Git authority adapter**
+
+Canonicalize the configured root once, require a non-symlink directory, validate every relative path before spawning Git, pass paths after `--`, set `GIT_CONFIG_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL=/dev/null`, and `GIT_TERMINAL_PROMPT=0`, and never return Git stdout/stderr to a process-facing result.
+
+- [ ] **Step 4: Run authority GREEN**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/repository-authority.test.ts
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Write selection RED tests**
+
+Create an in-memory registry with `AUTOMATED`/`STABLE`/`MUST_PASS` requirements and exact dependencies, plus table-driven mutations. Cover:
+
+```ts
+test('authoritative identity maps flowItemId to issueId and reconstructs every local digest');
+test('authoritative identity derives surfaces and lanes only from the selected registry closure');
+test('coverageDigest is SHA-256 of canonicalRegistryJson and mismatch fails before execution');
+test('environment digest covers the four reviewed tracked config snapshots and no secret value');
+test('template and mode come only from item-binding-authenticated worker pins, never the envelope');
+test('selection expands dependencies and emits sorted unique requirements, checks, and lanes');
+test('selection derives the five current lane IDs from a closed map');
+test('selection returns BLOCKED and NON_AUTOMATED_REQUIREMENT for CANDIDATE, BLOCKED, MISSING, or INAPPLICABLE');
+test('selection returns BLOCKED for UNKNOWN or FLAKY stability');
+test('selection gives no verdict credit to EXPECTED_FAIL, CONDITIONAL_EXPECTED_FAIL, MAY_SKIP, DIAGNOSTIC, or SUPPORT');
+test('selection returns ZERO_SELECTION for an empty request or dependency closure');
+test('selection returns UNTRACKED_AUTHORITY before eligibility');
+test('selection rejects dependency cycles, unknown requirements, duplicate stable IDs, and unknown lane IDs');
+test('the committed Freeland registry is explicitly BLOCKED and cannot produce an eligible plan');
+test('planDigest is stable across registry file order and changes for every selected fact');
+```
+
+- [ ] **Step 6: Run selection RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/selection.test.ts
+```
+
+Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `packages/runner/src/selection.js`.
+
+- [ ] **Step 7: Implement dependency expansion, maturity gates, and lane mapping**
+
+Use this exact immutable map:
+
+```ts
+const EXECUTION_LANES = Object.freeze({
+  'freeland-staging': { lane: 'playwright', projectName: 'freeland-staging' },
+  'freeland-direct-ingress': { lane: 'playwright', projectName: 'freeland-direct-ingress' },
+  'freeland-vpn-regression': { lane: 'playwright', projectName: 'freeland-vpn-regression' },
+  'freeland-webkit-release': { lane: 'playwright', projectName: 'freeland-webkit-release' },
+  'product-contract': { lane: 'api', projectName: 'product-contract' },
+} as const);
+```
+
+Depth-first expand dependencies with three-color cycle detection, then sort all output IDs. A plan is `ELIGIBLE` only when `gaps.length === 0`, `checkIds.length > 0`, every selected requirement is `AUTOMATED`, every verdict check is `STABLE` and `MUST_PASS`, every assertion is covered, and every authoritative source/check file is tracked. Compute `planDigest` from canonical plan content with `planDigest` temporarily omitted.
+
+In `run-authority.ts`, reconstruct the identity rather than accepting it from
+the envelope. Set `issueId` from `flowItemId`; copy the frozen issue and
+candidate fields; set `coverageDigest` to SHA-256 of the exact UTF-8 bytes from
+`canonicalRegistryJson(registry)` and reject any pre-existing different value.
+Derive the other identity digests from these exact canonical projections:
+
+- `oracleDigest`: selected requirement ID, authoritative assertion source, and sorted assertion ID/oracle pairs;
+- `classifierDigest`: the frozen ordered rule IDs `identity`, `superseded`, `freshness`, `deployment`, `coverage`, `cancelled`, `infrastructure`, `flaky`, `conflict`, `product-fail`, `pass`, `fallback`;
+- `policyDigest`: selected lifecycle status, check kind/result policy/stability, cleanup, and external-effect kind;
+- `environmentDigest`: the sorted `{relativePath, sha256}` snapshots for `config/environments/staging.yaml`, `config/cdp/public-staging-routes.v1.yaml`, `config/cdp/public-staging-requests.v1.yaml`, and `config/cdp/chrome-runtime.v1.json`;
+- `dataDigest`: selected variants, personas, preconditions, payment profile, and payment outcome;
+- `catalogDigest`: the complete sorted registry requirement/check/assertion stable-ID map.
+
+Use `pins.processTemplateVersion` and `pins.executionMode` only from the trusted
+worker dependency. In the official path Task 8 constructs those pins only after
+the selected item's binding authority, mode-specific handler/deployment pin,
+CLI environment, and authenticated inherited-session transcript agree; its
+first signed freshness response independently cross-checks the same mode after
+the prepared envelope exists and before any lane. The local test/CLI path pins
+Manual explicitly. The envelope cannot populate either value. Derive sorted
+`surfaces` from the selected requirements and
+sorted `lanes` from the plan. Set `payment: null`. Validate the result, derive
+its branded key, and require exact equality with `envelope.qaRunKey` before any
+lane executor can start.
+
+- [ ] **Step 8: Run focused GREEN and coverage aggregate**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/repository-authority.test.ts tests/runner/run-authority.test.ts tests/runner/selection.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/coverage/registry-validation.test.ts tests/coverage/baseline-files.test.ts tests/runner/run-authority.test.ts tests/runner/selection.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:validate
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands exit `0`; the current real registry test asserts a typed blocked plan rather than expecting eligibility.
+
+- [ ] **Step 9: Commit deterministic selection**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/runner/src/repository-authority.ts packages/runner/src/run-authority.ts packages/runner/src/selection.ts tests/runner/repository-authority.test.ts tests/runner/run-authority.test.ts tests/runner/selection.test.ts
+git commit -m "feat: select reviewed QA coverage deterministically"
+```
+
+### Task 4: Strict Playwright JSON Ingestion and Fixed Invocation
+
+**Files:**
+
+- Create: `packages/playwright-support/src/verdict-result.ts`
+- Create: `playwright.verdict.config.ts`
+- Create: `packages/runner/src/playwright-lane.ts`
+- Create: `packages/runner/src/playwright-child-env.ts`
+- Create: `packages/runner/src/raw-output-custody.ts`
+- Create: `packages/runner/src/api-lane.ts`
+- Create: `tests/playwright-support/verdict-result.test.ts`
+- Create: `tests/playwright-support/fixtures/pass.report.json`
+- Create: `tests/playwright-support/fixtures/fail.report.json`
+- Create: `tests/playwright-support/fixtures/infra.report.json`
+- Create: `tests/playwright-support/fixtures/empty.report.json`
+- Create: `tests/playwright-support/fixtures/retry.report.json`
+- Create: `tests/runner/playwright-lane.test.ts`
+- Create: `tests/runner/playwright-child-env.test.ts`
+- Create: `tests/runner/raw-output-custody.test.ts`
+- Create: `tests/runner/api-lane.test.ts`
+
+**Interfaces:**
+
+- Consumes: one eligible `QaRunPlan` lane with `lane === 'playwright'`.
+- Produces:
+
+```ts
+export interface PlannedPlaywrightCheck {
+  checkId: string;
+  requirementIds: string[];
+}
+
+export interface PlaywrightReportExpectation {
+  qaRunKey: QaRunKey;
+  laneId: PlaywrightExecutionLaneId;
+  projectName: PlaywrightExecutionLaneId;
+  candidateBeforeDigest: string;
+  candidateAfterDigest: string;
+  attemptKind: 'VERDICT' | 'DIAGNOSTIC' | 'CONFIRMATION';
+  attemptIndex: number;
+  checks: PlannedPlaywrightCheck[];
+}
+
+export function ingestPlaywrightJson(
+  report: unknown,
+  expectation: PlaywrightReportExpectation,
+): QaLaneExecution;
+
+export interface PlaywrightSpawnSpec {
+  file: string;
+  args: readonly string[];
+  cwd: string;
+  env: Readonly<Record<string, string | undefined>>;
+  rawOutputLeaseId: string;
+  rawOutputDirectory: string;
+  maxOutputBytes: 16_777_216;
+}
+
+export type PlaywrightChildEnvironmentProfile = 'staging' | 'production';
+
+export interface RawOutputCleanupReceipt {
+  leaseId: string;
+  manifestDigest: string;
+  deletedEntryCount: number;
+  absenceVerifiedAt: string;
+  receiptDigest: string;
+}
+
+export interface PlaywrightRawOutputCustody {
+  prepare(input: {
+    qaRunKey: QaRunKey;
+    laneId: string;
+    attemptKind: 'VERDICT' | 'DIAGNOSTIC' | 'CONFIRMATION';
+    attemptIndex: number;
+  }): Promise<{ leaseId: string; directory: string }>;
+  scrubAndVerify(leaseId: string): Promise<RawOutputCleanupReceipt>;
+  recoverExpired(): Promise<readonly RawOutputCleanupReceipt[]>;
+}
+
+export function buildPlaywrightChildEnvironment(input: {
+  profile: PlaywrightChildEnvironmentProfile;
+  source: Readonly<Record<string, string | undefined>>;
+  privateTmpdir: string;
+}): Readonly<Record<string, string>>;
+
+export interface PlaywrightExecutor {
+  execute(
+    spec: PlaywrightSpawnSpec,
+    signal: AbortSignal,
+  ): Promise<{ exitCode: number; stdout: Buffer; stderr: Buffer }>;
+}
+
+export interface CandidateDigestAttestor {
+  attest(signal: AbortSignal): Promise<string>;
+}
+
+export interface ApiLaneExecutor {
+  execute(input: {
+    identity: QaRunIdentity;
+    plan: QaRunPlan;
+    lane: Extract<QaRunPlan['lanes'][number], { lane: 'api' }>;
+    attemptKind: 'VERDICT';
+    attemptIndex: 0;
+  }, signal: AbortSignal): Promise<QaLaneExecution>;
+}
+
+export function createUnavailableApiLaneExecutor(): ApiLaneExecutor;
+
+export function createStagingCandidateDigestAttestor(input: {
+  root: string;
+  env: Readonly<Record<string, string | undefined>>;
+}): CandidateDigestAttestor;
+
+export function buildPlaywrightSpawnSpec(input: {
+  root: string;
+  lane: Extract<QaRunPlan['lanes'][number], { lane: 'playwright' }>;
+  qaRunKey: QaRunKey;
+  attemptKind: 'VERDICT' | 'DIAGNOSTIC' | 'CONFIRMATION';
+  attemptIndex: number;
+  environmentProfile: PlaywrightChildEnvironmentProfile;
+  env: Readonly<Record<string, string | undefined>>;
+  rawOutputLease: { leaseId: string; directory: string };
+}): PlaywrightSpawnSpec;
+
+export async function runPlaywrightLane(input: {
+  identity: QaRunIdentity;
+  plan: QaRunPlan;
+  lane: Extract<QaRunPlan['lanes'][number], { lane: 'playwright' }>;
+  attemptKind: 'VERDICT' | 'DIAGNOSTIC' | 'CONFIRMATION';
+  attemptIndex: number;
+  executor: PlaywrightExecutor;
+  attestor: CandidateDigestAttestor;
+  root: string;
+  environmentProfile: PlaywrightChildEnvironmentProfile;
+  env: Readonly<Record<string, string | undefined>>;
+  rawOutputCustody: PlaywrightRawOutputCustody;
+  signal: AbortSignal;
+}): Promise<QaLaneExecution>;
+```
+
+- [ ] **Step 1: Create exact Playwright 1.61.1 fixture reports**
+
+Each report root contains only `config`, `suites`, `errors`, and `stats`. The pass fixture has project `freeland-staging`, `retries: 0`, one support setup spec tagged `@support`, and two behavioral specs tagged `@check:CHECK.A`/`@req:REQ.A` and `@check:CHECK.B`/`@req:REQ.B`. Each listed test has `expectedStatus: "passed"` and one result with `retry: 0`, `status: "passed"`, `duration: 10`, no errors, and empty stdout/stderr arrays.
+
+The other fixtures make these exact changes:
+
+- `fail.report.json`: `CHECK.B` result status is `failed`, its one error contains fixture-only message `expected visible heading`, and the process stats still describe a completed report.
+- `infra.report.json`: the support setup result is `timedOut`; behavioral result arrays are empty because setup blocked them.
+- `empty.report.json`: the suites array is empty and the report contains no errors.
+- `retry.report.json`: `CHECK.B` has result zero `failed` at retry `0` and result one `passed` at retry `1`.
+
+No fixture contains a URL, email, token, credential, storage state, checkout/provider value, or absolute developer path.
+
+- [ ] **Step 2: Write ingestion RED tests**
+
+```ts
+test('ingestion maps one exact strict pass report to canonical QaLaneExecution');
+test('ingestion records a failed check without promoting free-form error text');
+test('ingestion classifies setup timeout as INFRA_FAILURE and executes no behavioral checks');
+test('ingestion rejects empty, missing, extra, duplicate, and wrong-project selected checks');
+test('ingestion records retry-only pass as two facts and never emits a pass lane');
+test('ingestion rejects nonzero configured retries and expectedStatus other than passed');
+test('ingestion rejects reporter errors, malformed nested shapes, accessors, proxies, and oversized arrays');
+test('ingestion hashes then discards raw report data and emits only errorDigest');
+```
+
+- [ ] **Step 3: Run ingestion RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/playwright-support/verdict-result.test.ts
+```
+
+Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `packages/playwright-support/src/verdict-result.js`.
+
+- [ ] **Step 4: Implement the pinned reporter parser**
+
+Walk nested suites recursively, inherit the suite file, normalize tags exactly as the existing inventory capture does, and index occurrences by `(projectName, checkId)`. Support tests tagged `@support` are admitted but never increase `selectedCheckIds` or executed-check counts; any non-pass support result sets `executionHealth: 'INFRA_FAILURE'` and `reasonCode: 'playwright_process_failed'`.
+
+For behavioral checks, map Playwright result status exactly:
+
+```ts
+const RESULT_STATUS = Object.freeze({
+  passed: 'PASS',
+  failed: 'FAIL',
+  skipped: 'SKIPPED',
+  timedOut: 'TIMED_OUT',
+  interrupted: 'INTERRUPTED',
+} as const);
+```
+
+Hash a canonical safe projection of error location/category to `errorDigest`; never retain message, stack, snippet, stdout, or stderr. A valid failed assertion remains a `FAIL` fact. The evaluator, not the parser, decides whether independent evidence is sufficient for `PRODUCT_FAIL`.
+
+- [ ] **Step 5: Run ingestion focused GREEN**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/playwright-support/verdict-result.test.ts
+```
+
+Expected: PASS for every fixture and mutation case.
+
+- [ ] **Step 6: Write fixed-invocation RED tests**
+
+```ts
+test('buildPlaywrightSpawnSpec derives executable, project, grep, output, and strict flags only from the plan');
+test('the verdict invocation fixes retries zero, workers one, repeat-each one, forbid-only, and json reporter');
+test('product-contract and blocked plans cannot enter the Playwright executor');
+test('runPlaywrightLane attests the expected candidate before and after execution');
+test('staging attestor reuses reviewed CDP preflight and hashes only its safe identity projection');
+test('candidate drift produces a typed candidate_changed lane and cannot pass');
+test('child environment contains only fixed runtime keys and the exact selected profile allowlist');
+test('staging and production credentials auth files Nuanu payment and owner variables never cross profiles');
+test('NODE_OPTIONS NODE_PATH loaders inspectors coverage dotenv and Playwright transform variables never reach child');
+test('Playwright child inherits only stdio 0-2 and observes worker control fd3 as EBADF');
+test('trace video screenshot and retained attachments are disabled or enter registered restricted custody');
+test('every pass fail timeout abort and malformed-report path proves raw-output deletion and absence before returning');
+test('startup recovery scrubs a crash-left lease and blocks the next run when absence cannot be proved');
+test('executor stderr is hashed for local diagnostics then zeroed and never returned');
+test('abort settles execution and produces CANCELLED without publishing raw output');
+```
+
+- [ ] **Step 7: Run invocation RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/playwright-lane.test.ts
+```
+
+Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `packages/runner/src/playwright-lane.js`.
+
+- [ ] **Step 8: Implement the fixed spawn and attestation sequence**
+
+The exact argv is derived in this order:
+
+```ts
+[
+  'test',
+  '--project', lane.projectName,
+  '--grep', anchoredEscapedCheckTagUnion,
+  '--reporter=json',
+  '--retries=0',
+  '--workers=1',
+  '--repeat-each=1',
+  '--forbid-only',
+  '--trace=off',
+  '--config', 'playwright.verdict.config.ts',
+  '--output', rawOutputLease.directory,
+]
+```
+
+`anchoredEscapedCheckTagUnion` is built from sorted validated stable check IDs and escapes every regular-expression metacharacter. `playwright.verdict.config.ts` is reviewed and tracked; it forces JSON-only reporting and `trace: 'off'`, `video: 'off'`, and `screenshot: 'off'` for every project. The output directory comes only from a freshly prepared `PlaywrightRawOutputCustody` lease under an owner-created `0700` OS-private temporary root; it is never inside the repository and never read from the request.
+
+`buildPlaywrightChildEnvironment` constructs a new object from nothing. Its
+fixed runtime values are a reviewed absolute Node-20 `PATH`, `CI=1`, `TZ=UTC`,
+`LANG=C.UTF-8` and a per-run `TMPDIR` inside restricted custody. `HOME`,
+`CODEX_HOME`, and user profile variables are not repurposed or inherited;
+browser/cache/profile locations are explicit custody-owned arguments. The
+staging profile may copy only `FREELAND_STAGING_BASE_URL`,
+`FREELAND_EXPECTED_STAGE_SHA`, `FREELAND_STAGING_TEST_EMAIL`,
+`FREELAND_STAGING_TEST_PASSWORD`, `FREELAND_CHROMIUM_AUTH_FILE`,
+`FREELAND_WEBKIT_AUTH_FILE`, and optional `FREELAND_STAGING_MESH_IP`. The
+production profile may copy only `FREELAND_PRODUCTION_BASE_URL`,
+`FREELAND_EXPECTED_PRODUCTION_SHA`, `FREELAND_PRODUCTION_TEST_EMAIL`,
+`FREELAND_PRODUCTION_TEST_PASSWORD`, and
+`FREELAND_PRODUCTION_CHROMIUM_AUTH_FILE`; it cannot copy any staging value. No
+other parent variable is inherited. In
+particular, `NODE_OPTIONS`, `NODE_PATH`, `NODE_V8_COVERAGE`, inspector/loader
+flags, `DOTENV_*`, `PW_TEST_SOURCE_TRANSFORM*`, Nuanu credentials, payment
+owner/reconciler variables, secret-handle variables, proxy variables, and the
+opposite environment's variables are absent. Missing required profile values
+fail before custody preparation or spawn.
+
+Before spawn, `prepare` writes an atomic `0600` restricted lease manifest with
+deadline and directory identity. After spawn on every pass/fail/timeout/abort
+or parser exception, `scrubAndVerify` performs a symlink-safe bounded walk,
+records only a names/counts/sizes manifest digest, unlinks every trace, video,
+screenshot, attachment, report fragment, browser profile, and temporary file,
+removes the directory, and independently proves every path is absent. The
+sanitized lane cannot return and cannot publish until the cleanup receipt is
+validated. Startup calls `recoverExpired` before accepting work; a crash-left
+lease is scrubbed, and failure to prove absence blocks all browser execution.
+Lease paths, filenames, file bytes, and cleanup errors remain restricted and
+never enter `QaLaneExecution`, ordinary logs, or Nuanu. Use `shell: false`,
+fixed `cwd`, `detached:false`, exact
+`stdio: ['ignore', 'pipe', 'pipe']`, 16 MiB stdout/stderr bounds, and an abort
+signal. No descriptor `3` or higher is listed or inherited. A fixed child probe
+must observe `EBADF` for the inherited worker-control FD before the live worker
+profile can pass. Parse stdout even
+when the exit code is `1` because test failure is a valid report; malformed/no
+JSON is a typed infrastructure failure. Fill captured stdout/stderr buffers in
+`finally` after normalization/digesting.
+
+Implement `createStagingCandidateDigestAttestor` by composing the existing
+`loadPublicCdpPolicy`, `loadPublicCdpEnvironment`, and
+`preflightCandidateEnvironment` functions. Hash only the validated canonical
+candidate projection into the 64-hex digest; never hash credentials, auth-file
+paths, mesh IP, or raw response bytes. `runPlaywrightLane` requires both
+attestations to equal `identity.candidateDigest`. The factory is exercised only
+with injected offline adapters in this task; a real staging call is a later
+authorized gate.
+
+- [ ] **Step 9: Run focused GREEN and Playwright-support aggregate**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/playwright-support/verdict-result.test.ts tests/runner/playwright-lane.test.ts tests/runner/playwright-child-env.test.ts tests/runner/raw-output-custody.test.ts tests/runner/api-lane.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/coverage/registry-validation.test.ts tests/playwright-support/verdict-result.test.ts tests/runner/playwright-lane.test.ts tests/runner/playwright-child-env.test.ts tests/runner/raw-output-custody.test.ts tests/runner/api-lane.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands exit `0`; no browser is launched because the executor and attestor are injected fixtures.
+
+Also test `createUnavailableApiLaneExecutor` in
+`tests/runner/api-lane.test.ts`. It must return one validated
+`executionHealth: 'INFRA_FAILURE'`, `reasonCode: 'worker_unavailable'` verdict
+fact with no executed checks and a recomputed result digest. It cannot run a
+file, shell, URL, or caller-provided command. This is the explicit N1 safety
+state because the audited repository has no normalized product-contract result
+reporter; adding such a reporter requires a separate RED-first plan before an
+API lane may contribute PASS credit.
+
+- [ ] **Step 10: Commit strict Playwright ingestion**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add playwright.verdict.config.ts packages/playwright-support/src/verdict-result.ts packages/runner/src/playwright-lane.ts packages/runner/src/playwright-child-env.ts packages/runner/src/raw-output-custody.ts packages/runner/src/api-lane.ts tests/playwright-support/verdict-result.test.ts tests/playwright-support/fixtures/pass.report.json tests/playwright-support/fixtures/fail.report.json tests/playwright-support/fixtures/infra.report.json tests/playwright-support/fixtures/empty.report.json tests/playwright-support/fixtures/retry.report.json tests/runner/playwright-lane.test.ts tests/runner/playwright-child-env.test.ts tests/runner/raw-output-custody.test.ts tests/runner/api-lane.test.ts
+git commit -m "feat: ingest strict Playwright verdict facts"
+```
+
+### Task 5: Deterministic Evaluation and the Seven Required Fixtures
+
+**Files:**
+
+- Create: `packages/runner/src/evaluator.ts`
+- Create: `tests/runner/fixtures/evaluation-cases.ts`
+- Create: `tests/runner/evaluator.test.ts`
+
+**Interfaces:**
+
+- Consumes: only the runner-owned internal aggregate input below; it is not exported from the CLI contract.
+- Produces:
+
+```ts
+export interface QaFreshnessSnapshot {
+  runDisposition: 'ACTIVE' | 'SUPERSEDED';
+  candidateApplicability: 'MATCHED' | 'UNVERIFIED';
+  issueAfter: { revision: string; contentDigest: string };
+  candidateAfterDigest: string;
+  executionMode: QaExecutionMode;
+}
+
+export interface QaEvaluationInput {
+  identity: QaRunIdentity;
+  plan: QaRunPlan;
+  authorityStable: boolean;
+  freshness: QaFreshnessSnapshot;
+  releaseScope: 'TICKET_ONLY' | 'CANDIDATE_COMPLETE';
+  laneExecutions: QaLaneExecution[];
+  payment: PaymentLifecycle | null;
+}
+
+export function evaluateQaRun(input: QaEvaluationInput): QaRunEvaluation;
+```
+
+- Produces: `digestQaLaneExecution(input: Omit<QaLaneExecution, 'resultDigest'>): string`.
+
+- [ ] **Step 1: Create the exact fixture factory**
+
+`tests/runner/fixtures/evaluation-cases.ts` exports these seven functions and no mutable singleton:
+
+```ts
+export function knownGoodFixture(): AggregateFixture;
+export function knownBadFixture(): AggregateFixture;
+export function staleFixture(): AggregateFixture;
+export function infrastructureFailureFixture(): AggregateFixture;
+export function emptySelectionFixture(): AggregateFixture;
+export function retryOnlyPassFixture(): AggregateFixture;
+export function laneConflictFixture(): AggregateFixture;
+```
+
+Every call returns fresh objects. Use `sha(character)` helpers returning `character.repeat(64)` for digests and pass them through `asQaRunKey` only for `qaRunKey`. The base plan has requirements `REQ.A` and `REQ.B`, checks `CHECK.A` and `CHECK.B`, mandatory `playwright` and `api` lanes, freshness disposition `ACTIVE`, candidate applicability `MATCHED`, unchanged issue/candidate facts, complete cleanup, sufficient evidence, `executionMode: 'manual'` in both identity and freshness, and `releaseScope: 'TICKET_ONLY'`.
+
+Apply these exact facts per fixture:
+
+- `knownGoodFixture`: both mandatory verdict lanes execute both checks with `PASS`, retry `0`; expect `SATISFIED`, `HEALTHY`, `MATCHED`, `PASS`, and `CANDIDATE_RELEASE_INCONCLUSIVE`.
+- `knownBadFixture`: Playwright verdict and independent API confirmation both report `FAIL` for `CHECK.B` at the same candidate while `CHECK.A` passes; expect `VIOLATED`, `HEALTHY`, `MATCHED`, and `PRODUCT_FAIL`.
+- `staleFixture`: `freshness.issueAfter.contentDigest` differs from the frozen digest; expect `INCONCLUSIVE`, `STALE`, `NEEDS_HUMAN`, and candidate inconclusive.
+- `infrastructureFailureFixture`: Playwright has `executionHealth: 'INFRA_FAILURE'`, reason `worker_unavailable`, and no executed checks; expect `ENV_BLOCKED` and candidate inconclusive.
+- `emptySelectionFixture`: plan is `BLOCKED`, `checkIds` is empty, and gap is `ZERO_SELECTION`; expect `HARNESS_FAIL`, selected/executed zero, and no pass lane.
+- `retryOnlyPassFixture`: clean verdict `CHECK.B` fails, diagnostic attempt index `1` passes with retry `1`; expect `FLAKY` and no pass credit.
+- `laneConflictFixture`: Playwright passes `CHECK.B` while API confirmation fails it; expect `NEEDS_HUMAN`.
+
+- [ ] **Step 2: Write evaluator RED tests**
+
+```ts
+test('known-good fixture produces the exact reproducible PASS result');
+test('known-bad fixture requires two independent same-candidate failures for PRODUCT_FAIL');
+test('stale fixture suppresses every conclusive route');
+test('infrastructure fixture produces ENV_BLOCKED rather than PRODUCT_FAIL');
+test('empty selection fixture produces HARNESS_FAIL and zero counts');
+test('retry-only pass fixture produces FLAKY and preserves the clean failure');
+test('conflicting lanes produce NEEDS_HUMAN');
+test('one product-looking failure without confirmation remains NEEDS_HUMAN');
+test('skip, expected fail, incomplete cleanup, and incomplete/redaction-blocked evidence can never PASS');
+test('candidate release verdict is independent from ticket verdict and requires CANDIDATE_COMPLETE');
+test('laneResults always contains all six lanes and hashes deterministic NOT_REQUIRED facts');
+test('lane result digest, qaRunKey, plan digest, requirement, check, candidate, and authority-recheck mismatches fail closed');
+test('freshness execution mode mismatch fails before verdict evaluation');
+test('evaluation is byte-identical for repeated fixture evaluation');
+```
+
+- [ ] **Step 3: Run evaluator RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/evaluator.test.ts
+```
+
+Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `packages/runner/src/evaluator.js`.
+
+- [ ] **Step 4: Implement lane digest verification**
+
+Revalidate every lane execution, recompute `resultDigest` from canonical content with that field omitted, require the same `qaRunKey`, and reject a lane/check not selected by the plan. Group clean verdict, confirmation, and diagnostic attempts without allowing a later attempt to replace the first clean fact.
+
+- [ ] **Step 5: Implement the ordered issue-verdict rule table**
+
+Apply rules in this exact precedence:
+
+1. mismatched or malformed identity/plan/lane facts, including
+   `freshness.executionMode !== identity.executionMode`, throw
+   `runner_input_invalid`;
+2. `SUPERSEDED` input produces applicability `SUPERSEDED` and `NEEDS_HUMAN`;
+3. changed issue revision/content or candidate digest produces `STALE` and `NEEDS_HUMAN`;
+4. referenced candidate not verified produces `UNVERIFIED` and `AWAITING_DEPLOYMENT`;
+5. changed authority, zero selection, blocked coverage, missing mandatory lane/check, redaction block, or incomplete cleanup produces `INFRA_FAILURE` plus `HARNESS_FAIL`;
+6. cancelled execution produces `CANCELLED` and `NEEDS_HUMAN`;
+7. environment/worker failure produces `INFRA_FAILURE` and `ENV_BLOCKED`; provider failure produces `PROVIDER_BLOCKED`; parser/schema/fixture failure produces `HARNESS_FAIL`;
+8. any retry, retry-only pass, or disagreement across clean attempts produces `FLAKY`;
+9. contradictory independent lane assertions produce `NEEDS_HUMAN`;
+10. two independent fresh same-candidate failures for the same reviewed selected check produce `PRODUCT_FAIL`;
+11. all mandatory selected checks passing once with zero skips/expected failures/retries and complete evidence/cleanup produces `PASS`;
+12. every remaining combination produces `NEEDS_HUMAN`.
+
+Set `assessment` to `SATISFIED` only for `PASS`, `VIOLATED` only for `PRODUCT_FAIL`, and `INCONCLUSIVE` otherwise. Sort final `laneResults` by `QA_LANES` order. `selectedChecks` counts unique plan check IDs; `executedChecks` counts unique selected checks with a clean verdict fact, never diagnostic attempts.
+
+Emit exactly six `laneResults`, one for every `QA_LANES` member. A lane absent
+from the internal plan has status `NOT_REQUIRED` and a deterministic
+`resultDigest` equal to SHA-256 of canonical
+`{schemaVersion:1, qaRunKey, lane, status:'NOT_REQUIRED'}`. This makes
+`payment: null` schema-consistent because the payment lane is always explicit
+and `NOT_REQUIRED` in N1.
+
+- [ ] **Step 6: Implement independent candidate verdict evaluation**
+
+For `TICKET_ONLY`, always emit `CANDIDATE_RELEASE_INCONCLUSIVE`. For `CANDIDATE_COMPLETE`, emit ready only when the full candidate scope has the same strict pass facts; emit blocked only for a related deterministic product violation; all stale, blocked, flaky, harness, provider, conflict, or incomplete states are inconclusive.
+
+- [ ] **Step 7: Run focused GREEN and runner aggregate**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/evaluator.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/contracts/qa-run.test.ts tests/runner/identity.test.ts tests/runner/selection.test.ts tests/playwright-support/verdict-result.test.ts tests/runner/evaluator.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all seven named fixtures and all mutation tests pass.
+
+- [ ] **Step 8: Commit the deterministic evaluator**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/runner/src/evaluator.ts tests/runner/fixtures/evaluation-cases.ts tests/runner/evaluator.test.ts
+git commit -m "feat: evaluate QA verdicts deterministically"
+```
+
+### Task 6: Sanitized Bundle Construction and Atomic Local Publication
+
+**Files:**
+
+- Modify: `packages/contracts/src/qa-run.ts`
+- Create: `packages/contracts/schemas/qa-coverage-projection.v1.schema.json`
+- Create: `packages/contracts/schemas/qa-artifact-bundle.v1.schema.json`
+- Create: `packages/contracts/schemas/qa-run-evidence.v1.schema.json`
+- Create: `packages/runner/src/coverage-projection.ts`
+- Create: `packages/runner/src/evidence.ts`
+- Create: `tests/runner/coverage-projection.test.ts`
+- Create: `tests/runner/evidence.test.ts`
+- Modify: `tests/contracts/qa-run.test.ts`
+
+**Interfaces:**
+
+Add this exact contract:
+
+```ts
+export interface QaArtifactBundle {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  evaluation: QaRunEvaluation;
+  coverageProjection: QaCoverageProjection;
+  laneExecutions: QaLaneExecution[];
+}
+
+export interface QaRunEvidence {
+  schemaVersion: 1;
+  result: QaRunResult;
+  bundle: QaArtifactBundle;
+  bundleSha256: string;
+}
+
+export interface SanitizedBundlePublication {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  name: 'qa-evidence-bundle.v1.json';
+  mediaType: 'application/json';
+  bytes: Buffer;
+  sha256: string;
+}
+
+export interface SanitizedBundleReceipt {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  absolutePath: string;
+  bytes: number;
+  sha256: string;
+}
+
+export function buildSanitizedBundle(input: {
+  evaluation: QaRunEvaluation;
+  coverageProjection: QaCoverageProjection;
+  laneExecutions: readonly QaLaneExecution[];
+}): SanitizedBundlePublication;
+
+export function buildQaCoverageProjection(input: {
+  identity: QaRunIdentity;
+  plan: QaRunPlan;
+  registry: CoverageRegistry;
+}): QaCoverageProjection;
+
+export function validateQaRunEvidence(input: unknown): QaRunEvidence;
+export function validateQaCoverageProjection(input: unknown): QaCoverageProjection;
+export function validateQaArtifactBundle(input: unknown): QaArtifactBundle;
+
+export async function writeSanitizedBundle(
+  repositoryRoot: string,
+  bundle: SanitizedBundlePublication,
+  io?: EvidenceFileSystem,
+): Promise<SanitizedBundleReceipt>;
+```
+
+- [ ] **Step 1: Write evidence RED tests**
+
+```ts
+test('bundle contains only validated evaluation and normalized lane facts in deterministic order');
+test('manual validators and all three Task 6 schemas agree for the evidence mutation corpus');
+test('coverage projection derives exact flow item requirement check capability and lane closure');
+test('coverage projection rejects unmapped duplicate or unselected capability bindings');
+test('run evidence requires one artifact whose digest matches the exact bundle bytes');
+test('run evidence rejects evaluation lane projection qaRunKey or flow-item mismatch');
+test('bundle hash and bytes are stable across input object and lane order');
+test('raw Playwright report, stdout, stderr, error text, and artifact paths cannot enter the bundle');
+test('email, URL, bearer/token, cookie, storage-state, checkout/provider, PAN, and CVV probes fail before any write');
+test('non-null N1 payment fails with payment_lane_unavailable');
+test('atomic writer publishes one 0600 content-addressed file beneath a 0700 ignored directory');
+test('failure before hard-link publication leaves no final file');
+test('failure after hard-link publication leaves one complete valid final file and cleans the temporary name');
+test('concurrent identical publication is idempotent');
+test('existing mismatched bytes at the content address fail closed');
+test('symlink, hardlink, non-canonical root, wrong owner, and mode drift are rejected');
+```
+
+- [ ] **Step 2: Run evidence RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/coverage-projection.test.ts tests/runner/evidence.test.ts
+```
+
+Expected: FAIL with `ERR_MODULE_NOT_FOUND` for the coverage projection/evidence
+modules.
+
+- [ ] **Step 3: Implement the closed evidence schemas and typed bundle construction**
+
+Create the three independent draft-2020-12 schemas declared by this task with
+closed root/nested objects, bounded arrays, exact discriminators, lowercase
+SHA-256 patterns, and stable `$id` values. Implement the three manual validators
+above and keep their mutation corpus in `tests/contracts/qa-run.test.ts` in
+lockstep with Ajv before constructing any evidence bytes.
+
+Build `QaCoverageProjection` only from the validated `QaRunIdentity`, exact
+`QaRunPlan`, and reviewed registry closure. `flowItemId` is exactly
+`identity.issueId`; every requirement/check/capability/lane binding is sorted,
+unique, selected by the plan, and recomputed from registry authority. Missing
+or extra capability mappings fail closed. Compute `projectionDigest` from the
+canonical projection with that field omitted.
+
+Revalidate the evaluation, projection, and every lane execution; require one
+matching `qaRunKey`, issue revision, selected requirement/check closure, and
+lane binding; sort lane executions by lane/attempt kind/attempt index/result
+digest; and construct only `QaArtifactBundle`. Run `sanitizeAttachmentValue`
+on the constructed value and require deep equality with the original; if
+sanitization would change any byte, throw `evidence_redaction_blocked`. Then
+call `assertSafeAttachmentValue`, serialize with `canonicalJsonBytes`, append
+one newline, cap the bundle at 1 MiB, and compute SHA-256 over the exact
+published bytes. `validateQaRunEvidence` additionally requires exactly one
+artifact reference in the result, equality between its SHA-256 and the exact
+bundle bytes, and byte-equivalent evaluation/lane/projection facts; no caller
+can pair a passing result with another ticket or capability bundle.
+
+- [ ] **Step 4: Implement atomic content-addressed publication**
+
+Derive the only legal final path:
+
+```text
+<repositoryRoot>/artifacts/qa/<qaRunKey>/<sha256>.qa-artifact-bundle.v1.json
+```
+
+Validate each existing path component with `lstat`/`realpath`; create owned directories with mode `0700`. Write a sibling `.tmp-<randomUUID>` using `open(temporaryPath, 'wx', 0o600)`, write all bytes, `sync()` and close it, then atomically publish with `link(temporaryPath, finalPath)`, fsync the containing directory, unlink the temporary path, and fsync again. On `EEXIST`, read the final regular single-link file with a 1 MiB bound and return success only when bytes and digest match exactly. Never overwrite or rename over a prior artifact.
+
+- [ ] **Step 5: Run focused GREEN and sanitization aggregate**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/coverage-projection.test.ts tests/runner/evidence.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/security/evidence-sanitization.test.ts tests/security/repository-scan.test.ts tests/runner/evidence.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/contracts/qa-run.test.ts tests/runner/coverage-projection.test.ts tests/runner/evidence.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands exit `0`, temporary fixture directories are removed by test cleanup, and no file is written inside tracked source paths.
+
+- [ ] **Step 6: Commit evidence atomicity**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/contracts/src/qa-run.ts packages/contracts/schemas/qa-coverage-projection.v1.schema.json packages/contracts/schemas/qa-artifact-bundle.v1.schema.json packages/contracts/schemas/qa-run-evidence.v1.schema.json packages/runner/src/coverage-projection.ts packages/runner/src/evidence.ts tests/contracts/qa-run.test.ts tests/runner/coverage-projection.test.ts tests/runner/evidence.test.ts
+git commit -m "feat: publish sanitized QA evidence atomically"
+```
+
+### Task 7: Nuanu Artifact Publisher Boundary Without Orchestration
+
+**Files:**
+
+- Create: `packages/runner/src/publisher.ts`
+- Create: `tests/runner/publisher.test.ts`
+
+**Interfaces:**
+
+- Consumes: `QaRunEvaluation`, normalized `QaLaneExecution[]`, `SanitizedBundlePublication`, and `SanitizedArtifactRef` (`QaArtifactRef` remains a compatibility alias for N3).
+- Produces:
+
+```ts
+export interface QaArtifactPublisher {
+  publish(input: SanitizedBundlePublication): Promise<SanitizedArtifactRef>;
+}
+
+export class LocalQaArtifactPublisher implements QaArtifactPublisher {
+  constructor(repositoryRoot: string);
+  publish(input: SanitizedBundlePublication): Promise<SanitizedArtifactRef>;
+}
+
+export async function publishQaRun(input: {
+  evaluation: QaRunEvaluation;
+  coverageProjection: QaCoverageProjection;
+  laneExecutions: readonly QaLaneExecution[];
+  publisher: QaArtifactPublisher;
+}): Promise<QaRunResult>;
+```
+
+- [ ] **Step 1: Write publisher-boundary RED tests**
+
+```ts
+test('publisher receives exactly one already-sanitized immutable JSON bundle');
+test('publisher never receives raw lane adapter output or a repository path');
+test('publishQaRun validates artifact ID, version ID, and exact bundle digest before PASS can escape');
+test('publisher binds the exact coverage projection into the one artifact version');
+test('publisher digest mismatch, malformed reference, rejection, or mutation fails closed');
+test('LocalQaArtifactPublisher returns a content-addressed local reference idempotently');
+test('Nuanu-shaped fake publisher composes the exact returned artifact/version IDs into QaRunResult');
+test('publisher port exposes no process, task, queue, retry, Decision, state, comment, or routing operation');
+```
+
+The fake Nuanu-shaped publisher is an in-memory test double only. It records `name`, `mediaType`, byte count, and digest; it has no network client and no Nuanu token.
+
+- [ ] **Step 2: Run publisher RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/publisher.test.ts
+```
+
+Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `packages/runner/src/publisher.js`.
+
+- [ ] **Step 3: Implement the narrow publisher port**
+
+`publishQaRun` builds and validates the sanitized bundle from the evaluation,
+exact coverage projection, and lane executions before invoking the port,
+freezes a copy of the publication descriptor, awaits one publish call,
+validates the returned `SanitizedArtifactRef`, and requires
+`reference.sha256 === publication.sha256`. It then builds `QaRunResult` by
+copying the evaluation and setting `artifacts: [reference]`, validates the
+final result, reconstructs `QaRunEvidence` against the exact bundle bytes, and
+returns a frozen result snapshot only after that cross-check succeeds.
+
+`LocalQaArtifactPublisher` calls `writeSanitizedBundle` and returns exactly:
+
+```ts
+{
+  artifactId: 'local.qa-evidence-bundle.v1',
+  versionId: receipt.sha256,
+  sha256: receipt.sha256,
+}
+```
+
+No publisher can alter assessment, health, applicability, evidence status, either verdict, counts, lane results, payment, or identity facts.
+
+- [ ] **Step 4: Run focused GREEN and evidence aggregate**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/evidence.test.ts tests/runner/publisher.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/contracts/qa-run.test.ts tests/runner/evaluator.test.ts tests/runner/evidence.test.ts tests/runner/publisher.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands exit `0` and the fake publisher observes no unsafe content.
+
+- [ ] **Step 5: Commit the publisher boundary**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/runner/src/publisher.ts tests/runner/publisher.test.ts
+git commit -m "feat: add sanitized QA artifact publisher port"
+```
+
+### Task 8: One Closed `freeland-qa-run-v1` Worker Entry Point
+
+**Files:**
+
+- Create: `packages/runner/src/commands.ts`
+- Create: `packages/runner/src/live-adapter.ts`
+- Create: `packages/runner/src/nuanu-worker-binding.ts`
+- Create: `packages/runner/src/nuanu-worker-ports.ts`
+- Create: `packages/runner/src/nuanu-worker-dependencies.ts`
+- Create: `packages/runner/src/nuanu-worker-handler.ts`
+- Create: `tools/runner/run-nuanu-worker.ts`
+- Create: `tools/runner/vendor-nuanu-worker-adapter.ts`
+- Create: `config/nuanu/worker-adapter-lock.v1.json`
+- Create: `config/nuanu/worker-handler.manual.v1.json`
+- Create: `config/nuanu/worker-handler.assist.v1.json`
+- Create: `config/nuanu/worker-handler.auto.v1.json`
+- Create: `vendor/nuanu-freeland-worker-adapter-1.0.0.tgz`
+- Create: `tests/runner/commands.test.ts`
+- Create: `tests/runner/live-adapter.test.ts`
+- Create: `tests/runner/nuanu-worker-binding.test.ts`
+- Create: `tests/runner/nuanu-worker-ports.test.ts`
+- Create: `tests/runner/nuanu-worker-dependencies.test.ts`
+- Create: `tests/runner/nuanu-worker-handler.test.ts`
+- Create: `tests/runner/vendor-nuanu-worker-adapter.test.ts`
+- Modify: `.gitignore`
+- Modify: `package.json`
+- Modify: `package-lock.json`
+
+**Interfaces:**
+
+```ts
+import type {
+  NuanuWorkerControlPort,
+  QaWorkerOutputV1,
+} from '@nuanu/freeland-worker-adapter';
+
+export interface QaFreshnessAdapter {
+  capture(
+    envelope: NuanuTaskEnvelope,
+    signal: AbortSignal,
+  ): Promise<QaFreshnessSnapshot>;
+}
+
+export type RunnerExtensionLane = 'cdp' | 'computer-use' | 'telegram' | 'payment';
+
+export interface RunnerExtensionLaneExecutor<L extends RunnerExtensionLane> {
+  readonly lane: L;
+  execute(input: {
+    envelope: NuanuTaskEnvelope;
+    identity: QaRunIdentity;
+    plan: QaRunPlan;
+    plannedLane: Extract<QaPlannedLane, { lane: L }>;
+    signal: AbortSignal;
+  }): Promise<{
+    laneExecution: QaLaneExecution & { lane: L };
+    payment: L extends 'payment' ? PaymentLifecycle : null;
+  }>;
+}
+
+export interface PaymentLaneExecutorFactory {
+  readonly lane: 'payment';
+  create(input: {
+    envelope: NuanuTaskEnvelope;
+    identity: QaRunIdentity & { payment: NonNullable<QaRunIdentity['payment']> };
+    plan: QaRunPlan;
+    plannedLane: Extract<QaPlannedLane, { lane: 'payment' }>;
+    signal: AbortSignal;
+  }): Promise<RunnerExtensionLaneExecutor<'payment'>>;
+}
+
+export interface RunnerExtensionPorts {
+  cdp: RunnerExtensionLaneExecutor<'cdp'> | null;
+  computerUse: RunnerExtensionLaneExecutor<'computer-use'> | null;
+  telegram: RunnerExtensionLaneExecutor<'telegram'> | null;
+  payment: PaymentLaneExecutorFactory | null;
+}
+
+export interface RunnerDependencies {
+  root: string;
+  env: Readonly<Record<string, string | undefined>>;
+  playwrightEnvironmentProfile: PlaywrightChildEnvironmentProfile;
+  identityPins: QaRunIdentityPins;
+  loadRegistry(root: string): Promise<CoverageRegistry>;
+  authority: RepositoryAuthority;
+  freshness: QaFreshnessAdapter;
+  playwrightExecutor: PlaywrightExecutor;
+  apiLaneExecutor: ApiLaneExecutor;
+  extensionLanes: RunnerExtensionPorts;
+  candidateAttestor: CandidateDigestAttestor;
+  artifactPublisher: QaArtifactPublisher;
+  now(): Date;
+}
+
+export async function executeFreelandQaRun(
+  envelopeInput: unknown,
+  dependencies: RunnerDependencies,
+  signal?: AbortSignal,
+): Promise<QaRunResult>;
+
+export interface FreelandRunnerPort {
+  prepare(seed: QaWorkerSeedV1): Promise<QaWorkerInputV1>;
+  execute(input: QaWorkerInputV1): Promise<QaRunResult>;
+}
+
+export async function prepareFreelandQaWorkerInput(
+  seed: QaWorkerSeedV1,
+  dependencies: RunnerDependencies,
+  signal?: AbortSignal,
+): Promise<QaWorkerInputV1>;
+
+export function createFreelandRunnerPort(
+  dependencies: RunnerDependencies,
+  signal?: AbortSignal,
+): FreelandRunnerPort;
+
+export interface WorkerAdapterPackageLockV1 {
+  schemaVersion: 1;
+  packageName: '@nuanu/freeland-worker-adapter';
+  packageVersion: '1.0.0';
+  sourceRepository: 'solomindanil/NuanuFlowQA';
+  sourceCommit: string;
+  tarballSha256: string;
+  packageEntryDigest: string;
+  handlerSpecDigests: {
+    manual: string;
+    assist: string;
+    auto: string;
+  };
+}
+
+export interface NuanuFreelandWorkerBinding {
+  run(seedInput: unknown, signal?: AbortSignal): Promise<QaWorkerOutputV1>;
+}
+
+export function createNuanuFreelandWorkerBinding(input: {
+  runnerPort: FreelandRunnerPort;
+  repositoryRoot: string;
+  deployment: WorkerDeploymentPinsV1;
+  adapterLock: WorkerAdapterPackageLockV1;
+}): NuanuFreelandWorkerBinding;
+
+export function createNuanuFreshnessAdapter(
+  control: NuanuWorkerControlPort,
+): QaFreshnessAdapter;
+
+export function createNuanuArtifactPublisher(
+  control: NuanuWorkerControlPort,
+): QaArtifactPublisher;
+
+export interface WorkerDeploymentPinsV1 {
+  schemaVersion: 1;
+  deploymentPinDigest: string;
+  processTemplateVersion: string;
+  executionMode: QaExecutionMode;
+  handlerSpecDigest: string;
+}
+
+export interface WorkerModeDeploymentPinsV1 {
+  schemaVersion: 1;
+  manual: WorkerDeploymentPinsV1 & { executionMode: 'manual' };
+  assist: WorkerDeploymentPinsV1 & { executionMode: 'assist' };
+  auto: WorkerDeploymentPinsV1 & { executionMode: 'auto' };
+}
+
+export function createNuanuWorkerDependencies(input: {
+  repositoryRoot: string;
+  control: NuanuWorkerControlPort;
+  deployment: WorkerDeploymentPinsV1;
+  env: Readonly<Record<string, string | undefined>>;
+}): RunnerDependencies;
+
+export interface FreelandNuanuWorkerHandlerSpecV1 {
+  schemaVersion: 1;
+  executionMode: QaExecutionMode;
+  commandId: 'freeland-qa-run-v1';
+  executable: '/opt/homebrew/opt/node@20/bin/node';
+  argv: readonly ['--import', 'tsx', 'tools/runner/run-nuanu-worker.ts'];
+  cwdPolicy: 'PINNED_PRODUCT_ROOT';
+  shell: false;
+  detached: false;
+  stdio: readonly ['seed-stdin', 'result-stdout', 'reason-stderr', 'worker-control-socket'];
+  stdoutMaxBytes: 65536;
+  stderrMaxBytes: 65536;
+  requiredEnvironmentKeys: readonly [
+    'PATH', 'TZ', 'LANG', 'TMPDIR',
+    'FREELAND_QA_DEPLOYMENT_PIN_DIGEST',
+    'FREELAND_QA_HANDLER_SPEC_DIGEST',
+    'FREELAND_QA_PROCESS_TEMPLATE_VERSION',
+    'FREELAND_QA_EXECUTION_MODE',
+    'FREELAND_STAGING_BASE_URL',
+    'FREELAND_EXPECTED_STAGE_SHA',
+    'FREELAND_STAGING_TEST_EMAIL',
+    'FREELAND_STAGING_TEST_PASSWORD',
+    'FREELAND_CHROMIUM_AUTH_FILE',
+    'FREELAND_WEBKIT_AUTH_FILE'
+  ];
+  optionalEnvironmentKeys: readonly [
+    'FREELAND_STAGING_MESH_IP',
+    'FREELAND_QA_DATABASE_URL',
+    'FREELAND_PAYMENT_RECONCILER_DATABASE_URL',
+    'FREELAND_PAYMENT_SECRET_BROKER_SOCKET',
+    'FREELAND_PAYMENT_SECRET_BROKER_PIN'
+  ];
+}
+
+export const FREELAND_NUANU_HANDLER_PATHS = Object.freeze({
+  manual: 'config/nuanu/worker-handler.manual.v1.json',
+  assist: 'config/nuanu/worker-handler.assist.v1.json',
+  auto: 'config/nuanu/worker-handler.auto.v1.json',
+} as const);
+
+export function selectFreelandNuanuWorkerHandler(input: {
+  authoritativeExecutionMode: QaExecutionMode;
+  deployments: WorkerModeDeploymentPinsV1;
+  adapterLock: WorkerAdapterPackageLockV1;
+  handlerSpecs: Readonly<Record<QaExecutionMode, unknown>>;
+}): Readonly<{
+  deployment: WorkerDeploymentPinsV1;
+  handlerSpec: FreelandNuanuWorkerHandlerSpecV1;
+  expectedHandlerSpecDigest: string;
+}>;
+
+export function buildFreelandNuanuWorkerSpawnSpec(input: {
+  pinnedRepositoryRoot: string;
+  controlSocketFd: number;
+  env: Readonly<Record<string, string | undefined>>;
+  handlerSpec: unknown;
+  expectedHandlerSpecDigest: string;
+  deployment: WorkerDeploymentPinsV1;
+  authoritativeExecutionMode: QaExecutionMode;
+}): Readonly<{
+  file: '/opt/homebrew/opt/node@20/bin/node';
+  args: readonly ['--import', 'tsx', 'tools/runner/run-nuanu-worker.ts'];
+  options: {
+    cwd: string;
+    shell: false;
+    detached: false;
+    stdio: readonly ['pipe', 'pipe', 'pipe', number];
+    env: Readonly<Record<string, string>>;
+  };
+}>;
+```
+
+`executeFreelandQaRun` is the only exported process-facing runner operation.
+There is no public plan, lane, aggregate, scenario, project, or retry command.
+The private functions `planQaRun`, `runPlaywrightLane`,
+`ApiLaneExecutor.execute`, `evaluateQaRun`, and `publishQaRun` cannot be selected
+or skipped by the envelope.
+
+`prepareFreelandQaWorkerInput` is a trusted pre-dispatch materializer, not a
+second runner command. It receives the already validated closed seed and the
+trusted deployment's `identityPins`, which the static CLI constructed only
+after authenticating the item/binding-selected mode, handler digest, and
+deployment pin in the inherited control-session transcript. It loads and
+validates the reviewed registry, plans the requirement closure, derives the
+same full `QaRunIdentity` used by execution, and adds only the unbranded
+lowercase 64-hex wire `qaRunKey`. It does not call `QaFreshnessAdapter` because
+that exact port requires the already prepared `NuanuTaskEnvelope`; the first
+freshness call occurs immediately after prepared-envelope validation and before
+any lane. The seed and task JSON contain no execution mode; because the
+authenticated pin mode is part of `QaRunIdentity`, the same seed under Manual,
+Assist, and Auto derives three different keys. Preparation returns a frozen
+`QaWorkerInputV1`; it cannot invoke a freshness read, lane, publisher, payment
+adapter, or side effect.
+`createFreelandRunnerPort.execute` calls only
+`executeFreelandQaRun`, whose boundary validates the wire input into a branded
+`NuanuTaskEnvelope`, independently reloads authority, and requires the prepared
+key and authoritative execution mode to match before any lane. The Nuanu
+remote-worker integration must
+persist and replay the prepared envelope byte-for-byte; if that capability is
+not proven, no live graph may activate.
+
+`nuanu-worker-binding.ts` is the one static cross-repository composition root.
+It imports `executeFreelandQaTask` and
+`createDurablePreparedQaInvocationPort` only from the installed, vendored
+`@nuanu/freeland-worker-adapter@1.0.0`, verifies the tarball and unpacked-entry
+digests against `worker-adapter-lock.v1.json` before accepting a seed, creates
+the local `FreelandRunnerPort`, validates the statically supplied repository
+root and deployment pin, and internally derives/binds only the owned deployment-scoped
+runtime directory
+`<repositoryRoot>/.qa-runtime/prepared-invocations/<deploymentPinDigest>`.
+The deployment pin is statically composed, lowercase SHA-256, and unique to
+one execution mode/handler manifest; neither its value nor the root is task
+input. A Manual→Assist→Auto transition creates a new immutable deployment pin,
+authenticated session, and root before the next seed is accepted. An old root
+is never consulted under a new pin, so an identical seed materializes once per
+mode and cannot replay the prior mode's prepared key. The binding exposes no
+module path, package path, command ID, invocation root, runner dependency, or
+adapter override to task input. `.qa-runtime/` is ignored, owned `0700`, and
+contains only the closed seed/key receipt bytes.
+
+The vendored tarball is generated from a clean committed N0 checkout and is
+installed with scripts disabled through the exact `file:vendor/...tgz`
+dependency recorded in `package-lock.json`. The lock records the actual N0
+source commit and SHA-256 values; the worker refuses an uncommitted source,
+changed tarball, extra package entry, install hook, symlink, or lock mismatch.
+No TypeScript source is imported from the sibling repository at runtime.
+`tools/runner/run-nuanu-worker.ts` accepts no arguments, reads one bounded
+`QaWorkerSeedV1` JSON value from stdin, invokes this binding, and writes only
+the nine validated snake-case output fields plus one newline.
+
+The three files `worker-handler.manual.v1.json`,
+`worker-handler.assist.v1.json`, and `worker-handler.auto.v1.json` are the
+official transport's sole executable handler manifests. Each contains an exact
+literal `executionMode`; `nuanu-worker-handler.ts` validates its exact closed
+keys and digest. `worker-adapter-lock.v1.json` records the closed three-entry
+mode→handler-spec-digest map. For a claimed task, the official transport
+resolves the selected Flow item's binding and authoritative process-control
+mode, chooses exactly that map entry plus its separately immutable deployment
+pin, and passes both as trusted composition inputs. The seed, task body, ticket,
+graph, and environment may not select them. A transition between Manual,
+Assist, and Auto requires a new deployment pin and exact control-plane
+readback; a handler or deployment pin from another mode fails closed.
+`selectFreelandNuanuWorkerHandler` rejects extra/missing map keys, requires all
+three handler digests and all three deployment-pin digests to be pairwise
+distinct lowercase SHA-256 values, and indexes the two maps only with the
+authoritative mode. It verifies the selected manifest literal, lock digest,
+deployment mode/digest, and handler digest before returning a spawn input.
+
+The handler resolves `cwd` only to the already pinned product root and produces
+one direct
+`spawn` call with the exact Node/argv above, `shell:false`, `detached:false`,
+seed on stdin, bounded result-only stdout, bounded coarse-code stderr, and the
+transport-created authenticated control socket mapped to child FD `3`. The
+transport never invokes npm, a package script, a shell, PATH lookup, or a model
+prompt; therefore no npm banner can corrupt the one-JSON stdout protocol and
+FD `3` reaches the final Node child directly. `qa:nuanu-worker` remains only a
+local operator alias to the same argv. The selected lock entry and deployment
+pin contain the same `handlerSpecDigest`; the manifest's literal mode, trusted
+authoritative mode, deployment-pin mode, and child environment must also be
+equal. A changed cwd, argv, env key, stdio mapping, limit, digest, mode, or
+manifest byte keeps the handler inactive.
+
+The manifest's required and optional environment-key tuples are the complete
+positive allowlist shown in the interface. N1 activates no optional key; N3 may
+activate only the staging mesh value and runtime-role
+`FREELAND_QA_DATABASE_URL`; N5 may additionally activate only the reconciler-
+role DSN and owned local secret-broker socket/pin. The handler always rejects
+`FREELAND_PAYMENT_OWNER_DATABASE_URL`, `FREELAND_QA_TEST_DATABASE_URL`,
+`FREELAND_QA_MIGRATION_DATABASE_URL`, authorization ID/file variables,
+program-gate or switch-mutation files, provider mutation credentials,
+`NODE_OPTIONS`, `NODE_PATH`, inspectors/loaders, `DYLD_*`, `DOTENV_*`, npm
+configuration, proxy variables, every `NUANU_*` variable, and every ambient or
+task-provided key. The handler builds the child environment from nothing and
+copies values only after validating this exact tuple, authoritative mode,
+selected handler digest, and deployment pin. It writes the already verified
+values to `FREELAND_QA_EXECUTION_MODE`,
+`FREELAND_QA_HANDLER_SPEC_DIGEST`, and
+`FREELAND_QA_DEPLOYMENT_PIN_DIGEST`; no parent or task value wins a conflict.
+
+`nuanu-worker-ports.ts` is the only N1 consumer of the packaged inherited
+control client. Its freshness adapter calls `captureFreshness` with the frozen
+validated worker envelope, validates the returned unknown value as the exact
+five-field `QaFreshnessSnapshot`, including authoritative `executionMode`, and
+rejects extra keys, identity drift, mode drift, or a response after abort. Its
+publisher accepts only the already sanitized
+`SanitizedBundlePublication`, verifies canonical bytes and SHA-256, converts
+those bytes to base64, calls `publishArtifact` exactly once with the fixed
+artifact name/media type, and validates the exact three-field
+`SanitizedArtifactRef`. Neither adapter exposes the control object or adds a
+route, Decision, item mutation, URL, method, retry, or arbitrary artifact
+operation to `RunnerDependencies`. A reclaimed execution may replay the exact
+same publication digest and must receive the original reference; a different
+digest for the claimed `(task, qaRunKey, name)` fails closed.
+
+The static CLI obtains `FREELAND_QA_DEPLOYMENT_PIN_DIGEST`,
+`FREELAND_QA_HANDLER_SPEC_DIGEST`,
+`FREELAND_QA_PROCESS_TEMPLATE_VERSION`, and one closed
+`FREELAND_QA_EXECUTION_MODE=manual|assist|auto` value only from the official
+handler's strict environment allowlist. Before reading stdin, it requires the
+environment mode/digests to equal the selected manifest, adapter-lock entry,
+and deployment pin. It then opens the authenticated inherited channel with
+`createInheritedNuanuWorkerControlPort({ fd: 3, deploymentPinDigest,
+handlerSpecDigest, executionMode })`. That authenticated session transcript is
+the pre-preparation mode authority. Once preparation yields the exact envelope,
+the first signed freshness response must contain the same mode before execution
+authority or any lane is loaded, and the post-execution freshness read must
+preserve it; any mismatch quarantines the prepared receipt, closes the channel,
+and starts no lane or publication. It
+calls the sole `createNuanuWorkerDependencies` static factory, which constructs
+the trusted staging `RunnerDependencies` and replaces only the frozen-envelope
+freshness and local artifact publisher with the two closed control adapters,
+then creates the local runner port and packaged binding. The factory accepts no
+extension-lane object, module path, callback, command, or task value. Its N1
+implementation returns all four extension ports as null; N3 modifies this same
+file to statically construct the reviewed CDP/Computer Use/Telegram executors,
+and N5 modifies it again to add only the inert reviewed payment factory while
+preserving those three ports. Every phase adds a packaged-worker integration
+test; no later plan forks or replaces `run-nuanu-worker.ts`. The CLI
+rejects any unexpected `NUANU_*` variable, task-provided override,
+owner/migration/test/mutation variable, `NODE_OPTIONS`, `DYLD_*`, proxy,
+loader/debug variable, or npm runtime-injection variable; it
+never receives a Nuanu token or endpoint. The mode-specific deployment pin,
+handler-spec digest, mode, and template version are identity pins selected by
+item/binding authority, not task authority. Later N3/N5/N7 composition may
+replace only the typed extension ports and reviewed environment profile behind
+this same entrypoint; it cannot add another worker command or transport.
+
+The N1 local factory sets `playwrightEnvironmentProfile: 'staging'` and all
+four `extensionLanes` ports to `null`; N7 alone may construct a production
+factory after its independent gate. This profile is trusted dependency state,
+never an envelope field. The plan
+and JSON schema already represent every later closed lane, but N1 selection
+admits only current reviewed API/Playwright entries. N3 supplies the `cdp`,
+`computerUse`, and `telegram` ports; N5 supplies an inert `payment` factory. A selected required
+lane with a null or wrong-lane port is `harness_invalid` and cannot be
+skipped, downgraded to optional, or published as PASS. The runner executes
+canonical planned-lane order. Only after every mandatory non-payment lane,
+freshness, candidate, and cleanup gate is complete may it call the payment
+factory's `create` once and then its returned executor once. It accepts a
+non-null lifecycle only from that executor, validates the returned lane/check IDs against the plan, and then
+performs its one aggregate/evidence/publication path. No later plan adds a
+second runner entry point or overloads `RunnerDependencies` outside this
+versioned extension interface.
+
+- [ ] **Step 1: Write the handler/vendoring foundation RED tests**
+
+The block below is the complete Task 8 test matrix. In this step materialize
+only `nuanu-worker-handler.test.ts` and
+`vendor-nuanu-worker-adapter.test.ts`: the handler selector/digest/env/spawn
+spec unit cases and the vendor temp/output/cleanup cases. The
+`actual handler-spawn adapter emits one nine-field JSON` integration case is
+deferred to Step 6, when the final child exists. Keep all other test names as
+the Step 6 dispatcher checklist; do not create their files yet, so the
+foundation can reach a clean verified commit without knowingly committing RED
+tests.
+
+```ts
+test('freeland-qa-run-v1 alone performs plan then every required lane then aggregate and publish');
+test('preparation derives qaRunKey from local authority and adds no other seed field');
+test('preparation uses only authenticated deployment-session mode pins and never calls freshness');
+test('task seed and envelope cannot supply or override execution mode');
+test('preparation invokes no lane publisher payment or external-effect dependency');
+test('live port execute delegates only to executeFreelandQaRun');
+test('prepared key and execution-time rederived key must match before the first lane');
+test('same frozen seed and authority produce byte-identical prepared envelopes');
+test('required extension lane invokes only its exact typed port and cannot be skipped');
+test('payment factory is not created until every non-spending lane and cleanup gate passes');
+test('non-payment blocked stale or cancelled runs never call payment factory create');
+test('null or wrong-lane extension port yields harness_invalid before publication');
+test('only payment extension may return a non-null PaymentLifecycle');
+test('N3 and N5 extension results still use the sole aggregate evidence and publisher path');
+test('unknown command IDs and every extra phase, lane, retry, or execution-control field are rejected before dependency use');
+test('shell, argv, command, URL, origin, path, file, grep, selector, project, env-name, and artifact-path probes never reach a dependency');
+test('payment input is rejected with payment_lane_unavailable before publication');
+test('blocked plans invoke no lane executor and publish a typed HARNESS_FAIL result');
+test('ticket requirement IDs select coverage but can never choose an internal phase or executor');
+test('eligible Playwright and API lanes run once each in sorted plan order with clean attempt zero');
+test('runner reloads registry and recomputes identity and plan before verdict');
+test('runner builds one registry-derived coverage projection before publication');
+test('changed coverage, environment authority, identity, or plan cannot pass the aggregate gate');
+test('freshness is captured before execution and after the authority recheck');
+test('abort propagates to the active bounded dependency and no later dependency starts');
+test('deadline expiry cancels the active lane and cannot start publication as PASS');
+test('dependencies are snapshotted once so getter mutation cannot change authority mid-run');
+test('the only output is a schema-valid QaRunResult with the branded input key');
+test('vendored N0 adapter lock matches source commit tarball and package entry digests');
+test('worker binding runs seed materialize prepare execute and exact nine-field projection');
+test('new process with the same deployment-scoped durable root replays receipt without a second prepare');
+test('manual assist and auto use distinct handler pins deployment roots sessions and run keys');
+test('mode transition rejects the prior pin root prepared bytes and control session');
+test('worker CLI accepts one seed emits only snake output and exposes no adapter override');
+test('sole worker dependency factory owns staging pins control adapters and null N1 extension ports');
+test('inherited control freshness validates exact five-field snapshot envelope identity and mode');
+test('inherited control publisher sends one fixed sanitized bundle and validates its reference');
+test('publisher replay returns the same reference while digest drift fails closed');
+test('worker CLI opens only authenticated fd 3 and receives no Nuanu token endpoint or generic method');
+test('wrong deployment pin peer session handler mode or injected runtime env fails before preparation');
+test('worker control endpoint never reaches a child and cannot alias the one-shot host-key pipe');
+test('official handler performs one direct fixed spawn and never npm shell PATH or model dispatch');
+test('handler spawn maps seed result reason and authenticated control socket to exact stdio');
+test('actual handler-spawn adapter emits one nine-field JSON value with no launcher stdout');
+test('handler is selected from authoritative item binding mode and never from task JSON');
+test('adapter lock contains exactly manual assist and auto handler digests');
+test('handler selector rejects missing extra or duplicate mode-specific handler and deployment pins');
+test('handler copies only exact staged runtime keys and rejects hostile owner migration test DYLD npm proxy parent env');
+test('vendor rejects symlink output crash residue and zero or multiple tarballs');
+test('vendor deletes owned temp rechecks N0 clean and limits the N1 status delta');
+```
+
+- [ ] **Step 2: Run foundation RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/nuanu-worker-handler.test.ts tests/runner/vendor-nuanu-worker-adapter.test.ts
+```
+
+Expected: FAIL with `ERR_MODULE_NOT_FOUND` for the handler/vendor modules.
+
+- [ ] **Step 3: Implement the immutable handler and vendor foundation**
+
+Implement the exact three handler manifests, closed handler/deployment selector,
+digest/env validation, and direct spawn-spec builder described above. Implement
+the vendor tool and its fixture-injected filesystem/process tests in the same
+step; neither the tool nor tests may write a repository yet.
+
+Implement `vendor-nuanu-worker-adapter.ts` as a build-time-only, no-argument
+tool pinned to the exact N0 checkout named by this program. Before mutation it
+requires both the N0 source checkout and N1 target checkout to be clean
+committed trees at their expected commits, including the three committed N1
+handler manifests and vendor tool from Step 4. It requires the four vendoring
+output targets to be absent or exact reviewed prior outputs, resolves both real
+roots, and refuses a symlink or ancestor/descendant overlap. It creates an owned
+`0700` directory
+with `mkdtemp` below the real OS private temporary directory and proves that
+directory is outside both repositories. With `shell:false`, bounded output,
+the pinned Node 20 executable, and an exact argv, it invokes only:
+
+```text
+tools/nuanu/build-freeland-worker-adapter.mjs --output <absolute-owned-temp-dir>
+```
+
+The vendor tool requires that output directory to contain exactly one entry
+named `nuanu-freeland-worker-adapter-1.0.0.tgz`, and requires it to be an owned,
+regular, non-symlink, single-link, bounded file. It independently recomputes
+the tarball SHA-256, untars into a second owned temporary subdirectory, verifies
+the closed manifest/package-entry/schema allowlist and absence of lifecycle
+hooks, and compares the N0 source commit and all three committed handler-
+manifest digests. Zero, multiple, renamed, symlinked, hardlinked, or changed
+outputs fail before any repository write.
+
+Only after verification succeeds does it copy through an owned same-directory
+partial file and atomically rename to the declared vendor path, write the
+closed adapter lock with actual source-commit/tarball/package-entry digests and
+exact `manual`/`assist`/`auto` handler-spec digests, and install that `file:`
+dependency through the pinned npm CLI with lifecycle scripts disabled and
+offline behavior. Every exit path deletes the entire vendor-owned temporary
+root in `finally` and removes any partial repository file. A subsequent
+invocation may recover only stale prefix-marked, current-uid `0700` roots left
+by a forcibly killed prior invocation; it follows no symlink and never deletes
+the supplied repositories. Tests inject a builder crash, symlink swap, and
+zero/multiple output, then prove cleanup/recovery and no partial target.
+
+After success it rechecks the N0 source tree is byte-clean and proves the N1
+tree differs from its clean Step 4 commit only at the exact vendored tarball,
+adapter lock, `package.json`, and `package-lock.json`; any other mutation fails
+and prints no captured child content. The tool never runs inside a worker. Step
+5 runs it only after the committed N0 Task 3 package-builder tests are GREEN
+and the clean Step 4 N1 handler/vendor foundation is pinned.
+
+- [ ] **Step 4: Verify and commit the clean handler/vendor foundation**
+
+Run only the two foundation suites, stage their exact implementation scope,
+commit it, and require an empty N1 tree. This is the immutable manifest/source
+revision whose bytes Step 5 is allowed to hash.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/nuanu-worker-handler.test.ts tests/runner/vendor-nuanu-worker-adapter.test.ts
+git add packages/runner/src/nuanu-worker-handler.ts tools/runner/vendor-nuanu-worker-adapter.ts config/nuanu/worker-handler.manual.v1.json config/nuanu/worker-handler.assist.v1.json config/nuanu/worker-handler.auto.v1.json tests/runner/nuanu-worker-handler.test.ts tests/runner/vendor-nuanu-worker-adapter.test.ts
+git diff --cached --name-only
+git commit -m "feat: pin Nuanu worker handler modes and vendor tool"
+git status --short
+git rev-parse HEAD
+```
+
+Expected: foundation tests pass, the staged-name command prints exactly those
+seven paths, and the final status prints nothing.
+
+- [ ] **Step 5: Vendor and commit the reviewed adapter package**
+
+Run the committed no-argument tool from the clean Step 4 revision. Verify its
+four-path mutation scope and package/lock tests, then commit only those four
+outputs and return to a clean tree before implementing the worker binding.
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx tools/runner/vendor-nuanu-worker-adapter.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/nuanu-worker-handler.test.ts tests/runner/vendor-nuanu-worker-adapter.test.ts
+git status --short
+git add config/nuanu/worker-adapter-lock.v1.json vendor/nuanu-freeland-worker-adapter-1.0.0.tgz package.json package-lock.json
+git diff --cached --name-only
+git commit -m "build: vendor pinned Nuanu worker adapter"
+git status --short
+git rev-parse HEAD
+```
+
+Expected: before staging, status names only the four allowed outputs; after the
+commit, status prints nothing. The adapter lock records the already committed
+Step 4 handler bytes and the committed N0 Task 3 source revision.
+
+- [ ] **Step 6: Write and implement the remaining immutable full-run sequence**
+
+Now create the remaining Step 1 test files and run their focused command once,
+expecting RED for the still-absent binding/dispatcher modules. Implement the
+single static composition described below, then add only its fixed worker
+script:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/commands.test.ts tests/runner/live-adapter.test.ts tests/runner/nuanu-worker-binding.test.ts tests/runner/nuanu-worker-ports.test.ts tests/runner/nuanu-worker-dependencies.test.ts tests/runner/nuanu-worker-handler.test.ts
+```
+
+Expected before implementation: FAIL with `ERR_MODULE_NOT_FOUND` for the
+binding/dispatcher modules.
+
+After the composition entrypoint exists, add only its fixed worker script:
+
+```json
+{
+  "qa:nuanu-worker": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/runner/run-nuanu-worker.ts"
+}
+```
+
+Validate the envelope first, including the literal command ID, branded key,
+canonical future deadline, and `paymentAuthorizationId: null`. Snapshot every
+dependency method once. Combine the caller signal with a timer bounded by the
+deadline from `dependencies.now()`; the deadline can shorten execution but
+cannot select work or add authority.
+
+Execute these steps in exactly this order:
+
+1. capture the pre-run issue/candidate freshness snapshot and, before loading
+   authority or deriving a key, require its `executionMode` to equal the
+   trusted deployment pin, selected handler manifest, authenticated session,
+   and CLI environment;
+2. load and validate registry snapshot A;
+3. plan from `envelope.requirementIds`, snapshot every selected authority file,
+   derive the full local identity, require its execution mode to equal the
+   already authenticated freshness mode, require its key to equal
+   `envelope.qaRunKey`, and build the exact registry-derived
+   `QaCoverageProjection` for that Flow item, issue revision, capability,
+   requirement, check, and lane closure;
+4. when the plan is eligible, traverse its sorted lanes once: call `runPlaywrightLane` for each Playwright lane and the fixed `apiLaneExecutor` for each API lane, always with `attemptKind: 'VERDICT'` and `attemptIndex: 0`;
+5. load independent registry snapshot B, repeat tracked-authority snapshots, replan, rederive identity, and set `authorityStable` only when canonical registry bytes, coverage digest, plan digest, identity bytes, and selected authority digests match snapshot A;
+6. capture post-run freshness and require its Flow item/candidate facts and
+   execution mode to be the ones represented in the evaluator input and to
+   match the pre-run authenticated snapshot;
+7. evaluate with private `releaseScope: 'TICKET_ONLY'`, build the sanitized
+   bundle including the frozen coverage projection, publish exactly once,
+   validate `QaRunResult` and the reconstructed `QaRunEvidence`, and return the
+   result.
+
+No envelope field can name or omit a phase, lane, project, grep, file, adapter,
+attempt kind, attempt index, reporter, output directory, or publication path.
+Catch only errors required to turn a bounded lane process/report condition into
+a typed lane fact. Contract, authority, freshness, identity, publisher, and
+internal failures never synthesize a passing output. Zero/blocked selection
+still reaches evaluation and sanitized publication as the explicit
+`HARNESS_FAIL` fixture; no executor is invoked.
+
+- [ ] **Step 7: Run focused GREEN and runner aggregate**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/commands.test.ts tests/runner/live-adapter.test.ts tests/runner/nuanu-worker-binding.test.ts tests/runner/nuanu-worker-ports.test.ts tests/runner/nuanu-worker-dependencies.test.ts tests/runner/nuanu-worker-handler.test.ts tests/runner/vendor-nuanu-worker-adapter.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/identity.test.ts tests/runner/selection.test.ts tests/runner/playwright-lane.test.ts tests/runner/api-lane.test.ts tests/runner/evaluator.test.ts tests/runner/coverage-projection.test.ts tests/runner/evidence.test.ts tests/runner/publisher.test.ts tests/runner/commands.test.ts tests/runner/live-adapter.test.ts tests/runner/nuanu-worker-binding.test.ts tests/runner/nuanu-worker-ports.test.ts tests/runner/nuanu-worker-dependencies.test.ts tests/runner/nuanu-worker-handler.test.ts tests/runner/vendor-nuanu-worker-adapter.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands exit `0` and dependency call-order assertions pass.
+
+- [ ] **Step 8: Commit the allowlisted dispatcher composition**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/runner/src/commands.ts packages/runner/src/live-adapter.ts packages/runner/src/nuanu-worker-binding.ts packages/runner/src/nuanu-worker-ports.ts packages/runner/src/nuanu-worker-dependencies.ts tools/runner/run-nuanu-worker.ts tests/runner/commands.test.ts tests/runner/live-adapter.test.ts tests/runner/nuanu-worker-binding.test.ts tests/runner/nuanu-worker-ports.test.ts tests/runner/nuanu-worker-dependencies.test.ts tests/runner/nuanu-worker-handler.test.ts .gitignore package.json
+git diff --cached --name-only
+git commit -m "feat: expose closed Freeland QA run command"
+git status --short
+git rev-parse HEAD
+```
+
+Expected: the staged-name command contains no foundation/provenance output
+outside this allowlist, final status prints nothing, and this third Task 8
+revision is the composition commit that gates N0 Task 5 live work.
+
+### Task 9: Bounded CLI, Clean-Checkout Acceptance, and Aggregate Verification
+
+**Files:**
+
+- Create: `tools/runner/run-qa.ts`
+- Create: `tests/runner/cli.test.ts`
+- Create: `tests/runner/runtime-pinning.test.ts`
+- Create: `tests/runner/n1-acceptance.test.ts`
+- Modify: `package.json`
+
+**Interfaces:**
+
+```ts
+export interface RunnerCliIo {
+  stdin: NodeJS.ReadableStream;
+  stdout(text: string): void;
+  stderr(text: string): void;
+}
+
+export async function runQaCli(
+  args: readonly string[],
+  io?: RunnerCliIo,
+  dependencies?: RunnerDependencies,
+): Promise<number>;
+```
+
+- [ ] **Step 1: Write CLI RED tests**
+
+```ts
+test('CLI accepts exactly no argv and one bounded JSON request on stdin');
+test('CLI accepts only a NuanuTaskEnvelope for freeland-qa-run-v1');
+test('CLI emits exactly one canonical QaRunResult JSON line on stdout');
+test('usage and schema failures emit only fixed reason codes and never echo input');
+test('stdin over 1 MiB, empty stdin, multiple JSON values, trailing bytes, and aborted stdin fail closed');
+test('known-good full run exits zero with PASS and one artifact reference');
+test('known-bad, stale, infra, empty, retry, and conflict outputs remain typed successful CLI responses');
+test('dependency failure exits one without stack, path, stderr, token, or ticket content');
+test('CLI import has no side effect and direct execution sets only process.exitCode');
+```
+
+Use fixed stderr records:
+
+```text
+qa-runner: [cli_usage]
+qa-runner: [request_invalid]
+qa-runner: [command_failed]
+qa-runner: [runner_internal_error]
+```
+
+- [ ] **Step 2: Run CLI RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/cli.test.ts
+```
+
+Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `tools/runner/run-qa.js`.
+
+- [ ] **Step 3: Implement bounded stdin and canonical stdout**
+
+Accept no command-line arguments. Read stdin as buffers with an aggregate cap of 1 MiB, settle listeners on end/error/abort, parse exactly one JSON value, and pass it to `executeFreelandQaRun`. Serialize the returned `QaRunResult` with `canonicalJsonBytes` plus one newline. Map only validated public reason codes; unexpected errors use `runner_internal_error` without error message/stack.
+
+Construct local production dependencies lazily from the module-derived
+repository root. The local CLI pins
+`processTemplateVersion: 'local-freeland-qa-run-v1'` and
+`executionMode: 'manual'`, uses the fixed Playwright/attestation adapters, the
+explicit API lane adapter, local frozen-envelope freshness, and
+`LocalQaArtifactPublisher`. The remote-worker CLI remains the separate static
+Task 8 binding: it supplies the deployed process-template pin and replaces only
+freshness and publication with `nuanu-worker-ports.ts` over authenticated FD
+`3`; it does not add another dispatcher, scheduler, retry loop, lane chooser,
+Nuanu credential, endpoint, or generic control client to this local CLI.
+
+- [ ] **Step 4: Add exact package scripts**
+
+Add:
+
+```json
+{
+  "qa:run": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/runner/run-qa.ts",
+  "test:runner": "/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/contracts/qa-run.test.ts tests/playwright-support/verdict-result.test.ts tests/runner/*.test.ts"
+}
+```
+
+In the same `package.json` change, normalize every existing script that invokes
+Node, npm, npx, or `tsc`: direct TypeScript/Node tools start with
+`/opt/homebrew/opt/node@20/bin/node`; `typecheck` invokes
+`node_modules/typescript/bin/tsc` through that binary; and
+`verify:deterministic` invokes each subordinate package script through
+`/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run <name>`. It must contain no bare
+`node`, `npm`, `npx`, or `tsc` executable token.
+
+`tests/runner/runtime-pinning.test.ts` parses `package.json`, rejects every bare
+runtime executable, requires exact `/opt/homebrew/opt/node@20/bin/node`, runs
+that path with `--version`, and expects `v20.20.2`. This test prevents a later
+script edit from silently returning the authoritative suite to ambient Node 22.
+
+Do not duplicate `test:runner` inside `verify:deterministic`; its existing `test:unit` glob already executes every new `.test.ts` file.
+
+- [ ] **Step 5: Run CLI focused GREEN**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/cli.test.ts tests/runner/runtime-pinning.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:runner
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all commands exit `0` without a network request or browser launch.
+
+- [ ] **Step 6: Write the N1 acceptance test**
+
+The acceptance test imports all seven fixture factories and proves:
+
+```ts
+test('clean fixture inputs reproduce byte-identical known-good, bad, stale, infra, empty, retry, and conflict outputs');
+test('the current committed Freeland registry returns explicit gaps and cannot pass');
+test('zero selected tests, untracked authority, or a sanitizer finding fails the gate');
+test('raw Playwright fixture bytes are absent from every bundle and QaRunResult');
+test('hostile parent environment keys are absent from the child spawn spec');
+test('every fixture run has a verified raw-output cleanup receipt and no remaining custody path');
+test('publisher failure cannot return or persist a PASS result');
+test('candidate and issue digests in every accepted result match the frozen identity');
+```
+
+Run each fixture twice with separate temporary local artifact roots and compare exact canonical results and bundle hashes. `LocalQaArtifactPublisher` already uses deterministic content-addressed IDs, so no field replacement or masking is permitted. The known-good result is the only `PASS`; known-bad is the only `PRODUCT_FAIL`; all five other cases are non-verdicts.
+
+- [ ] **Step 7: Run the completed recovery acceptance gate**
+
+Tasks 1–8 already built every production module this test composes. Write every
+assertion in Step 6 completely, with no skip, TODO, placeholder, conditional
+return, or empty fixture, then run:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/runner/n1-acceptance.test.ts
+```
+
+Expected: GREEN on the first acceptance run, with seven non-skipped fixture
+cases and the exact verdict split described above. If it fails because a
+product/composition behavior is missing, do not weaken or complete the
+acceptance test in place: return to the owning Task 1–8, add a focused failing
+product test, implement its minimal GREEN, rerun that task's aggregate, and
+then retry this unchanged acceptance gate.
+
+- [ ] **Step 8: Run focused, aggregate, deterministic, and repository checks**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:runner
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:unit
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:import-matrix:check
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:reconcile
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:validate
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:list
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run security:scan
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+git diff --check
+git status --short
+```
+
+Expected: every test/check exits `0`; `git status --short` lists only the intended N1 source, schema, fixture, test, and package changes before commit; no `artifacts/`, `evidence/`, auth state, report, or result file is tracked.
+
+- [ ] **Step 9: Commit CLI and N1 acceptance**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add tools/runner/run-qa.ts tests/runner/cli.test.ts tests/runner/runtime-pinning.test.ts tests/runner/n1-acceptance.test.ts package.json
+git commit -m "feat: expose deterministic QA runner CLI"
+```
+
+- [ ] **Step 10: Verify the committed implementation from the fixed worktree**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+git status --short
+git log --oneline --reverse 72378f3e32f8da3d1e5226e8737a3717e48a6347..HEAD
+```
+
+Expected: deterministic verification exits `0`, status is empty, and the
+baseline-range log prints exactly these eleven subjects in oldest-to-newest
+dependency order:
+
+1. `feat: add deterministic QA run contracts`
+2. `feat: derive canonical QA run identity`
+3. `feat: select reviewed QA coverage deterministically`
+4. `feat: ingest strict Playwright verdict facts`
+5. `feat: evaluate QA verdicts deterministically`
+6. `feat: publish sanitized QA evidence atomically`
+7. `feat: add sanitized QA artifact publisher port`
+8. `feat: pin Nuanu worker handler modes and vendor tool`
+9. `build: vendor pinned Nuanu worker adapter`
+10. `feat: expose closed Freeland QA run command`
+11. `feat: expose deterministic QA runner CLI`
+
+No unrelated commit appears in the range.
+
+## N1 Acceptance Matrix
+
+| Case | Assessment | Health | Applicability | Issue verdict | Candidate verdict |
+| --- | --- | --- | --- | --- | --- |
+| known-good | `SATISFIED` | `HEALTHY` | `MATCHED` | `PASS` | `CANDIDATE_RELEASE_INCONCLUSIVE` |
+| known-bad | `VIOLATED` | `HEALTHY` | `MATCHED` | `PRODUCT_FAIL` | `CANDIDATE_RELEASE_INCONCLUSIVE` |
+| stale | `INCONCLUSIVE` | `HEALTHY` | `STALE` | `NEEDS_HUMAN` | `CANDIDATE_RELEASE_INCONCLUSIVE` |
+| infrastructure failure | `INCONCLUSIVE` | `INFRA_FAILURE` | `MATCHED` | `ENV_BLOCKED` | `CANDIDATE_RELEASE_INCONCLUSIVE` |
+| empty selection | `INCONCLUSIVE` | `INFRA_FAILURE` | `MATCHED` | `HARNESS_FAIL` | `CANDIDATE_RELEASE_INCONCLUSIVE` |
+| retry-only pass | `INCONCLUSIVE` | `HEALTHY` | `MATCHED` | `FLAKY` | `CANDIDATE_RELEASE_INCONCLUSIVE` |
+| lane conflict | `INCONCLUSIVE` | `HEALTHY` | `MATCHED` | `NEEDS_HUMAN` | `CANDIDATE_RELEASE_INCONCLUSIVE` |
+
+## Explicit N2 Boundary
+
+N1 ends at
+`QaArtifactPublisher.publish(SanitizedBundlePublication): Promise<SanitizedArtifactRef>`.
+The sole `nuanu-worker-ports.ts` adapter implements that port by requesting one
+content-addressed Nuanu Artifact version through the packaged inherited-control
+client and returning the platform IDs; it cannot change or reinterpret the
+bundle, evaluation, or result. Column Process triggers, claims, leases, retries,
+journey history, Decisions, Manual/Assist/Auto behavior, artifact retention
+policy, and item state transitions remain owned by Nuanu and are intentionally
+absent from every N1 interface and file above.

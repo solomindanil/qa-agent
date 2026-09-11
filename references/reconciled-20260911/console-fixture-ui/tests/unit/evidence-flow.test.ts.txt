@@ -1,0 +1,285 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import {
+  EVIDENCE_STEPS,
+  buildEvidenceFlow,
+  type BaselineReview,
+  type DiscoveryRunReceipt,
+  type EvidenceRunState,
+  type EvidenceStepView,
+} from "../../src/lib/evidence-flow";
+import {
+  FIXTURE_ADAPTER,
+  FIXTURE_OUTCOMES,
+  fixtureApproval,
+  fixtureBaseline,
+  fixtureExecutionApproval,
+  fixturePlan,
+  fixtureReceipt,
+} from "../../src/lib/evidence-fixture";
+
+const REGISTRATION = {
+  workspacePath: "/private/tmp/qa-console-evidence",
+  workspaceDigest: `sha256:${"c".repeat(64)}`,
+};
+
+const baseline = fixtureBaseline(REGISTRATION);
+const approval = fixtureApproval(baseline);
+const plan = fixturePlan(baseline, approval);
+const execution = fixtureExecutionApproval(plan);
+
+function step(steps: readonly EvidenceStepView[], key: string): EvidenceStepView {
+  const found = steps.find((entry) => entry.key === key);
+  assert.ok(found, `step ${key} is missing from the flow view`);
+  return found;
+}
+
+function terminal(outcome: (typeof FIXTURE_OUTCOMES)[number]): EvidenceRunState {
+  return { kind: "terminal", baseline, approval, plan, execution, receipt: fixtureReceipt(plan, execution, outcome) };
+}
+
+// ---------------------------------------------------------------- shape
+
+test("the flow is the four I2 steps in lifecycle order", () => {
+  const view = buildEvidenceFlow({ kind: "baseline", baseline });
+  assert.deepEqual(view.steps.map((entry) => entry.key), ["BASELINE", "DRY_RUN", "EXECUTION", "EVIDENCE"]);
+  assert.deepEqual([...EVIDENCE_STEPS], view.steps.map((entry) => entry.key));
+});
+
+test("every step carries a title and a detail in every state", () => {
+  const states: EvidenceRunState[] = [
+    { kind: "ungated", lifecycleState: "DRAFT", nextAction: "RUN_DISCOVERY" },
+    { kind: "baseline", baseline },
+    { kind: "approving", baseline },
+    { kind: "compiling", baseline, approval },
+    { kind: "scoped", baseline, approval, plan },
+    { kind: "running", baseline, approval, plan, execution },
+    terminal("observed"),
+    { kind: "refused", baseline, message: "stale baseline digest" },
+  ];
+  for (const state of states) {
+    const view = buildEvidenceFlow(state);
+    assert.ok(view.headline.length > 0, `${state.kind} has no headline`);
+    assert.ok(view.detail.length > 0, `${state.kind} has no detail`);
+    for (const entry of view.steps) {
+      assert.ok(entry.title.length > 0, `${entry.key} title empty in ${state.kind}`);
+      assert.ok(entry.detail.length > 0, `${entry.key} detail empty in ${state.kind}`);
+    }
+  }
+});
+
+// ------------------------------------------------- honest run / verdict
+
+test("no state before a persisted receipt reports a run or a verdict", () => {
+  const before: EvidenceRunState[] = [
+    { kind: "ungated", lifecycleState: "DRAFT", nextAction: "RUN_DISCOVERY" },
+    { kind: "baseline", baseline },
+    { kind: "approving", baseline },
+    { kind: "compiling", baseline, approval },
+    { kind: "scoped", baseline, approval, plan },
+    { kind: "running", baseline, approval, plan, execution },
+    { kind: "refused", baseline, message: "stale baseline digest" },
+  ];
+  for (const state of before) {
+    const view = buildEvidenceFlow(state);
+    assert.equal(view.runsLabel, "none", `${state.kind} claimed a run`);
+    assert.equal(view.verdictLabel, "NOT_EVALUATED", `${state.kind} claimed a verdict`);
+    assert.equal(view.receipt, null, `${state.kind} claimed a receipt`);
+  }
+});
+
+// An in-flight probe is the sharpest case: outbound work may have started, and
+// the console still must not pre-announce an outcome.
+test("a running probe still reports no run and no verdict", () => {
+  const view = buildEvidenceFlow({ kind: "running", baseline, approval, plan, execution });
+  assert.equal(view.runsLabel, "none");
+  assert.equal(view.verdictLabel, "NOT_EVALUATED");
+  assert.equal(step(view.steps, "EVIDENCE").status, "running");
+  assert.equal(view.busy, true);
+});
+
+test("a terminal receipt is the only thing that names a run", () => {
+  const view = buildEvidenceFlow(terminal("observed"));
+  assert.equal(view.runsLabel, execution.runId);
+  assert.equal(view.verdictLabel, "INCONCLUSIVE");
+  assert.equal(view.receipt?.runId, execution.runId);
+});
+
+test("the three terminal verdicts are the only ones the flow can report", () => {
+  assert.deepEqual(
+    FIXTURE_OUTCOMES.map((outcome) => buildEvidenceFlow(terminal(outcome)).verdictLabel),
+    ["INCONCLUSIVE", "ENV_BLOCKED", "HARNESS_FAIL"],
+  );
+});
+
+test("a successful observation is INCONCLUSIVE, never PASS", () => {
+  const view = buildEvidenceFlow(terminal("observed"));
+  assert.equal(view.verdictLabel, "INCONCLUSIVE");
+  assert.notEqual(view.verdictLabel as string, "PASS");
+  assert.ok(view.receipt?.observation, "an INCONCLUSIVE receipt must carry the observation");
+  assert.equal(view.receipt?.blocker, null);
+  assert.match(view.verdictNote, /not product acceptance/i);
+});
+
+// Fail-closed: a receipt that claims PASS is a contract violation, not a result.
+test("a receipt claiming PASS is refused and reported as HARNESS_FAIL", () => {
+  const forged = { ...fixtureReceipt(plan, execution, "observed"), verdict: "PASS" } as unknown as DiscoveryRunReceipt;
+  const view = buildEvidenceFlow({ kind: "terminal", baseline, approval, plan, execution, receipt: forged });
+  assert.equal(view.verdictLabel, "HARNESS_FAIL");
+  assert.equal(view.receipt?.blocker?.class, "harness");
+  assert.ok(view.error, "a refused receipt must explain itself");
+});
+
+test("an INCONCLUSIVE receipt without an observation fails closed", () => {
+  const empty = { ...fixtureReceipt(plan, execution, "observed"), observation: null } as DiscoveryRunReceipt;
+  const view = buildEvidenceFlow({ kind: "terminal", baseline, approval, plan, execution, receipt: empty });
+  assert.equal(view.verdictLabel, "HARNESS_FAIL");
+});
+
+test("an ENV_BLOCKED receipt needs an environment blocker, not a harness one", () => {
+  const mismatched = {
+    ...fixtureReceipt(plan, execution, "environment_blocked"),
+    blocker: { class: "harness", code: "E_RUNNER", detail: "runner crashed" },
+  } as DiscoveryRunReceipt;
+  const view = buildEvidenceFlow({ kind: "terminal", baseline, approval, plan, execution, receipt: mismatched });
+  assert.equal(view.verdictLabel, "HARNESS_FAIL");
+});
+
+test("an environment-blocked run reports no observation and stays terminal", () => {
+  const view = buildEvidenceFlow(terminal("environment_blocked"));
+  assert.equal(view.verdictLabel, "ENV_BLOCKED");
+  assert.equal(view.receipt?.observation, null);
+  assert.equal(view.receipt?.blocker?.class, "environment");
+  assert.equal(view.receipt?.state, "incomplete");
+  assert.equal(step(view.steps, "EVIDENCE").status, "blocked");
+});
+
+// ------------------------------------------------------- accept release
+
+test("Accept release is disabled in every state and always says why", () => {
+  const states: EvidenceRunState[] = [
+    { kind: "ungated", lifecycleState: "DRAFT", nextAction: "RUN_DISCOVERY" },
+    { kind: "baseline", baseline },
+    { kind: "scoped", baseline, approval, plan },
+    { kind: "running", baseline, approval, plan, execution },
+    ...FIXTURE_OUTCOMES.map(terminal),
+  ];
+  for (const state of states) {
+    const view = buildEvidenceFlow(state);
+    assert.equal(view.acceptRelease.enabled, false, `${state.kind} enabled Accept release`);
+    assert.ok(view.acceptRelease.reason.length > 0, `${state.kind} gave no reason`);
+  }
+});
+
+// ------------------------------------------------------ approval gating
+
+test("an exact reviewable baseline can be approved", () => {
+  const view = buildEvidenceFlow({ kind: "baseline", baseline });
+  assert.equal(view.canApproveBaseline, true);
+  assert.equal(view.approvalBlockedReason, null);
+  assert.equal(step(view.steps, "BASELINE").status, "active");
+});
+
+test("a strategy blocker withholds approval and names itself", () => {
+  const blocked: BaselineReview = { ...baseline, blockers: ["no reachable https source in the declared environment"] };
+  const view = buildEvidenceFlow({ kind: "baseline", baseline: blocked });
+  assert.equal(view.canApproveBaseline, false);
+  assert.match(view.approvalBlockedReason ?? "", /https source/);
+});
+
+test("a baseline with no selectable environment cannot be approved", () => {
+  const noEnv: BaselineReview = { ...baseline, selectedEnvironment: null };
+  const view = buildEvidenceFlow({ kind: "baseline", baseline: noEnv });
+  assert.equal(view.canApproveBaseline, false);
+  assert.ok(view.approvalBlockedReason);
+});
+
+test("a workspace that never reached the baseline gate offers no approval at all", () => {
+  const view = buildEvidenceFlow({ kind: "ungated", lifecycleState: "DRAFT", nextAction: "RUN_DISCOVERY" });
+  assert.equal(view.canApproveBaseline, false);
+  assert.equal(view.canRunProbe, false);
+  assert.equal(view.baseline, null);
+  assert.ok(view.steps.every((entry) => entry.status === "pending"));
+  // The gate copy must not print the lifecycle it is *not* in.
+  assert.equal(`${view.headline} ${view.detail}`.includes("BASELINE_APPROVAL_REQUIRED"), false);
+});
+
+test("a refused approval blocks the baseline step without starting a run", () => {
+  const view = buildEvidenceFlow({ kind: "refused", baseline, message: "stale baseline digest" });
+  assert.equal(step(view.steps, "BASELINE").status, "blocked");
+  assert.equal(step(view.steps, "EVIDENCE").status, "pending");
+  assert.equal(view.error, "stale baseline digest");
+  assert.equal(view.canRunProbe, false);
+});
+
+// -------------------------------------------------------- probe gating
+
+test("the probe is only runnable once the dry-run scope is compiled", () => {
+  assert.equal(buildEvidenceFlow({ kind: "baseline", baseline }).canRunProbe, false);
+  assert.equal(buildEvidenceFlow({ kind: "compiling", baseline, approval }).canRunProbe, false);
+  assert.equal(buildEvidenceFlow({ kind: "scoped", baseline, approval, plan }).canRunProbe, true);
+  assert.equal(buildEvidenceFlow({ kind: "running", baseline, approval, plan, execution }).canRunProbe, false);
+  assert.equal(buildEvidenceFlow(terminal("observed")).canRunProbe, false);
+});
+
+test("the compiled scope is the read-only bounded plan the design allows", () => {
+  const view = buildEvidenceFlow({ kind: "scoped", baseline, approval, plan });
+  assert.ok(view.plan);
+  assert.ok(["GET", "HEAD"].includes(view.plan.method));
+  assert.equal(view.plan.sideEffectClass, "read_only");
+  assert.ok(view.plan.maxRedirects <= 3);
+  assert.ok(view.plan.maxResponseBytes <= 262144);
+  assert.ok(view.plan.timeoutMs <= 15000);
+  assert.ok(view.plan.allowedOrigin.startsWith("https://"));
+  assert.ok(view.plan.retainedEvidenceFields.length > 0);
+});
+
+// ----------------------------------------------------------- provenance
+
+test("every state names the fixture adapter it is driven by", () => {
+  const states: EvidenceRunState[] = [
+    { kind: "baseline", baseline },
+    { kind: "scoped", baseline, approval, plan },
+    terminal("observed"),
+  ];
+  for (const state of states) {
+    const view = buildEvidenceFlow(state);
+    assert.match(view.provenance, /fixture/i, `${state.kind} hid its provenance`);
+  }
+});
+
+test("the fixture never emits a value that could pass for a kernel digest", () => {
+  const receipt = fixtureReceipt(plan, execution, "observed");
+  const digests = [
+    baseline.registrationReceiptDigest,
+    ...baseline.artifacts.map((entry) => entry.digest),
+    approval.approvalDigest,
+    plan.planDigest,
+    execution.executionApprovalDigest,
+    receipt.receiptDigest,
+    receipt.evidenceManifestDigest,
+  ];
+  for (const digest of digests) {
+    assert.ok(digest.startsWith("fixture:"), `${digest} is not labelled as fixture data`);
+  }
+  assert.equal(plan.adapter, FIXTURE_ADAPTER);
+  assert.equal(receipt.observation?.adapter, FIXTURE_ADAPTER);
+});
+
+test("the fixture observation records metadata only — never a response body", () => {
+  const receipt = fixtureReceipt(plan, execution, "observed");
+  const observation = receipt.observation;
+  assert.ok(observation);
+  assert.equal(Object.prototype.hasOwnProperty.call(observation, "body"), false);
+  assert.ok(observation.bodyBytes > 0);
+  assert.ok(observation.bodyDigest.startsWith("fixture:"));
+  assert.ok(observation.requestedUrl.startsWith("https://"));
+});
+
+// The execution approval binds one run; replaying it must not mint a second.
+test("the execution approval binds exactly one run id and idempotency key", () => {
+  const again = fixtureExecutionApproval(plan);
+  assert.equal(again.runId, execution.runId);
+  assert.equal(again.idempotencyKeyDigest, execution.idempotencyKeyDigest);
+  assert.equal(again.executionApprovalDigest, execution.executionApprovalDigest);
+});

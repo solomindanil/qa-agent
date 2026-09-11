@@ -1,0 +1,42 @@
+import { SANDBOX } from './fixtures/sandbox-data';
+
+export type AuthenticatedRoute = {
+  name: string;
+  path: string;
+  ready: { role: 'heading' | 'button' | 'link'; name: string };
+};
+
+const workspacePath = (suffix = '') => `/${SANDBOX.workspaceSlug}${suffix}`;
+const projectPath = (suffix = '') =>
+  workspacePath(`/projects/${SANDBOX.projectId}${suffix}`);
+
+/** This profile UUID is specific to the sanctioned QA account observed in recon. */
+export const QA_ACCOUNT_ID = 'dcfcdc2b-d877-4b86-a81b-e31e8853fd6d';
+export const YOUR_WORK_PATH = workspacePath(`/profile/${QA_ACCOUNT_ID}/assigned/`);
+
+export const AUTHENTICATED_ROUTE_RECON = Object.freeze({
+  status: 'complete' as const,
+  observedAt: '2026-07-26',
+  accountSpecificRoute: 'Your work uses the verified QA account UUID.',
+});
+
+export const AUTHENTICATED_ROUTES: readonly AuthenticatedRoute[] = [
+  { name: 'Home', path: workspacePath('/'), ready: { role: 'button', name: 'Manage widgets' } },
+  { name: 'Drafts', path: workspacePath('/drafts/'), ready: { role: 'button', name: 'Work items' } },
+  { name: 'Your work', path: workspacePath(`/profile/${QA_ACCOUNT_ID}/`), ready: { role: 'link', name: 'Summary' } },
+  { name: 'Decisions', path: workspacePath('/decisions/'), ready: { role: 'button', name: 'Assigned to me' } },
+  { name: 'Workspace artifacts', path: workspacePath('/artifacts/'), ready: { role: 'button', name: 'Upload' } },
+  { name: 'Marketplace', path: workspacePath('/marketplace/'), ready: { role: 'button', name: 'Publish' } },
+  { name: 'Integrations', path: workspacePath('/integrations/'), ready: { role: 'heading', name: 'Integrations' } },
+  { name: 'Projects', path: workspacePath('/projects/'), ready: { role: 'button', name: 'Add Project' } },
+  { name: 'Processes', path: workspacePath('/process/'), ready: { role: 'button', name: 'Create Process' } },
+  { name: 'Teams', path: workspacePath('/teams/'), ready: { role: 'button', name: 'Add team' } },
+  { name: 'Work items', path: projectPath('/issues/'), ready: { role: 'button', name: 'Add work item' } },
+  { name: 'Cycles', path: projectPath('/cycles/'), ready: { role: 'button', name: 'Add cycle' } },
+  { name: 'Modules', path: projectPath('/modules/'), ready: { role: 'button', name: 'Add Module' } },
+  { name: 'Views', path: projectPath('/views/'), ready: { role: 'button', name: 'Add view' } },
+  { name: 'Wiki', path: projectPath('/pages/'), ready: { role: 'button', name: 'Add context' } },
+  { name: 'Pulse', path: projectPath('/pulse/'), ready: { role: 'button', name: 'Add Pulse' } },
+  { name: 'Automations', path: projectPath('/automations/'), ready: { role: 'heading', name: 'No automations yet' } },
+  { name: 'Project artifacts', path: projectPath('/artifacts/'), ready: { role: 'button', name: 'Upload' } },
+];

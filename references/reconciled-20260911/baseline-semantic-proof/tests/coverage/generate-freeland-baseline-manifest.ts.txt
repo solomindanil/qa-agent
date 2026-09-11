@@ -1,0 +1,74 @@
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import {
+  createSemanticTransformationRecord,
+  type BaselineManifest,
+  type FileCountMap,
+  type TransformationRecord,
+} from './baseline-contract.js';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const manifestPath = path.join(repoRoot, 'tests/coverage/freeland-baseline.manifest.json');
+const snapshotPath = path.join(repoRoot, 'tests/coverage/freeland-baseline-source.snapshot.json');
+const targetRoot = path.join(repoRoot, 'tests/playwright/freeland');
+
+const sha256 = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
+
+function sortedRecord<T>(record: Readonly<Record<string, T>>): Record<string, T> {
+  return Object.fromEntries(Object.entries(record).sort(([left], [right]) => left.localeCompare(right)));
+}
+
+const snapshotBytes = readFileSync(snapshotPath);
+const snapshot = JSON.parse(snapshotBytes.toString('utf8')) as {
+  schemaVersion: 1;
+  files: Record<string, string>;
+};
+const previous = JSON.parse(readFileSync(manifestPath, 'utf8')) as BaselineManifest;
+
+const sourceFiles: Record<string, string> = {};
+const targetFiles: Record<string, string> = {};
+const proofFiles: Record<string, TransformationRecord> = {};
+const categoryCounts: Record<string, number> = {};
+const fileCounts: Record<string, number> = {};
+let total = 0;
+
+for (const file of Object.keys(snapshot.files).sort()) {
+  const source = snapshot.files[file];
+  if (source === undefined) throw new Error(`source snapshot is missing: ${file}`);
+  const target = readFileSync(path.join(targetRoot, file), 'utf8');
+  const proof = createSemanticTransformationRecord(file, source, target);
+  sourceFiles[file] = sha256(source);
+  targetFiles[file] = sha256(target);
+  proofFiles[file] = proof;
+  fileCounts[file] = proof.edits.length;
+  total += proof.edits.length;
+  for (const edit of proof.edits) {
+    categoryCounts[edit.category] = (categoryCounts[edit.category] ?? 0) + 1;
+  }
+}
+
+const manifest: BaselineManifest = {
+  schemaVersion: 1,
+  sourceSnapshot: { algorithm: 'sha256', sha256: sha256(snapshotBytes) },
+  sourceIdentity: { algorithm: 'sha256', files: sortedRecord(sourceFiles) },
+  target: { algorithm: 'sha256', files: sortedRecord(targetFiles) },
+  discovery: previous.discovery,
+  transformations: previous.transformations,
+  proofInventory: {
+    total,
+    categories: sortedRecord(categoryCounts) as FileCountMap,
+    files: sortedRecord(fileCounts) as FileCountMap,
+  },
+  targetAst: previous.targetAst,
+  transformationProof: { files: sortedRecord(proofFiles) },
+};
+
+const output = `${JSON.stringify(manifest, null, 2)}\n`;
+if (process.argv.includes('--write')) {
+  writeFileSync(manifestPath, output);
+} else {
+  process.stdout.write(output);
+}

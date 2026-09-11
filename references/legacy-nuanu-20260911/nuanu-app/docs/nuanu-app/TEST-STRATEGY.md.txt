@@ -1,0 +1,110 @@
+# Nuanu App test strategy
+
+## Purpose and boundary
+
+V1 provides a standalone, graph-selected QA lane for the web application and
+PWA at `https://app.nuanu.com/`. The aim is high autonomous coverage of
+repeatable, deterministic, read-only behavior without claiming that browser
+automation replaces physical-device acceptance or human judgment.
+
+The current foundation is intentionally narrow: nine automated cases cover
+the seven legacy public-shell/request/evidence controls, one offline reviewed
+runtime-contract invariant, and one contract-gated public discovery-control
+reachability case. Product journeys, authenticated behavior, PWA lifecycle,
+accessibility, performance, API contracts, and real-device behavior remain
+explicit expansion work until their cases and deterministic oracles exist.
+
+## Four separate status layers
+
+Statuses are never inferred across layers.
+
+1. A graph node has one coverage disposition: `AUTOMATED`, `MANUAL`,
+   `BLOCKED`, `UNVERIFIED`, or `NOT_DEPLOYED`.
+2. A dry-run plan places work into the disjoint buckets `selectedAutomated`,
+   `manual`, `blocked`, `notDeployed`, and `unverified`. A selected case is
+   scheduled, not passed.
+3. An executed case has one run result: `PASS`, `FAIL`, `EXPECTED_FAIL`,
+   `FLAKY`, `MANUAL`, `BLOCKED`, `UNVERIFIED`, `NOT_DEPLOYED`, or
+   `INCONCLUSIVE`. Results are recorded per run only.
+4. Optional aggregate telemetry has its own evidence status: `AVAILABLE`,
+   `BLOCKED`, `NOT_INSTRUMENTED`, `UNAVAILABLE`, or `SUPPRESSED`.
+
+An aggregate signal may add a reviewed safe case or raise its priority. It
+cannot mark a case `PASS` or `FAIL`, prove a deployment or source identity,
+remove a deterministic selection, approve a release, or create a Bugs item.
+Telemetry absence blocks only the telemetry lane.
+
+## Selection and provenance
+
+Every consequential campaign begins with graph validation and a dry-run plan.
+The planner preserves typed reasons and explainable paths for impacted tests.
+An unmapped source change fails closed to the full safe automated fallback and
+eligible manual mobile-safety tier; it does not grant authority for mutations.
+
+Runtime-only campaigns keep source impact `UNVERIFIED`. Source-mode campaigns
+require a clean absolute read-only checkout and exact full lowercase commit
+SHAs. A valid source lock identifies inspected source but is never deployment
+proof. Runtime, source, and source-and-runtime provenance stay distinct, and a
+source-only node cannot become live coverage merely because its source exists.
+
+The planner writes `impact.json`, then `test-plan.json`, then the final
+`plan-commit.json` marker. A consumer must reject a missing or stale marker.
+
+## Platform matrix
+
+| Platform | Foundation lane | V1 evidence rule |
+| --- | --- | --- |
+| Desktop Chromium | Default automated project | Per-run result only |
+| Desktop Firefox | Opt-in automated project | Per-run result only |
+| Desktop WebKit | Opt-in automated project | Safari-behavior approximation only |
+| Android-class Chromium | Opt-in Pixel 5 emulation | Does not close physical Android work |
+| iPhone-class WebKit | Opt-in iPhone 13 emulation | Does not close physical iPhone work |
+| Physical Android Chrome/PWA | `MANUAL` | Pending until device evidence is recorded |
+| Physical iPhone Safari/PWA | `MANUAL` | Pending until device evidence is recorded |
+| Native Android and iOS apps | `OUT_OF_SCOPE` V1 | Reserved for a later project extension |
+
+## Execution tiers
+
+- Foundation smoke: run the nine current cases on default Chromium; the
+  runtime-contract case remains offline, while both navigating public smoke
+  cases require the reviewed private contract gate.
+- Compatibility: repeat the same discovered cases on opt-in Firefox, WebKit,
+  and mobile emulation projects.
+- Product expansion: add route, discovery, map, search, detail, auth-read,
+  accessibility, PWA, API, privacy, and performance cases only with reviewed
+  graph mappings and deterministic oracles.
+- Release acceptance: combine deterministic browser evidence with physical
+  iPhone and Android manual evidence. Automation alone cannot close this tier.
+
+## Read-only safety contract
+
+The current request guard is installed by a test before navigation. It allows
+only `GET`, `HEAD`, and `OPTIONS` requests visible to Playwright routing and
+blocks other methods before dispatch. Any future navigating test must install
+that guard before its first navigation. Product-data mutation, account
+creation, reset delivery, consent changes, external provider approval,
+payments, calls, and deletion are outside autonomous authority.
+
+Screenshots, traces, and videos are disabled for the Nuanu App projects. The
+foundation does not capture request or response bodies, headers, cookies, or
+storage. URL evidence removes query and fragment data; console evidence uses a
+bounded marker rather than raw message text. A failure in these controls is a
+harness failure and prevents a trustworthy campaign result.
+
+Private JSON I/O assumes trusted local repository and private-root parents. It
+checks all observable containment, symlink, inode, and commit phases but makes
+no portable-Node claim against a hostile same-UID peer winning an unobservable
+pathname-syscall micro-window.
+
+## Defect and release policy
+
+A failing test is a candidate observation until it reproduces in a fresh
+context, environment and rollout causes are excluded, expected and actual
+behavior are documented, evidence is sanitized, and duplicates are checked.
+Only a confirmed defect may enter the `Bugs` workflow. Telemetry by itself is
+never defect confirmation.
+
+A known confirmed defect may use `EXPECTED_FAIL` with a linked regression
+case. Flake remains `FLAKY`, uncertainty remains `INCONCLUSIVE` or
+`UNVERIFIED`, and unavailable prerequisites remain `BLOCKED`. No documentation
+row or historical run creates a permanent passing status.

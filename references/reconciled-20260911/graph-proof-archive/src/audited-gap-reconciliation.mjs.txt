@@ -1,0 +1,81 @@
+export function reconcileAuditedGapClosures({ inventory, closures }) {
+  validateInventory(inventory);
+  if (!Array.isArray(closures)) throw new TypeError("AUDITED_GAP_CLOSURES_INVALID");
+
+  const baseline = new Set(inventory.auditedGapIds);
+  const remaining = new Set(baseline);
+  const expectedArtifacts = new Set(inventory.closureArtifactOrder);
+  if (closures.length !== expectedArtifacts.size) throw new TypeError("AUDITED_GAP_ARTIFACT_COUNT_MISMATCH");
+
+  const steps = [];
+  for (const [index, closure] of closures.entries()) {
+    const artifact = String(closure?.artifact ?? "");
+    if (artifact !== inventory.closureArtifactOrder[index]) {
+      throw new TypeError(`AUDITED_GAP_ARTIFACT_ORDER_MISMATCH ${artifact}`);
+    }
+    if (!expectedArtifacts.delete(artifact)) throw new TypeError(`AUDITED_GAP_ARTIFACT_DUPLICATE ${artifact}`);
+
+    const priorCandidateGapCount = remaining.size;
+    if ("priorCandidateGapCount" in closure && closure.priorCandidateGapCount !== priorCandidateGapCount) {
+      throw new TypeError(`AUDITED_GAP_PRIOR_COUNT_MISMATCH ${artifact}`);
+    }
+    const nodeIds = closureNodeIds(closure, artifact);
+    const subtractedGapIds = nodeIds.filter(nodeId => remaining.has(nodeId));
+    for (const nodeId of subtractedGapIds) remaining.delete(nodeId);
+    if (closure.candidateGapCount !== remaining.size) {
+      throw new TypeError(`AUDITED_GAP_COUNT_MISMATCH ${artifact}`);
+    }
+    steps.push({
+      artifact,
+      priorCandidateGapCount,
+      candidateGapCount: closure.candidateGapCount,
+      subtractedGapIds: subtractedGapIds.sort(),
+    });
+  }
+  if (expectedArtifacts.size) throw new TypeError("AUDITED_GAP_ARTIFACT_MISSING");
+
+  const remainingGapIds = [...remaining].sort();
+  if (JSON.stringify(remainingGapIds) !== JSON.stringify([...inventory.expectedRemainingGapIds].sort())) {
+    throw new TypeError("AUDITED_GAP_REMAINING_SET_MISMATCH");
+  }
+  return {
+    baselineGapCount: baseline.size,
+    remainingGapIds,
+    steps,
+  };
+}
+
+function validateInventory(inventory) {
+  if (!inventory || inventory.schemaVersion !== 1
+    || !Array.isArray(inventory.auditedGapIds)
+    || !Array.isArray(inventory.closureArtifactOrder)
+    || !Array.isArray(inventory.expectedRemainingGapIds)) {
+    throw new TypeError("AUDITED_GAP_INVENTORY_INVALID");
+  }
+  const auditedGapIds = new Set(inventory.auditedGapIds);
+  if (auditedGapIds.size !== inventory.auditedGapIds.length || auditedGapIds.size !== 47) {
+    throw new TypeError("AUDITED_GAP_INVENTORY_COUNT_MISMATCH");
+  }
+  const artifactOrder = new Set(inventory.closureArtifactOrder);
+  if (artifactOrder.size !== inventory.closureArtifactOrder.length) {
+    throw new TypeError("AUDITED_GAP_ARTIFACT_ORDER_INVALID");
+  }
+  const expectedRemaining = new Set(inventory.expectedRemainingGapIds);
+  if (expectedRemaining.size !== inventory.expectedRemainingGapIds.length
+    || [...expectedRemaining].some(nodeId => !auditedGapIds.has(nodeId))) {
+    throw new TypeError("AUDITED_GAP_REMAINING_SET_INVALID");
+  }
+}
+
+function closureNodeIds(closure, artifact) {
+  const nodeIds = Array.isArray(closure?.nodeIds)
+    ? closure.nodeIds
+    : closure?.nodeId ? [closure.nodeId] : null;
+  if (!nodeIds?.length || new Set(nodeIds).size !== nodeIds.length || nodeIds.some(nodeId => typeof nodeId !== "string")) {
+    throw new TypeError(`AUDITED_GAP_NODE_IDS_INVALID ${artifact}`);
+  }
+  if (!Number.isSafeInteger(closure.candidateGapCount) || closure.candidateGapCount < 0) {
+    throw new TypeError(`AUDITED_GAP_COUNT_INVALID ${artifact}`);
+  }
+  return nodeIds;
+}

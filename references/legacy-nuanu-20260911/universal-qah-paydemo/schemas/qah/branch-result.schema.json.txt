@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Nuanu QA branch result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_key", "commit", "profile_digest", "branch", "applicability", "product_result"],
+  "properties": {
+    "schema_version": { "const": "nuanu.qa-branch-result.v1" },
+    "project_key": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "profile_digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "branch": { "enum": ["code", "api", "ui", "domain"] },
+    "applicability": { "enum": ["REQUIRED", "NOT_APPLICABLE"] },
+    "product_result": { "enum": ["PASS", "FAIL", "INCONCLUSIVE", "SKIPPED"] },
+    "evidence_status": { "enum": ["VERIFIED", "PARTIAL", "UNVERIFIED"] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "applicability": { "const": "REQUIRED" } }, "required": ["applicability"] },
+      "then": { "properties": { "product_result": { "not": { "const": "SKIPPED" } } } }
+    },
+    {
+      "if": { "properties": { "applicability": { "const": "NOT_APPLICABLE" } }, "required": ["applicability"] },
+      "then": { "properties": { "product_result": { "const": "SKIPPED" } } }
+    },
+    {
+      "if": { "properties": { "product_result": { "const": "PASS" } }, "required": ["product_result"] },
+      "then": { "required": ["evidence_status"], "properties": { "evidence_status": { "const": "VERIFIED" } } }
+    }
+  ]
+}

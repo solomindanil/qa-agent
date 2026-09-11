@@ -1,0 +1,98 @@
+import { randomBytes } from 'node:crypto';
+
+export const QA_PREFIX = 'QA E2E';
+export const SANDBOX = Object.freeze({
+  workspaceName: 'NF QA Sandbox',
+  workspaceSlug: 'nf-qa-sandbox',
+  projectName: 'NF QA Sandbox',
+  projectId: '2c2298c0-7bdc-42a5-a5f5-54ad2cb5d3cf',
+});
+
+export type OwnedEntity = {
+  kind: string;
+  id: string;
+  name: string;
+  workspaceSlug: string;
+  cleanup: () => Promise<unknown>;
+};
+
+export type ResidualEntity = Pick<OwnedEntity, 'kind' | 'id' | 'name'>;
+
+export type CreationResponse = {
+  url: string;
+  status: number;
+  body: unknown;
+};
+
+export type CreationSuccessContract = {
+  endpoint: string;
+  extractExactId: (body: unknown) => string | undefined;
+};
+
+export const createRunId = (workerIndex: number, now = new Date()) => {
+  const timestamp = now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace('.000', '')
+    .replace(/\.\d{3}/, '');
+  return timestamp + '-w' + workerIndex + '-' + randomBytes(3).toString('hex');
+};
+
+export const qaName = (runId: string, suffix: string) =>
+  QA_PREFIX + ' ' + runId + ' ' + suffix;
+
+const assertOwned = (entry: OwnedEntity) => {
+  if (!entry.name.startsWith(QA_PREFIX + ' ')) {
+    throw new Error('Cleanup name must begin with ' + QA_PREFIX);
+  }
+  if (entry.workspaceSlug !== SANDBOX.workspaceSlug) {
+    throw new Error('Cleanup workspace must be ' + SANDBOX.workspaceSlug);
+  }
+  if (!entry.id) throw new Error('Cleanup entity must have an exact ID');
+};
+
+export class CleanupLedger {
+  readonly #entries: OwnedEntity[] = [];
+
+  register(entry: OwnedEntity) {
+    assertOwned(entry);
+    this.#entries.push(entry);
+  }
+
+  async cleanupAll(): Promise<ResidualEntity[]> {
+    const residuals: ResidualEntity[] = [];
+    const retryableEntries: OwnedEntity[] = [];
+    for (const entry of [...this.#entries].reverse()) {
+      try {
+        assertOwned(entry);
+        await entry.cleanup();
+      } catch {
+        residuals.push({ kind: entry.kind, id: entry.id, name: entry.name });
+        retryableEntries.unshift(entry);
+      }
+    }
+    this.#entries.length = 0;
+    this.#entries.push(...retryableEntries);
+    return residuals;
+  }
+}
+
+export const registerCreatedEntity = (
+  ledger: CleanupLedger,
+  response: CreationResponse,
+  contract: CreationSuccessContract,
+  entry: Omit<OwnedEntity, 'id'>,
+): string => {
+  if (response.url !== contract.endpoint) {
+    throw new Error('Creation response endpoint did not match its contract');
+  }
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error('Creation response was not successful');
+  }
+
+  const id = contract.extractExactId(response.body);
+  if (!id) throw new Error('Creation response did not include an exact ID');
+
+  ledger.register({ ...entry, id });
+  return id;
+};

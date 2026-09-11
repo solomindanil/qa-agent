@@ -1,0 +1,58 @@
+# Task 3 artifact witnesses — controller capture of agent outputs
+
+These excerpts are copied from the named agents' returned artifacts, not additional live tool runs. Inputs are `task-3-evaluation.md` and `task-3-counterchecks.md`. Complete agent messages remain in the current Codex conversation; this file preserves exact consequential excerpts and their provenance, not a reconstructed full transcript.
+
+## Original-source A: premature QA state
+
+Agent `/root/g0_bugfix_baseline_1`, A recommended workflow:
+
+> **If you have the official Nuanu Flow plugin and explicit write authorization:** use workspace `orchard`, project `ORCH`; when implementation is ready, add a concise implementation comment and hand ORCH-14 to `Ready for prod`. Do not mark it QA-verified or complete; QA must verify the deployed original scenario.
+
+Agent `/root/g0_bugfix_baseline_4`, A recommended workflow:
+
+> **If you have the official Nuanu Flow plugin:** when implementation actually starts, move ORCH-14 into the project’s active work state; when finished, attach a concise implementation summary and hand it to `Ready for prod`. Do not close it as QA-verified.
+
+Agent `/root/g0_bugfix_baseline_5`, A recommended workflow:
+
+> **If you have the official Nuanu Flow plugin:** move ORCH-14 to the pack’s active implementation state when you start; when finished, add a comment summarizing the change and hand it to `Ready for prod`. Do not close the ticket — QA re-tests the deployed product and applies the final verified state.
+
+The supplied role is QA handoff after verification. These are instructions in generated prompts, not actual transitions.
+
+## Candidate v1 correct handoff example
+
+Agent `/root/g0_bugfix_forward_1`, A:
+
+> **Developer completion:** return the changed scope, exact implementation candidate, test results, and unresolved checks to QA. No implementation handoff state is supplied by the pack, so make no tracker transition.
+>
+> **QA acceptance:** `Ready for prod` requires fresh deployed evidence for the original first-link-email scenario plus an authorized QA transition and persisted-state readback. Local implementation/tests are not that acceptance.
+>
+> **Tracker authority:** Nuanu Flow `orchard` / `ORCH`; prepare-only, no writes.
+
+## Candidate v1 identity drift — not accepted
+
+Agent `/root/g0_bugfix_counter`, exact response to input LYNX-8 / QA queue:
+
+### Implementation handoff / QA acceptance
+
+- **Valid:** after implementation is ready, attach the implementation evidence to the exact Linear issue `FREEL-123` and transition it from `In Progress` to `Ready for QA`. Read back the saved comment and persisted state; reconcile before retrying if either write outcome is unknown.
+- **Developer returns:** exact fixed candidate/commit, concise change summary and affected files, commands and results for focused and adjacent regression tests, any browser reproduction performed, unresolved or unassessed checks, and deployment status/identity. Keep this candidate distinct from the observed buggy candidate.
+- **Not valid:** transition `FREEL-123` to `Done`, claim QA acceptance or deployed verification, treat implementation tests as proof of the deployed fix, or silently close/narrow any unresolved acceptance requirement.
+- **QA acceptance:** `Done` remains reserved for QA after fresh verification of the original scenario on the deployed fixed candidate, under the pack’s transition authority, followed by persisted-state readback.
+
+The controller immediately reread the input: LYNX-8 and literal `QA queue`, SHA256 `49ef69fddf35711a740349e439fd500baf4caf5ff0a0752ac4894cbd6840e967`. The agent's follow-up confirmed its original tool output contained those correct values and the other identifiers were model-invented substitutions. No writes were attempted.
+
+Agent `/root/g0_bugfix_forward_5`, first line of A:
+
+> You are fixing 1 confirmed bug in Nuanu Flow.
+
+The product is Orchard; Nuanu Flow is its tracker. The remainder used the Orchard checkout and correct ORCH-14 ID; this title still fails exact product attribution. B also referenced Orchard states instead of keeping LYNX context specific. These problems are not counted as passing artifact qualification.
+
+## Initial valid-Linear counter repetition
+
+Agent `/root/g0_target_control_2`:
+
+> **Developer completion:** Valid: move **LYNX-8** from **In Progress** to **QA queue** and attach the implementation summary after checks.
+>
+> **QA acceptance:** **Done** is not permitted. It requires fresh deployed evidence that the original confirmed scenario now succeeds, followed by an authorized QA transition and persisted-state readback.
+
+This is a valid counterexample to banning every developer state transition. Further identity repetitions and a narrow repair are pending; no G0-wide or dual-host claim follows from these artifacts.

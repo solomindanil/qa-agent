@@ -1,0 +1,1304 @@
+#!/usr/bin/env node
+
+import { execFile } from "node:child_process";
+import { lstat, realpath } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+
+import {
+  PRODUCT_ID,
+  canonicalize,
+  createGraph,
+  digestJson,
+  validateGraph,
+} from "./model.mjs";
+import { createJsonIo, PRIVATE_ROOT } from "./io.mjs";
+import { buildTestPlan, parsePlaywrightList, planImpact } from "./planner.mjs";
+import { normalizeRuntimeObservation, observePublicRuntime } from "./runtime.mjs";
+import {
+  assertCapturePlan,
+  assertReviewedRuntimeContract,
+  assertRuntimeCatalog,
+  assertSelectorObservation,
+} from "./runtime-contract.mjs";
+import {
+  createContractCandidate,
+  produceSelectorObservation,
+} from "./selector-observation.mjs";
+import { buildSourceLock, validateMappings } from "./source.mjs";
+
+const execFileAsync = promisify(execFile);
+const QA_ROOT = resolve(fileURLToPath(new URL("../..", import.meta.url)));
+const PLAYWRIGHT_CLI = join(QA_ROOT, "node_modules/@playwright/test/cli.js");
+const EXPECTED_REMOTE = "https://github.com/nuanu-ai/nuanu-web.git";
+const SOURCE_ROOTS = ["apps/nuanu-web"];
+const SHA1 = /^[a-f0-9]{40}$/;
+const SHA256 = /^[a-f0-9]{64}$/;
+const RUNTIME_URLS = new Set(["https://app.nuanu.com", "https://app.nuanu.com/"]);
+const TELEMETRY_RELATIVE_PATH = "docs/local/nuanu-app/telemetry/telemetry-signals.json";
+const MAX_SUBPROCESS_BUFFER = 8 * 1024 * 1024;
+const COMMANDS = [
+  "init",
+  "source-lock",
+  "runtime",
+  "selector-observe",
+  "contract-candidate",
+  "validate",
+  "plan",
+];
+const AUTOMATED_PROJECTS = [
+  "nuanu-app",
+  "nuanu-app-firefox",
+  "nuanu-app-webkit",
+  "nuanu-app-android-chrome",
+  "nuanu-app-ios-webkit",
+];
+
+const TEST_IDS = [
+  "nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-001 homepage returns HTML and renders an application shell",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-SAFE-001 blocks non-idempotent requests before network dispatch",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-001 removes query and fragment data from evidence URLs",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-SAFE-002 disables artifacts for the Nuanu App runtime project",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-002 records bounded non-sensitive console markers and attaches no raw text",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-003 records at most 25 sanitized failed request URLs",
+  "nuanu-app:auto:tests/nuanu-app/public/safety-contract.spec.ts#NAPP-EVID-004 records only first-party HTTP 500-599 responses and caps them",
+  "nuanu-app:auto:tests/nuanu-app/offline/runtime-contract.spec.ts#NAPP-CONTRACT-001 synthetic runtime contract drives unique exact role-name discovery locators without network",
+  "nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-002 reviewed discovery controls map marker and place card are reachable",
+];
+const LEGACY_TEST_COUNT = 7;
+const RUNTIME_CONTRACT_INVARIANT = "nuanu-app:invariant:reviewed-runtime-contract";
+
+const STARTER_MAPPINGS = {
+  schemaVersion: 1,
+  productId: PRODUCT_ID,
+  repositoryUrl: EXPECTED_REMOTE,
+  sourceRoots: SOURCE_ROOTS,
+  nodes: [
+    {
+      id: "nuanu-app:invariant:public-read-only-evidence-contract",
+      kind: "invariant",
+      provenance: "runtime",
+      coverageDisposition: "AUTOMATED",
+      alwaysRun: true,
+    },
+    {
+      id: RUNTIME_CONTRACT_INVARIANT,
+      kind: "invariant",
+      provenance: "runtime",
+      coverageDisposition: "AUTOMATED",
+      alwaysRun: true,
+    },
+  ],
+  edges: [
+    { source: TEST_IDS[0], kind: "verifies", target: "nuanu-app:route:root" },
+    ...TEST_IDS.slice(1, LEGACY_TEST_COUNT).map((source) => ({
+      source,
+      kind: "verifies",
+      target: "nuanu-app:invariant:public-read-only-evidence-contract",
+    })),
+    { source: TEST_IDS[LEGACY_TEST_COUNT], kind: "verifies", target: RUNTIME_CONTRACT_INVARIANT },
+    { source: TEST_IDS[LEGACY_TEST_COUNT + 1], kind: "verifies", target: "nuanu-app:route:root" },
+  ],
+  mappings: [],
+  no_product_impact: [],
+  unresolved: [],
+};
+
+const REVIEWED_TOP_LEVEL_FIELDS = new Set([
+  "schemaVersion",
+  "productId",
+  "repositoryUrl",
+  "sourceRoots",
+  "nodes",
+  "edges",
+  "mappings",
+  "no_product_impact",
+  "unresolved",
+]);
+
+const TIMESTAMP_FIELD_NAMES = [
+  "timestamp",
+  "timestamps",
+  "timestampms",
+  "generatedat",
+  "createdat",
+  "updatedat",
+  "observedat",
+  "capturedat",
+  "collectedat",
+  "fetchedat",
+  "checkedat",
+  "seenat",
+  "timeobserved",
+  "observationtime",
+];
+
+const STORED_GRAPH_REQUIRED_FIELDS = new Set([
+  "productId",
+  "schemaVersion",
+  "inputDigests",
+  "nodes",
+  "edges",
+  "unresolved",
+  "graphDigest",
+]);
+
+const STORED_GRAPH_INPUT_DIGEST_FIELDS = new Set([
+  "sourceLock",
+  "runtimeCatalog",
+  "runtimeContract",
+  "selectorObservation",
+  "selectorCapturePlan",
+  "selectorBindings",
+  "reviewedMappings",
+  "testCatalog",
+]);
+const LEGACY_STORED_GRAPH_INPUT_DIGEST_FIELDS = new Set([
+  "sourceLock",
+  "runtimeCatalog",
+  "reviewedMappings",
+  "testCatalog",
+]);
+
+const SAFE_VALIDATION_CODES = new Set([
+  "DANGLING_EDGE",
+  "DUPLICATE_EDGE_TRIPLE",
+  "DUPLICATE_NODE_ID",
+  "DUPLICATE_RUNTIME_NODE_ID",
+  "FOREIGN_MAPPING_PATH",
+  "FOREIGN_PRODUCT_NAMESPACE",
+  "IMPACT_PATH_LIMIT_EXCEEDED",
+  "INVALID_AUTOMATED_TEST_CATALOG",
+  "INVALID_AUTOMATED_TEST_ID",
+  "INVALID_AUTOMATED_TEST_IDS",
+  "INVALID_CATALOG",
+  "INVALID_CHANGED_FILES",
+  "INVALID_COVERAGE_DISPOSITION",
+  "INVALID_EDGE",
+  "INVALID_EDGES",
+  "INVALID_EDGE_ENDPOINTS",
+  "INVALID_EDGE_KIND",
+  "INVALID_GRAPH",
+  "INVALID_GRAPH_SCHEMA_VERSION",
+  "INVALID_IMPACT",
+  "INVALID_IMPACT_MODE",
+  "INVALID_MAPPING",
+  "INVALID_MAPPINGS",
+  "INVALID_MAPPING_DIGEST",
+  "INVALID_MAPPING_EDGE",
+  "INVALID_MAPPING_EDGES",
+  "INVALID_MAPPING_PATH",
+  "INVALID_MAPPING_PROVENANCE",
+  "INVALID_NODE",
+  "INVALID_NODES",
+  "INVALID_NODE_ID",
+  "INVALID_NODE_KIND",
+  "INVALID_NO_PRODUCT_IMPACT",
+  "INVALID_NO_PRODUCT_IMPACT_REASON",
+  "INVALID_PLAYWRIGHT_LIST",
+  "INVALID_PRODUCT_ID",
+  "INVALID_PROVENANCE",
+  "INVALID_RUNNABLE_TEST_IDS",
+  "INVALID_RUNTIME_NODE_CATALOG",
+  "INVALID_RUNTIME_ONLY_IMPACT",
+  "INVALID_SELECTION_REASON",
+  "INVALID_SOURCE_ROOT",
+  "INVALID_TELEMETRY_SIGNAL",
+  "SOURCE_MAPPING_LIVE_COVERAGE",
+  "SOURCE_NODE_LIVE_COVERAGE",
+  "UNKNOWN_AUTOMATED_TEST_ID",
+]);
+
+const SAFE_VALIDATION_PATH_FIELDS = new Set([
+  "affectedNodeIds",
+  "alwaysRun",
+  "automatedTestIds",
+  "blocked",
+  "changedFiles",
+  "coverageDisposition",
+  "edges",
+  "execution",
+  "fallbackApplied",
+  "graphDigest",
+  "id",
+  "inputDigests",
+  "kind",
+  "manual",
+  "mappings",
+  "mode",
+  "nodeId",
+  "nodes",
+  "no_product_impact",
+  "notDeployed",
+  "path",
+  "paths",
+  "productId",
+  "provenance",
+  "reason",
+  "repositoryUrl",
+  "reviewedMappings",
+  "runtimeCatalog",
+  "runtimeNodeIds",
+  "safety",
+  "schemaVersion",
+  "selectedAutomated",
+  "source",
+  "sourceImpact",
+  "sourceLock",
+  "sourcePath",
+  "sourceRoots",
+  "target",
+  "telemetrySignals",
+  "testCatalog",
+  "unmappedFiles",
+  "unresolved",
+  "unverified",
+]);
+
+const SAFE_ERROR_MESSAGES = {
+  INVALID_COMMAND: "Command must be init, source-lock, runtime, selector-observe, contract-candidate, validate, or plan",
+  INVALID_ARGUMENTS: "Command arguments do not match the supported grammar",
+  DRY_RUN_REQUIRED: "plan requires --dry-run",
+  INVALID_RUNTIME_URL: "Runtime URL must be exactly https://app.nuanu.com with an optional trailing slash",
+  INVALID_REPOSITORY_PATH: "Repository must be an absolute real checkout root",
+  SYMLINK_REPOSITORY_REJECTED: "Repository path must not resolve through symbolic links",
+  INVALID_COMMIT_SHA: "Source plan SHAs must be full lowercase 40-character commits",
+  INVALID_TELEMETRY_PATH: "Telemetry path must be the canonical private telemetry signals artifact",
+  INVALID_TELEMETRY_SIGNALS: "Telemetry signals failed exact policy attestation",
+  MISSING_MAPPINGS: "Reviewed mappings artifact is required",
+  MISSING_RUNTIME_CATALOG: "Normalized runtime catalog is required",
+  MISSING_SELECTOR_CAPTURE_PLAN: "Reviewed selector capture plan is required",
+  MISSING_SELECTOR_OBSERVATION: "Selector observation is required",
+  MISSING_SELECTOR_BINDINGS: "Reviewed selector bindings are required",
+  MISSING_RUNTIME_CONTRACT: "Accepted runtime contract is required",
+  MISSING_SOURCE_LOCK: "Source lock is required for source planning or reviewed source mappings",
+  MISSING_GRAPH: "Validated graph is required",
+  STALE_RUNTIME_CATALOG: "Runtime catalog failed semantic attestation",
+  INVALID_RUNTIME_CANDIDATE_ATTRIBUTION: "Runtime selector candidates are not bound to the fixed root scope",
+  RUNTIME_ROOT_CANDIDATE_OVERFLOW: "Runtime root selector candidates exceed the fixed bound",
+  INVALID_RUNTIME_PROBE: "Runtime probe evidence is invalid",
+  STALE_SOURCE_LOCK: "Source lock failed semantic attestation",
+  STALE_GRAPH: "Graph failed semantic attestation",
+  STALE_MAPPINGS: "Mappings no longer match the persisted source lock",
+  STALE_TEST_CATALOG: "Discovered Playwright tests no longer match the validated graph",
+  EMPTY_PLAYWRIGHT_DISCOVERY: "Playwright discovery returned no Nuanu App tests",
+  PLAYWRIGHT_DISCOVERY_FAILED: "Playwright test discovery failed",
+  CANDIDATE_HEAD_MISMATCH: "Candidate SHA must equal checkout HEAD",
+  CANDIDATE_SOURCE_LOCK_MISMATCH: "Candidate SHA must equal the persisted source-lock SHA",
+  COMMIT_NOT_FOUND: "Source plan SHA does not resolve to a commit in the checkout",
+  INVALID_GIT_DIFF_PATH: "Git diff returned an invalid repository-relative path",
+  GIT_INSPECTION_FAILED: "Read-only Git inspection failed",
+  DIRTY_CHECKOUT: "Repository checkout must be clean",
+  UNEXPECTED_REMOTE: "Repository remote does not match the approved source",
+  GRAPH_VALIDATION_FAILED: "Nuanu App graph validation failed",
+  INVALID_MAPPINGS: "Reviewed mappings are invalid",
+  INVALID_REVIEWED_EDGE: "Reviewed top-level edges must be exact verifies relationships",
+  UNKNOWN_REVIEWED_TARGET: "Reviewed mapping target does not exist in runtime or reviewed nodes",
+  SOURCE_MAPPING_WITHOUT_LOCK: "Reviewed source mappings require a source lock",
+  INVALID_JSON_ARTIFACT: "Private artifact is not valid JSON",
+  MISSING_ARTIFACT: "Required private artifact does not exist",
+  PATH_OUTSIDE_PRIVATE_ROOT: "Artifact path is outside the approved private root",
+  SYMLINK_PATH_REJECTED: "Symbolic links are not allowed in private artifact paths",
+  PATH_RACE_DETECTED: "Private artifact path changed during I/O",
+  ATOMIC_WRITE_FAILED: "Atomic private artifact write failed",
+  JSON_READ_FAILED: "Private artifact read failed",
+  INVALID_PRIVATE_ROOT: "Private artifact root is invalid",
+  INVALID_PRIVATE_PATH: "Private artifact path is invalid",
+  MISSING_PRIVATE_ROOT: "Approved private root does not exist",
+  MISSING_PARENT_DIRECTORY: "Private artifact parent directory does not exist",
+  NON_DIRECTORY_PATH: "Private artifact ancestor must be a directory",
+  NON_REGULAR_FILE: "Private artifact target must be a regular file",
+  JSON_ARTIFACT_TOO_LARGE: "Private artifact exceeds the size limit",
+  RUNTIME_CONTRACT_SCHEMA_MISMATCH: "Runtime contract schema is unverified",
+  RUNTIME_SELECTOR_MISSING: "Runtime selector contract is incomplete",
+  RUNTIME_CONTRACT_DIGEST_MISMATCH: "Runtime contract digest is unverified",
+  RUNTIME_CONTRACT_TIME_MISMATCH: "Runtime contract time binding is unverified",
+  RUNTIME_SELECTOR_OBSERVATION_STALE: "Runtime selector observation is stale",
+  RUNTIME_SELECTOR_OBSERVATION_MISMATCH: "Runtime selector evidence is unverified",
+};
+
+function cliError(code, message = SAFE_ERROR_MESSAGES[code] ?? "Command failed", { usage = false, path } = {}) {
+  const error = new Error(message);
+  error.code = code;
+  error.usage = usage;
+  if (path !== undefined) error.path = path;
+  return error;
+}
+
+function compare(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function isObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isTimestampField(key) {
+  const normalized = key.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return TIMESTAMP_FIELD_NAMES.some((suffix) => normalized.endsWith(suffix));
+}
+
+function hasExactFields(value, fields) {
+  if (!isObject(value)) return false;
+  const keys = Object.keys(value);
+  return keys.length === fields.size && keys.every((key) => fields.has(key));
+}
+
+function stable(value) {
+  return JSON.stringify(canonicalize(value));
+}
+
+function exactSame(left, right) {
+  return stable(left) === stable(right);
+}
+
+function sortedBy(values, key) {
+  return [...values].sort((left, right) => compare(key(left), key(right)));
+}
+
+function sortSemantic(value) {
+  if (Array.isArray(value)) return value.map(sortSemantic);
+  if (!isObject(value)) return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortSemantic(value[key])]));
+}
+
+function edgeKey(edge) {
+  return [edge?.source, edge?.kind, edge?.target].map(String).join("\0");
+}
+
+function mappingKey(mapping) {
+  return [mapping?.sourcePath, mapping?.nodeId].map(String).join("\0");
+}
+
+function rejectUnknownReviewedFields(mappings) {
+  if (!isObject(mappings)) throw cliError("INVALID_MAPPINGS");
+  if (Object.keys(mappings).some((key) => !REVIEWED_TOP_LEVEL_FIELDS.has(key))) {
+    throw cliError("INVALID_MAPPINGS");
+  }
+}
+
+function normalizeMappingSemanticContent(mappings = {}) {
+  const normalizedMappings = sortedBy(Array.isArray(mappings.mappings) ? mappings.mappings : [], mappingKey)
+    .map((mapping) => ({
+      ...mapping,
+      automatedTestIds: [...new Set(Array.isArray(mapping.automatedTestIds) ? mapping.automatedTestIds : [])].sort(compare),
+      edges: sortedBy(Array.isArray(mapping.edges) ? mapping.edges : [], edgeKey).map(sortSemantic),
+    }));
+  return sortSemantic({
+    schemaVersion: mappings.schemaVersion,
+    productId: mappings.productId,
+    repositoryUrl: mappings.repositoryUrl,
+    sourceRoots: [...new Set(Array.isArray(mappings.sourceRoots) ? mappings.sourceRoots : [])].sort(compare),
+    nodes: sortedBy(Array.isArray(mappings.nodes) ? mappings.nodes : [], (node) => String(node?.id)).map(sortSemantic),
+    edges: sortedBy(Array.isArray(mappings.edges) ? mappings.edges : [], edgeKey).map(sortSemantic),
+    mappings: normalizedMappings,
+    no_product_impact: sortedBy(
+      Array.isArray(mappings.no_product_impact) ? mappings.no_product_impact : [],
+      (entry) => [entry?.path, entry?.reason].map(String).join("\0"),
+    ).map(sortSemantic),
+    unresolved: sortedBy(
+      Array.isArray(mappings.unresolved) ? mappings.unresolved : [],
+      (entry) => stable(entry),
+    ).map(sortSemantic),
+  });
+}
+
+export function computeMappingDigest(mappings) {
+  rejectUnknownReviewedFields(mappings);
+  return digestJson(normalizeMappingSemanticContent(mappings));
+}
+
+function parseOptions(tokens, allowedFlags, allowedValues) {
+  const flags = new Set();
+  const values = new Map();
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (typeof token !== "string" || !token.startsWith("--") || token.includes("=")) {
+      throw cliError("INVALID_ARGUMENTS", undefined, { usage: true });
+    }
+    if (allowedFlags.has(token)) {
+      if (flags.has(token) || values.has(token)) throw cliError("INVALID_ARGUMENTS", undefined, { usage: true });
+      flags.add(token);
+      continue;
+    }
+    if (!allowedValues.has(token) || flags.has(token) || values.has(token)) {
+      throw cliError("INVALID_ARGUMENTS", undefined, { usage: true });
+    }
+    const value = tokens[index + 1];
+    if (typeof value !== "string" || value.startsWith("--")) {
+      throw cliError("INVALID_ARGUMENTS", undefined, { usage: true });
+    }
+    values.set(token, value);
+    index += 1;
+  }
+  return { flags, values };
+}
+
+function parseArguments(argv) {
+  if (!Array.isArray(argv) || argv.length === 0) {
+    throw cliError("INVALID_COMMAND", undefined, { usage: true });
+  }
+  const [command, ...tokens] = argv;
+  if (!COMMANDS.includes(command)) {
+    throw cliError("INVALID_COMMAND", undefined, { usage: true });
+  }
+  if (command === "init") {
+    if (tokens.length !== 0) throw cliError("INVALID_ARGUMENTS", undefined, { usage: true });
+    return { command };
+  }
+  if (command === "contract-candidate") {
+    if (tokens.length !== 0) throw cliError("INVALID_ARGUMENTS", undefined, { usage: true });
+    return { command };
+  }
+  if (command === "validate") {
+    const { flags, values } = parseOptions(tokens, new Set(["--refresh"]), new Set());
+    if (values.size !== 0) throw cliError("INVALID_ARGUMENTS", undefined, { usage: true });
+    return { command, refresh: flags.has("--refresh") };
+  }
+  if (command === "source-lock") {
+    const { values } = parseOptions(tokens, new Set(), new Set(["--repo"]));
+    if (values.size !== 1 || !values.has("--repo")) throw cliError("INVALID_ARGUMENTS", undefined, { usage: true });
+    const repo = values.get("--repo");
+    if (!isAbsolute(repo)) throw cliError("INVALID_REPOSITORY_PATH", undefined, { usage: true });
+    return { command, repo };
+  }
+  if (command === "runtime" || command === "selector-observe") {
+    const { values } = parseOptions(tokens, new Set(), new Set(["--url"]));
+    if (values.size !== 1 || !values.has("--url")) throw cliError("INVALID_ARGUMENTS", undefined, { usage: true });
+    const url = values.get("--url");
+    if (!RUNTIME_URLS.has(url)) throw cliError("INVALID_RUNTIME_URL", undefined, { usage: true });
+    return { command, url };
+  }
+  const { flags, values } = parseOptions(
+    tokens,
+    new Set(["--runtime-only", "--dry-run"]),
+    new Set(["--repo", "--from", "--to", "--telemetry-signals"]),
+  );
+  if (!flags.has("--dry-run")) throw cliError("DRY_RUN_REQUIRED", undefined, { usage: true });
+  const runtimeOnly = flags.has("--runtime-only");
+  const hasSourceOption = ["--repo", "--from", "--to"].some((option) => values.has(option));
+  if (runtimeOnly === hasSourceOption) throw cliError("INVALID_ARGUMENTS", undefined, { usage: true });
+  if (!runtimeOnly && !["--repo", "--from", "--to"].every((option) => values.has(option))) {
+    throw cliError("INVALID_ARGUMENTS", undefined, { usage: true });
+  }
+  if (!runtimeOnly && !isAbsolute(values.get("--repo"))) {
+    throw cliError("INVALID_REPOSITORY_PATH", undefined, { usage: true });
+  }
+  if (!runtimeOnly && (!SHA1.test(values.get("--from")) || !SHA1.test(values.get("--to")))) {
+    throw cliError("INVALID_COMMIT_SHA", undefined, { usage: true });
+  }
+  return {
+    command,
+    mode: runtimeOnly ? "runtime_only" : "source_diff",
+    repo: values.get("--repo"),
+    from: values.get("--from"),
+    to: values.get("--to"),
+    telemetryPath: values.get("--telemetry-signals"),
+  };
+}
+
+function privatePaths(io) {
+  const productGraph = join(io.privateRoot, "product-graph");
+  const current = join(productGraph, "current");
+  return {
+    productGraph,
+    current,
+    mappings: join(productGraph, "mappings.v1.json"),
+    capturePlan: join(productGraph, "selector-capture-plan.v1.json"),
+    selectorBindings: join(productGraph, "selector-bindings.v1.json"),
+    sourceLock: join(current, "source-lock.json"),
+    runtime: join(current, "runtime-catalog.json"),
+    selectorObservation: join(current, "runtime-selector-observation.v1.json"),
+    runtimeContract: join(current, "runtime-contract.v1.json"),
+    runtimeContractCandidate: join(current, "runtime-contract.candidate.v1.json"),
+    graph: join(current, "graph.json"),
+    impact: join(current, "impact.json"),
+    testPlan: join(current, "test-plan.json"),
+    planCommit: join(current, "plan-commit.json"),
+    telemetryAccessLock: join(io.privateRoot, "telemetry/access-lock.v1.json"),
+    telemetryCatalog: join(io.privateRoot, "telemetry/telemetry-catalog.json"),
+    telemetryMappings: join(io.privateRoot, "telemetry/mappings.v1.json"),
+    telemetry: join(io.privateRoot, "telemetry/telemetry-signals.json"),
+  };
+}
+
+function relativeArtifact(io, path) {
+  return relative(io.privateRoot, path).split(sep).join("/");
+}
+
+async function readRequired(io, path, missingCode) {
+  try {
+    return await io.readJson(path);
+  } catch (error) {
+    if (["MISSING_ARTIFACT", "ENOENT", "MISSING_PARENT_DIRECTORY"].includes(error?.code)) {
+      throw cliError(missingCode);
+    }
+    throw error;
+  }
+}
+
+async function readOptional(io, path) {
+  try {
+    return await io.readJson(path);
+  } catch (error) {
+    if (["MISSING_ARTIFACT", "ENOENT", "MISSING_PARENT_DIRECTORY"].includes(error?.code)) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+function validateReviewedShape(mappings, testCatalog) {
+  rejectUnknownReviewedFields(mappings);
+  if (
+    !isObject(mappings) || mappings.schemaVersion !== 1 || mappings.productId !== PRODUCT_ID ||
+    mappings.repositoryUrl !== EXPECTED_REMOTE ||
+    !exactSame(mappings.sourceRoots, SOURCE_ROOTS) ||
+    !Array.isArray(mappings.nodes) || !Array.isArray(mappings.edges) ||
+    !Array.isArray(mappings.mappings) || !Array.isArray(mappings.no_product_impact) ||
+    !Array.isArray(mappings.unresolved)
+  ) throw cliError("INVALID_MAPPINGS");
+  const discoveredIds = new Set(testCatalog.map((testCase) => testCase.id));
+  const reviewedIds = new Set(mappings.nodes.map((node) => node?.id));
+  for (const edge of mappings.edges) {
+    if (isObject(edge) && TEST_IDS.includes(edge.source) && !discoveredIds.has(edge.source)) {
+      throw cliError("STALE_TEST_CATALOG");
+    }
+    if (
+      !isObject(edge) || edge.kind !== "verifies" ||
+      !discoveredIds.has(edge.source) ||
+      typeof edge.target !== "string" || !edge.target.startsWith(`${PRODUCT_ID}:`)
+    ) throw cliError("INVALID_REVIEWED_EDGE");
+  }
+  for (const node of mappings.nodes) {
+    if (!isObject(node) || !reviewedIds.has(node.id) || !node.id.startsWith(`${PRODUCT_ID}:`)) {
+      throw cliError("INVALID_MAPPINGS");
+    }
+  }
+}
+
+function invocationEnvironment() {
+  return {
+    ...process.env,
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_FSMONITOR_TEST: "0",
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "core.fsmonitor",
+    GIT_CONFIG_VALUE_0: "false",
+  };
+}
+
+function playwrightInvocation() {
+  return {
+    executable: process.execPath,
+    args: [
+      PLAYWRIGHT_CLI,
+      "test",
+      "--list",
+      ...AUTOMATED_PROJECTS.map((project) => `--project=${project}`),
+    ],
+    options: {
+      cwd: QA_ROOT,
+      env: {
+        ...invocationEnvironment(),
+        NUANU_APP_BASE_URL: "https://app.nuanu.com",
+        NUANU_APP_FIREFOX: "1",
+        NUANU_APP_WEBKIT: "1",
+        NUANU_APP_MOBILE: "1",
+      },
+    },
+  };
+}
+
+async function productionDiscoverPlaywright(invocation) {
+  try {
+    const { stdout } = await execFileAsync(invocation.executable, invocation.args, {
+      ...invocation.options,
+      encoding: "utf8",
+      maxBuffer: MAX_SUBPROCESS_BUFFER,
+    });
+    return stdout;
+  } catch {
+    throw cliError("PLAYWRIGHT_DISCOVERY_FAILED");
+  }
+}
+
+async function productionGit(repo, args, options) {
+  try {
+    const { stdout } = await execFileAsync("git", args, {
+      cwd: repo,
+      env: options.env,
+      encoding: null,
+      maxBuffer: MAX_SUBPROCESS_BUFFER,
+    });
+    return stdout;
+  } catch {
+    throw cliError(args[0] === "cat-file" ? "COMMIT_NOT_FOUND" : "GIT_INSPECTION_FAILED");
+  }
+}
+
+async function productionAttestRepository(repo) {
+  if (!isAbsolute(repo)) throw cliError("INVALID_REPOSITORY_PATH");
+  let stat;
+  let real;
+  try {
+    stat = await lstat(repo);
+    real = await realpath(repo);
+  } catch {
+    throw cliError("INVALID_REPOSITORY_PATH");
+  }
+  const normalizePlatformAlias = (path) => {
+    for (const prefix of ["/private/tmp", "/private/var", "/private/etc"]) {
+      if (path === prefix || path.startsWith(`${prefix}/`)) return path.slice("/private".length);
+    }
+    return path;
+  };
+  if (
+    stat.isSymbolicLink() ||
+    normalizePlatformAlias(real) !== normalizePlatformAlias(resolve(repo))
+  ) throw cliError("SYMLINK_REPOSITORY_REJECTED");
+  if (!stat.isDirectory()) throw cliError("INVALID_REPOSITORY_PATH");
+  return real;
+}
+
+async function withHardenedGitEnvironment(operation) {
+  const env = invocationEnvironment();
+  const keys = [
+    "GIT_OPTIONAL_LOCKS", "GIT_TERMINAL_PROMPT", "GIT_FSMONITOR_TEST",
+    "GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0",
+  ];
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  try {
+    for (const key of keys) process.env[key] = env[key];
+    return await operation();
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+}
+
+async function discoverCatalog(dependencies) {
+  const output = await dependencies.discoverPlaywright(playwrightInvocation());
+  const catalog = sortedBy(parsePlaywrightList(String(output)), (entry) => entry.id);
+  if (catalog.length === 0) throw cliError("EMPTY_PLAYWRIGHT_DISCOVERY");
+  return catalog;
+}
+
+function normalizeObservedCatalog(observation) {
+  const source = isObject(observation) ? observation : {};
+  return normalizeRuntimeObservation({
+    capturedAt: source.capturedAt,
+    routes: source.routes,
+    rootCandidates: source.rootCandidates,
+    probe: source.probe,
+    apiHosts: source.apiHosts,
+    dependencies: source.dependencies,
+    metadata: source.metadata,
+    manifest: source.pwa ?? source.manifest,
+  });
+}
+
+function attestRuntimeCatalog(runtimeCatalog) {
+  let rebuilt;
+  try {
+    rebuilt = normalizeObservedCatalog(runtimeCatalog);
+  } catch {
+    throw cliError("STALE_RUNTIME_CATALOG");
+  }
+  if (!exactSame(rebuilt, runtimeCatalog)) throw cliError("STALE_RUNTIME_CATALOG");
+  assertRuntimeCatalog(rebuilt);
+  return rebuilt;
+}
+
+async function readSelectorEvidenceBundle({ io, paths }) {
+  const catalog = attestRuntimeCatalog(
+    await readRequired(io, paths.runtime, "MISSING_RUNTIME_CATALOG"),
+  );
+  const capturePlan = await readRequired(
+    io,
+    paths.capturePlan,
+    "MISSING_SELECTOR_CAPTURE_PLAN",
+  );
+  assertCapturePlan(capturePlan);
+  const observation = await readRequired(
+    io,
+    paths.selectorObservation,
+    "MISSING_SELECTOR_OBSERVATION",
+  );
+  const bindings = await readRequired(
+    io,
+    paths.selectorBindings,
+    "MISSING_SELECTOR_BINDINGS",
+  );
+  return { catalog, capturePlan, observation, bindings };
+}
+
+async function attestAcceptedRuntimeContract({ io, paths, now }) {
+  const bundle = await readSelectorEvidenceBundle({ io, paths });
+  const contract = await readRequired(
+    io,
+    paths.runtimeContract,
+    "MISSING_RUNTIME_CONTRACT",
+  );
+  assertReviewedRuntimeContract(contract, {
+    ...bundle,
+    now: now(),
+  });
+  return { ...bundle, contract };
+}
+
+function mergeNode(nodes, candidate) {
+  const existing = nodes.get(candidate.id);
+  if (!existing) {
+    nodes.set(candidate.id, candidate);
+    return;
+  }
+  if (existing.kind !== candidate.kind) throw cliError("INVALID_MAPPINGS");
+  const provenances = new Set([existing.provenance, candidate.provenance]);
+  const provenance = provenances.has("source_and_runtime") ||
+    (provenances.has("source") && provenances.has("runtime"))
+    ? "source_and_runtime"
+    : existing.provenance ?? candidate.provenance;
+  nodes.set(candidate.id, { ...existing, ...candidate, provenance });
+}
+
+function graphDigestFromStored(graph) {
+  if (!isObject(graph)) return null;
+  const withoutTimestamps = (value) => {
+    if (Array.isArray(value)) return value.map(withoutTimestamps);
+    if (!isObject(value)) return value;
+    return Object.fromEntries(Object.entries(value)
+      .filter(([key]) => !isTimestampField(key))
+      .map(([key, child]) => [key, withoutTimestamps(child)]));
+  };
+  const semantic = withoutTimestamps(graph);
+  delete semantic.graphDigest;
+  return digestJson(semantic);
+}
+
+function hasStoredGraphEnvelope(graph, inputDigestFields) {
+  if (!isObject(graph)) return false;
+  const topLevelKeys = Object.keys(graph);
+  if (
+    ![...STORED_GRAPH_REQUIRED_FIELDS].every((key) => Object.hasOwn(graph, key)) ||
+    topLevelKeys.some((key) =>
+      !STORED_GRAPH_REQUIRED_FIELDS.has(key) && !isTimestampField(key))
+  ) return false;
+  if (typeof graph.graphDigest !== "string" || !SHA256.test(graph.graphDigest)) return false;
+  if (
+    !hasExactFields(graph.inputDigests, inputDigestFields) ||
+    Object.values(graph.inputDigests).some((digest) =>
+      typeof digest !== "string" || !SHA256.test(digest))
+  ) return false;
+  return Array.isArray(graph.unresolved);
+}
+
+function hasCanonicalStoredGraphEnvelope(graph) {
+  return hasStoredGraphEnvelope(graph, STORED_GRAPH_INPUT_DIGEST_FIELDS);
+}
+
+function hasCanonicalLegacyStoredGraphEnvelope(graph) {
+  return hasStoredGraphEnvelope(graph, LEGACY_STORED_GRAPH_INPUT_DIGEST_FIELDS);
+}
+
+async function buildValidatedGraph({
+  io,
+  paths,
+  dependencies,
+  storedGraphRequired = false,
+  refreshStoredGraph = false,
+}) {
+  const mappings = await readRequired(io, paths.mappings, "MISSING_MAPPINGS");
+  const runtimeBundle = await attestAcceptedRuntimeContract({
+    io,
+    paths,
+    now: dependencies.now,
+  });
+  const runtimeCatalog = runtimeBundle.catalog;
+  const testCatalog = await discoverCatalog(dependencies);
+  validateReviewedShape(mappings, testCatalog);
+  const runtimeNodeIds = runtimeCatalog.nodes.map((node) => node.id);
+  const mappingValidation = validateMappings(mappings, {
+    sourceRoots: mappings.sourceRoots,
+    automatedTestIds: testCatalog.map((testCase) => testCase.id),
+    runtimeNodeIds,
+  });
+  if (!mappingValidation.ok) {
+    const error = cliError("INVALID_MAPPINGS");
+    error.validationErrors = mappingValidation.errors;
+    throw error;
+  }
+  const mappingDigest = computeMappingDigest(mappings);
+  const sourceLock = await readOptional(io, paths.sourceLock);
+  if (mappings.mappings.length > 0 && !sourceLock) throw cliError("SOURCE_MAPPING_WITHOUT_LOCK");
+  if (sourceLock && sourceLock.mappingDigest !== mappingDigest) throw cliError("STALE_MAPPINGS");
+
+  const nodes = new Map();
+  for (const node of runtimeCatalog.nodes) mergeNode(nodes, node);
+  for (const node of mappings.nodes) mergeNode(nodes, node);
+  for (const mapping of mappings.mappings) {
+    for (const edge of mapping.edges.filter((candidate) => candidate.kind === "implements")) {
+      mergeNode(nodes, {
+        id: edge.source,
+        kind: "source_file",
+        path: mapping.sourcePath,
+        provenance: "source",
+        coverageDisposition: ["NOT_DEPLOYED", "UNVERIFIED"].includes(mapping.coverageDisposition)
+          ? mapping.coverageDisposition
+          : "UNVERIFIED",
+      });
+    }
+  }
+  for (const testCase of testCatalog) {
+    mergeNode(nodes, {
+      ...testCase,
+      kind: "automated_test",
+      provenance: "runtime",
+      coverageDisposition: "AUTOMATED",
+    });
+  }
+
+  const edges = [
+    ...mappings.mappings.flatMap((mapping) => mapping.edges),
+    ...mappings.edges,
+  ];
+  for (const edge of edges) {
+    if (!nodes.has(edge.source) || !nodes.has(edge.target)) throw cliError("UNKNOWN_REVIEWED_TARGET");
+  }
+  const generatedAt = dependencies.now().toISOString();
+  const graphReviewedMappings = structuredClone(mappings);
+  // Repository identity is attested by sourceLock. Keeping a URL under the
+  // model's mapping-inspection namespace would make the URL scheme look like a
+  // foreign product namespace, so the graph input contains only semantic
+  // mapping content while mappingDigest still covers the complete document.
+  delete graphReviewedMappings.repositoryUrl;
+  const graph = createGraph({
+    sourceLock: sourceLock ?? {},
+    runtimeCatalog,
+    runtimeContract: runtimeBundle.contract,
+    selectorObservation: runtimeBundle.observation,
+    selectorCapturePlan: runtimeBundle.capturePlan,
+    selectorBindings: runtimeBundle.bindings,
+    reviewedMappings: graphReviewedMappings,
+    testCatalog,
+    nodes: [...nodes.values()],
+    edges,
+    unresolved: mappings.unresolved,
+    generatedAt,
+  });
+  const graphValidation = validateGraph(graph);
+  if (!graphValidation.ok) {
+    const error = cliError("GRAPH_VALIDATION_FAILED");
+    error.validationErrors = graphValidation.errors;
+    throw error;
+  }
+  const storedGraph = await readOptional(io, paths.graph);
+  if (storedGraph !== undefined) {
+    const storedValidation = validateGraph(storedGraph);
+    const currentEnvelope = hasCanonicalStoredGraphEnvelope(storedGraph);
+    const explicitlyMigratableLegacyEnvelope =
+      refreshStoredGraph && hasCanonicalLegacyStoredGraphEnvelope(storedGraph);
+    const storedGraphIsValid =
+      (currentEnvelope || explicitlyMigratableLegacyEnvelope) &&
+      storedValidation.ok &&
+      graphDigestFromStored(storedGraph) === storedGraph.graphDigest;
+    if (!storedGraphIsValid) throw cliError("STALE_GRAPH");
+    if (
+      !refreshStoredGraph &&
+      storedGraph.graphDigest !== graph.graphDigest
+    ) throw cliError("STALE_GRAPH");
+  } else if (storedGraphRequired || refreshStoredGraph) {
+    throw cliError("MISSING_GRAPH");
+  }
+  return { graph, mappings, sourceLock, runtimeCatalog, testCatalog, mappingDigest };
+}
+
+function parseDiffPaths(output) {
+  const buffer = Buffer.isBuffer(output) ? output : Buffer.from(String(output));
+  if (buffer.length === 0) return [];
+  if (buffer.at(-1) !== 0) throw cliError("INVALID_GIT_DIFF_PATH");
+  const paths = buffer.subarray(0, -1).toString("utf8").split("\0");
+  if (paths.some((path) =>
+    !path || path.startsWith("/") || path.includes("\\") ||
+    /[\x00-\x1f\x7f]/.test(path) ||
+    path.split("/").some((segment) => !segment || segment === "." || segment === ".."))) {
+    throw cliError("INVALID_GIT_DIFF_PATH");
+  }
+  return [...new Set(paths)].sort(compare);
+}
+
+function emptySourceImpact(changedFiles, noProductImpact) {
+  return {
+    mode: "source_diff",
+    changedFiles,
+    affectedNodeIds: [],
+    unmappedFiles: [],
+    paths: [],
+    sourceImpact: "UNVERIFIED",
+    noProductImpact,
+  };
+}
+
+async function readTelemetry({ io, paths, telemetryPath, graph }) {
+  if (telemetryPath === undefined) return [];
+  const allowedAbsolute = paths.telemetry;
+  const suppliedAbsolute = telemetryPath === TELEMETRY_RELATIVE_PATH
+    ? allowedAbsolute
+    : telemetryPath;
+  if (!isAbsolute(suppliedAbsolute) || resolve(suppliedAbsolute) !== resolve(allowedAbsolute)) {
+    throw cliError("INVALID_TELEMETRY_PATH", undefined, { usage: true });
+  }
+  const [claimedSignals, mappings, catalog, accessLock] = await Promise.all([
+    readRequired(io, allowedAbsolute, "INVALID_TELEMETRY_SIGNALS"),
+    readRequired(io, paths.telemetryMappings, "INVALID_TELEMETRY_SIGNALS"),
+    readRequired(io, paths.telemetryCatalog, "INVALID_TELEMETRY_SIGNALS"),
+    readRequired(io, paths.telemetryAccessLock, "INVALID_TELEMETRY_SIGNALS"),
+  ]);
+  if (!Array.isArray(claimedSignals)) throw cliError("INVALID_TELEMETRY_SIGNALS");
+  let rebuiltSignals;
+  try {
+    const { buildTelemetrySignals } = await import("./telemetry-policy.mjs");
+    rebuiltSignals = buildTelemetrySignals({ mappings, graph, catalog, accessLock });
+  } catch {
+    throw cliError("INVALID_TELEMETRY_SIGNALS");
+  }
+  if (!exactSame(claimedSignals, rebuiltSignals)) {
+    throw cliError("INVALID_TELEMETRY_SIGNALS");
+  }
+  return rebuiltSignals;
+}
+
+function sourceLockFieldsEqual(left, right) {
+  return exactSame(left, right);
+}
+
+async function execute(parsed, dependencies) {
+  const io = dependencies.io;
+  const paths = privatePaths(io);
+  if (parsed.command === "init") {
+    await io.ensureDirectory("product-graph");
+    await io.ensureDirectory("product-graph/current");
+    await io.ensureDirectory("product-graph/snapshots");
+    const created = await io.writeJsonExclusive(paths.mappings, STARTER_MAPPINGS);
+    return {
+      ok: true,
+      command: "init",
+      artifacts: [relativeArtifact(io, paths.mappings)],
+      created,
+    };
+  }
+
+  if (parsed.command === "runtime") {
+    await io.preflightWrite(paths.runtime);
+    const chromium = await dependencies.loadChromium();
+    const observation = await dependencies.observeRuntime({
+      baseUrl: parsed.url,
+      chromium,
+      now: dependencies.now,
+    });
+    const runtimeCatalog = normalizeObservedCatalog(observation);
+    await io.writeJsonAtomic(paths.runtime, runtimeCatalog);
+    return {
+      ok: true,
+      command: "runtime",
+      artifacts: [relativeArtifact(io, paths.runtime)],
+      runtimeDigest: runtimeCatalog.runtimeDigest,
+      nodeCount: runtimeCatalog.nodes.length,
+    };
+  }
+
+  if (parsed.command === "selector-observe") {
+    const catalog = attestRuntimeCatalog(
+      await readRequired(io, paths.runtime, "MISSING_RUNTIME_CATALOG"),
+    );
+    const capturePlan = await readRequired(
+      io,
+      paths.capturePlan,
+      "MISSING_SELECTOR_CAPTURE_PLAN",
+    );
+    assertCapturePlan(capturePlan);
+    await io.preflightWrite(paths.selectorObservation);
+    const chromium = await dependencies.loadChromium();
+    const observation = await dependencies.produceSelectorObservation({
+      chromium,
+      catalog,
+      capturePlan,
+      now: dependencies.now,
+    });
+    assertSelectorObservation(observation, {
+      catalog,
+      capturePlan,
+      now: dependencies.now(),
+    });
+    await io.writeJsonAtomic(paths.selectorObservation, observation);
+    return {
+      ok: true,
+      command: "selector-observe",
+      artifacts: [relativeArtifact(io, paths.selectorObservation)],
+      observationDigest: observation.observationDigest,
+      stateCount: observation.states.length,
+      limitationCount: observation.limitations.length,
+    };
+  }
+
+  if (parsed.command === "contract-candidate") {
+    const bundle = await readSelectorEvidenceBundle({ io, paths });
+    const contract = dependencies.createContractCandidate(bundle);
+    assertReviewedRuntimeContract(contract, bundle);
+    await io.preflightWrite(paths.runtimeContractCandidate);
+    await io.writeJsonAtomic(paths.runtimeContractCandidate, contract);
+    return {
+      ok: true,
+      command: "contract-candidate",
+      artifacts: [relativeArtifact(io, paths.runtimeContractCandidate)],
+      observationDigest: contract.selectorEvidence.observationDigest,
+      bindingDigest: contract.selectorEvidence.bindingDigest,
+    };
+  }
+
+  if (parsed.command === "source-lock") {
+    const mappings = await readRequired(io, paths.mappings, "MISSING_MAPPINGS");
+    const testCatalog = await discoverCatalog(dependencies);
+    validateReviewedShape(mappings, testCatalog);
+    const persistedRuntime = await readOptional(io, paths.runtime);
+    const runtimeNodeIds = persistedRuntime
+      ? attestRuntimeCatalog(persistedRuntime).nodes.map((node) => node.id)
+      : [];
+    const mappingValidation = validateMappings(mappings, {
+      sourceRoots: mappings.sourceRoots,
+      automatedTestIds: testCatalog.map((testCase) => testCase.id),
+      runtimeNodeIds,
+    });
+    if (!mappingValidation.ok) {
+      const error = cliError("INVALID_MAPPINGS");
+      error.validationErrors = mappingValidation.errors;
+      throw error;
+    }
+    await io.preflightWrite(paths.sourceLock);
+    const repository = await dependencies.attestRepository(parsed.repo);
+    const mappingDigest = computeMappingDigest(mappings);
+    const sourceLock = await withHardenedGitEnvironment(() => dependencies.buildSourceLock({
+      repoPath: repository,
+      sourceRoots: mappings.sourceRoots,
+      expectedRemote: EXPECTED_REMOTE,
+      mappingDigest,
+      requireClean: true,
+    }));
+    await io.writeJsonAtomic(paths.sourceLock, sourceLock);
+    return {
+      ok: true,
+      command: "source-lock",
+      artifacts: [relativeArtifact(io, paths.sourceLock)],
+      commitSha: sourceLock.commitSha,
+      contentDigest: sourceLock.contentDigest,
+      mappingDigest: sourceLock.mappingDigest,
+    };
+  }
+
+  if (parsed.command === "validate") {
+    await io.preflightWrite(paths.graph);
+    const built = await buildValidatedGraph({
+      io,
+      paths,
+      dependencies,
+      storedGraphRequired: parsed.refresh,
+      refreshStoredGraph: parsed.refresh,
+    });
+    await io.writeJsonAtomic(paths.graph, built.graph);
+    return {
+      ok: true,
+      command: "validate",
+      ...(parsed.refresh ? { refreshed: true } : {}),
+      artifacts: [relativeArtifact(io, paths.graph)],
+      graphDigest: built.graph.graphDigest,
+      nodeCount: built.graph.nodes.length,
+      edgeCount: built.graph.edges.length,
+      testCount: built.testCatalog.length,
+    };
+  }
+
+  const built = await buildValidatedGraph({
+    io,
+    paths,
+    dependencies,
+    storedGraphRequired: true,
+  });
+  const telemetrySignals = await readTelemetry({
+    io,
+    paths,
+    telemetryPath: parsed.telemetryPath,
+    graph: built.graph,
+  });
+  await Promise.all([
+    io.preflightWrite(paths.impact),
+    io.preflightWrite(paths.testPlan),
+    io.preflightWrite(paths.planCommit),
+  ]);
+  let impact;
+  if (parsed.mode === "runtime_only") {
+    impact = {
+      mode: "runtime_only",
+      changedFiles: [],
+      affectedNodeIds: [],
+      unmappedFiles: [],
+      paths: [],
+      sourceImpact: "UNVERIFIED",
+    };
+  } else {
+    const repository = await dependencies.attestRepository(parsed.repo);
+    const gitOptions = { env: invocationEnvironment() };
+    await dependencies.git(repository, ["cat-file", "-e", `${parsed.from}^{commit}`], gitOptions);
+    await dependencies.git(repository, ["cat-file", "-e", `${parsed.to}^{commit}`], gitOptions);
+    const head = String(await dependencies.git(repository, ["rev-parse", "HEAD"], gitOptions)).trim();
+    if (head !== parsed.to) throw cliError("CANDIDATE_HEAD_MISMATCH");
+    if (!built.sourceLock) throw cliError("MISSING_SOURCE_LOCK");
+    if (built.sourceLock.commitSha !== parsed.to) throw cliError("CANDIDATE_SOURCE_LOCK_MISMATCH");
+    const rebuiltSourceLock = await withHardenedGitEnvironment(() => dependencies.buildSourceLock({
+      repoPath: repository,
+      sourceRoots: built.mappings.sourceRoots,
+      expectedRemote: EXPECTED_REMOTE,
+      mappingDigest: built.mappingDigest,
+      requireClean: true,
+    }));
+    if (!sourceLockFieldsEqual(rebuiltSourceLock, built.sourceLock)) throw cliError("STALE_SOURCE_LOCK");
+    const diffOutput = await dependencies.git(repository, [
+      "diff", "--name-only", "--no-renames", "-z", "--diff-filter=ACDMRTUXB",
+      parsed.from, parsed.to, "--",
+    ], gitOptions);
+    const changedFiles = parseDiffPaths(diffOutput);
+    const noImpactByPath = new Map(built.mappings.no_product_impact.map((entry) => [entry.path, entry]));
+    const noProductImpact = changedFiles
+      .filter((path) => noImpactByPath.has(path))
+      .map((path) => ({ path, reason: noImpactByPath.get(path).reason }));
+    const impactful = changedFiles.filter((path) => !noImpactByPath.has(path));
+    if (impactful.length === 0) {
+      impact = emptySourceImpact(changedFiles, noProductImpact);
+    } else {
+      impact = {
+        mode: "source_diff",
+        ...planImpact({ graph: built.graph, changedFiles: impactful }),
+        changedFiles,
+        noProductImpact,
+      };
+    }
+  }
+  const testPlan = buildTestPlan({
+    graph: built.graph,
+    impact,
+    runnableTestIds: new Set(built.testCatalog.map((testCase) => testCase.id)),
+    telemetrySignals,
+  });
+  const marker = {
+    schemaVersion: 1,
+    productId: PRODUCT_ID,
+    mode: parsed.mode,
+    graphDigest: built.graph.graphDigest,
+    impactDigest: digestJson(impact),
+    testPlanDigest: digestJson(testPlan),
+  };
+  await io.writeJsonAtomic(paths.impact, impact);
+  await io.writeJsonAtomic(paths.testPlan, testPlan);
+  await io.writeJsonAtomic(paths.planCommit, marker);
+  return {
+    ok: true,
+    command: "plan",
+    mode: parsed.mode,
+    dryRun: true,
+    executed: false,
+    artifacts: [paths.impact, paths.testPlan, paths.planCommit].map((path) => relativeArtifact(io, path)),
+    graphDigest: marker.graphDigest,
+    impactDigest: marker.impactDigest,
+    testPlanDigest: marker.testPlanDigest,
+    selectedAutomatedCount: testPlan.selectedAutomated.length,
+    manualCount: testPlan.manual.length,
+    blockedCount: testPlan.blocked.length,
+    notDeployedCount: testPlan.notDeployed.length,
+    unverifiedCount: testPlan.unverified.length,
+  };
+}
+
+function sanitizedValidationPath(value) {
+  if (
+    typeof value !== "string" || value.length > 256 ||
+    !/^(?:\$|[A-Za-z_][A-Za-z0-9_-]*)(?:\.[A-Za-z_][A-Za-z0-9_-]*|\[\d+\])*$/.test(value)
+  ) return null;
+  const fields = value.match(/[A-Za-z_][A-Za-z0-9_-]*/g) ?? [];
+  return fields.every((field) => SAFE_VALIDATION_PATH_FIELDS.has(field)) ? value : null;
+}
+
+function sanitizedErrors(error) {
+  const validationErrors = Array.isArray(error?.validationErrors)
+    ? error.validationErrors
+    : Array.isArray(error?.validationResult?.errors)
+      ? error.validationResult.errors
+      : null;
+  if (validationErrors) {
+    return validationErrors.map((entry) => {
+      const code = typeof entry?.code === "string" && SAFE_VALIDATION_CODES.has(entry.code)
+        ? entry.code
+        : "VALIDATION_FAILED";
+      const path = sanitizedValidationPath(entry?.path);
+      return {
+        code,
+        ...(path ? { path } : {}),
+        message: SAFE_ERROR_MESSAGES[code] ?? "Validation failed",
+      };
+    });
+  }
+  const code = typeof error?.code === "string" &&
+    Object.hasOwn(SAFE_ERROR_MESSAGES, error.code)
+    ? error.code
+    : "COMMAND_FAILED";
+  const path = sanitizedValidationPath(error?.path);
+  return [{
+    code,
+    ...(path ? { path } : {}),
+    message: SAFE_ERROR_MESSAGES[code] ?? "Command failed",
+  }];
+}
+
+export async function runCli(argv, overrides = {}) {
+  const stdout = overrides.stdout ?? process.stdout;
+  const stderr = overrides.stderr ?? process.stderr;
+  const command = typeof argv?.[0] === "string" && COMMANDS.includes(argv[0])
+    ? argv[0]
+    : "unknown";
+  try {
+    const parsed = parseArguments(argv);
+    const dependencies = {
+      io: overrides.io ?? createJsonIo({
+        privateRoot: PRIVATE_ROOT,
+        trustedRoot: QA_ROOT,
+      }),
+      now: overrides.now ?? (() => new Date()),
+      discoverPlaywright: overrides.discoverPlaywright ?? productionDiscoverPlaywright,
+      observeRuntime: overrides.observeRuntime ?? observePublicRuntime,
+      produceSelectorObservation: overrides.produceSelectorObservation ?? produceSelectorObservation,
+      createContractCandidate: overrides.createContractCandidate ?? createContractCandidate,
+      loadChromium: overrides.loadChromium ?? (async () => (await import("@playwright/test")).chromium),
+      attestRepository: overrides.attestRepository ?? productionAttestRepository,
+      buildSourceLock: overrides.buildSourceLock ?? buildSourceLock,
+      git: overrides.git ?? productionGit,
+    };
+    const summary = await execute(parsed, dependencies);
+    stdout.write(`${JSON.stringify(summary)}\n`);
+    return 0;
+  } catch (error) {
+    stderr.write(`${JSON.stringify({
+      ok: false,
+      command,
+      errors: sanitizedErrors(error),
+    })}\n`);
+    return error?.usage ? 2 : 1;
+  }
+}
+
+const directExecution = process.argv[1] &&
+  pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+if (directExecution) {
+  process.exitCode = await runCli(process.argv.slice(2));
+}

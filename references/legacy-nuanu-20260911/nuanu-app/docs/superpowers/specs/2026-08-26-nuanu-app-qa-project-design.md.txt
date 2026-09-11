@@ -1,0 +1,1519 @@
+# Nuanu App Autonomous QA Project — Design
+
+**Status:** approved in chat; awaiting written-spec review.
+
+**Product under test:** `https://app.nuanu.com/`
+
+**V1 platform scope:** browser-delivered web application and installed PWA on
+desktop, iPhone, and Android. Native iOS and Android builds are explicitly out
+of V1 scope.
+
+## 1. Problem
+
+Nuanu App needs a standalone QA project that can map the product, select tests
+from product and source changes, execute deterministic web checks, preserve
+evidence, and file only confirmed defects into its own Nuanu Flow project.
+
+The project must automate most repeatable web/PWA assurance without turning a
+green browser suite into a false claim of complete product quality. Physical
+device behavior, external identity providers, subjective UX, and consequential
+production actions must remain explicit manual or approval-gated work.
+
+This is a completely independent project. It has no runtime, data, schema,
+tooling, or storage dependency on any other product graph. No existing product
+graph will be imported, refactored, read, updated, or used as an input.
+
+## 2. Verified starting point
+
+Read-only reconnaissance on 2026-08-26 established the following:
+
+- The live product is a Vercel-hosted SPA/PWA centered on discovery of places
+  in Nuanu Creative City.
+- Confirmed public surfaces include Map, Places, Profile/auth entry, category
+  and `Open now` filters, editorial collections, place details, `Show on map`,
+  `Call`, geolocation entry, privacy content, and a visual 404 state.
+- The PWA manifest, standalone display mode, portrait orientation, maskable
+  icons, Apple mobile-web-app metadata, and service worker are present.
+- Public content currently comes from Supabase-backed content views and image
+  storage; the map uses Mapbox.
+- The live app exposes email/password, Apple, and Google authentication entry
+  points. Authenticated behavior was not exercised without test accounts.
+- The live unknown-route UI returned an app-shell HTTP 200 during recon. This
+  is a candidate soft-404 defect, not yet a filed bug.
+- A service-worker update prompt appeared throughout the reconnaissance
+  context. A fresh-context reproduction is required before it can be treated
+  as a defect.
+- Mobile viewport checks at 375, 393, 412, and 768 CSS pixels showed the mobile
+  information architecture without observed horizontal body overflow. Tooling
+  did not reliably cover 320 and 1440 pixels in that run.
+- The upstream repository `nuanu-ai/nuanu-web` was accessed read-only. Its
+  observed `main` HEAD was
+  `2fdbcf8267c57e336c73454e0888d5eaa2a95d7b`. That SHA is source evidence,
+  not proof of the live deployment identity.
+- The source tree contains a browser-native app in `apps/nuanu-web` and shared
+  packages for auth, API/data access, chat, payments, profile, state, i18n, and
+  UI. The source route set observed at that SHA does not fully match the live
+  surface. V1 must therefore treat source and runtime as separate truth
+  dimensions.
+- The QA repository is already dirty with unrelated user work. Nuanu App work
+  must use new, product-specific paths and narrowly scoped edits.
+
+## 3. Goals
+
+V1 must:
+
+1. maintain an executable, deterministic graph of Nuanu App behavior;
+2. bind reviewed source files to capabilities, surfaces, journeys, invariants,
+   tests, manual cases, and external dependencies;
+3. attest source identity and live runtime identity separately;
+4. fail closed when a changed file or live surface is not mapped;
+5. generate an explainable impact plan before test execution;
+6. execute safe public and authenticated read-only web/PWA checks;
+7. cover desktop browsers plus iPhone Safari/PWA and Android Chrome/PWA;
+8. preserve screenshots, traces, console/network observations, and structured
+   verdicts without storing secrets or unnecessary personal data;
+9. deduplicate and file only confirmed defects to a private Nuanu Flow project;
+10. keep physical-device and approval-gated coverage visibly pending until
+    evidence exists;
+11. allow native iOS/Android testing to be added later without changing stable
+    V1 web/PWA node IDs;
+12. optionally use privacy-normalized aggregate PostHog telemetry to add safe
+    test selection and prioritization without changing deterministic verdicts.
+
+## 4. Non-goals for V1
+
+V1 does not include:
+
+- native TestFlight, App Store, APK, AAB, or development-client testing;
+- writes, pushes, pull requests, or issues in `nuanu-ai/nuanu-web`;
+- source-code fixes in the product repository;
+- automatic account creation, password-reset delivery, profile deletion,
+  payment, booking, phone calls, or other consequential production mutations;
+- automatic Apple or Google consent;
+- CAPTCHA solving or human-verification bypass;
+- a graph database or hosted graph service;
+- AI-generated pass/fail decisions where a deterministic oracle is available;
+- automatic release approval;
+- mirroring every graph node as a Nuanu Flow item.
+- treating analytics as PASS/FAIL evidence, source/runtime/deployment proof, or
+  authority to remove a deterministic test from a plan;
+- automatic Bugs creation from telemetry alone;
+- reading or exporting raw events, persons, session replays, or personal data;
+- executing `HogQLQuery`, SQL/HogQL text, raw-table queries, joins, arbitrary
+  columns, or caller-supplied analytics query bodies;
+- changing PostHog settings, instrumentation, feature flags, cohorts,
+  dashboards, retention, annotations, or product data.
+
+## 5. Autonomy model
+
+The project is expected to autonomously cover most repeatable, machine-
+verifiable web/PWA checks. The initial planning hypothesis is 70–85% of such
+checks after authenticated fixtures and stable oracles exist. This is not a
+promised product-coverage percentage. The pilot must measure it.
+
+Autonomous work includes:
+
+- route and deep-link smoke;
+- public discovery, search, category, filter, map/list, and detail behavior;
+- API response status and schema checks;
+- deterministic auth validation and read-only signed-in flows with dedicated
+  test accounts;
+- responsive browser coverage and browser-engine compatibility;
+- service-worker, cache, reconnect, and offline behavior that does not mutate
+  product data;
+- automated accessibility rules plus keyboard checks;
+- performance baselines and regression alerts;
+- console and failed-request capture;
+- source/runtime drift detection;
+- evidence packaging, defect deduplication, expected-failure regression tests,
+  and Nuanu Flow synchronization.
+
+Human or approval-gated work includes:
+
+- physical-device permission prompts and installed-PWA OS integration;
+- Apple/Google account consent when it cannot be safely pre-seeded;
+- reset-email delivery and inbox verification;
+- `tel:` behavior and other system-app handoffs;
+- subjective visual quality and screen-reader usability;
+- legal or privacy-policy interpretation;
+- any destructive, financial, identity, or production-side-effect action.
+
+## 6. Architecture
+
+```mermaid
+flowchart LR
+    SRC["Read-only upstream source"] --> LOCK["source-lock.json"]
+    LIVE["app.nuanu.com"] --> RUNTIME["runtime-catalog.json"]
+    MAP["Reviewed mappings"] --> BUILD["Nuanu App graph builder"]
+    LOCK --> BUILD
+    RUNTIME --> BUILD
+    CASES["Automated and manual case registry"] --> BUILD
+    BUILD --> GRAPH["graph.json"]
+    DIFF["Exact source diff"] --> IMPACT["Impact planner"]
+    GRAPH --> IMPACT
+    IMPACT --> PLAN["Dry-run test-plan.json"]
+    PH["Optional aggregate PostHog telemetry"] --> TN["Privacy normalization"]
+    TN --> TS["Reviewed telemetry signals"]
+    TS --> PLAN
+    PLAN --> RUN["Safe Playwright and API execution"]
+    RUN --> REPORT["Evidence and run-report.json"]
+    REPORT --> TRIAGE["Deterministic triage and dedupe"]
+    TRIAGE --> OUTBOX["Append-only fenced Flow outbox journal"]
+    OUTBOX --> FLOW["NAPP project / Bugs state"]
+```
+
+The QA repository is the execution plane. Nuanu Flow is the control plane for
+campaign work, confirmed defects, and retest state. Flow availability is not a
+prerequisite for executing tests or preserving a finding.
+
+PostHog is an optional aggregate evidence overlay. It can only add safe tests
+or raise their priority through reviewed graph mappings. It cannot mark a case
+PASS or FAIL, prove source, runtime, or deployment identity, suppress an
+otherwise selected test, or create a Bugs item. Missing access,
+instrumentation, or sufficient aggregate sample blocks only the telemetry lane;
+the safe web/PWA campaign continues.
+
+## 7. Project isolation and file layout
+
+All V1 implementation lives under Nuanu-specific paths:
+
+```text
+tests/nuanu-app/
+  api/
+  auth/
+  public/
+  pwa/
+  accessibility/
+  pages/
+  fixtures/
+  auth.setup.ts
+  README.md
+
+tools/nuanu-app-graph/
+  cli.mjs
+  model.mjs
+  source.mjs
+  runtime.mjs
+  planner.mjs
+  evidence.mjs
+  telemetry.mjs
+  posthog-query-builders.mjs
+  posthog-read.mjs
+  telemetry-policy.mjs
+  flow-outbox.mjs
+  flow-payload.mjs
+  flow-sync-protocol.mjs
+  flow-sync-cli.mjs
+
+tests/nuanu-app-graph/
+  model.test.mjs
+  planner.test.mjs
+  runtime.test.mjs
+  telemetry.test.mjs
+  posthog-query-builders.test.mjs
+  posthog-read.test.mjs
+  telemetry-policy.test.mjs
+  flow-outbox.test.mjs
+  flow-payload.test.mjs
+  flow-sync-protocol.test.mjs
+  flow-sync-cli.test.mjs
+  cli.test.mjs
+  fixtures/
+
+docs/nuanu-app/
+  README.md
+  TEST-STRATEGY.md
+  TEST-CASES.md
+  MANUAL-DEVICE-CASES.md
+  COVERAGE-MAP.md
+  TELEMETRY.md
+  BUG-LIFECYCLE.md
+
+docs/local/nuanu-app/
+  product-graph/mappings.v1.json
+  product-graph/current/
+  product-graph/snapshots/
+  evidence/
+  telemetry/
+  flow-outbox.journal.v1/
+  flow-outbox.snapshot.v1.json
+  flow-outbox.json
+  flow-outbox.lock
+```
+
+`docs/local/nuanu-app/` remains ignored and contains no credentials. Secrets
+stay in `.env` using only `NUANU_APP_*` names. Generated screenshots and traces
+must be sanitized before durable storage or upload.
+
+The only allowlisted shared-harness edits are narrowly scoped additions to
+`playwright.config.ts`, `.env.example`, and `package.json` when a project entry,
+documented variable, or script is genuinely required. The implementation must
+inspect and preserve the existing dirty changes in those files, edit only the
+Nuanu App entries, and verify the resulting diff. Product-specific code and
+state still belong only in the Nuanu-specific paths above.
+
+The implementation must not import from or write to another product's graph,
+test tree, documentation, mappings, generated state, or CLI. A validator must
+reject foreign product namespaces and paths in Nuanu App mappings.
+
+## 8. Graph model
+
+### 8.1 Node kinds
+
+```text
+source_file
+external_dependency
+api_contract
+capability
+route
+surface
+role
+journey
+invariant
+risk
+automated_test
+manual_test
+platform
+```
+
+Stable IDs are namespaced and semantic:
+
+```text
+nuanu-app:source:apps/nuanu-web/src/routes/index.tsx
+nuanu-app:dependency:mapbox
+nuanu-app:api:public-content-feed
+nuanu-app:capability:place-discovery
+nuanu-app:route:root
+nuanu-app:surface:place-detail
+nuanu-app:role:guest
+nuanu-app:journey:find-place-and-show-on-map
+nuanu-app:invariant:auth-data-isolation
+nuanu-app:risk:service-worker-staleness
+nuanu-app:auto:tests/nuanu-app/public/places.spec.ts#filters places
+nuanu-app:manual:DEVICE-IOS-LOCATION-01
+nuanu-app:platform:web-ios-safari
+```
+
+### 8.2 Edge kinds
+
+```text
+source_file --implements--> capability|route|surface|api_contract
+route --renders--> surface
+surface --exposes--> capability
+journey --traverses--> route|surface|capability
+capability --calls--> api_contract|external_dependency
+capability --requires--> role|platform
+capability|journey --guarded_by--> invariant
+capability|journey --has_risk--> risk
+automated_test|manual_test --verifies--> any product node
+platform --supports--> route|surface|journey
+product node --affects--> product node
+```
+
+Every selected test must contain at least one typed reason and a complete edge
+path. Policy-selected tests use explicit reasons such as `full_fallback`,
+`always_run`, `mobile_safety`, or `runtime_drift`; they never fabricate an
+impact edge.
+
+### 8.3 Canonical artifacts
+
+```text
+source-lock.json       exact repository URL, commit SHA, clean-state result,
+                       scoped source roots, and content digest
+runtime-catalog.json   observed URL, timestamp, response identity signals,
+                       routes/surfaces, PWA metadata, APIs, and limitations
+graph.json             sorted nodes, edges, unresolved mappings, and digest
+impact.json            changed files, affected closure, unmapped inputs,
+                       and explainable paths
+test-plan.json         selected automated/manual cases and reasons
+run-report.json        environment, results, evidence index, findings,
+                       uncertainty, and human-pending work
+flow-outbox.journal.v1/ append-only authority for confirmed-defect state,
+                        lease fences, actions, observations, and receipts
+flow-outbox.snapshot.v1.json optional replay checkpoint; never authoritative
+flow-outbox.json       backward-compatible outbox projection cache and the
+                       one-time V1 bootstrap source before journal genesis
+flow-outbox.lock       permanent old-worker compatibility barrier bound into
+                       journal genesis; never a live lease authority
+access-lock.v1.json    exact PostHog host/project/path, effective capability
+                       matrix, immutable window and hash approvals; private
+                       and credential-free
+schema-facts.v1.json   one closed fresh instrumentation preflight with all
+                       metric/breakdown statuses and canonical digest
+query-manifest.v1.json reviewed existing event/property bindings, mandatory
+                       app host scope, and code-owned builder IDs; no bodies
+structured-query-catalog.json generated query metadata and matching hashes;
+                       no generated bodies
+telemetry-catalog.json privacy-normalized aggregate metric availability
+telemetry-signals.json reviewed add-only planner selectors with aggregate
+                       evidence digests and explicit dispositions
+```
+
+Timestamps do not affect semantic graph digests. IDs, nodes, and edges are
+sorted before hashing.
+
+## 9. Source and runtime identity
+
+Source truth and deployed behavior must never be conflated.
+
+`source-lock.json` records:
+
+- full upstream repository URL;
+- exact 40-character commit SHA;
+- scoped roots, initially `apps/nuanu-web` plus explicitly reviewed shared
+  dependencies;
+- clean/dirty state;
+- relevant file-content digest;
+- graph mapping digest.
+
+`runtime-catalog.json` records only observable deployment evidence:
+
+- requested and final URL;
+- capture time and timezone;
+- response headers and safe asset identifiers;
+- discovered routes, query surfaces, PWA metadata, API hosts, and external
+  dependencies;
+- build/version signal when the product exposes one;
+- explicit `unknown` when no deployment-to-commit signal exists.
+
+Absence of a runtime build identifier is `UNVERIFIED`, not a guessed source
+SHA. A successful source-based test run cannot prove that the same source is
+live.
+
+Every graph node carries `source`, `runtime`, or `source_and_runtime`
+provenance. A source-only node that is not observed at `app.nuanu.com` is
+`NOT_DEPLOYED` when the runtime catalog positively establishes its absence, or
+`UNVERIFIED` when runtime discovery is incomplete. Such a node cannot select a
+live runnable test and is excluded from live coverage and pass-rate claims.
+Runtime-only nodes remain testable from observed behavior but keep source
+impact `UNVERIFIED` until reviewed mappings exist. This prevents source-only
+chat, payment, profile, or other features from leaking into the live V1
+campaign.
+
+### 9.1 Bounded semantic settling for the root runtime capture
+
+The root capture may not interpret the first post-navigation DOM as a finished
+application. It uses a bounded semantic-settle reducer before it constructs
+`rootCandidates`. The reducer receives only already-sanitized accessible
+candidate records, not a readiness heuristic, source inspection, network-idle
+wait, or permission to interact with the product.
+
+The observer installs every safety control before the browser navigates: the
+non-safe request abort/ledger, exact main-frame-origin guard, popup and
+additional-page guard, service-worker block, and shutdown-time recheck. A
+guard violation, popup, origin escape, unsafe request that escapes the abort,
+candidate-cap overflow, byte-cap overflow, browser-close failure, or failed
+snapshot is terminal: it replaces neither the current private catalog nor any
+accepted contract. It is not a settling outcome and must be reported as
+`UNVERIFIED`.
+
+After `domcontentloaded` and an exact `https://app.nuanu.com` origin check, the
+observer records sample zero immediately. It schedules subsequent samples at
+absolute monotonic deadlines `t0 + n * 250 ms`, where `t0` is the successful
+sample-zero completion time and `n = 1..19`. The semantic-settle reducer never
+calls a fixed sleep, `waitForTimeout`, `networkidle`, selector race, CSS
+locator, source-name heuristic, or raw-DOM/text API. Each scheduled sample
+rechecks the
+origin/popup/page guards before and after collecting the same sanitized
+accessible-candidate projection. No sample may begin at or after the hard
+deadline `t0 + 5000 ms`; a sampling run therefore has at most 20 samples.
+
+**Session/collector boundary (normative):** `async function observePublicRuntimeSession({ context, rootUrl, now,
+clock, scheduler })` is the only BrowserContext→Page lifecycle owner. It
+creates the Page, installs all Page/context guards and listeners before
+navigation, performs the root navigation, origin checks, settle orchestration,
+manifest request/check, fixed probe, and shutdown checks, then releases the
+Page. The Page never escapes that function: it is neither returned, placed in
+an object/array, retained in a callback result, nor passed anywhere except the
+direct call `publicSnapshot(page)` and a private zero-argument collector closure
+used only during that session. `publicSnapshot(page)` is the sole raw DOM/CSS
+extraction boundary; it returns only a bounded sanitized snapshot plus
+metadata/overflow flags. It may use the fixed structural `locator("html")`
+evaluation and only the reviewed DOM mechanics needed to derive the closed
+native/ARIA role set and permitted accessible-name sources (`aria-label`,
+associated label, non-secret `title`, and button/link text): `document.title`,
+`document.querySelector`, `document.querySelectorAll`,
+`document.getElementById`, `globalThis.CSS.escape`, `tagName`, `labels`,
+`children`, `isContentEditable`, `hasAttribute`, `getAttribute`,
+`querySelector`, and `textContent`. It cannot emit selectors, IDs, classes,
+generic DOM text, source names, or raw DOM objects. No code outside
+`publicSnapshot` may read, call, alias, destructure, return, pass, or
+computed-access DOM globals (`document`, `window`, `globalThis`) or their
+derivatives. No code outside `observePublicRuntimeSession` may operate on a
+BrowserContext or Page lifecycle; `publicSnapshot` may use only its passed Page
+for the reviewed extraction. The reducer receives neither a Page, BrowserContext,
+DOM node, locator, CSS selector, nor source text.
+
+The session returns this data-only result, and no Page, BrowserContext,
+Browser, locator, callback, or raw DOM value may occur in it:
+
+```ts
+type RuntimeObservationSessionResult = Readonly<{
+  root: Readonly<{
+    projection: AccessibleCandidateSnapshot;
+    settle: RuntimeSettle;
+    metadata: RuntimeMetadata;
+  }>;
+  manifest: RuntimePwa;
+  probe: Readonly<{ route: "/__napp_runtime_probe__"; status: number }>;
+  requestEvidence: Readonly<{ apiHosts: readonly string[]; dependencies: readonly string[] }>;
+  overflow: Readonly<{ candidateRecords: boolean; snapshotBytes: boolean }>;
+}>;
+```
+
+Any true overflow is terminal and produces no runtime catalog. The outer
+`observePublicRuntime` may only launch/close the Browser, create the Context,
+call this session, and normalize its data-only result. Production passes the
+private zero-argument collector closure and installed guard check to
+`settleRootCandidateSnapshots({ clock, scheduler, collectSnapshot,
+assertBoundary })`; tests inject a fake collector instead.
+
+A candidate snapshot is the canonical UTF-8 JSON bytes of exactly
+`{surfaces,controls,taxonomy}` after the existing closed role/name
+normalization, per-name secret filtering, sorting, and deduplication. It is
+capped at 64 total records and 16 KiB serialized bytes. The implementation
+compares those exact canonical bytes in memory. It writes only the selected
+final sanitized projection already permitted in `rootCandidates`, its
+SHA-256 digest, and bounded settle metadata; it never persists snapshot
+history, raw DOM, HTML, generic text, classes, IDs, source names, request or
+response data, cookies, storage, inputs, URLs with query/fragment, screenshots,
+traces, or video.
+
+The closed `runtime-catalog.json.settle` record is exactly:
+
+```text
+{
+  status: "STABLE_NONEMPTY" | "STABLE_EMPTY" | "LATE_HYDRATION" | "NEVER_SETTLES",
+  sampleCount: integer 2..20,
+  initialSnapshotEmpty: boolean,
+  candidateSnapshotDigest: lowercase SHA-256 hex | null
+}
+```
+
+`runtimeDigest` includes this record and the selected `rootCandidates`, while
+capture timestamps remain outside the semantic digest as before. The status
+has these exact meanings:
+
+- `STABLE_NONEMPTY`: the first equal adjacent pair is nonempty and sample zero
+  was nonempty. Persist the second snapshot of that pair and its digest.
+- `STABLE_EMPTY`: the first equal adjacent pair is empty. Persist the empty
+  projection and its digest. The root surface is captured, but it supplies no
+  selector candidate and all candidate-dependent work remains `UNVERIFIED`.
+- `LATE_HYDRATION`: sample zero was empty, a later snapshot was nonempty, and
+  the first equal adjacent pair after nonempty appeared is nonempty. Persist
+  the second snapshot of that pair and its digest. It is runtime evidence, not
+  proof that hydration is correct or complete.
+- `NEVER_SETTLES`: no equal adjacent pair was obtained before the deadline.
+  Persist `rootCandidates` as the closed empty projection and
+  `candidateSnapshotDigest: null`; report root candidate discovery as
+  `UNVERIFIED`. A changing final sample is never promoted merely because the
+  deadline elapsed.
+
+`initialSnapshotEmpty` always reports whether sample zero was empty. It is
+therefore false for `STABLE_NONEMPTY`, true for `LATE_HYDRATION`, and either
+truthful value for `STABLE_EMPTY` and `NEVER_SETTLES`. `sampleCount` is the
+number of completed snapshots, including sample zero and the matching second
+snapshot when one exists. For example, nonempty → empty → empty is
+`STABLE_EMPTY` with `initialSnapshotEmpty: false`; it is not a late-hydration
+claim.
+
+An empty snapshot that later changes is not `STABLE_EMPTY`; it remains under
+observation until a nonempty equal pair, an empty equal pair, or the deadline.
+An initial nonempty snapshot that changes before a pair likewise becomes
+`NEVER_SETTLES` at the deadline. The observer may stop immediately after the
+second byte-identical adjacent snapshot; it must not take a third confirmation
+sample or extend the deadline.
+
+The observer accepts injected `clock`, absolute-deadline scheduler, snapshot
+collector, and fake browser/DOM dependencies in tests. Production wires those
+interfaces to monotonic time and Playwright; tests advance the injected clock
+and scheduler without wall-clock delay. Required deterministic cases cover
+stable empty, stable nonempty, late hydration, continuously changing snapshots,
+deadline begin/finish boundaries, exact 64-record/16-KiB boundaries and their
+first overflow, byte-level equality versus semantic-looking but byte-different
+snapshots, guard-before-navigation, observable guard checks before and after
+every sampling tick, popup/origin escape during collection, and popup/origin
+escape during shutdown. The tests also prove that no catalog is returned on a
+terminal guard/close/cap failure, that `observePublicRuntimeSession` is the
+only Context/Page lifecycle owner, that `publicSnapshot` is the only
+mechanical-DOM boundary, that the reducer contains no forbidden waiting, CSS,
+source-name, or raw-DOM API, that missing `settle` data and settle-digest
+mismatch reject normalization fail-closed, and that the data-only session
+result contains no capability or callback.
+
+Task 1B may widen its tracked allowlist only for
+`tests/nuanu-app-graph/cli.test.mjs` and
+`tests/nuanu-app-graph/selector-observation.test.mjs`, and only to extend the
+existing raw runtime-observation fixture builders with the exact mandatory
+`settle` record. Those files may not change unrelated assertions, command
+coverage, or non-`settle` behavior, and the production normalizer must not add
+backward compatibility for pre-`settle` shapes.
+
+Task 1B may additionally modify `tools/nuanu-app-graph/cli.mjs` only to add the
+exact `settle: source.settle` property inside `normalizeObservedCatalog`'s call
+to `normalizeRuntimeObservation`. No other CLI behavior, import, command,
+error, I/O, or attestation logic may change. The value is threaded without
+synthesis, fallback, transformation, or repair, so pre-`settle`, malformed,
+and digest-mismatched catalogs remain fail-closed.
+
+No production runtime command may use this observer until an independent
+review accepts the implementation, deterministic test evidence, and the
+private-file schema change. This design amendment alone does not authorize a
+browser launch or private runtime-catalog replacement.
+
+Before independent approval, no Task 1B implementation file may be staged or
+committed. After approval, one exact-file local commit limited to the Task 1B
+allowlist is permitted; it authorizes neither a push nor a production browser
+command. Flow Task 2 GREEN triggers only the full offline Node graph suite.
+Graph validation and dry-run planning remain gated by a separately authorized
+fresh capture and the independently reviewed selector binding chain.
+
+## 10. Impact planning
+
+The planner consumes two exact source SHAs when a source diff is available.
+For each changed file it must:
+
+1. resolve an exact reviewed source mapping;
+2. compute the typed affected-node closure;
+3. select linked automated and manual tests;
+4. add platform safety tests when a shared mobile/browser component changes;
+5. include always-run environment, auth-isolation, routing, and PWA invariants;
+6. preserve the exact selection reason and path.
+
+If any changed file is unmapped and not explicitly reviewed as no product
+impact, the planner selects all runnable, safe automated web cases plus the
+manual mobile safety tier. Authenticated cases without credentials remain
+`BLOCKED`; third-party handoffs and approval-gated actions remain manual. A
+fallback expands test selection, never action authority. It never guesses a
+narrow scope from filenames, imports, or an LLM similarity score.
+
+When source identity is unavailable, URL-only campaigns use the full runtime
+surface plan and report source impact as `UNVERIFIED`.
+
+Every consequential run begins with graph validation and a dry-run test plan.
+Execution is a separate deliberate step.
+
+An optional `telemetrySignals` input is evaluated only after the deterministic
+source/runtime plan exists. A reviewed mapped signal may select additional
+runnable read-only automated tests. A reviewed elevated, unmapped regression
+signal may expand to the existing full safe fallback and mobile manual safety
+tier. `observe_only`, `suppressed`, and `blocked` signals are retained for the
+report without selecting tests. A nullable mapping is represented explicitly
+as `mappingId: null`; it is never inferred from an omitted field. Every
+telemetry-driven selection preserves a typed `reasons[]` entry with the signal,
+mapping, catalog digest, and graph path. This overlay cannot remove a selected
+test, promote BLOCKED/MANUAL/NOT_DEPLOYED work, or change a case verdict.
+
+## 11. Test strategy
+
+### 11.1 Functional areas
+
+| Area | Required checks |
+| --- | --- |
+| Deployment | availability, redirects, runtime identity, headers, cache and CDN behavior |
+| App shell | SPA load, splash, hydration, console, failed requests, reload and deep links |
+| Places and Map | markers, list, pan/zoom, marker/card consistency, loading, empty and error states |
+| Categories and filters | category chips, `Open now`, editorial collections, combinations, reset and persistence |
+| Place details | query route, content, hours, price, gallery, `Show on map`, `Call`, back and refresh |
+| Search | relevance, empty/no results, case, whitespace, special characters, clear and filters |
+| Geolocation | allow, deny, dismiss, unavailable, stale permission, accuracy and fallback |
+| Authentication | signup/login UI, validation, wrong credentials, session, logout, reset form/validation/handoff, Apple and Google entry; reset delivery and inbox assertions require a controlled inbox plus action-time authorization |
+| Profile and privacy | read-only profile/privacy observation; consent persistence and opt-out network behavior only in a dedicated non-production fixture or an approval-gated manual case |
+| PWA lifecycle | manifest, installability, standalone, service worker, update, offline and reconnect |
+| Routing and SEO | internal routes, query parameters, deep links, page title/meta, 404 and soft-404 |
+| Responsive layout | 320, 375, 393, 412, 768, 1024 and 1440 CSS pixels; safe areas and keyboard |
+| Accessibility | keyboard, focus order/traps, names, landmarks, contrast, touch targets and reduced motion |
+| Performance | cold/warm load, LCP, CLS, INP, slow network, images, map, memory and CPU |
+| API and data | Supabase contracts, empty/error responses, Bali timezone, midnight hours and stale content |
+| Security and privacy | auth isolation, PII in URL/log/cache, session cleanup and relevant response headers |
+
+### 11.2 Execution tiers
+
+**T0 — candidate smoke**
+
+- desktop Chromium and mobile Chromium emulation;
+- deployment, app shell, critical routes, public data, map/list smoke;
+- no product-data mutation.
+
+**T1 — nightly**
+
+- full safe functional matrix;
+- authenticated read-only fixtures when credentials exist;
+- responsive viewports, automated accessibility, API contracts;
+- console/network collection and deterministic screenshots.
+
+**T2 — release**
+
+- Chromium, Firefox, and WebKit;
+- iPhone and Android browser emulation;
+- PWA installability, service-worker update, offline/reconnect;
+- visual regression against an approved baseline;
+- performance baseline and flake repeats for suspicious failures.
+
+Playwright service-worker lifecycle routing is automated only in a dedicated
+Chromium context with service workers enabled and a context-level SW-aware
+mutation guard installed before Page creation. Other automated contexts keep
+service workers blocked. Firefox/WebKit lifecycle coverage remains `BLOCKED`,
+and physical iPhone/Android PWA lifecycle coverage remains `MANUAL`; manifest
+and browser metadata checks may still run in their supported engines.
+
+**T3 — real-device pass**
+
+- physical iPhone Safari and installed PWA;
+- physical Android Chrome and installed PWA;
+- permission prompts, safe area, system keyboard, back behavior, Call/deep
+  links, install/update and OS lifecycle;
+- manual status remains pending until evidence is recorded.
+
+### 11.3 Result vocabulary
+
+Every case receives exactly one status:
+
+```text
+PASS
+FAIL
+EXPECTED_FAIL
+FLAKY
+MANUAL
+BLOCKED
+UNVERIFIED
+NOT_DEPLOYED
+INCONCLUSIVE
+```
+
+Passing one representative test never marks unexecuted sibling cases as
+passing.
+
+### 11.4 Oracle maturity
+
+Checks that lack a deterministic approved oracle begin as `UNVERIFIED` or
+manual observations; they are not release gates.
+
+- Search relevance requires a versioned query-to-expected-content corpus tied
+  to an approved content snapshot. Before that corpus exists, automation may
+  verify mechanics, filtering, and stable exact matches, but not subjective
+  ranking quality.
+- Automated geolocation uses an injected coordinate fixture and an explicit
+  map-center tolerance. Physical GPS accuracy remains a real-device
+  observation.
+- LCP, CLS, INP, memory, CPU, and slow-network results require a named browser,
+  machine or CI class, network profile, sample count, aggregation rule, and an
+  owner-approved baseline/budget. The first campaign records a five-run
+  baseline without failing the release. A later reviewed mapping can promote a
+  metric to a gate.
+- Dynamic hours, price, and content expectations require an approved API
+  contract or snapshot and an explicit `Asia/Makassar` clock. Without one,
+  tests verify internal consistency and report business correctness as
+  `UNVERIFIED`.
+
+### 11.5 Optional PostHog telemetry overlay
+
+The first telemetry campaign is baseline-only. It records aggregate evidence
+without a release threshold. Thresholds, comparison windows, minimum sample
+sizes beyond the privacy floor, regression rules, and ownership must be
+separately reviewed before any telemetry signal can be called a regression.
+PostHog real-user measurements complement but never replace the named lab
+performance profile in Section 11.4 and never gate a release by themselves.
+
+The initial logical metric inventory is:
+
+- telemetry freshness;
+- route health;
+- discovery, search, and place-detail funnels, but only where existing schema
+  metadata proves the event names;
+- aggregate JavaScript exception count/rate;
+- p75 LCP, CLS, and INP;
+- browser, OS, device, installed-PWA/browser-mode, and release breakdowns only
+  where existing schema metadata proves the fields.
+
+V1 has one complete code-owned query map. Telemetry freshness is one total;
+route health is ordered route-attempt denominator then route-success numerator;
+discovery/search/place-detail are fixed two-/three-/two-step funnels;
+JavaScript exception rate is ordered eligible-session denominator then
+exception-session numerator; each Web Vital is one p75 primary plus one
+independent total companion. `sampleSize` comes only from the sole total, the
+rate denominator, the funnel first-step population, or the p75 companion. No
+result, row, bucket, or array length is a population. Route health therefore
+means only the schema-proven instrumented conversion from route attempt to
+route success, never uptime, deployment health, or release proof.
+
+Every adapter is constructed with one explicit immutable window
+`{startAt,endAt,interval:"day"}`. Both timestamps are canonical UTC midnights,
+the duration is exactly 24 hours, and the window is never derived from
+the current clock. It is rendered into and changes the hash of every query; the
+access lock binds the same window digest to every approved hash.
+
+One closed schema-facts observation contains one preflight identity, timestamp,
+target project/capability evidence, exact host property, statuses for all nine
+metrics, statuses for all five breakdown fields, exception-fingerprint proof,
+and a canonical digest. The read layer requires the observation to be no older
+than 30 minutes and requires the same identity/digest in the body-free manifest
+and access lock, including the capability-inventory preflight identity.
+Builders validate only binding/query/window structure; they do not prove
+freshness. The manifest omits NOT_INSTRUMENTED metrics, cannot carry
+a status, and cannot contain an empty or partial executable binding.
+
+Every p75 metric and p75 breakdown cohort requires an independent total-count
+companion over the same event population, UTC window, exact app-host predicate,
+filters, and breakdown dimensions. The code-owned pair is bound by immutable
+metric ID and ordered dimensions, and both complete queries are validated and
+allowlisted before either runs. The companion count is the only source of
+`sampleSize`: PostHog result-array length, quantile payload shape, bucket count,
+or percentile metadata is never treated as sample size. Missing, mismatched,
+duplicate, or ambiguous count evidence makes the p75 metric `UNAVAILABLE`; an
+unsupported exact companion also leaves it `UNAVAILABLE`. A companion count
+below 20 suppresses the paired p75 value and cohort identity.
+
+The transport/adapter boundary, not the pure privacy normalizer, proves p75
+sample origin. It alone sees both provider responses, joins exactly one
+percentile and count by immutable metric ID, completed bucket, ordered
+dimensions, and coordinate, then discards raw shapes and emits a strict
+candidate. The normalizer validates only structural attestation
+(`sampleSizeSource`, distinct hashes, top-level primary-hash equality, and a
+recomputed pair digest), applies the privacy floor, and never claims it detected
+raw missing/duplicate/mismatched/ambiguous rows.
+
+There is one canonical pair-digest input across builder, adapter, and
+normalizer:
+
+```js
+{
+  metricId,
+  dimensions,
+  percentile: { role: "p75_value", queryHash },
+  sampleCount: { role: "sample_count", queryHash },
+}
+```
+
+The shared helper strictly validates that exact object and hashes its canonical
+JSON with object keys sorted and array order preserved. No layer defines a
+second projection or digest algorithm.
+
+Telemetry records are tagged unions. `queryHash` is null only for
+`NOT_INSTRUMENTED` or pre-query `BLOCKED` when no complete query exists; once a
+primary query exists, its hash remains required for AVAILABLE, UNAVAILABLE,
+SUPPRESSED, and post-query BLOCKED evidence. A p75 AVAILABLE record has valid
+non-null pairing, a p75 SUPPRESSED record retains that pairing without value or
+cohort identity, and invalid/unsupported/missing-companion UNAVAILABLE records
+have null pairing plus the primary percentile hash. Every non-p75 record has
+null pairing.
+
+An absent event or property is `NOT_INSTRUMENTED`; a complete supported primary
+whose exact companion/query result cannot be used is `UNAVAILABLE`; missing,
+unknown, inaccessible, or broader-than-unconfirmed access is `BLOCKED`.
+No missing field is guessed from URLs, payloads, source code, or another
+product. A release property is an analytics grouping only and is not a
+deployment identity signal.
+
+Telemetry access is exact-scope and fixed-structure. Code-owned immutable
+builders may emit only allowlisted PostHog structured query node kinds,
+fields, aggregate operators, and exact-equality filters. The private manifest
+may bind freshly inspected existing event/property identifiers to a named
+builder from the complete query-ID map, but cannot contain or override a query
+body, role, arity, order, numerator, denominator, or window. Every complete
+generated query is recursively validated and then hashed before transport.
+`HogQLQuery`, SQL/HogQL text, raw event/table/person/replay nodes, arbitrary
+columns, joins, and unknown query fields are rejected before any client call.
+Future HogQL support remains `BLOCKED` until a separately reviewed AST
+allowlist exists.
+
+For p75 LCP/CLS/INP, the immutable builder emits a percentile/count query pair,
+not a standalone percentile query. Pair validation proves identical window,
+event, host scope, filters, and breakdown structure; the only allowed
+aggregation difference is p75 value versus total sample count. The transport
+validates both queries and their pair digest before the first request, then
+pairs aggregate responses by metric ID, completed bucket, and ordered
+breakdown coordinates rather than response position. Any partial or ambiguous
+pair is discarded in memory and the metric remains `UNAVAILABLE`.
+
+Every generated metric query contains an exact equality predicate binding a
+freshly inspected existing host/environment event property to
+`app.nuanu.com`. A dedicated-project or environment assertion is never
+sufficient without that reliable property and rendered predicate. Without a
+reliable property/scope mapping, the metric or whole telemetry project is
+`BLOCKED` or `NOT_INSTRUMENTED`, selects no tests, and the deterministic QA
+campaign continues. The constant host predicate may exist in the private
+generated request, but observed raw URLs and query values are never persisted.
+
+The access lock stores the effective capability matrix, not a trusted role
+label or a single `readOnly` flag. The matrix records organization membership,
+every accessible project's default visibility and resource level, target
+project resource levels, invite/member-management ability, aggregate-query
+ability, access to persons/replay/raw events, and every effective write
+capability. Membership is one of none/member/admin/owner/unknown; visibility is
+private/organization/public/unknown; resource level is
+none/view/edit/admin/unknown. These labels are informational. Authorization
+depends on every explicit capability cell being complete, aggregate read and
+scoped transport being available, and least privilege or the exact broader
+consequence being confirmed. Unknown is distinct from false. Before invitation
+acceptance, show every visible capability; if least privilege cannot be proven, remain
+`BLOCKED` unless the user explicitly confirms the exact broader membership
+consequence. After acceptance, read back the complete matrix immediately;
+any mismatch stops and no query runs.
+
+The invitation browser session is used only for invitation, scope, schema, and
+capability read-back. Production aggregate reads use a separate injected
+transport fixed to one exact HTTPS host, target project resource, and query
+endpoint path, with POST as the only method. Its credential is supplied only
+by a host secret provider such as macOS Keychain or a CI secret store and never
+appears in CLI arguments, environment examples, logs, artifacts, or chat. If a
+separately scoped `query:read` credential or approved connector is unavailable,
+automated telemetry remains `BLOCKED`; the core QA campaign continues. HTTP
+401, 403, 429, and 5xx responses are normalized to telemetry `BLOCKED`, with
+response data discarded. The injected provider returns only a bounded closed
+envelope: listed status, `redirected:false`, and on 200 an exact logical ID,
+query/window hashes, result kind, and at most 1,000 bounded aggregate
+coordinates with code-owned series roles/order. Redirects, unexpected status,
+unknown/forbidden fields, oversized coordinates, and malformed 200 envelopes
+map to the existing `HTTP_PROVIDER_BLOCKED` limitation. Synthetic adapter tests
+do not certify a production provider; live schema and connector-envelope
+compatibility remain `UNVERIFIED` and no query runs until read back.
+
+Only privacy-normalized aggregates may leave the in-memory adapter. The lane
+does not read, retain, attach, or export raw events, persons, session replays,
+exact URLs or query values, account or device identifiers, IP addresses,
+precise GPS, email or phone data, search text, exception messages, stacks or
+code variables, request headers, or request/response bodies. Breakdown values
+are persisted only when their dimension is present in an explicitly reviewed
+public categorical allowlist, the value exactly matches, and the cohort
+contains at least 20 observations. A mismatch rejects normalization and never
+silently switches to random-ID mode. An omitted dimension uses random-ID mode.
+One catalog build owns one ephemeral memo so each distinct exact raw value gets
+one catalog-wide random ID and repeated values reuse it; the reverse map is
+discarded before return and unkeyed hashes are not treated as privacy.
+
+JavaScript exception groups retain only a provider-generated fingerprint when
+the adapter freshly matches the official-schema evidence digest to the exact
+schema facts and manifest binding and the group has at least 20 observations.
+Fingerprint grouping uses a dedicated code-owned aggregate query that is
+mutually exclusive with an ordinary breakdown on that metric and has its own
+approved hash. It never treats the fingerprint as a normal dimension. Without
+proof, the auxiliary query/hash/group/attestation is omitted with
+`FIELD_NOT_PROVEN` while aggregate exception count/rate remains available.
+The pure normalizer checks only the attestation's exact structure, not freshness
+or binding. Otherwise only total exception count/rate is kept. Freshness may
+additionally retain the completed aggregate bucket timestamp.
+
+The durable telemetry catalog has exactly
+`{schemaVersion: 1, provider: "posthog", accessLockDigest, capturedAt, metrics,
+catalogDigest}`. Metrics are sorted and unique. `catalogDigest` is the
+canonical digest of every other field, including `capturedAt`; only the digest
+field itself is excluded.
+
+## 12. Browser and mobile-web matrix
+
+Automated engines and emulation:
+
+- Desktop Chrome / Chromium;
+- Desktop Firefox;
+- Desktop Safari behavior through Playwright WebKit;
+- iPhone 13-class and current large-iPhone viewports through WebKit;
+- Pixel 5-class and current Android viewport through Chromium;
+- portrait is mandatory; landscape is a compatibility check, not a supported
+  installed-PWA orientation promise.
+
+Real-device acceptance requires at least:
+
+- one currently supported iPhone running Safari;
+- one currently supported Android device running Chrome;
+- clean browser and installed-PWA states;
+- permission reset capability;
+- cache/service-worker cleanup capability;
+- sanitized screenshot or screen recording evidence.
+
+WebKit and Chromium emulation reduce risk but are not substitutes for physical
+device evidence.
+
+## 13. Authentication and test data
+
+Authenticated automation uses dedicated test accounts and Playwright
+`storageState`. Tests must not log in through the UI before every case.
+
+Required secrets are referenced, never committed:
+
+```text
+NUANU_APP_BASE_URL
+NUANU_APP_TEST_EMAIL
+NUANU_APP_TEST_PASSWORD
+NUANU_APP_AUTH_STORAGE_STATE
+```
+
+Optional provider fixtures may be added only after the owner supplies safe
+Apple/Google test arrangements. Password reset is blocked until a controlled
+test inbox and separate action-time permission to send reset email exist.
+
+Production privacy preferences are not changed by autonomous T1 tests. Consent
+persistence and analytics opt-out network assertions require either a
+dedicated non-production fixture or a separately approved manual action using
+a test account. Read-only inspection of the visible privacy state remains
+safe.
+
+Tests must use existing read-only data wherever possible. Any future seeded
+mutation flow requires a non-production environment, an explicit allowlist,
+unique test-data prefix, cleanup verification, and separate owner approval.
+
+## 14. Evidence contract
+
+Each run records:
+
+- source and runtime identities;
+- browser, engine, viewport, locale, timezone, PWA/browser mode, and network
+  profile;
+- selected tests and selection reasons;
+- result status and deterministic assertion;
+- screenshots, traces, videos, console, failed requests, and relevant API
+  observations;
+- known limitations and uncertainty;
+- manual, blocked, unverified, not-deployed, and inconclusive cases;
+- sanitized finding fingerprints and Flow synchronization state.
+- optional telemetry status, catalog digest, allowlisted public categorical
+  breakdowns or catalog-local random IDs, p75 count-companion pairing status,
+  privacy suppression counts, and selection reasons.
+
+Evidence must redact credentials, tokens, cookies, authorization headers,
+personal data, and private chat content. A visible click, toast, or navigation
+is not proof of a completed backend action.
+
+Raw PostHog responses never become evidence. If normalization detects a
+forbidden field, the response is discarded and the dependent metric is
+`BLOCKED`; no raw fallback artifact is written.
+
+## 15. Defect confirmation and regression policy
+
+A failed test becomes a confirmed defect only after:
+
+1. reproduction in a fresh browser context;
+2. exclusion of locale, hydration, selector collision, extension noise,
+   service-worker cache, bot protection, and rollout skew;
+3. capture of exact actual and expected behavior;
+4. evidence collection;
+5. duplicate search using normalized symptom, object, route/endpoint, impact,
+   root-cause hypothesis, and runtime identity;
+6. severity assignment;
+7. a regression test asserting correct behavior when automation is safe.
+
+Confirmed product bugs use `test.fail()` while the bug exists. Flaky tests use
+quarantine and remain distinct from known product bugs. A suspicious failure
+is repeated up to ten times before it is classified as flaky or deterministic.
+
+QA closes a defect only after deployed-fix verification. A coding agent or
+developer does not close it merely by providing a patch.
+
+Telemetry alone never confirms a defect. It may add a safe reproduction test
+to the plan or raise a candidate's triage priority, but the normal fresh-context
+reproduction, deterministic oracle, evidence, deduplication, and regression
+policy still applies before any Bugs item is created.
+
+## 16. Nuanu Flow control plane
+
+Create, after action-time confirmation and duplicate re-check:
+
+```text
+Workspace name: Nuanu App
+Workspace slug: nuanu-app
+Workspace purpose: private QA control plane for app.nuanu.com product mapping,
+                   campaigns, evidence, confirmed defects, and retesting
+
+Project name: Nuanu App Map
+Project identifier: NAPP
+Visibility: private
+```
+
+Workspace creation may auto-create a project. The setup must list and read
+back projects before creating another one.
+
+The exact `nuanu-app` slug is currently blocked by a provider-reported slug
+conflict. No alternate slug is authorized or silently substituted. Any
+alternate requires a prior user-approved design amendment and rebinding of all
+exact workspace, action, and confirmation-batch identities.
+
+Workflow columns:
+
+```text
+Backlog         backlog, default
+Ready for QA    unstarted
+Testing         started
+Bugs            unstarted; confirmed defect intake only
+Retest          started
+Verified        completed
+Cancelled       cancelled
+```
+
+`Bugs` is a workflow state inside the single `NAPP` project. It is not a
+second project.
+
+Labels:
+
+```text
+Bug, Coverage, Manual, Analytics
+Map, Places, Search, Auth, Profile, PWA, Privacy
+Desktop, iOS Web, Android Web
+Evidence Complete, Blocked
+```
+
+Priority represents severity: urgent, high, medium, low. Separate severity
+labels are unnecessary.
+
+Recommended saved views:
+
+- Open bugs by priority;
+- iOS Web;
+- Android Web;
+- Blocked or manual;
+- Retest;
+- Missing complete evidence.
+
+The initial control-plane backlog contains fourteen campaign-level coverage
+items, not one item per graph node. Initial items cover deployment, app shell,
+places and map, search/filters, place details, location, auth,
+profile/privacy, PWA, routing, accessibility/performance, a read-only PostHog
+telemetry baseline, and the two real-device lanes. The telemetry item remains
+Backlog/assist and uses `Coverage`, `Analytics`, `Desktop`, `iOS Web`, and
+`Android Web`. It never enters Bugs unless an independently reproduced product
+defect satisfies Section 15.
+
+No teammate invitations, objectives, automations, or unrelated workspace
+content are created in V1.
+
+## 17. Flow item contract
+
+Every confirmed defect is created in `Bugs` with:
+
+- title: `[BUG][platform] specific observable symptom`;
+- HTML description sections for environment, preconditions, steps, actual,
+  expected, impact, evidence, source/graph relationship, regression test, and
+  deduplication result;
+- exact state, priority, and labels; sanitized evidence metadata remains local
+  until the attachment read-back capability is proven;
+- an idempotency fingerprint stored in the local outbox metadata;
+- immediate read-back of the created `NAPP-*` item with exact UUID binding,
+  title, generated HTML, state, priority, and exact label set.
+
+Before creation, the host executes a descriptor-bound search action over open
+and recently closed items. The local module never receives a callable Flow
+client and cannot mutate cloud state. It persists one closed action at a time;
+the Codex/Nuanu Flow MCP host displays every mutation consequence, obtains the
+task-specific action-time confirmation, invokes one exact tool, and applies
+only a matching sanitized observation. If a mutation outcome is ambiguous,
+the reducer fails closed for reconciliation and never emits a blind retry. If
+Flow or the confirmed host is unavailable, the finding remains in the private
+outbox and the test run does not claim the ticket exists.
+
+The outbox uses a versioned immutable fingerprint derived from normalized
+product ID, symptom, affected object/route, platform, runtime identity, and
+deterministic evidence signature. Its authority is the portable append-only
+directory `docs/local/nuanu-app/flow-outbox.journal.v1/`. Sequence files are
+named by exactly twenty zero-padded decimal digits plus `.json`, begin at one,
+and are contiguous. A missing sequence, unexpected directory entry, duplicate
+semantic sequence, invalid UTF-8/JSON, symlink, non-regular file, non-canonical
+event, digest mismatch, or illegal replay transition rejects the journal.
+
+Every event contains exact `schemaVersion`, `sequence`, `publicationId`,
+`kind`, `recordedAt`, `previousEventDigest`, `previousOutboxDigest`,
+`nextOutboxDigest`, `leaseId`, `fenceSequence`, kind-specific `payload`, and
+`eventDigest`. Digests are lowercase `sha256:` plus 64 hexadecimal characters.
+`previousEventDigest` is null only for sequence one. `eventDigest` hashes the
+canonical JSON of every preceding event field; object keys are sorted and
+array order is preserved. Outbox digests use the same canonical JSON rule over
+the exact V1 `{version:1,entries}` state. The only event kinds are:
+
+```text
+bootstrap_v1      establishes an empty or validated legacy V1 outbox
+lease_acquired    installs a new random leaseId and sequence fence
+lease_renewed     keeps leaseId/owner/acquiredAt and advances the fence
+outbox_committed  validates and replaces the logical outbox, then releases it
+lease_released    releases an uncommitted transaction without changing state
+```
+
+`bootstrap_v1` is sequence one and embeds the complete canonical outbox plus
+`source: "empty_v1" | "legacy_v1_projection"` and the permanent legacy-barrier
+digest. A lease event never changes the
+outbox digest. `lease_acquired.fenceSequence` equals its own event sequence.
+`lease_renewed.fenceSequence` equals its own event sequence and names its
+previous fence. Commit and release carry the current lease ID and fence.
+`outbox_committed` embeds the complete next canonical outbox, validates the
+existing closed transition rules, and clears the active lease in that same
+event. There is never a mutable live-lease authority: the only lock-format file
+is the immutable permanent old-worker compatibility barrier described below.
+V1 has no delete, truncate, replace, rollback, or automatic compaction
+operation for published events.
+
+Publication is one filesystem compare-and-set. The writer creates a complete
+same-private-root candidate with `O_CREAT|O_EXCL|O_NOFOLLOW`, mode `0600`,
+writes and fsyncs it, changes it to `0400`, then hard-links it to the next exact sequence
+path once; no rename or overwrite fallback is allowed. After every link return
+or throw, normalize exactly to `{kind:"RETURNED"}` or
+`{kind:"THROWN",errorClass:"EEXIST"|"UNSUPPORTED"|"OTHER"}`;
+`UNSUPPORTED` is exactly `EXDEV|EPERM|EOPNOTSUPP|ENOTSUP`. Candidate state is
+then exactly `EXACT`, `ABSENT`, or `INVALID`. Candidate absence may proceed only
+with a matching destination; replacement is
+`INVALID_OUTBOX_JOURNAL_CANDIDATE` and is never unlinked.
+
+The destination then enters exactly one state: `MATCHING` is this event's exact
+bytes/publication ID/digest/mode and, while the candidate is exact, the same
+inode; `DIFFERENT_VALID` is a canonical different-publication event at this
+sequence that validates from the expected tail; `ABSENT` is no-follow
+`ENOENT`; `INVALID` is every remaining state. No errno or prose alias changes
+that classification. The literal 16-cell oracle is:
+
+| Normalized link outcome | `MATCHING` | `DIFFERENT_VALID` | `ABSENT` | `INVALID` |
+| --- | --- | --- | --- | --- |
+| `RETURNED` | `PUBLISHED` | `INCONSISTENT` | `INCONSISTENT` | `INVALID` |
+| `THROWN(EEXIST)` | `PUBLISHED` | `CAS_LOST` | `INCONSISTENT` | `INVALID` |
+| `THROWN(UNSUPPORTED)` | `PUBLISHED` | `CAS_LOST` | `UNSUPPORTED` | `INVALID` |
+| `THROWN(OTHER)` | `PUBLISHED` | `CAS_LOST` | `FAILED` | `INVALID` |
+
+`PUBLISHED` fsyncs the journal directory and cleans an exact candidate before
+accepting the event once. `CAS_LOST` fsyncs, cleans, and replays the
+`DIFFERENT_VALID` event: bootstrap adopts only an identical payload,
+acquisition reports `OUTBOX_JOURNAL_CAS_LOST` for outer replay, and renewal/
+commit/release report `OUTBOX_LEASE_FENCED`. `FAILED` cleans the attested-absent
+case before reporting its named error. These are the only cleanup-eligible
+tokens. `INCONSISTENT` fsyncs a `DIFFERENT_VALID` destination when present but
+retains the candidate; `UNSUPPORTED` also retains it; `INVALID` preserves both
+paths. These nonretryable cells are therefore physically blocked from a later
+publication until filesystem/operator review and cannot collapse through a
+cleanup-fsync error. There is no in-primitive retry or retarget; only `FAILED`
+permits a later fresh public-call publication retry.
+
+`candidateState:ABSENT × destination:MATCHING` is an executable `PUBLISHED`
+subcase. After journal-directory fsync, re-attest no-follow candidate absence,
+skip unlink, and fsync the private root. Success accepts the event; failure is
+`OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN`, retains the matching event, and
+requires a fresh mutating inventory/root-fsync before replayed success.
+
+Cleanup has two mutually exclusive failure phases. It attests this call's
+candidate, invokes unlink once, then lstat checks the same path. If the same
+candidate remains, `OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED` overrides the cell
+result and the candidate blocks publication; a replacement is
+`INVALID_OUTBOX_JOURNAL_CANDIDATE` and is never unlinked. Inability to attest
+either the exact candidate or no-follow absence is the same invalid-candidate
+result. Once lstat proves absence, the candidate is not a blocker, regardless
+of unlink return/throw.
+Failure of the following private-root fsync is instead
+`OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN`. A fresh mutating call
+recovers by completing inventory and fsyncing the private root even when no
+candidate exists, before creating any candidate. If a candidate reappears
+after a crash, ordinary bounded recovery classifies it. No absent candidate is
+treated as an orphan blocker; when it stays absent, the fresh-call root fsync
+is sufficient and no path deletion is required. This post-unlink error occurs
+only for cleanup-eligible `PUBLISHED`, `CAS_LOST`, or `FAILED`; after fresh-call
+root fsync, destination replay preserves the original disposition as
+`MATCHING`, `DIFFERENT_VALID`, or `ABSENT`, respectively.
+Before a write, the service inventories both exact journal-event and migration-
+barrier candidate patterns under the fixed private root. The inventory is
+capped at 16 candidates, each at the event-byte cap, and 16 event caps in
+aggregate. A candidate attested as the second inode link of its exact published
+event or barrier is removed through the two cleanup phases. Any other candidate
+may belong to an active or crashed pre-link publisher, so mutation fails
+`OUTBOX_JOURNAL_PUBLISHER_UNQUIESCED` until external quiescence is proven; it is
+never age-guessed or automatically deleted. Every mutating inventory fsyncs the
+private root even when empty, and no candidate creation precedes that fsync.
+If that mandatory fsync fails on a call that performed no candidate unlink,
+the call returns `OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN`, creates or
+links nothing, and does not retry itself. A later fresh mutation must repeat
+the bounded inventory and private-root fsync successfully before it may create
+a candidate. This code never replaces
+`OUTBOX_JOURNAL_DIRECTORY_DURABILITY_UNKNOWN` for journal-directory
+create/adopt or `OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN` for first barrier
+visibility durability.
+Invalid or over-cap inventory fails closed before a new candidate is created.
+Read/replay performs the same bounded inventory validation but never candidate
+cleanup. Invalid name/type/mode is `INVALID_OUTBOX_JOURNAL_CANDIDATE`;
+per-file, count, or aggregate overflow is
+`OUTBOX_JOURNAL_ORPHAN_LIMIT_EXCEEDED`; metadata that changes during
+attestation is `OUTBOX_JOURNAL_PUBLISHER_UNQUIESCED`.
+If a `MATCHING` or `DIFFERENT_VALID` destination is visible but its directory
+fsync fails, the event is never rolled back and the call reports
+`OUTBOX_JOURNAL_DURABILITY_UNKNOWN`; the next operation must replay before it
+retries. Only `THROWN(*) × DIFFERENT_VALID`, whose oracle token is
+`CAS_LOST`, cleans this call's candidate through the two phases before
+returning; `RETURNED × DIFFERENT_VALID`, whose token is nonretryable
+`INCONSISTENT`, retains it. Every `* × MATCHING` cell retains published
+residue. This code never represents the earlier private-root fsync that makes
+a created/adopted journal directory durable.
+
+The internally generated `leaseId` and `publicationId` are lowercase UUIDv4
+values and never caller-selected. Lease acquisition, renewal, commit, and
+release all publish through the same sequence. An owner may acquire only when
+there is no active lease or the previous `expiresAt` is strictly before its
+injected current time; equality remains locked. A new acquisition receives a
+new lease ID and a fence equal to its winning event sequence. A transaction
+may commit only while the replayed tail still carries its exact lease ID and
+fence and its snapshot digest still matches. Therefore an older writer paused
+before publication loses the next sequence to a later owner, reloads a newer
+fence, and cannot erase that owner's state. Renewal advances the fence; commit
+uses the renewed fence. Forged, cross-service, expired, released, already
+committed, stale-snapshot, or fenced transactions cannot write.
+
+A transaction that returns or throws without commit publishes one
+`lease_released` event only if its exact lease/fence remains current. That event
+advances the journal tail but preserves the outbox and outbox digest; a thrown
+operation then rethrows its original error after successful release. An expired
+but still-current owner may publish this release. A fenced, cross-service,
+already-released, or already-committed capability publishes nothing. Tests
+therefore require byte-identical logical outbox state, not a byte-identical
+journal tail, for truthful no-commit cleanup.
+
+`flow-outbox.snapshot.v1.json` is an optional replay checkpoint containing the
+through-sequence/event digest, canonical outbox and digest, active lease, and a
+wrapper digest. It may skip state application only after the reader validates
+the immutable event chain through its bound sequence. Missing, stale,
+malformed, symlinked, or digest-mismatched snapshots are ignored in favor of a
+full journal replay. `flow-outbox.json` retains the exact V1 outbox shape for
+Tasks 3–7 and operators, but after journal genesis it is a projection cache
+only. Snapshot or projection write failure cannot undo a published journal
+event or turn a durable local commit into a retryable non-commit; later reads
+replay the journal and later writes may refresh both caches.
+
+Before a journal exists, a read validates and returns the existing V1
+`flow-outbox.json` without mutation. A first mutation does not treat lock
+absence as quiescence. It atomically hard-links a complete old-format-compatible
+mode-0600 permanent barrier to `flow-outbox.lock`; the exact record has owner
+`journal-v1-barrier-<UUIDv4>`, its canonical acquisition time, and expiry
+`9999-12-31T23:59:59.999Z`. Existing Task 1 workers therefore remain locked,
+and the uncommitted stale-reclaim path sees an unexpired record. A pre-existing
+exact barrier is adopted after inode/content attestation; any other lock or any
+reclaim path is `OUTBOX_LEGACY_BUSY` and publishes no genesis. The barrier is
+never renewed or deleted. A crash residue is handled by the same bounded
+candidate rules, never by reclaiming the barrier.
+
+When a barrier link is required, it uses the same normalized outcome and
+mutually exclusive destination oracle as the literal event matrix, substituting
+mode 0600, the fixed lock path, and private-root fsync. `MATCHING` is this exact
+candidate barrier; `DIFFERENT_VALID` is only a different exact canonical
+journal barrier; `ABSENT` is no-follow ENOENT; every other lock state is
+`INVALID` and maps to `OUTBOX_LEGACY_BUSY` without deletion. `PUBLISHED`
+installs this barrier; `THROWN(*) × DIFFERENT_VALID` cleans this candidate and
+adopts the attested barrier; `RETURNED × DIFFERENT_VALID` is inconsistent; the
+absent cells keep the event-matrix errors. Candidate cleanup is limited to the
+same three tokens: `PUBLISHED`, `CAS_LOST`, and `FAILED`; inconsistent,
+unsupported, and invalid barrier cells retain their candidate and block later
+mutation. For `candidateState:ABSENT × destination:MATCHING`, re-attest
+no-follow absence, skip unlink, and fsync the private root once. Success adopts
+the published barrier. Failure is
+`OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN`, preserves the barrier, and requires
+a fresh mutator to re-attest/fsync it without relinking; it is not candidate-
+cleanup uncertainty. The same two cleanup phases apply only when an exact
+cleanup-eligible candidate exists.
+If an exact barrier is visible but its first private-root durability fsync
+fails, preserve it, publish no genesis, and return
+`OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN`; a later mutator re-attests/fsyncs
+that barrier rather than retrying its link.
+
+Only while that permanent barrier is attested does the mutator read legacy
+JSON, create/adopt the journal directory, and publish sequence one. Directory
+creation is one non-recursive mode-0700 `mkdir`; success or `EEXIST` is followed
+by lstat/open/fstat inode and mode attestation plus private-root directory fsync
+before publication. Concurrent creators adopt only that same directory. A
+crash leaves it absent or empty; recovery repeats attestation and parent fsync.
+A nonempty directory must pass contiguous replay and is never reset. Parent
+fsync failure before any event candidate or link publishes no event and reports
+the distinct `OUTBOX_JOURNAL_DIRECTORY_DURABILITY_UNKNOWN`. A later mutating
+call repeats directory attestation and the private-root fsync; only after that
+succeeds may it publish. The failed call performs no automatic retry. This is
+safe for a fresh-call retry because replay has no new event, unlike post-link
+`OUTBOX_JOURNAL_DURABILITY_UNKNOWN`.
+
+Genesis imports the canonical legacy file exactly once, or uses the empty V1
+outbox when absent, and binds the barrier digest. Concurrent bootstrappers adopt
+the same barrier, contend for sequence one, and the loser validates the winning
+genesis. Every later replay re-attests the bound barrier; loss or replacement
+fails closed so an old writer can never silently resume. Malformed, oversized,
+symlinked, or privacy-unsafe legacy JSON fails closed. Once genesis exists,
+projection content is never imported again.
+
+V1 caps are exact: at most 100,000 journal events, 2 GiB total serialized
+journal bytes, `MAX_OUTBOX_BYTES + 65,536` bytes per event, and
+`MAX_OUTBOX_BYTES + 65,536` bytes for the snapshot, plus at most 16 candidate
+files and exactly
+`MAX_JOURNAL_CANDIDATES * MAX_JOURNAL_EVENT_BYTES` aggregate candidate bytes.
+The existing 4 MiB outbox, 500-entry, finding, attachment, action, descriptor,
+observation, and lease caps remain unchanged. Reaching a journal cap fails
+before candidate publication with `OUTBOX_JOURNAL_LIMIT_EXCEEDED`; it does not
+delete history. A separately reviewed later version must define any checkpoint
+promotion or compaction migration.
+
+The factory still returns exactly five methods: `readOutbox`,
+`withOutboxTransaction`, `enqueueConfirmedFinding`, `recoverOutbox`, and
+`fingerprintFinding`. Production derives the journal, snapshot, projection, and
+permanent legacy-barrier paths from the fixed private root and accepts no CLI,
+environment, or caller path. Temporary tests may inject fixed paths and
+filesystem operations through the factory only. The opaque transaction
+preserves `ownerId`, `acquiredAt`,
+`expiresAt`, `assertOwned`, `renew`, `snapshot`, `snapshotDigest`, and `commit`,
+and adds read-only `leaseId` and `fenceSequence`. V1 entry states remain exactly
+`pending_sync`, `syncing`, and `failed`; receipt and recovery transitions are
+unchanged. Evidence-capable completion requires a later outbox schema version
+rather than a dormant V1 `synced` path.
+
+The fingerprint is included in the Flow item description. Recovery plans a new
+search after an ambiguous create, but a zero-result recovery search cannot
+authorize another create without reconciliation; global exactly-once is not
+claimed without server-side idempotency. A unique recovery match becomes a
+durable candidate ID and must pass the same exact item read-back before its
+receipt is cleared. Proposals are non-executable; a separate descriptor-
+revalidating dispatch occurs only after action-time confirmation. Successful
+search and create-ack observations atomically replace the current action with
+their one safe successor using a separately fresh descriptor binding, so no
+persisted syncing state loses the next step or copies stale schema evidence.
+If that binding is unavailable, safe-search state or the ACK/candidate receipt
+is retained in failed recovery. Dispatch permits a newer descriptor timestamp
+only when every non-time identity and schema digest is unchanged. An arbitrarily
+old still-current dispatched read/create can record only its fail-closed
+`FLOW_READ_FAILED`/`DELIVERY_UNKNOWN` recovery, never a late success.
+After creation, the host reads back the exact `NAPP-*` item and records its
+identity. The current attachment-list
+descriptor does not prove the complete
+`(evidenceId,fileName,mediaType,sizeBytes,sha256)` tuple, and no fixed-root binary
+provider exists. Therefore V1 emits no list/upload/update action, never sets
+`Evidence Complete`, and persists `FLOW_EVIDENCE_UNSUPPORTED` with the created
+item visibly incomplete. A later schema version must add the entire provider,
+descriptor, tuple-read-back, and label-update protocol together. V1 permits one
+opaque outbox transaction holder at a time.
+
+## 18. Fail-closed behavior
+
+| Condition | Required result |
+| --- | --- |
+| Unmapped changed source file | all runnable safe automated cases plus manual mobile safety tier; unavailable auth stays `BLOCKED` |
+| Missing or ambiguous deployment identity | `UNVERIFIED`; no source/live equivalence claim |
+| Missing test account | authenticated cases `BLOCKED`, public coverage continues |
+| No visual baseline | visual result `INCONCLUSIVE` |
+| No physical device evidence | T3 remains `MANUAL` or `BLOCKED` |
+| External provider or CAPTCHA | stop at handoff; no bypass |
+| Flow unavailable | preserve local outbox; no claimed ticket |
+| Journal gap, digest mismatch, unknown event, or illegal replay | reject the journal; do not consult projection as authority or publish a successor |
+| Legacy writer/barrier cannot be attested | `OUTBOX_LEGACY_BUSY`, `OUTBOX_LEGACY_BARRIER_INVALID`, or `OUTBOX_LEGACY_BARRIER_LOST`; no genesis or successor publication |
+| Journal directory missing during mutation | create once at 0700, attest inode/type/mode, and fsync the private root before sequence publication; otherwise fail closed |
+| Private-root fsync fails before the first journal link | `OUTBOX_JOURNAL_DIRECTORY_DURABILITY_UNKNOWN`; no event/candidate link, no automatic retry, and a later fresh call must repeat attestation/fsync before publication |
+| Unmatched or over-cap publication candidates | read remains journal-authoritative within inventory caps; mutation stops for quiescence/cleanup and creates no candidate |
+| Link returns or throws after candidate completion | normalize `RETURNED` or `THROWN(errorClass)`, classify exactly one destination state, and apply the literal 16-cell oracle; never trust errno alone or retarget a transaction event |
+| Candidate cleanup fails while the same candidate remains | `OUTBOX_JOURNAL_ORPHAN_CLEANUP_FAILED`; candidate blocks publication and authority is unchanged |
+| Candidate absence is proven but its root fsync fails | `OUTBOX_JOURNAL_CANDIDATE_CLEANUP_DURABILITY_UNKNOWN`; no candidate currently exists, and a fresh mutation re-fsyncs the empty inventory before publication with no path deletion |
+| Mandatory mutating inventory is empty and its private-root fsync fails without an unlink | `OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN`; create/link nothing, and require a later fresh bounded inventory plus successful root fsync before candidate creation |
+| Candidate is already absent and its exact matching event is published | fsync the journal directory, re-attest no-follow absence, skip unlink, and fsync the private root; success accepts once, while root-fsync failure is `OUTBOX_JOURNAL_INVENTORY_DURABILITY_UNKNOWN` and recovery replays without republishing |
+| Barrier candidate is already absent and its exact matching barrier is published | re-attest no-follow absence, skip unlink, and fsync the private root once; success adopts the barrier, while failure is `OUTBOX_LEGACY_BARRIER_DURABILITY_UNKNOWN` and a fresh mutator re-attests/fsyncs without relinking |
+| Post-absence cleanup durability is unknown | only an original `PUBLISHED`/`CAS_LOST`/`FAILED` cell could have unlinked; after fresh root fsync, `MATCHING` remains accepted, `DIFFERENT_VALID` remains CAS loss, and `ABSENT` alone retains its already-permitted fresh retry; nonretryable cells retain their candidates and cannot enter this state |
+| Active lease at exact expiry time | remain `OUTBOX_LOCKED`; takeover requires `expiresAt < now` |
+| Older writer loses the next journal sequence | reload the winning event and fail `OUTBOX_LEASE_FENCED`; never overwrite or rename a sequence file |
+| Exact owner returns or throws without commit | append one `lease_released` event, preserve logical outbox digest, and never claim a byte-identical journal tail |
+| Snapshot/projection missing or stale | replay the journal; cache state never changes the authoritative verdict |
+| Snapshot/projection refresh fails after publication | retain the durable journal commit and rebuild caches later; do not expose a blind mutation retry |
+| Journal directory fsync fails after link | `OUTBOX_JOURNAL_DURABILITY_UNKNOWN`; keep the visible event, perform no rollback, and require replay before retry |
+| Journal event/count/byte cap reached | `OUTBOX_JOURNAL_LIMIT_EXCEEDED`; preserve every event and require a reviewed later-version migration |
+| Evidence read-back capability unproven | created item remains incomplete, `Evidence Complete` absent, and local sync explicitly blocked |
+| Runtime/source surface drift | full runtime plan plus drift finding; no narrow source-only plan |
+| PostHog access unavailable | telemetry `BLOCKED`; safe campaign continues unchanged |
+| PostHog capability unknown/broader | do not infer from role; require exact matrix and confirmation or remain `BLOCKED` |
+| No scoped query transport | telemetry `BLOCKED`; browser invite session is not API authentication |
+| Missing app host predicate | metric/project `BLOCKED` or `NOT_INSTRUMENTED`; select no tests |
+| Stale/digest-mismatched/mixed schema preflight | telemetry `BLOCKED`; rebuild one complete observation |
+| Missing or mismatched exact window approval | telemetry `BLOCKED`; never derive a replacement from current time |
+| Structured query validation failure | reject before transport; telemetry `BLOCKED` |
+| p75 count companion missing/mismatched/ambiguous | p75 `UNAVAILABLE`; persist no percentile and select no tests |
+| p75 companion count below 20 | p75 cohort `SUPPRESSED`; persist neither value nor cohort identity |
+| Invalid telemetry status/hash/pairing union | reject candidate/catalog; do not repair or select tests |
+| Public-mode value outside its dimension allowlist | reject normalization; never silently randomize |
+| Telemetry catalog wrapper/digest mismatch | reject the whole optional overlay; deterministic QA continues |
+| HTTP 401/403/429/5xx | telemetry `BLOCKED`; discard response and continue core QA |
+| Malformed success/redirect/envelope mismatch | `HTTP_PROVIDER_BLOCKED`; production compatibility stays `UNVERIFIED` |
+| Telemetry field absent | metric `NOT_INSTRUMENTED`; do not infer a substitute |
+| Telemetry cohort below 20 | aggregate `SUPPRESSED`; do not persist the bucket label |
+| Production mutation required | skip unless separately authorized and safely scoped |
+
+## 19. Extending to native later
+
+Native expansion adds, rather than replaces:
+
+```text
+platform:native-ios
+platform:native-android
+source roots for apps/nuanu-superapp and reviewed shared/native packages
+native routes and surfaces
+Appium/Maestro/Detox or approved device-driver tests
+native permission, push, NFC, camera, deep-link and lifecycle manual cases
+TestFlight/Android build identity attestations
+```
+
+Existing `web-*` node IDs, mappings, tests, evidence, and Flow history remain
+stable. Shared capability nodes may gain additional `supports` and `verifies`
+edges after review.
+
+## 20. Quality and success measures
+
+The pilot reports, rather than assumes:
+
+- percentage of mapped product nodes with automated, manual, blocked, or
+  not-deployed disposition;
+- percentage of changed source files exactly mapped;
+- percentage of repeatable cases executed autonomously;
+- human assurance time spent on authoring, triage, reruns, adjudication, and
+  device checks;
+- confirmed defects, duplicate rate, false positives, flaky rate, and escaped
+  regressions;
+- median time from candidate to evidence-backed verdict;
+- percentage of confirmed automatable bugs with regression coverage;
+- unauthorized consequential actions, which must remain zero.
+- telemetry availability by logical metric, freshness, privacy suppressions,
+  and add-only tests selected, without blending telemetry into pass rate.
+
+V1 quality gates:
+
+- every graph node has an explicit coverage disposition;
+- every selected test has an explainable selection reason;
+- no unmapped source change authorizes a narrow plan;
+- every confirmed Flow defect has evidence and a read-back identifier;
+- every automated run preserves manual/device pending status;
+- every report distinguishes product failure, test failure, environment
+  blocker, unverified deployment, and inconclusive visual evidence;
+- no remote write occurs in the upstream product repository;
+- no production mutation occurs without separate authorization.
+- a telemetry outage or missing instrumentation cannot block deterministic
+  coverage or create a false product verdict.
+
+## 21. Implementation order
+
+1. Add Nuanu App Playwright project plumbing and safe public smoke.
+2. Create the Nuanu-specific graph schema, builder, validator, and synthetic
+   unit fixtures.
+3. Build the initial runtime catalog and reviewed source mappings.
+4. Add impact planning and dry-run test-plan generation.
+5. Implement the privacy-normalized, code-owned structured-query PostHog lane with synthetic
+   tests; perform live invite/access work only after action-time confirmation.
+6. Implement public functional, API, routing, responsive, PWA, accessibility,
+   and performance lanes.
+7. Add authenticated read-only setup when test credentials exist.
+8. Complete offline Flow Tasks 1–3: the fail-closed defect outbox, fenced
+   journal, sanitized payloads, and action/observation reducer.
+9. Only after those offline tasks are GREEN, perform cloud Flow Task 4 and then
+   create and verify the private workspace/project/configuration. Task 4 is
+   currently BLOCKED by the exact `nuanu-app` slug conflict; no alternate slug
+   is authorized.
+10. Run the first full safe baseline, triage candidates, and file only confirmed
+   defects.
+11. Conduct the real-device campaign with a human tester and attach evidence.
+12. Measure autonomy and quality outcomes, then refine mappings and oracles.
+
+## 22. Required external inputs and explicit blockers
+
+The project can start public coverage immediately. Full authenticated and
+real-device coverage additionally requires:
+
+- a dedicated Nuanu test email/password account;
+- a controlled inbox if password-reset delivery is in scope;
+- approved Apple/Google test identities if provider completion is in scope;
+- one physical iPhone and one physical Android device or a human tester with
+  those devices;
+- permission to reset browser/PWA storage and OS permissions on test devices;
+- an expected policy for analytics opt-out and unknown-route HTTP behavior;
+- a deployment build/version signal, if the product team can expose one.
+- an invitation whose full effective capability matrix and, when applicable,
+  exact broader membership consequence can be inspected before acceptance;
+- a separately scoped `query:read` credential supplied by macOS Keychain/CI
+  secret store, or an approved connector, for automated PostHog reads;
+- a freshly inspected reliable host/environment property mapping that can
+  scope every metric exactly to `app.nuanu.com`.
+
+Missing inputs block only their dependent graph nodes. They do not convert to
+passes and do not prevent safe public coverage from continuing.

@@ -1,0 +1,1042 @@
+# Nuanu App QA Foundation Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Build the standalone Nuanu App Playwright entry, fail-safe browser
+instrumentation, deterministic product graph, source/runtime identity model,
+impact planner, and dry-run CLI.
+
+**Architecture:** Nuanu App gets product-local tests and graph tooling. Source
+identity and observed runtime identity remain separate inputs; the graph joins
+them only through reviewed mappings and provenance. The foundation can list and
+plan tests without credentials, remote writes, or another product graph.
+
+**Tech Stack:** TypeScript 6, Playwright 1.61, Node.js ESM, node:test, Git,
+JSON artifacts.
+
+**Spec:** `docs/superpowers/specs/2026-08-26-nuanu-app-qa-project-design.md`
+
+## Global Constraints
+
+- V1 tests only `https://app.nuanu.com/` as web/PWA. Native builds are out of
+  scope.
+- The upstream `nuanu-ai/nuanu-web` repository is read-only: no push, PR,
+  issue, commit, or source modification.
+- Do not import, read, write, refactor, or depend on any other product graph,
+  mapping, test tree, generated state, or CLI.
+- Product-local paths use `nuanu-app`; stable graph IDs start with
+  `nuanu-app:`.
+- The only shared-file edits allowed are narrow Nuanu App additions to
+  `playwright.config.ts`, `.env.example`, and `package.json`.
+- Preserve all existing dirty work. Before each shared-file edit, inspect the
+  current diff; stage only exact owned paths.
+- Browser activity is read-only by default. Non-GET/HEAD/OPTIONS requests are
+  blocked in public interaction tests and recorded without query strings or
+  bodies.
+- Missing credentials, mappings, baselines, or devices produce explicit
+  BLOCKED, UNVERIFIED, MANUAL, or INCONCLUSIVE status; never PASS.
+- Every task follows red-green-refactor and ends with focused verification plus
+  an exact-path commit.
+- Run superpowers:verification-before-completion before any completion claim.
+
+---
+
+## Execution Bootstrap
+
+Before Task 1, invoke `superpowers:using-git-worktrees`, detect whether the
+executor is already isolated, and obtain user consent before creating a linked
+worktree when it is not. Use a dedicated `codex/nuanu-app-qa-v1` branch based
+on the plan commit. The current dirty checkout remains untouched. Install
+dependencies in the isolated worktree and run the repository's baseline
+typecheck/test discovery; if the baseline fails, report the exact pre-existing
+failure and ask before continuing.
+
+This bootstrap is operational isolation only. It does not create or modify a
+Nuanu Flow workspace and does not touch the upstream `nuanu-web` checkout.
+
+---
+
+## File Structure
+
+Shared harness edits:
+
+~~~text
+playwright.config.ts         Nuanu App projects and browser/device lanes
+package.json                 Nuanu App test and graph scripts
+.env.example                 non-secret NUANU_APP_* contract
+~~~
+
+Product test foundation:
+
+~~~text
+tests/nuanu-app/
+  fixtures/env.ts            environment and supplied-storage-state helpers
+  fixtures/safety.ts         mutation blocker and URL sanitizer
+  fixtures/evidence.ts       bounded browser observation attachments
+  public/smoke.spec.ts       first safe application-shell contract
+  public/safety-contract.spec.ts
+  README.md
+~~~
+
+Standalone graph:
+
+~~~text
+tools/nuanu-app-graph/
+  model.mjs                  canonical graph model, validation, digest
+  source.mjs                 source lock and reviewed mapping validation
+  runtime.mjs                public runtime observation normalization
+  planner.mjs                Playwright catalog parsing and impact/test plans
+  io.mjs                     atomic JSON artifact persistence
+  cli.mjs                    init, source-lock, runtime, validate, plan
+
+tests/nuanu-app-graph/
+  model.test.mjs
+  source.test.mjs
+  runtime.test.mjs
+  planner.test.mjs
+  cli.test.mjs
+  fixtures/
+
+docs/nuanu-app/
+  README.md
+  TEST-STRATEGY.md
+  TEST-CASES.md
+  COVERAGE-MAP.md
+
+docs/local/nuanu-app/product-graph/
+  mappings.v1.json           generated private reviewed mappings
+  current/                   generated current artifacts
+  snapshots/                 content-addressed snapshots
+~~~
+
+## Locked Interfaces
+
+The tasks below must use these exact exports.
+
+~~~js
+// tools/nuanu-app-graph/model.mjs
+export const PRODUCT_ID = "nuanu-app";
+export const GRAPH_SCHEMA_VERSION = "1.0.0";
+export function canonicalize(value) {}
+export function digestJson(value) {}
+export function createGraph({ sourceLock, runtimeCatalog, mappings, testCatalog }) {}
+export function validateGraph(graph) {}
+
+// tools/nuanu-app-graph/source.mjs
+export async function buildSourceLock({
+  repoPath,
+  sourceRoots,
+  expectedRemote,
+  requireClean = true,
+}) {}
+export function validateMappings({ mappings, sourceLock, testCatalog }) {}
+
+// tools/nuanu-app-graph/runtime.mjs
+export function normalizeRuntimeObservation(rawObservation) {}
+export async function observePublicRuntime({ baseUrl, chromium, now }) {}
+
+// tools/nuanu-app-graph/planner.mjs
+export function parsePlaywrightList(output) {}
+export function planImpact({ graph, changedFiles }) {}
+export function buildTestPlan({
+  graph,
+  impact,
+  runnableTestIds,
+  telemetrySignals = [],
+}) {}
+
+// tools/nuanu-app-graph/io.mjs
+export async function writeJsonAtomic(filePath, value) {}
+export async function readJson(filePath) {}
+~~~
+
+`buildTestPlan` returns these exact disposition buckets in deterministic ID
+order:
+
+~~~js
+{
+  selectedAutomated: [],
+  manual: [],
+  blocked: [],
+  notDeployed: [],
+  unverified: [],
+  fallbackApplied: false,
+  telemetrySignals: [], // present only when the optional input is non-empty
+}
+~~~
+
+Source-only cases with `coverageDisposition: "UNVERIFIED"` are emitted only in
+`unverified`; they are never placed in `blocked` and never selected as live
+tests. `blocked` remains reserved for a real unavailable prerequisite.
+`telemetrySignals` retains its own `select`, `observe_only`, `suppressed`, or
+`blocked` disposition and is not folded into any case-status bucket.
+
+`buildTestPlan` also accepts the explicit runtime-only impact shape emitted by
+Task 7:
+
+~~~js
+{
+  mode: "runtime_only",
+  changedFiles: [],
+  affectedNodeIds: [],
+  unmappedFiles: [],
+  paths: [],
+  sourceImpact: "UNVERIFIED",
+}
+~~~
+
+It must be a plain JSON object with exactly those fields. Missing/extra fields,
+custom prototypes, source proof, or non-empty arrays fail before selection.
+That mode applies the existing safe full fallback: all discovered runnable
+read-only tests whose live target can be verified, plus the eligible mobile
+safety tier. It does not collapse `unverified`, `blocked`, `manual`, or
+`notDeployed` into selected coverage. Source-impact planning keeps accepting
+the legacy shape without `mode`; explicit `mode: "source_diff"` is equivalent
+for compatibility. Every other explicit `mode` value is rejected before
+selection.
+
+All validation functions return:
+
+~~~js
+{ ok: boolean, errors: Array<{ code: string, message: string, path?: string }> }
+~~~
+
+Task 6 uses the following exact optional telemetry selector schema. Every field
+is required and unknown fields are rejected:
+
+~~~js
+{
+  id: "napp-telemetry-v1-" + lowercaseSha256,
+  productId: "nuanu-app",
+  catalogDigest: lowercaseSha256,
+  mappingId: "napp-telemetry-map-v1:route-health" | null,
+  metricId: "route-health",
+  disposition: "select" | "observe_only" | "suppressed" | "blocked",
+  kind: "observed" | "regression",
+  priority: "informational" | "elevated",
+  targetNodeIds: ["nuanu-app:route:root"],
+}
+~~~
+
+`mappingId` is explicitly a namespaced string or JSON `null`; omission and
+`undefined` are invalid. Mapped targets are sorted, unique, existing Nuanu App
+non-source nodes. An unmapped selector has `mappingId: null` and an empty
+`targetNodeIds`; only an elevated regression with `disposition: "select"` may
+expand the existing full safe fallback. Other unmapped selectors retain
+`sourceImpact: "UNVERIFIED"` in the returned `telemetrySignals` summary.
+
+Telemetry selections preserve the legacy top-level selection reason and add a
+typed `reasons[]` detail:
+
+~~~js
+{
+  id: "nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-001 ...",
+  reason: "telemetry_signal",
+  reasons: [{
+    code: "telemetry_signal",
+    signalId: "napp-telemetry-v1-" + lowercaseSha256,
+    mappingId: "napp-telemetry-map-v1:route-health",
+    catalogDigest: lowercaseSha256,
+    graphPath: [
+      "nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-001 ...",
+      "nuanu-app:route:root",
+    ],
+  }],
+}
+~~~
+
+When deterministic impact or policy already selected the test, its top-level
+`reason`, `path`, or `policy` stays intact and `reasons[]` contains both the
+deterministic reason and the telemetry reason. An elevated unmapped regression
+uses top-level `reason: "full_fallback"` and a `reasons[]` entry containing
+`code`, `signalId`, and `catalogDigest`. Telemetry is add-only: it never removes
+a test, creates a verdict, proves deployment identity, promotes
+BLOCKED/MANUAL/NOT_DEPLOYED work, or creates a Flow item.
+
+### Task 1: Register an Isolated Nuanu App Playwright Project
+
+**Files:**
+- Create: `tests/nuanu-app/public/smoke.spec.ts`
+- Create: `tests/nuanu-app/README.md`
+- Modify: `playwright.config.ts`
+- Modify: `package.json`
+- Modify: `.env.example`
+
+**Interfaces:**
+- Consumes: the existing `product(name, baseURL, options)` helper.
+- Produces: Playwright projects `nuanu-app`, `nuanu-app-firefox`,
+  `nuanu-app-webkit`, `nuanu-app-android-chrome`, and
+  `nuanu-app-ios-webkit`; scripts `test:nuanu-app`,
+  `test:nuanu-app:ui`, and `nuanu-app:graph`.
+
+- [ ] **Step 1: Inspect shared-file ownership before editing**
+
+Run:
+
+~~~bash
+git diff -- playwright.config.ts package.json .env.example
+git status --short -- playwright.config.ts package.json .env.example
+~~~
+
+Record existing hunks. Nuanu App changes must be additive and must not reformat
+or stage unrelated lines.
+
+- [ ] **Step 2: Write the first test before project registration**
+
+Create:
+
+~~~ts
+import { expect, test } from '@playwright/test';
+
+test('NAPP-PUB-001 homepage returns HTML and renders an application shell', async ({ page }) => {
+  test.skip(true, 'NAPP safety guard must be green before live navigation');
+  const response = await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+  expect(response, 'root navigation returned no response').not.toBeNull();
+  expect(response!.status(), 'root must not return a client/server error').toBeLessThan(400);
+  await expect(page.locator('body')).toBeVisible();
+  await expect(page.locator('body')).not.toBeEmpty();
+});
+~~~
+
+- [ ] **Step 3: Run discovery and verify the red state**
+
+Run:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app
+~~~
+
+Expected: non-zero exit with `Project(s) "nuanu-app" not found`.
+
+- [ ] **Step 4: Add the minimal project registration**
+
+Insert after the MagicPay entry and before Nuanu Flow entries:
+
+~~~ts
+...product('nuanu-app', process.env.NUANU_APP_BASE_URL),
+...(process.env.NUANU_APP_BASE_URL && process.env.NUANU_APP_FIREFOX
+  ? [{
+      name: 'nuanu-app-firefox',
+      testDir: './tests/nuanu-app',
+      use: { ...devices['Desktop Firefox'], baseURL: process.env.NUANU_APP_BASE_URL },
+    }]
+  : []),
+...(process.env.NUANU_APP_BASE_URL && process.env.NUANU_APP_WEBKIT
+  ? [{
+      name: 'nuanu-app-webkit',
+      testDir: './tests/nuanu-app',
+      use: { ...devices['Desktop Safari'], baseURL: process.env.NUANU_APP_BASE_URL },
+    }]
+  : []),
+...(process.env.NUANU_APP_BASE_URL && process.env.NUANU_APP_MOBILE
+  ? [
+      {
+        name: 'nuanu-app-android-chrome',
+        testDir: './tests/nuanu-app',
+        use: { ...devices['Pixel 5'], baseURL: process.env.NUANU_APP_BASE_URL },
+      },
+      {
+        name: 'nuanu-app-ios-webkit',
+        testDir: './tests/nuanu-app',
+        use: { ...devices['iPhone 13'], baseURL: process.env.NUANU_APP_BASE_URL },
+      },
+    ]
+  : []),
+~~~
+
+Do not enable `authSetup` and do not add dependencies to public projects.
+
+- [ ] **Step 5: Add exact scripts and environment documentation**
+
+Add to `package.json`:
+
+~~~json
+"test:nuanu-app": "playwright test --project=nuanu-app",
+"test:nuanu-app:ui": "playwright test --project=nuanu-app --ui",
+"nuanu-app:graph": "node tools/nuanu-app-graph/cli.mjs"
+~~~
+
+Add to `.env.example`:
+
+~~~dotenv
+# --- Nuanu App web/PWA (native is out of scope) ---
+NUANU_APP_BASE_URL=https://app.nuanu.com
+# Optional supplied, gitignored Playwright state. The harness never creates it autonomously.
+# NUANU_APP_AUTH_STORAGE_STATE=playwright/.auth/nuanu-app.json
+# Required for source-lock commands: an absolute read-only nuanu-web checkout.
+# NUANU_APP_SOURCE_REPO=
+# NUANU_APP_FIREFOX=1
+# NUANU_APP_WEBKIT=1
+# NUANU_APP_MOBILE=1
+~~~
+
+- [ ] **Step 6: Document the initial safety boundary**
+
+The first README must state: public web/PWA only; no native, registration,
+OAuth consent, reset delivery, privacy mutation, Call invocation, payment, or
+account deletion; upstream source is read-only; auth state is supplied only.
+
+- [ ] **Step 7: Verify green discovery without live navigation**
+
+Run:
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app
+npm run typecheck
+~~~
+
+Expected: the project lists exactly the owned test; no browser navigation is
+executed; typecheck exits zero or reports only pre-existing diagnostics proven
+by a before/after comparison. Live smoke remains deliberately skipped until
+Task 2 installs and verifies the mutation guard.
+
+- [ ] **Step 8: Commit only Task 1 files**
+
+~~~bash
+git add playwright.config.ts package.json .env.example tests/nuanu-app/public/smoke.spec.ts tests/nuanu-app/README.md
+git diff --cached --check
+git commit -m "test: scaffold standalone Nuanu App QA"
+~~~
+
+### Task 2: Add the Browser Mutation Guard and Sanitized Evidence
+
+**Files:**
+- Create: `tests/nuanu-app/fixtures/env.ts`
+- Create: `tests/nuanu-app/fixtures/safety.ts`
+- Create: `tests/nuanu-app/fixtures/evidence.ts`
+- Create: `tests/nuanu-app/public/safety-contract.spec.ts`
+- Modify: `tests/nuanu-app/public/smoke.spec.ts`
+
+**Interfaces:**
+- Consumes: Playwright `Page` and `TestInfo`.
+- Produces: `sanitizeUrl`, `blockUnsafeRequests`, `observeBrowser`,
+  `attachObservation`, `authStorageStatePath`, and
+  `hasAuthStorageState`.
+
+- [ ] **Step 1: Write failing helper contract tests**
+
+~~~ts
+import { expect, test } from '@playwright/test';
+import { blockUnsafeRequests, sanitizeUrl } from '../fixtures/safety';
+
+test('NAPP-SAFE-001 blocks non-idempotent requests before network dispatch', async ({ page }) => {
+  const blocked: Array<{ method: string; url: string }> = [];
+  await blockUnsafeRequests(page, blocked);
+
+  const result = await page.evaluate(async () => {
+    try {
+      await fetch('https://example.test/write?token=secret', { method: 'POST' });
+      return 'resolved';
+    } catch {
+      return 'rejected';
+    }
+  });
+
+  expect(result).toBe('rejected');
+  expect(blocked).toEqual([{ method: 'POST', url: 'https://example.test/write' }]);
+});
+
+test('NAPP-EVID-001 removes query and fragment data from evidence URLs', () => {
+  expect(sanitizeUrl('https://example.test/x?token=secret#callback')).toBe(
+    'https://example.test/x',
+  );
+});
+~~~
+
+- [ ] **Step 2: Verify the imports fail**
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app --grep "NAPP-(SAFE|EVID)-001"
+~~~
+
+Expected: TypeScript/module resolution failure because the helpers do not
+exist.
+
+- [ ] **Step 3: Implement the exact safety contract**
+
+~~~ts
+import type { Page } from '@playwright/test';
+
+export type BlockedMutation = Readonly<{ method: string; url: string }>;
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+export function sanitizeUrl(raw: string): string {
+  const url = new URL(raw);
+  return url.origin + url.pathname;
+}
+
+export async function blockUnsafeRequests(
+  page: Page,
+  blocked: BlockedMutation[],
+): Promise<void> {
+  await page.route('**/*', async (route) => {
+    const request = route.request();
+    const method = request.method().toUpperCase();
+    if (SAFE_METHODS.has(method)) {
+      await route.continue();
+      return;
+    }
+    blocked.push({ method, url: sanitizeUrl(request.url()) });
+    await route.abort('blockedbyclient');
+  });
+}
+~~~
+
+No request body, query, header, cookie, or storage value is collected.
+
+- [ ] **Step 4: Implement environment and evidence helpers**
+
+Use these exact types:
+
+~~~ts
+export type BrowserObservation = {
+  consoleErrors: string[];
+  failedRequests: string[];
+  serverErrors: string[];
+};
+
+export function observeBrowser(page: Page, firstPartyOrigin: string): BrowserObservation;
+export async function attachObservation(
+  testInfo: TestInfo,
+  observation: BrowserObservation,
+): Promise<void>;
+~~~
+
+Each array is capped at 25 entries; each string is capped at 500 characters;
+URLs pass through `sanitizeUrl`. Attach only
+`browser-observation.json` with content type `application/json`.
+
+`env.ts` exports:
+
+~~~ts
+export const NUANU_APP_BASE_URL_ENV = 'NUANU_APP_BASE_URL';
+export const AUTH_STORAGE_STATE_ENV = 'NUANU_APP_AUTH_STORAGE_STATE';
+export const authStorageStatePath = (): string | undefined =>
+  process.env[AUTH_STORAGE_STATE_ENV];
+export const hasAuthStorageState = (): boolean => {
+  const path = authStorageStatePath();
+  return Boolean(path && existsSync(path));
+};
+~~~
+
+- [ ] **Step 5: Install the guard before enabling smoke navigation**
+
+Update NAPP-PUB-001 to create `blocked`, install
+`blockUnsafeRequests(page, blocked)`, observe the browser, navigate, and
+attach the observation. Remove the temporary unconditional skip only in this
+step. Do not require `blocked` to be empty: analytics POSTs may be safely
+blocked and recorded.
+
+- [ ] **Step 6: Run focused and type verification**
+
+~~~bash
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --project=nuanu-app --grep "NAPP-(SAFE|EVID|PUB)-001"
+npm run typecheck
+~~~
+
+- [ ] **Step 7: Commit Task 2**
+
+~~~bash
+git add tests/nuanu-app/fixtures tests/nuanu-app/public/safety-contract.spec.ts tests/nuanu-app/public/smoke.spec.ts
+git diff --cached --check
+git commit -m "test: add Nuanu App browser safety evidence"
+~~~
+
+### Task 3: Build the Canonical Standalone Graph Model
+
+**Files:**
+- Create: `tools/nuanu-app-graph/model.mjs`
+- Create: `tests/nuanu-app-graph/model.test.mjs`
+
+**Interfaces:**
+- Consumes: plain JSON source lock, runtime catalog, reviewed mappings, and
+  test catalog.
+- Produces: deterministic `graph.json` data and validation errors.
+
+- [ ] **Step 1: Write failing model tests**
+
+Cover:
+
+~~~js
+test("canonicalize sorts nested object keys and preserves array order", () => {});
+test("digestJson is identical for semantically reordered objects", () => {});
+test("validateGraph rejects a foreign product namespace", () => {});
+test("validateGraph rejects duplicate node IDs and dangling edges", () => {});
+test("createGraph sorts nodes and edges before digesting", () => {});
+test("source-only nodes cannot be runnable live coverage", () => {});
+~~~
+
+The foreign namespace fixture includes one node ID `other-product:route:root`
+and expects error code `FOREIGN_PRODUCT_NAMESPACE`.
+
+- [ ] **Step 2: Verify red**
+
+~~~bash
+node --test tests/nuanu-app-graph/model.test.mjs
+~~~
+
+Expected: module-not-found.
+
+- [ ] **Step 3: Implement canonical JSON and hashing**
+
+~~~js
+import { createHash } from "node:crypto";
+
+export const PRODUCT_ID = "nuanu-app";
+export const GRAPH_SCHEMA_VERSION = "1.0.0";
+
+export function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]),
+    );
+  }
+  return value;
+}
+
+export function digestJson(value) {
+  return createHash("sha256")
+    .update(JSON.stringify(canonicalize(value)))
+    .digest("hex");
+}
+~~~
+
+- [ ] **Step 4: Implement graph validation**
+
+Validate exact schema/product IDs, unique node IDs, unique edge triples,
+existing edge endpoints, allowed node/edge kinds, provenance
+`source|runtime|source_and_runtime`, and coverage disposition. Reject any
+mapping path or ID containing a foreign product namespace.
+
+- [ ] **Step 5: Implement graph creation**
+
+`createGraph` builds sorted nodes/edges, keeps `unresolved`, records input
+digests, calls `validateGraph`, throws an error carrying validation errors on
+failure, and adds a semantic `graphDigest` after excluding timestamps.
+
+- [ ] **Step 6: Verify**
+
+~~~bash
+node --test tests/nuanu-app-graph/model.test.mjs
+~~~
+
+Expected: all named model tests pass.
+
+- [ ] **Step 7: Commit Task 3**
+
+~~~bash
+git add tools/nuanu-app-graph/model.mjs tests/nuanu-app-graph/model.test.mjs
+git diff --cached --check
+git commit -m "feat: add standalone Nuanu App graph model"
+~~~
+
+### Task 4: Add Source Lock and Reviewed Mapping Validation
+
+**Files:**
+- Create: `tools/nuanu-app-graph/source.mjs`
+- Create: `tests/nuanu-app-graph/source.test.mjs`
+- Create: `tests/nuanu-app-graph/fixtures/mappings.valid.json`
+- Create: `tests/nuanu-app-graph/fixtures/mappings.foreign.json`
+
+**Interfaces:**
+- Consumes: a local read-only Git checkout and private mappings JSON.
+- Produces: exact `source-lock.json` and mapping validation result.
+
+- [ ] **Step 1: Write failing source-lock tests**
+
+Use a temporary Git repository created with Node `mkdtemp` and
+`execFileSync`. Cover:
+
+~~~js
+test("buildSourceLock records full SHA, remote, roots, clean state, and digest", async () => {});
+test("buildSourceLock rejects a dirty checkout when requireClean is true", async () => {});
+test("buildSourceLock rejects source roots outside the repository", async () => {});
+test("validateMappings rejects foreign namespace and foreign paths", () => {});
+test("validateMappings rejects globs in no_product_impact", () => {});
+test("validateMappings rejects unknown automated test IDs", () => {});
+~~~
+
+- [ ] **Step 2: Verify red**
+
+~~~bash
+node --test tests/nuanu-app-graph/source.test.mjs
+~~~
+
+- [ ] **Step 3: Implement Git inspection without shell interpolation**
+
+Use `execFile("git", args, { cwd: repoPath })`, never a constructed shell
+command. Resolve and validate every source root under the real repository path.
+Hash sorted relative path plus file bytes for regular files only.
+
+`source-lock.json` contains:
+
+~~~json
+{
+  "productId": "nuanu-app",
+  "repositoryUrl": "https://github.com/nuanu-ai/nuanu-web.git",
+  "commitSha": "40-character lowercase SHA",
+  "clean": true,
+  "sourceRoots": ["apps/nuanu-web"],
+  "contentDigest": "64-character sha256",
+  "mappingDigest": "64-character sha256"
+}
+~~~
+
+- [ ] **Step 4: Implement reviewed mapping checks**
+
+Require exact repository-relative paths, `nuanu-app:` node/test IDs, allowed
+edge kinds, and exact no-product-impact paths with non-empty reasons. A
+source-only mapping must declare `NOT_DEPLOYED` or `UNVERIFIED` until the
+runtime catalog supplies the same node.
+
+- [ ] **Step 5: Verify**
+
+~~~bash
+node --test tests/nuanu-app-graph/source.test.mjs
+~~~
+
+- [ ] **Step 6: Commit Task 4**
+
+~~~bash
+git add tools/nuanu-app-graph/source.mjs tests/nuanu-app-graph/source.test.mjs tests/nuanu-app-graph/fixtures/mappings.valid.json tests/nuanu-app-graph/fixtures/mappings.foreign.json
+git diff --cached --check
+git commit -m "feat: attest Nuanu App source mappings"
+~~~
+
+### Task 5: Add Public Runtime Cataloging
+
+**Files:**
+- Create: `tools/nuanu-app-graph/runtime.mjs`
+- Create: `tests/nuanu-app-graph/runtime.test.mjs`
+- Create: `tests/nuanu-app-graph/fixtures/runtime-observation.json`
+
+**Interfaces:**
+- Consumes: public `app.nuanu.com` observations or a synthetic raw fixture.
+- Produces: sanitized `runtime-catalog.json`.
+
+- [ ] **Step 1: Write failing normalization tests**
+
+Cover:
+
+~~~js
+test("normalizeRuntimeObservation emits stable runtime node IDs", () => {});
+test("runtime digest ignores capture time but includes observed surfaces", () => {});
+test("runtime catalog stores unknown deployment identity explicitly", () => {});
+test("runtime catalog rejects credential, token, cookie, and callback query fields", () => {});
+test("runtime-only nodes cannot claim source impact", () => {});
+~~~
+
+The fixture is synthetic normalization input, not a live product oracle. It
+includes root, generic navigation/search/filter surfaces, two generic taxonomy
+values, manifest metadata, two generic dependency hosts, and
+`deploymentCommitSha: null`. Tests assert shape, sanitization, ordering, and
+digest behavior—not the current names or counts observed on production.
+
+- [ ] **Step 2: Verify red**
+
+~~~bash
+node --test tests/nuanu-app-graph/runtime.test.mjs
+~~~
+
+- [ ] **Step 3: Implement pure normalization**
+
+Sort and deduplicate routes, surfaces, controls, API hosts, dependencies, and
+PWA metadata. Strip query values, hashes, request headers, cookies, local
+storage, text-input values, and response bodies. Convert missing deployment
+identity to:
+
+~~~json
+{ "status": "UNVERIFIED", "commitSha": null }
+~~~
+
+- [ ] **Step 4: Implement safe live observation**
+
+`observePublicRuntime` launches the supplied Playwright Chromium object,
+blocks non-GET/HEAD/OPTIONS, visits only root plus one fixed unknown-route
+probe, collects public metadata and accessible control names, and closes the
+browser in `finally`. It does not click Profile, location, Call, provider,
+consent, booking, or payment controls.
+
+- [ ] **Step 5: Verify synthetic tests**
+
+~~~bash
+node --test tests/nuanu-app-graph/runtime.test.mjs
+~~~
+
+- [ ] **Step 6: Commit Task 5**
+
+~~~bash
+git add tools/nuanu-app-graph/runtime.mjs tests/nuanu-app-graph/runtime.test.mjs tests/nuanu-app-graph/fixtures/runtime-observation.json
+git diff --cached --check
+git commit -m "feat: catalog Nuanu App public runtime"
+~~~
+
+### Task 6: Build Explainable Impact and Test Planning
+
+**Files:**
+- Create: `tools/nuanu-app-graph/planner.mjs`
+- Create: `tests/nuanu-app-graph/planner.test.mjs`
+- Create: `tests/nuanu-app-graph/fixtures/playwright-list.txt`
+
+**Interfaces:**
+- Consumes: valid graph, exact changed files, and Playwright `--list` output.
+- Consumes optionally: reviewed aggregate telemetry selectors using the exact
+  nullable mapping schema in Locked Interfaces.
+- Produces: `impact.json` and dry-run `test-plan.json`, including normalized
+  `telemetrySignals` and typed `reasons[]` only when selectors were supplied.
+
+- [ ] **Step 1: Write failing planner tests**
+
+Cover:
+
+~~~js
+test("parsePlaywrightList creates exact file-title test IDs", () => {});
+test("planImpact records every changed-file to node to test path", () => {});
+test("unmapped file selects all runnable safe tests and mobile manual tier", () => {});
+test("fallback keeps unavailable auth BLOCKED and provider handoffs manual", () => {});
+test("source-only NOT_DEPLOYED nodes do not select live tests", () => {});
+test("source-only UNVERIFIED cases are sorted in unverified and never blocked", () => {});
+test("runtime-only nodes select runtime tests but keep source impact UNVERIFIED", () => {});
+test("explicit runtime_only impact with empty arrays selects the safe full fallback", () => {});
+test("unknown explicit impact mode rejects before selection", () => {});
+test("runtime-only impact requires an exact plain JSON shape before selection", () => {});
+test("every selected test has a typed reason", () => {});
+test("telemetry select adds only a runnable safe automated test with typed aggregate context", () => {});
+test("telemetry non-selection dispositions are retained without selecting tests", () => {});
+test("telemetry selection excludes blocked manual and unsafe tests", () => {});
+test("telemetry preserves deterministic impact and telemetry reasons for an already selected test", () => {});
+test("telemetry signals reject malformed selectors and never retain unknown payload fields", () => {});
+test("only an elevated unmapped regression selector expands the existing safe fallback", () => {});
+~~~
+
+- [ ] **Step 2: Verify red**
+
+~~~bash
+node --test tests/nuanu-app-graph/planner.test.mjs
+~~~
+
+- [ ] **Step 3: Implement catalog parsing**
+
+Normalize each discovered test to:
+
+~~~js
+{
+  id: "nuanu-app:auto:tests/nuanu-app/public/smoke.spec.ts#NAPP-PUB-001 homepage returns HTML and renders an application shell",
+  file: "tests/nuanu-app/public/smoke.spec.ts",
+  title: "NAPP-PUB-001 homepage returns HTML and renders an application shell",
+  execution: "automated",
+  safety: "read_only",
+}
+~~~
+
+- [ ] **Step 4: Implement affected closure and fail-closed selection**
+
+Traverse only typed `affects` edges and terminate on visited IDs. Deterministic
+reasons are `impact`, `always_run`, `runtime_drift`, `full_fallback`, or
+`mobile_safety`. The fallback receives a set of runnable test IDs and cannot
+promote BLOCKED/MANUAL cases.
+
+Validate telemetry selectors against the exact locked schema. A mapped
+`select` signal traverses reverse `verifies` edges from each reviewed target
+and can add only a discovered, read-only automated test with
+`coverageDisposition: "AUTOMATED"`. Preserve `observe_only`, `suppressed`, and
+`blocked` signals without selection. An elevated unmapped regression may add
+all runnable safe automated tests plus the mobile manual safety tier through
+the existing `full_fallback`; it does not broaden action authority. Use
+`reasons[]` exactly as locked above and never accept a raw analytics payload.
+Emit source-only UNVERIFIED cases in the distinct sorted `unverified` bucket;
+do not conflate that source/runtime uncertainty with a missing prerequisite or
+with a telemetry disposition. Treat explicit `mode: "runtime_only"` with empty
+change/path arrays as the existing safe full fallback, and reject every unknown
+explicit impact mode before selection.
+
+- [ ] **Step 5: Verify**
+
+~~~bash
+node --test tests/nuanu-app-graph/planner.test.mjs
+~~~
+
+- [ ] **Step 6: Commit Task 6**
+
+~~~bash
+git add tools/nuanu-app-graph/planner.mjs tests/nuanu-app-graph/planner.test.mjs tests/nuanu-app-graph/fixtures/playwright-list.txt
+git diff --cached --check
+git commit -m "feat: plan Nuanu App impact coverage"
+~~~
+
+### Task 7: Add Atomic Artifacts and the Graph CLI
+
+**Files:**
+- Create: `tools/nuanu-app-graph/io.mjs`
+- Create: `tools/nuanu-app-graph/cli.mjs`
+- Create: `tests/nuanu-app-graph/cli.test.mjs`
+- Modify: `package.json` only if Task 1 did not add `nuanu-app:graph`
+
+**Interfaces:**
+- Consumes: the locked graph modules.
+- Produces: commands `init`, `source-lock`, `runtime`, `validate [--refresh]`, and
+  `plan --dry-run` in source-diff or explicit `--runtime-only` mode.
+
+- [ ] **Step 1: Write failing CLI tests**
+
+Use temporary directories and child-process invocation. Cover:
+
+~~~js
+test("init creates only the private Nuanu App graph tree and starter mappings", async () => {});
+test("validate exits nonzero and prints stable error codes", async () => {});
+test("plan refuses execution without --dry-run", async () => {});
+test("plan --runtime-only emits explicit runtime_only impact and safe fallback", async () => {});
+test("plan writes graph impact and test plan atomically", async () => {});
+test("CLI rejects output paths outside docs/local/nuanu-app", async () => {});
+~~~
+
+- [ ] **Step 2: Verify red**
+
+~~~bash
+node --test tests/nuanu-app-graph/cli.test.mjs
+~~~
+
+- [ ] **Step 3: Implement atomic JSON persistence**
+
+Write a unique same-directory temporary file, write JSON with a final newline,
+`fsync` the file, close, rename, then `fsync` the containing directory.
+Reject symbolic-link output targets and paths outside the approved private
+root.
+
+- [ ] **Step 4: Implement CLI commands**
+
+Required usage:
+
+~~~text
+node tools/nuanu-app-graph/cli.mjs init
+node tools/nuanu-app-graph/cli.mjs source-lock --repo "$NUANU_APP_SOURCE_REPO"
+node tools/nuanu-app-graph/cli.mjs runtime --url https://app.nuanu.com
+node tools/nuanu-app-graph/cli.mjs validate
+node tools/nuanu-app-graph/cli.mjs validate --refresh
+node tools/nuanu-app-graph/cli.mjs plan --runtime-only --dry-run
+node tools/nuanu-app-graph/cli.mjs plan --repo "$NUANU_APP_SOURCE_REPO" --from "$BASELINE_SHA" --to "$CANDIDATE_SHA" --dry-run
+~~~
+
+Plain `validate` creates the initial graph or attests that an existing graph
+still matches the current normalized runtime, reviewed mappings, source lock,
+and Playwright `--list` catalog. It returns `STALE_GRAPH` without writing when
+a structurally valid stored graph has different current input digests.
+`validate --refresh` is the only explicit mode-switch path: it requires an
+existing structurally valid, product-correct, self-attested graph, validates
+all current inputs normally, and may then atomically replace a semantically
+stale graph without relaxing stored-graph integrity checks. Its compact
+success summary includes `refreshed:true`. Unknown, duplicate, equals-form,
+positional, and all other `validate` options are usage errors.
+
+`plan --runtime-only` emits the locked empty-array `mode: "runtime_only"`
+impact and delegates to the safe full fallback. It cannot be combined with
+source-diff arguments. Any unknown planning mode fails before an impact or test
+plan is written.
+
+`NUANU_APP_SOURCE_REPO` must be a user-supplied absolute read-only checkout;
+the CLI rejects empty, relative, dirty, wrong-remote, and symlink-escaping
+paths. `BASELINE_SHA` and `CANDIDATE_SHA` must be full 40-character commits
+present in that checkout. The recon SHA
+`2fdbcf8267c57e336c73454e0888d5eaa2a95d7b` is recorded only as historical
+reference and is never an execution prerequisite. No command executes
+Playwright tests, changes Flow, or writes upstream source.
+
+- [ ] **Step 5: Verify focused and combined graph suites**
+
+~~~bash
+node --test tests/nuanu-app-graph/cli.test.mjs
+node --test tests/nuanu-app-graph/*.test.mjs
+npm run typecheck
+~~~
+
+- [ ] **Step 6: Commit Task 7**
+
+~~~bash
+git add tools/nuanu-app-graph/io.mjs tools/nuanu-app-graph/cli.mjs tests/nuanu-app-graph/cli.test.mjs package.json
+git diff --cached --check
+git commit -m "feat: add Nuanu App graph preflight CLI"
+~~~
+
+### Task 8: Seed Documentation and Verify the Foundation
+
+**Files:**
+- Create: `docs/nuanu-app/README.md`
+- Create: `docs/nuanu-app/TEST-STRATEGY.md`
+- Create: `docs/nuanu-app/TEST-CASES.md`
+- Create: `docs/nuanu-app/COVERAGE-MAP.md`
+- Modify: `tests/nuanu-app/README.md`
+
+**Interfaces:**
+- Consumes: actual graph/test command names and test IDs implemented above.
+- Produces: operator instructions and explicit coverage statuses.
+
+- [ ] **Step 1: Write the documentation from verified commands**
+
+Include exact environment variables, commands, artifact paths, status
+vocabulary, upstream read-only rule, safety guard behavior, source/runtime
+separation, and missing-input blockers. Do not list a test as automated unless
+`playwright --list` finds it.
+
+- [ ] **Step 2: Generate the private initial tree**
+
+~~~bash
+npm run nuanu-app:graph -- init
+~~~
+
+Verify that only `docs/local/nuanu-app/product-graph` is written and remains
+gitignored.
+
+- [ ] **Step 3: Run the complete foundation verification**
+
+~~~bash
+node --test tests/nuanu-app-graph/*.test.mjs
+NUANU_APP_BASE_URL=https://app.nuanu.com npx playwright test --list --project=nuanu-app
+NUANU_APP_BASE_URL=https://app.nuanu.com npm run test:nuanu-app
+npm run typecheck
+git diff --check
+~~~
+
+Also run:
+
+~~~bash
+rg -n -i "freeland|nuanuflow" tools/nuanu-app-graph tests/nuanu-app tests/nuanu-app-graph docs/nuanu-app
+~~~
+
+Expected: no foreign product dependency. Human-readable text may mention only
+the prohibition if the README needs it; no import/path/ID match is allowed.
+
+- [ ] **Step 4: Inspect the final owned diff**
+
+~~~bash
+git status --short
+git diff --stat
+git diff -- playwright.config.ts package.json .env.example
+~~~
+
+Separate pre-existing failures and changes from owned work with before/after
+evidence.
+
+- [ ] **Step 5: Commit documentation only**
+
+~~~bash
+git add docs/nuanu-app tests/nuanu-app/README.md
+git diff --cached --check
+git commit -m "docs: define Nuanu App QA foundation"
+~~~
+
+## Foundation Exit Gate
+
+The foundation is complete only when:
+
+- the default project lists and runs without credentials;
+- browser mutation blocking and sanitization tests pass;
+- all standalone graph unit tests pass;
+- graph validation and dry-run planning work from private Nuanu paths;
+- source-only and runtime-only provenance cannot create false live coverage;
+- source-only UNVERIFIED cases are reported distinctly from BLOCKED cases;
+- optional aggregate telemetry is add-only, privacy-shaped, and cannot create
+  a verdict or block deterministic coverage when absent;
+- no upstream or cloud write occurred;
+- all manual/auth/native/visual/performance gaps remain explicit.

@@ -1,0 +1,156 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildEvidenceFlow, type EvidenceRunState } from "../../lib/evidence-flow";
+import {
+  FIXTURE_TIMINGS,
+  fixtureApproval,
+  fixtureBaseline,
+  fixtureExecutionApproval,
+  fixturePlan,
+  fixtureReceipt,
+  type FixtureOutcome,
+} from "../../lib/evidence-fixture";
+import { BaselineReviewCard } from "./BaselineReviewCard";
+import { DryRunScopeCard } from "./DryRunScopeCard";
+import { EvidenceStepper } from "./EvidenceStepper";
+import { FixtureNote } from "./EvidenceFields";
+import { RunReceiptCard } from "./RunReceiptCard";
+
+export interface EvidenceRegistration {
+  readonly lifecycleState: string;
+  readonly nextAction: string;
+  readonly workspacePath: string;
+  readonly workspaceDigest: string;
+}
+
+interface EvidenceFlowProps {
+  registration: EvidenceRegistration;
+}
+
+// Only a workspace parked at the baseline gate can enter I2 — every other
+// lifecycle gets the ungated view, which offers no approval and no run.
+const GATE = "BASELINE_APPROVAL_REQUIRED";
+
+/**
+ * Container for the I2 vertical. It owns the walk through the four gates and
+ * nothing else: every claim rendered below comes from `buildEvidenceFlow`.
+ *
+ * Mount this with a `key` tied to the registration so a new build starts clean.
+ */
+export function EvidenceFlow({ registration }: EvidenceFlowProps) {
+  const baseline = useMemo(() => fixtureBaseline(registration), [registration]);
+  const [state, setState] = useState<EvidenceRunState>(() =>
+    registration.lifecycleState === GATE
+      ? { kind: "baseline", baseline }
+      : { kind: "ungated", lifecycleState: registration.lifecycleState, nextAction: registration.nextAction });
+  const [outcome, setOutcome] = useState<FixtureOutcome>("observed");
+
+  // The fixture's gates are timed so RUNNING is actually visible. One pending
+  // timer at a time, always cleared — an unmount must not resurrect a run.
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const after = useCallback((ms: number, step: () => void) => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = setTimeout(step, ms);
+  }, []);
+  useEffect(() => () => {
+    if (timer.current !== null) clearTimeout(timer.current);
+  }, []);
+
+  const approve = useCallback(() => {
+    setState({ kind: "approving", baseline });
+    after(FIXTURE_TIMINGS.approveMs, () => {
+      const approval = fixtureApproval(baseline);
+      setState({ kind: "compiling", baseline, approval });
+      after(FIXTURE_TIMINGS.compileMs, () => {
+        setState({ kind: "scoped", baseline, approval, plan: fixturePlan(baseline, approval) });
+      });
+    });
+  }, [after, baseline]);
+
+  const runProbe = useCallback(() => {
+    setState((current) => {
+      if (current.kind !== "scoped") return current;
+      const { approval, plan } = current;
+      const execution = fixtureExecutionApproval(plan);
+      after(FIXTURE_TIMINGS.probeMs, () => {
+        setState({
+          kind: "terminal",
+          baseline,
+          approval,
+          plan,
+          execution,
+          receipt: fixtureReceipt(plan, execution, outcome),
+        });
+      });
+      return { kind: "running", baseline, approval, plan, execution };
+    });
+  }, [after, baseline, outcome]);
+
+  const reset = useCallback(() => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    setState({ kind: "baseline", baseline });
+  }, [baseline]);
+
+  const view = buildEvidenceFlow(state);
+
+  return (
+    <section className="ev-flow" aria-label="Safe first evidence">
+      <header className="ev-head">
+        <h2 className="ev-title">Safe first evidence</h2>
+        <span className="chip">I2</span>
+        <span className="ev-card-spacer" />
+        <span className="ev-status mono" role="status">
+          <span className="ev-status-item">Runs: {view.runsLabel}</span>
+          <span className={`ev-status-item is-verdict is-${view.verdictLabel.toLowerCase()}`}>
+            Verdict: {view.verdictLabel}
+          </span>
+        </span>
+      </header>
+
+      <div className="ev-headline">{view.headline}</div>
+      <p className="ev-detail">{view.detail}</p>
+
+      <EvidenceStepper steps={view.steps} />
+
+      {state.kind === "refused" && view.error !== null && (
+        <p className="ev-contract-error mono" role="alert">✗ {view.error}</p>
+      )}
+
+      {view.baseline !== null && (
+        <BaselineReviewCard
+          baseline={view.baseline}
+          approval={view.approval}
+          canApprove={view.canApproveBaseline}
+          blockedReason={view.approvalBlockedReason}
+          busy={state.kind === "approving"}
+          onApprove={approve}
+        />
+      )}
+
+      {view.plan !== null && (
+        <DryRunScopeCard
+          plan={view.plan}
+          execution={view.execution}
+          canRun={view.canRunProbe}
+          busy={state.kind === "running"}
+          outcome={outcome}
+          onSelectOutcome={setOutcome}
+          onRun={runProbe}
+        />
+      )}
+
+      {view.receipt === null ? (
+        <p className="ev-pending-note">{view.verdictNote}</p>
+      ) : (
+        <RunReceiptCard
+          receipt={view.receipt}
+          verdictNote={view.verdictNote}
+          acceptRelease={view.acceptRelease}
+          contractError={view.error}
+          onReset={reset}
+        />
+      )}
+
+      <FixtureNote provenance={view.provenance} />
+    </section>
+  );
+}

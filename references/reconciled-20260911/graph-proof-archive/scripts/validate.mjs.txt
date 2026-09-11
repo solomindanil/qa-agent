@@ -1,0 +1,10 @@
+import { validateRepository } from "../src/repository.mjs";
+
+const sourceRoot = argument("--source-root");
+const result = await validateRepository(process.cwd(), sourceRoot ? { sourceRoot } : undefined);
+process.stdout.write(`${JSON.stringify(result)}\n`);
+
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : null;
+}

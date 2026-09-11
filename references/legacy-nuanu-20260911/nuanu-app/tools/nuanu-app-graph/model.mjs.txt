@@ -1,0 +1,402 @@
+import { createHash } from "node:crypto";
+
+export const PRODUCT_ID = "nuanu-app";
+export const GRAPH_SCHEMA_VERSION = "1.0.0";
+
+const NODE_KINDS = new Set([
+  "source_file",
+  "external_dependency",
+  "api_contract",
+  "capability",
+  "route",
+  "surface",
+  "role",
+  "journey",
+  "invariant",
+  "risk",
+  "automated_test",
+  "manual_test",
+  "platform",
+]);
+
+const COVERAGE_DISPOSITIONS = new Set([
+  "AUTOMATED",
+  "MANUAL",
+  "BLOCKED",
+  "UNVERIFIED",
+  "NOT_DEPLOYED",
+]);
+
+const PROVENANCE_VALUES = new Set(["source", "runtime", "source_and_runtime"]);
+
+const EDGE_ENDPOINTS = {
+  implements: {
+    source: ["source_file"],
+    target: ["capability", "route", "surface", "api_contract"],
+  },
+  renders: { source: ["route"], target: ["surface"] },
+  exposes: { source: ["surface"], target: ["capability"] },
+  traverses: { source: ["journey"], target: ["route", "surface", "capability"] },
+  calls: { source: ["capability"], target: ["api_contract", "external_dependency"] },
+  requires: { source: ["capability"], target: ["role", "platform"] },
+  guarded_by: {
+    source: ["capability", "journey"],
+    target: ["invariant"],
+  },
+  has_risk: { source: ["capability", "journey"], target: ["risk"] },
+  verifies: {
+    source: ["automated_test", "manual_test"],
+    target: [...NODE_KINDS],
+  },
+  supports: { source: ["platform"], target: ["route", "surface", "journey"] },
+  affects: { source: [...NODE_KINDS], target: [...NODE_KINDS] },
+};
+
+function isObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function validationError(code, path, message) {
+  return { code, path, message };
+}
+
+function foreignNamespace(value) {
+  if (typeof value !== "string") return null;
+
+  const leadingNamespace = /^([a-z][a-z0-9-]*):/i.exec(value);
+  if (leadingNamespace && leadingNamespace[1] !== PRODUCT_ID) {
+    return leadingNamespace[1];
+  }
+
+  const embeddedNamespaces = value.matchAll(
+    /(?:^|[^a-z0-9-])([a-z][a-z0-9]*(?:-[a-z0-9]+)+):/gi,
+  );
+  for (const match of embeddedNamespaces) {
+    if (match[1] !== PRODUCT_ID) return match[1];
+  }
+  return null;
+}
+
+function findForeignMappingNamespaces(value, path, errors) {
+  if (typeof value === "string") {
+    if (foreignNamespace(value)) {
+      errors.push(
+        validationError(
+          "FOREIGN_PRODUCT_NAMESPACE",
+          path,
+          `Foreign product namespace in mapping value at ${path}`,
+        ),
+      );
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      findForeignMappingNamespaces(item, `${path}[${index}]`, errors);
+    });
+    return;
+  }
+
+  if (isObject(value)) {
+    for (const key of Object.keys(value).sort()) {
+      findForeignMappingNamespaces(value[key], `${path}.${key}`, errors);
+    }
+  }
+}
+
+function inspectMappingFields(value, path, errors) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => inspectMappingFields(item, `${path}[${index}]`, errors));
+    return;
+  }
+  if (!isObject(value)) return;
+
+  for (const key of Object.keys(value).sort()) {
+    const childPath = `${path}.${key}`;
+    if (/(mapping|path)/i.test(key)) {
+      findForeignMappingNamespaces(value[key], childPath, errors);
+    } else {
+      inspectMappingFields(value[key], childPath, errors);
+    }
+  }
+}
+
+function isNodeId(value) {
+  return typeof value === "string" && value.startsWith(`${PRODUCT_ID}:`);
+}
+
+function sortNodes(nodes) {
+  return [...nodes].sort((left, right) => {
+    const leftId = String(left?.id);
+    const rightId = String(right?.id);
+    return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
+  });
+}
+
+function sortEdges(edges) {
+  return [...edges].sort((left, right) => {
+    const leftTriple = [left?.source, left?.kind, left?.target].map(String).join("\u0000");
+    const rightTriple = [right?.source, right?.kind, right?.target].map(String).join("\u0000");
+    return leftTriple < rightTriple ? -1 : leftTriple > rightTriple ? 1 : 0;
+  });
+}
+
+function withoutTimestamps(value) {
+  if (Array.isArray(value)) return value.map(withoutTimestamps);
+  if (!isObject(value)) return value;
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !isTimestampField(key))
+      .map(([key, child]) => [key, withoutTimestamps(child)]),
+  );
+}
+
+function isTimestampField(key) {
+  const normalized = key.replace(/[^a-z0-9]/gi, "").toLowerCase();
+  return [
+    "timestamp",
+    "timestamps",
+    "timestampms",
+    "generatedat",
+    "createdat",
+    "updatedat",
+    "observedat",
+    "capturedat",
+    "collectedat",
+    "fetchedat",
+    "checkedat",
+    "seenat",
+    "timeobserved",
+    "observationtime",
+  ].some((suffix) => normalized.endsWith(suffix));
+}
+
+function semanticDigest(value) {
+  return digestJson(withoutTimestamps(value));
+}
+
+export function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, canonicalize(value[key])]),
+    );
+  }
+  return value;
+}
+
+export function digestJson(value) {
+  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
+}
+
+export function validateGraph(graph) {
+  const errors = [];
+  if (!isObject(graph)) {
+    return {
+      ok: false,
+      errors: [validationError("INVALID_GRAPH", "$", "Graph must be an object")],
+    };
+  }
+
+  if (graph.productId !== PRODUCT_ID) {
+    errors.push(
+      validationError("INVALID_PRODUCT_ID", "productId", `productId must be ${PRODUCT_ID}`),
+    );
+  }
+  if (graph.schemaVersion !== GRAPH_SCHEMA_VERSION) {
+    errors.push(
+      validationError(
+        "INVALID_GRAPH_SCHEMA_VERSION",
+        "schemaVersion",
+        `schemaVersion must be ${GRAPH_SCHEMA_VERSION}`,
+      ),
+    );
+  }
+
+  if (!Array.isArray(graph.nodes)) {
+    errors.push(validationError("INVALID_NODES", "nodes", "nodes must be an array"));
+  }
+  if (!Array.isArray(graph.edges)) {
+    errors.push(validationError("INVALID_EDGES", "edges", "edges must be an array"));
+  }
+
+  inspectMappingFields(graph, "$", errors);
+
+  const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+  const nodeIds = new Set();
+  const nodeById = new Map();
+  nodes.forEach((node, index) => {
+    const path = `nodes[${index}]`;
+    if (!isObject(node)) {
+      errors.push(validationError("INVALID_NODE", path, "Node must be an object"));
+      return;
+    }
+
+    const foreign = foreignNamespace(node.id);
+    if (foreign) {
+      errors.push(
+        validationError(
+          "FOREIGN_PRODUCT_NAMESPACE",
+          `${path}.id`,
+          `Node ID must use the ${PRODUCT_ID} namespace`,
+        ),
+      );
+    } else if (!isNodeId(node.id)) {
+      errors.push(
+        validationError("INVALID_NODE_ID", `${path}.id`, "Node ID must be product-scoped"));
+    } else if (nodeIds.has(node.id)) {
+      errors.push(validationError("DUPLICATE_NODE_ID", `${path}.id`, `Duplicate node ID ${node.id}`));
+    } else {
+      nodeIds.add(node.id);
+      nodeById.set(node.id, node);
+    }
+
+    if (!NODE_KINDS.has(node.kind)) {
+      errors.push(validationError("INVALID_NODE_KIND", `${path}.kind`, "Unsupported node kind"));
+    }
+    if (!PROVENANCE_VALUES.has(node.provenance)) {
+      errors.push(
+        validationError("INVALID_PROVENANCE", `${path}.provenance`, "Unsupported provenance"),
+      );
+    }
+    if (
+      node.coverageDisposition !== undefined &&
+      !COVERAGE_DISPOSITIONS.has(node.coverageDisposition)
+    ) {
+      errors.push(
+        validationError(
+          "INVALID_COVERAGE_DISPOSITION",
+          `${path}.coverageDisposition`,
+          "Unsupported coverage disposition",
+        ),
+      );
+    }
+    if (
+      node.provenance === "source" &&
+      !["NOT_DEPLOYED", "UNVERIFIED"].includes(node.coverageDisposition)
+    ) {
+      errors.push(
+        validationError(
+          "SOURCE_NODE_LIVE_COVERAGE",
+          `${path}.coverageDisposition`,
+          "Source-only nodes cannot have runnable live coverage",
+        ),
+      );
+    }
+
+    inspectMappingFields(node, path, errors);
+  });
+
+  const edges = Array.isArray(graph.edges) ? graph.edges : [];
+  const edgeTriples = new Set();
+  edges.forEach((edge, index) => {
+    const path = `edges[${index}]`;
+    if (!isObject(edge)) {
+      errors.push(validationError("INVALID_EDGE", path, "Edge must be an object"));
+      return;
+    }
+
+    const triple = [edge.source, edge.kind, edge.target].map(String).join("\u0000");
+    if (edgeTriples.has(triple)) {
+      errors.push(validationError("DUPLICATE_EDGE_TRIPLE", path, "Duplicate edge triple"));
+    } else {
+      edgeTriples.add(triple);
+    }
+
+    const sourceForeign = foreignNamespace(edge.source);
+    const targetForeign = foreignNamespace(edge.target);
+    if (sourceForeign) {
+      errors.push(
+        validationError(
+          "FOREIGN_PRODUCT_NAMESPACE",
+          `${path}.source`,
+          `Edge source must use the ${PRODUCT_ID} namespace`,
+        ),
+      );
+    }
+    if (targetForeign) {
+      errors.push(
+        validationError(
+          "FOREIGN_PRODUCT_NAMESPACE",
+          `${path}.target`,
+          `Edge target must use the ${PRODUCT_ID} namespace`,
+        ),
+      );
+    }
+
+    const sourceNode = nodeById.get(edge.source);
+    const targetNode = nodeById.get(edge.target);
+    if (!sourceNode || !targetNode) {
+      errors.push(validationError("DANGLING_EDGE", path, "Edge endpoint does not exist"));
+    }
+
+    const endpointRule = EDGE_ENDPOINTS[edge.kind];
+    if (!endpointRule) {
+      errors.push(validationError("INVALID_EDGE_KIND", `${path}.kind`, "Unsupported edge kind"));
+    } else if (
+      sourceNode &&
+      targetNode &&
+      (!endpointRule.source.includes(sourceNode.kind) || !endpointRule.target.includes(targetNode.kind))
+    ) {
+      errors.push(
+        validationError("INVALID_EDGE_ENDPOINTS", path, "Edge kind does not allow these endpoints"),
+      );
+    }
+
+    inspectMappingFields(edge, path, errors);
+  });
+
+  return { ok: errors.length === 0, errors };
+}
+
+export function createGraph({
+  sourceLock = {},
+  runtimeCatalog = {},
+  runtimeContract = {},
+  selectorObservation = {},
+  selectorCapturePlan = {},
+  selectorBindings = {},
+  reviewedMappings = {},
+  testCatalog = {},
+  nodes = [],
+  edges = [],
+  unresolved = [],
+  generatedAt,
+} = {}) {
+  const graph = {
+    productId: PRODUCT_ID,
+    schemaVersion: GRAPH_SCHEMA_VERSION,
+    inputDigests: {
+      sourceLock: semanticDigest(sourceLock),
+      runtimeCatalog: semanticDigest(runtimeCatalog),
+      runtimeContract: semanticDigest(runtimeContract),
+      selectorObservation: semanticDigest(selectorObservation),
+      selectorCapturePlan: semanticDigest(selectorCapturePlan),
+      selectorBindings: semanticDigest(selectorBindings),
+      reviewedMappings: semanticDigest(reviewedMappings),
+      testCatalog: semanticDigest(testCatalog),
+    },
+    nodes: sortNodes(nodes).map(canonicalize),
+    edges: sortEdges(edges).map(canonicalize),
+    unresolved: canonicalize(unresolved),
+  };
+  if (generatedAt !== undefined) graph.generatedAt = generatedAt;
+
+  const validationResult = validateGraph({ ...graph, reviewedMappings });
+  if (!validationResult.ok) {
+    const error = new Error("Nuanu App graph validation failed");
+    error.code = "GRAPH_VALIDATION_FAILED";
+    error.validationResult = validationResult;
+    error.validationErrors = validationResult.errors;
+    throw error;
+  }
+
+  return {
+    ...graph,
+    graphDigest: digestJson(withoutTimestamps(graph)),
+  };
+}

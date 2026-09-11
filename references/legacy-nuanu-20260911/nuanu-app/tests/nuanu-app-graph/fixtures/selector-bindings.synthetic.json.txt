@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "productId": "nuanu-app",
+  "baseUrl": "https://app.nuanu.com",
+  "observationDigest": "a13d438798dc67345ab93833e0d08be13a0cd520659f4237dc1838c91976471f",
+  "capturePlanDigest": "99817a5258bfca16e874932e774034a51a891e3d8d4462bbc6c447653a88aa13",
+  "selectors": {
+    "applicationShell": { "status": "AVAILABLE", "evidenceId": "30262c89dc6d35f6784b40ff39ae9edbfe82d989733021f492686feccbf1e62b", "matchCount": 1 },
+    "searchInput": { "status": "AVAILABLE", "evidenceId": "04a172f5fc178c3a3cdd59c6b2f61ae6aae21b106b16a31bb9764023379caaf8", "matchCount": 1 },
+    "openNowControl": { "status": "AVAILABLE", "evidenceId": "93d2141e079ce98141c3aabbca4d2f535c79149a061879c9ca62a8bbb5b70479", "matchCount": 1 },
+    "placesNavigation": { "status": "AVAILABLE", "evidenceId": "4c5c06f3405f2e377cea77970820cc72ab6afc46a3f3b0b3b628d219807d0cd8", "matchCount": 1 },
+    "mapNavigation": { "status": "AVAILABLE", "evidenceId": "4a4bf579611a875e9812af7b9998620918b0c831699dada8c8d4ce8911742dbc", "matchCount": 1 },
+    "profileNavigation": { "status": "AVAILABLE", "evidenceId": "595b609286aaab793c9e25e60277e1c6fbd9567a8837226b0351e6702c73e758", "matchCount": 1 },
+    "mapSurface": { "status": "AVAILABLE", "evidenceId": "6d1c2d7e035b458be75bf5395de1f09ca69f2d898c1b19ffdb2176a9ff882b3b", "matchCount": 1 },
+    "mapMarker": { "status": "AVAILABLE", "evidenceId": "8754fba46248a7ed98300ed25f8bfd51e040a6ce133ed49fd70a58983a38bf96", "matchCount": 1 },
+    "placeList": { "status": "UNVERIFIED", "reason": "ACCESSIBLE_ROLE_NAME_UNAVAILABLE" },
+    "placeCard": { "status": "AVAILABLE", "evidenceId": "d32fb32d232e2240c768e8da7b37bba5526e651db089bdc0e19f8ac97ea4887d", "matchCount": 1 },
+    "categoryGroup": { "status": "UNVERIFIED", "reason": "ACCESSIBLE_ROLE_NAME_UNAVAILABLE" },
+    "collectionGroup": { "status": "UNVERIFIED", "reason": "ACCESSIBLE_ROLE_NAME_UNAVAILABLE" },
+    "placeDetail": { "status": "UNVERIFIED", "reason": "STATE_NOT_OBSERVED" },
+    "placeDetailClose": { "status": "UNVERIFIED", "reason": "STATE_NOT_OBSERVED" },
+    "showOnMapAction": { "status": "UNVERIFIED", "reason": "STATE_NOT_OBSERVED" },
+    "callAction": { "status": "UNVERIFIED", "reason": "PROHIBITED_INTERACTION_REQUIRED" },
+    "authEntry": { "status": "UNVERIFIED", "reason": "STATE_NOT_OBSERVED" },
+    "updatePrompt": { "status": "UNVERIFIED", "reason": "STATE_NOT_OBSERVED" },
+    "signUpAction": { "status": "UNVERIFIED", "reason": "STATE_NOT_OBSERVED" },
+    "signInAction": { "status": "UNVERIFIED", "reason": "STATE_NOT_OBSERVED" },
+    "emailInput": { "status": "UNVERIFIED", "reason": "STATE_NOT_OBSERVED" },
+    "passwordInput": { "status": "UNVERIFIED", "reason": "STATE_NOT_OBSERVED" },
+    "forgotPasswordAction": { "status": "UNVERIFIED", "reason": "PROHIBITED_INTERACTION_REQUIRED" },
+    "appleProviderAction": { "status": "UNVERIFIED", "reason": "PROHIBITED_INTERACTION_REQUIRED" },
+    "googleProviderAction": { "status": "UNVERIFIED", "reason": "PROHIBITED_INTERACTION_REQUIRED" },
+    "privacyAction": { "status": "UNVERIFIED", "reason": "PROHIBITED_INTERACTION_REQUIRED" }
+  },
+  "inventory": {
+    "categories": [{ "evidenceId": "5dd104d3b395be0901e6400ccb6bf0a42c2d8ebe7d73f4e7d3654fc7abfbffc0", "matchCount": 1 }],
+    "collections": [{ "evidenceId": "d314040593341464bf204870b4ac7f2fc3bea92e2ae262c59c15590fecedd824", "matchCount": 1 }]
+  },
+  "bindingDigest": "ab613afc3b13e9d7c449f0909fb486df77915ae16cf348a8ab595ec9c1a122f0"
+}

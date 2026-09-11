@@ -1,0 +1,285 @@
+import { expect, test } from '@playwright/test';
+import {
+  classifyResponseContentType,
+  inspectBoundedErrorBody,
+  isMutatingFirstPartyRequest,
+  partitionVerifiedAxeFingerprints,
+  redactUrlQuery,
+  readJsonWithoutRawError,
+  validateSafeApiErrorEvidence,
+  validatePerformanceMetrics,
+  type PerformanceMetrics,
+  type SafeApiErrorEvidence,
+  type VerifiedAxeFingerprint,
+} from './cross-cutting';
+
+test.describe('Task 10 cross-cutting safety helpers', () => {
+  test('flags every first-party non-safe request regardless of path family', () => {
+    expect(
+      isMutatingFirstPartyRequest(
+        'POST',
+        'https://flow.nuanu.com/graphql?operation=private-value',
+      ),
+    ).toBe(true);
+    expect(
+      isMutatingFirstPartyRequest(
+        'PATCH',
+        'https://flow.nuanu.com/api/uploads/private-object',
+      ),
+    ).toBe(true);
+    expect(
+      isMutatingFirstPartyRequest(
+        'GET',
+        'https://flow.nuanu.com/graphql?operation=private-value',
+      ),
+    ).toBe(false);
+    expect(
+      isMutatingFirstPartyRequest(
+        'POST',
+        'https://flow.nuanu.com.evil.example/graphql',
+      ),
+    ).toBe(false);
+  });
+
+  for (const [label, body, category] of [
+    ['traceback', 'TrAcEbAcK: frame', 'traceback'],
+    ['source path', '/srv/node_modules/pkg/index.js', 'source-path'],
+    ['sql', 'SeLeCt password FrOm users', 'sql'],
+    ['bearer', 'BEARER aBc_123-token.value', 'bearer-token'],
+    ['private key', '-----BEGIN RSA PRIVATE KEY-----', 'private-key'],
+    ['localhost', 'https://LOCALHOST:8080/error', 'internal-host'],
+    ['internal host', 'http://api.service.internal/trace', 'internal-host'],
+  ] as const) {
+    test(`classifies ${label} without returning the body`, () => {
+      expect(inspectBoundedErrorBody(body, 16_384)).toEqual({
+        byteLength: Buffer.byteLength(body),
+        inspectedBytes: Buffer.byteLength(body),
+        truncated: false,
+        leakCategory: category,
+      });
+    });
+  }
+
+  test('accepts a normal bounded API error without exposing its content', () => {
+    const body = '{"detail":"Not found","id":"00000000-0000-4000-8000-000000000001"}';
+
+    expect(inspectBoundedErrorBody(body, 16_384)).toEqual({
+      byteLength: Buffer.byteLength(body),
+      inspectedBytes: Buffer.byteLength(body),
+      truncated: false,
+      leakCategory: undefined,
+    });
+  });
+
+  test('reports truncation and never includes the raw response body', () => {
+    const result = inspectBoundedErrorBody('safe'.repeat(8_000), 128);
+
+    expect(result).toEqual({
+      byteLength: 32_000,
+      inspectedBytes: 128,
+      truncated: true,
+      leakCategory: undefined,
+    });
+    expect(JSON.stringify(result)).not.toContain('safe');
+  });
+
+  test('redacts every query value while preserving sorted keys and pathname', () => {
+    expect(
+      redactUrlQuery(
+        'https://flow.nuanu.com/be/api/example/?token=secret&all=true&all=false',
+      ),
+    ).toBe('/be/api/example/?all=<redacted>&all=<redacted>&token=<redacted>');
+  });
+
+  test('accepts only nonempty bounded JSON error evidence without leaks', () => {
+    const evidence: SafeApiErrorEvidence = {
+      declaredBodyBytes: 22,
+      bodyBytes: 22,
+      bodyReadFailed: false,
+      contentType: 'json',
+      truncated: false,
+      leakCategory: null,
+    };
+
+    expect(validateSafeApiErrorEvidence(evidence, 16_384)).toEqual([]);
+  });
+
+  test('rejects empty, HTML, unreadable, oversized, and leaking API error evidence', () => {
+    const emptyHtml: SafeApiErrorEvidence = {
+      declaredBodyBytes: 0,
+      bodyBytes: 0,
+      bodyReadFailed: false,
+      contentType: 'html',
+      truncated: false,
+      leakCategory: null,
+    };
+    const unreadableLeaking: SafeApiErrorEvidence = {
+      declaredBodyBytes: 20_000,
+      bodyBytes: null,
+      bodyReadFailed: true,
+      contentType: 'missing',
+      truncated: null,
+      leakCategory: 'traceback',
+    };
+
+    expect(validateSafeApiErrorEvidence(emptyHtml, 16_384)).toEqual([
+      'body:empty',
+      'content-type:not-json',
+    ]);
+    expect(validateSafeApiErrorEvidence(unreadableLeaking, 16_384)).toEqual([
+      'declared-body:oversized',
+      'body:unavailable',
+      'body:read-failed',
+      'content-type:not-json',
+      'inspection:unavailable',
+      'body:leak-traceback',
+    ]);
+  });
+
+  test('maps response content types to a bounded safe category', () => {
+    expect(classifyResponseContentType('application/json; charset=utf-8')).toBe(
+      'json',
+    );
+    expect(classifyResponseContentType('text/html; private=sentinel')).toBe(
+      'html',
+    );
+    expect(classifyResponseContentType('private/sentinel')).toBe('other');
+    expect(classifyResponseContentType(undefined)).toBe('missing');
+  });
+
+  test('replaces raw JSON parse failures with a fixed sanitized error', async () => {
+    const response = {
+      json: async () => {
+        throw new Error('private-malformed-body-sentinel');
+      },
+    };
+
+    let caught: unknown;
+    try {
+      await readJsonWithoutRawError(response);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toBe('API response was not valid JSON.');
+    expect(JSON.stringify(caught)).not.toContain(
+      'private-malformed-body-sentinel',
+    );
+  });
+
+  test('accepts only a frozen route/rule/impact/target axe fingerprint', () => {
+    const verified: readonly VerifiedAxeFingerprint[] = [
+      {
+        ticket: 'NUANU-15',
+        routeName: 'Home',
+        control: 'notifications',
+        ruleId: 'link-name',
+        impact: 'serious',
+        target: 'a[href$="notifications/"]',
+      },
+    ];
+    const result = partitionVerifiedAxeFingerprints(
+      'Home',
+      [
+        {
+          ruleId: 'link-name',
+          impact: 'serious',
+          target: 'a[href$="notifications/"]',
+        },
+        {
+          ruleId: 'link-name',
+          impact: 'serious',
+          target: 'main a[href$="notifications/"]',
+        },
+      ],
+      verified,
+    );
+
+    expect(result.known).toEqual([
+      'NUANU-15|Home|notifications|link-name|serious|a[href$="notifications/"]',
+    ]);
+    expect(result.unexpected).toEqual([
+      'link-name|serious|main a[href$="notifications/"]',
+    ]);
+  });
+
+  test('accepts a frozen axe fingerprint only once per route', () => {
+    const verified: readonly VerifiedAxeFingerprint[] = [
+      {
+        ticket: 'NUANU-15',
+        routeName: 'Home',
+        control: 'notifications',
+        ruleId: 'link-name',
+        impact: 'serious',
+        target: 'a[href$="notifications/"]',
+      },
+    ];
+    const duplicate = {
+      ruleId: 'link-name',
+      impact: 'serious',
+      target: 'a[href$="notifications/"]',
+    };
+
+    const result = partitionVerifiedAxeFingerprints(
+      'Home',
+      [duplicate, duplicate],
+      verified,
+    );
+
+    expect(result.known).toHaveLength(1);
+    expect(result.unexpected).toEqual([
+      'link-name|serious|a[href$="notifications/"]',
+    ]);
+  });
+
+  test('accepts finite nonnegative supported performance metrics', () => {
+    const metrics: PerformanceMetrics = {
+      navigationDurationMs: 1200,
+      semanticReadyDurationMs: 1250,
+      firstPartyResourceCount: 42,
+      firstPartyTransferBytes: 256_000,
+      firstPartyEncodedBytes: 190_000,
+      failedCriticalFirstPartyResources: 0,
+      layoutShiftSupported: true,
+      cumulativeLayoutShift: 0.02,
+      largestContentfulPaintSupported: true,
+      largestContentfulPaintMs: 1100,
+      longTaskSupported: false,
+      longTaskCount: null,
+      longTaskTotalDurationMs: null,
+      longTaskMaxDurationMs: null,
+    };
+
+    expect(validatePerformanceMetrics(metrics)).toEqual([]);
+  });
+
+  test('rejects nonfinite, negative, or inconsistent performance metrics', () => {
+    const metrics: PerformanceMetrics = {
+      navigationDurationMs: Number.NaN,
+      semanticReadyDurationMs: -1,
+      firstPartyResourceCount: Number.POSITIVE_INFINITY,
+      firstPartyTransferBytes: -5,
+      firstPartyEncodedBytes: 0,
+      failedCriticalFirstPartyResources: 1,
+      layoutShiftSupported: false,
+      cumulativeLayoutShift: 0,
+      largestContentfulPaintSupported: true,
+      largestContentfulPaintMs: null,
+      longTaskSupported: true,
+      longTaskCount: 2,
+      longTaskTotalDurationMs: 90,
+      longTaskMaxDurationMs: 100,
+    };
+
+    expect(validatePerformanceMetrics(metrics)).toEqual([
+      'navigationDurationMs:not-finite',
+      'semanticReadyDurationMs:negative',
+      'firstPartyResourceCount:not-finite',
+      'firstPartyTransferBytes:negative',
+      'failedCriticalFirstPartyResources:nonzero',
+      'cumulativeLayoutShift:unsupported-value',
+      'largestContentfulPaintMs:missing-supported-value',
+      'longTaskMaxDurationMs:exceeds-total',
+    ]);
+  });
+});

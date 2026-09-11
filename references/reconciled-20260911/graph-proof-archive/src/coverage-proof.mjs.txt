@@ -1,0 +1,149 @@
+import { canonicalJson, digestCanonical, validateProductTestCatalog } from "./model.mjs";
+
+const CLASSIFICATIONS = new Set([
+  "fully_automated",
+  "partially_automated",
+  "manual",
+  "gap_detected",
+  "not_applicable_current_profile",
+]);
+const COVERAGE_LEVELS = new Set(["full", "partial", "detection"]);
+const TEST_KINDS = new Set(["automated", "manual"]);
+
+export function buildCoverageOwnershipDocument({ sourceSha, rows }) {
+  assertGitSha(sourceSha);
+  if (!Array.isArray(rows)) throw new TypeError("COVERAGE_OWNERSHIP_ROWS_INVALID");
+  const normalized = rows.map(row => {
+    const value = normalizeRow(row);
+    validateClassification(value);
+    return value;
+  }).sort((left, right) => left.nodeId.localeCompare(right.nodeId, "en"));
+  assertUnique(normalized.map(row => row.nodeId), "COVERAGE_OWNERSHIP_NODE_DUPLICATE");
+  const body = { schemaVersion: 1, sourceSha, rows: normalized };
+  return { ...body, ownershipDigest: digestCanonical(body) };
+}
+
+export function validateCoverageOwnership({
+  document,
+  sourceSha,
+  requiredNodeIds,
+  testNodes,
+  productCatalog,
+  passedProductCiIds = new Set(),
+  requireComplete = false,
+}) {
+  assertExactKeys(document, ["ownershipDigest", "rows", "schemaVersion", "sourceSha"], "COVERAGE_OWNERSHIP_DOCUMENT");
+  if (document.schemaVersion !== 1) throw new TypeError("COVERAGE_OWNERSHIP_SCHEMA_INVALID");
+  if (document.sourceSha !== sourceSha) throw new TypeError("COVERAGE_OWNERSHIP_SHA_MISMATCH");
+  const rebuilt = buildCoverageOwnershipDocument({ sourceSha: document.sourceSha, rows: document.rows });
+  if (canonicalJson(document) !== canonicalJson(rebuilt)) throw new TypeError("COVERAGE_OWNERSHIP_DIGEST_OR_ORDER_MISMATCH");
+  const required = new Set(requiredNodeIds ?? []);
+  const tests = testNodes instanceof Map ? testNodes : new Map(testNodes ?? []);
+  const passed = passedProductCiIds instanceof Set ? passedProductCiIds : new Set(passedProductCiIds ?? []);
+  const productBindings = productCatalog === undefined
+    ? null
+    : buildProductCiBindingIndex({ productCatalog, sourceSha });
+  const byNodeId = new Map();
+
+  for (const row of rebuilt.rows) {
+    if (!required.has(row.nodeId)) throw new TypeError(`COVERAGE_OWNERSHIP_NODE_UNKNOWN ${row.nodeId}`);
+    for (const binding of row.bindings) {
+      const test = tests.get(binding.testId);
+      if (!test) throw new TypeError(`COVERAGE_OWNERSHIP_TEST_UNKNOWN ${binding.testId}`);
+      const actualKind = test.kind === "manual_test" ? "manual" : test.kind === "automated_test" ? "automated" : null;
+      if (actualKind !== binding.kind) throw new TypeError(`COVERAGE_OWNERSHIP_TEST_KIND_MISMATCH ${binding.testId}`);
+      if (test.runner === "product_ci" && binding.kind === "automated") {
+        if (!productBindings) throw new TypeError("COVERAGE_OWNERSHIP_PRODUCT_CI_CATALOG_REQUIRED");
+        const typedCoverage = productBindings.get(binding.testId)?.get(row.nodeId);
+        if (!typedCoverage) {
+          throw new TypeError(`COVERAGE_OWNERSHIP_PRODUCT_CI_RELATION_UNKNOWN ${binding.testId} ${row.nodeId}`);
+        }
+        if (typedCoverage !== binding.coverage) {
+          throw new TypeError(`COVERAGE_OWNERSHIP_PRODUCT_CI_COVERAGE_MISMATCH ${binding.testId} ${row.nodeId} expected=${typedCoverage} actual=${binding.coverage}`);
+        }
+        if (!passed.has(binding.testId)) {
+          throw new TypeError(`COVERAGE_OWNERSHIP_PRODUCT_CI_NOT_PASSED ${binding.testId}`);
+        }
+      }
+    }
+    validateClassification(row);
+    byNodeId.set(row.nodeId, row);
+  }
+  const missing = [...required].filter(nodeId => !byNodeId.has(nodeId)).sort();
+  if (requireComplete && missing.length) {
+    throw new TypeError(`COVERAGE_OWNERSHIP_INCOMPLETE ${missing.length} ${missing.join(",")}`);
+  }
+  return {
+    ok: true,
+    owned: byNodeId.size,
+    required: required.size,
+    missing,
+    knownGaps: rebuilt.rows.filter(row => row.classification === "gap_detected").map(row => row.nodeId),
+    byNodeId,
+  };
+}
+
+export function buildProductCiBindingIndex({ productCatalog, sourceSha }) {
+  const catalog = validateProductTestCatalog(productCatalog);
+  if (catalog.sourceSha !== sourceSha) throw new TypeError("COVERAGE_OWNERSHIP_PRODUCT_CI_CATALOG_SHA_MISMATCH");
+  return new Map(catalog.tests.map(test => [
+    test.id,
+    new Map(test.bindings.map(binding => [binding.nodeId, binding.coverage])),
+  ]));
+}
+
+function normalizeRow(row) {
+  assertExactKeys(row, ["bindings", "classification", "nodeId", "rationale"], "COVERAGE_OWNERSHIP_ROW");
+  const nodeId = String(row.nodeId ?? "");
+  if (!/^(?:req|flow|route|invariant):/.test(nodeId)) throw new TypeError("COVERAGE_OWNERSHIP_NODE_ID_INVALID");
+  const classification = String(row.classification ?? "");
+  if (!CLASSIFICATIONS.has(classification)) throw new TypeError("COVERAGE_OWNERSHIP_CLASSIFICATION_INVALID");
+  const rationale = String(row.rationale ?? "").trim();
+  if (rationale.length < 16) throw new TypeError("COVERAGE_OWNERSHIP_RATIONALE_INVALID");
+  if (!Array.isArray(row.bindings) || row.bindings.length === 0) throw new TypeError("COVERAGE_OWNERSHIP_BINDINGS_INVALID");
+  const bindings = row.bindings.map(binding => {
+    assertExactKeys(binding, ["coverage", "kind", "rationale", "testId"], "COVERAGE_OWNERSHIP_BINDING");
+    const testId = String(binding.testId ?? "");
+    const kind = String(binding.kind ?? "");
+    const coverage = String(binding.coverage ?? "");
+    const bindingRationale = String(binding.rationale ?? "").trim();
+    if (!testId || !TEST_KINDS.has(kind) || !COVERAGE_LEVELS.has(coverage) || bindingRationale.length < 12) {
+      throw new TypeError("COVERAGE_OWNERSHIP_BINDING_INVALID");
+    }
+    return { testId, kind, coverage, rationale: bindingRationale };
+  }).sort((left, right) => canonicalJson(left).localeCompare(canonicalJson(right), "en"));
+  assertUnique(bindings.map(binding => `${binding.testId}\u0000${binding.coverage}`), "COVERAGE_OWNERSHIP_BINDING_DUPLICATE");
+  return { nodeId, classification, bindings, rationale };
+}
+
+function validateClassification(row) {
+  const has = (kind, coverage) => row.bindings.some(binding => binding.kind === kind && binding.coverage === coverage);
+  if (row.classification === "fully_automated" && !has("automated", "full")) {
+    throw new TypeError(`COVERAGE_OWNERSHIP_FULL_AUTOMATION_REQUIRED ${row.nodeId}`);
+  }
+  if (row.classification === "partially_automated" && (!row.bindings.some(binding => binding.kind === "automated") || !has("manual", "full"))) {
+    throw new TypeError(`COVERAGE_OWNERSHIP_PARTIAL_PLUS_MANUAL_REQUIRED ${row.nodeId}`);
+  }
+  if (row.classification === "manual" && !has("manual", "full")) {
+    throw new TypeError(`COVERAGE_OWNERSHIP_MANUAL_REQUIRED ${row.nodeId}`);
+  }
+  if (row.classification === "gap_detected" && !row.bindings.some(binding => binding.coverage === "detection")) {
+    throw new TypeError(`COVERAGE_OWNERSHIP_GAP_DETECTOR_REQUIRED ${row.nodeId}`);
+  }
+  if (row.classification === "not_applicable_current_profile" && !has("automated", "detection")) {
+    throw new TypeError(`COVERAGE_OWNERSHIP_PROFILE_GUARD_REQUIRED ${row.nodeId}`);
+  }
+}
+
+function assertGitSha(value) {
+  if (!/^[a-f0-9]{40}$/.test(String(value ?? ""))) throw new TypeError("COVERAGE_OWNERSHIP_SHA_INVALID");
+}
+
+function assertExactKeys(value, expected, code) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`${code}_INVALID`);
+  if (canonicalJson(Object.keys(value).sort()) !== canonicalJson([...expected].sort())) throw new TypeError(`${code}_KEYS_INVALID`);
+}
+
+function assertUnique(values, code) {
+  if (new Set(values).size !== values.length) throw new TypeError(code);
+}

@@ -1,0 +1,1934 @@
+# Freeland Computer Use and Real Telegram Web Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Add a bounded local CDP daemon/CLI, deterministic real Computer Use scenarios, PostgreSQL-fenced QA personas, an OS-clipboard regression for FREEL-206, and real `web.telegram.org` Mini App attestation whose sanitized results feed the existing Freeland deterministic runner.
+
+**Architecture:** The existing `FreelandCdpBroker` remains the sole Chrome owner and gains a private Unix-socket transport with a closed request protocol; it does not gain queues, retries, scheduling, leases, or an agent registry. A deterministic controller drives an injected host Computer Use adapter through versioned semantic actions and a pure checkpoint state machine, enforcing candidate, origin, persona-fence, cleanup, and evidence invariants before returning the existing `QaLaneExecution`. PostgreSQL 16 owns exclusive persona leases and monotonic fencing, including non-expiring `PAYMENT_HOLD`; real web, macOS clipboard, and Telegram observations are sanitized at collection time, and mocks can never satisfy a live exit.
+
+**Tech Stack:** Node.js 20.20.x, TypeScript 6 in strict NodeNext mode, Playwright 1.61.1, Ajv 8.20, YAML 2.9, PostgreSQL 16.12, `pg` 8.16.3, macOS Chrome/CDP, macOS `/usr/bin/pbpaste` and `/usr/bin/pbcopy`, host Computer Use, and Telegram Web.
+
+## Global Constraints
+
+1. Implement only in `/Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local`, repository `https://github.com/solomindanil/FreelandQA-I1.git`, branch `codex/freeland-agent-first-cdp-i1-local`, audited baseline `72378f3e32f8da3d1e5226e8737a3717e48a6347`.
+2. N3 runs after the N1 deterministic-runner plan on the same branch. Before editing, require `git merge-base --is-ancestor 72378f3e32f8da3d1e5226e8737a3717e48a6347 HEAD`, a clean `git status --short`, and passing N1 contract/runner tests. If `HEAD` is still the audited baseline, execute and commit N1 first. If ancestry, status, or N1 checks differ, stop and reconcile with the owner; never reset, clean, stash, or overwrite another change.
+3. Run authoritative commands with `/opt/homebrew/opt/node@20/bin/node` or a shell whose `node --version` is `v20.20.x`. Ambient Node 22 output is not acceptance evidence.
+4. Import `QaLaneExecution`, `QaRunResult`, `QaArtifactRef`, `QaLane`, and validators from `packages/contracts/src/qa-run.ts` as introduced by the N1 plan. Do not redeclare runner contracts or create a second evaluator.
+5. Preserve `FreelandCdpBroker` in `packages/cdp-broker/src/broker.ts` as the sole browser-custody boundary. The Unix daemon is a transport process around that broker, not a worker system.
+6. The daemon accepts one bounded request at a time over a private Unix socket. It has no queue, task persistence, lease, retry policy, scheduler, workflow, Decision inbox, remote-worker registry, or generalized command execution.
+7. The command union remains closed. Callers cannot submit a URL, selector, JavaScript, shell command, filesystem path, executable, coordinate, arbitrary key sequence, clipboard value, or arbitrary CDP method.
+8. Computer Use scenarios are semantic, immutable-by-revision inputs. The deterministic controller, not model prose, owns transitions and checkpoint verdicts. Every live action carries a single-use authenticated guard for the exact host session, application/window, origin, candidate, persona epoch, and pre-action observation. The host bridge verifies that guard atomically immediately before dispatch; controller-side before/after observations alone are never action authority.
+9. `https://mf0.forum` is the exact staging web origin. A redirect, different origin, absent staging marker, release mismatch, or candidate change is `BLOCKED`/`ENV_BLOCKED` or `INCONCLUSIVE`; it is never a product PASS.
+10. Telegram must launch from a dedicated QA session on real `https://web.telegram.org` into `dmf0_bot`. A Playwright stub, injected `window.Telegram`, direct Mini App URL, fixture, screenshot-only assertion, or mock adapter cannot satisfy the live gate.
+11. Real Telegram compatibility and same-candidate staging attribution are separate claims. A valid Mini App whose backend release cannot be tied to the expected staging candidate is `PRODUCTION_COMPATIBILITY_ONLY` or `UNVERIFIED` and leaves the staging requirement blocked.
+12. Persona exclusivity uses PostgreSQL 16 with serializable transactions and monotonic `fencingEpoch`; no file lock is authoritative. Every stateful browser/persona operation carries the exact active epoch and stale epochs fail closed.
+13. An expired ordinary lease may be taken over after cleanup policy permits it. `PAYMENT_HOLD` never becomes `AVAILABLE` because of TTL expiry or worker loss; only payment reconciliation followed by a verified reset receipt can release it.
+14. N3 does not purchase, submit payment, create an account, send a Telegram message to a third party, change user settings, or reset a password. FREEL-206 consumes an already-provisioned paid VPN QA persona.
+15. Full clipboard values, Telegram `initData`, chat contents, phone numbers, cookies, storage state, tokens, signed URLs, provider payloads, card data, and credentials never enter Git, Nuanu, ordinary logs, test names, exception messages, screenshots, hashes, or sanitized artifacts.
+16. Clipboard verification records structural facts only, clears the OS pasteboard in `finally`, verifies it is empty, and zeroes every mutable in-process buffer. Cleanup failure blocks the lane and quarantines the persona.
+17. Telegram screenshots are disabled until the controller has entered the Mini App and attested a safe crop. Chrome profiles and raw observations remain restricted local evidence with TTL/deletion receipts; Nuanu receives sanitized derivatives only.
+18. Every task follows RED → observed failure → minimal GREEN → focused regression → aggregate verification → exact-scope commit. Never weaken a test to make GREEN.
+19. Unit tests and test doubles prove contracts only. Every live Definition of Done item requires a real host Computer Use adapter and real browser surface; missing profiles, host bridge, database, or candidate identity must fail with a typed blocked result, not skip or pass.
+20. Live acceptance files end in `.live.ts`, not `.test.ts`, so the generic
+    `tests/**/*.test.ts` aggregate can never launch Chrome, Telegram, clipboard,
+    or a real canary accidentally. Only the explicit `acceptance:*` or
+    `test:cdp:live` scripts execute them.
+
+---
+
+## Audited Starting Point and Ownership
+
+- `packages/contracts/src/cdp.ts` and `packages/contracts/schemas/cdp-*.v1.schema.json` own closed CDP inputs, observations, results, session manifests, route/request policies, and Chrome runtime identity.
+- `packages/cdp-broker/src/broker.ts` exports `FreelandCdpBroker.start(input)`, `sessionAlias()`, `execute(command, signal?)`, `stop()`, and `whenTerminated()`.
+- `packages/cdp-broker/src/control-runtime.ts` exports `deriveSessionControl`, `createSessionControl`, and `removeOwnedSessionControl`; the private socket path is already bounded under `/private/tmp`.
+- `packages/cdp-broker/src/process-owner.ts` validates broker, Chrome, and watchdog ownership and already anticipates `daemon.ts`.
+- `packages/cdp-broker/src/policy.ts`, `browser-guard.ts`, `attestation.ts`, `capture-sanitizer.ts`, and `artifacts.ts` remain authoritative for routes, candidate identity, safe capture, and restricted custody.
+- `config/cdp/public-staging-routes.v1.yaml` owns reviewed route IDs for `/`, `/ru`, `/en`, `/terms`, `/privacy`, and `/app/welcome`. N3 cannot silently widen that policy.
+- N1 owns `packages/contracts/src/qa-run.ts`, `packages/runner/src/*`, and `tools/runner/run-qa.ts`. N3 adds lane producers and evidence inputs, not another aggregate verdict.
+- N3 owns migration `0010_persona_leases.sql`. N5 payment work begins at migration `0020` and imports the N3 persona service.
+
+## Exact Files
+
+**Create:**
+
+- `packages/contracts/src/computer-use.ts`
+- `packages/contracts/src/telegram.ts`
+- `packages/contracts/src/persona.ts`
+- `packages/contracts/schemas/computer-use-scenario.v1.schema.json`
+- `packages/contracts/schemas/computer-use-observation.v1.schema.json`
+- `packages/contracts/schemas/computer-use-checkpoint-receipt.v1.schema.json`
+- `packages/contracts/schemas/telegram-runtime-identity.v1.schema.json`
+- `packages/contracts/schemas/persona-manifest.v1.schema.json`
+- `packages/contracts/schemas/persona-lease.v1.schema.json`
+- `packages/cdp-broker/src/unix-protocol.ts`
+- `packages/cdp-broker/src/daemon.ts`
+- `packages/cdp-broker/src/cli.ts`
+- `packages/computer-use/src/checkpoint.ts`
+- `packages/computer-use/src/control-contracts.ts`
+- `packages/computer-use/src/control-client.ts`
+- `packages/computer-use/src/host-runtime.ts`
+- `packages/computer-use/src/origin-guard.ts`
+- `packages/computer-use/src/session.ts`
+- `packages/computer-use/src/scenario.ts`
+- `packages/computer-use/src/clipboard.ts`
+- `packages/computer-use/src/telegram.ts`
+- `packages/personas/src/contracts.ts`
+- `packages/personas/src/postgres-store.ts`
+- `packages/personas/src/lease-service.ts`
+- `db/migrations/0010_persona_leases.sql`
+- `tools/db/migrate.ts`
+- `config/postgres/payment-test.compose.yaml`
+- `config/personas/freeland.v1.yaml`
+- `scenarios/computer-use/staging-web-smoke.v1.yaml`
+- `scenarios/computer-use/vpn-clipboard.v1.yaml`
+- `scenarios/computer-use/telegram-mini-app-smoke.v1.yaml`
+- `coverage/requirements/semantic/telegram.real_miniapp_runtime.yaml`
+- all test files named by the tasks below.
+
+**Modify:**
+
+- `packages/contracts/src/index.ts`
+- `packages/cdp-broker/src/process-owner.ts`
+- `packages/runner/src/commands.ts`
+- `packages/runner/src/evaluator.ts`
+- `packages/runner/src/evidence.ts`
+- `tools/runner/run-qa.ts`
+- `coverage/requirements/semantic/vpn.clipboard_fallback.yaml`
+- `coverage/requirements/legacy/bot-03.yaml`
+- `tests/cdp/chrome-lifecycle.test.ts`
+- `package.json` and `package-lock.json`.
+
+## Shared Interfaces
+
+Define these types once in the contract modules and import them elsewhere:
+
+```ts
+export type ComputerUseSurface =
+  | 'staging-web'
+  | 'vpn-os-clipboard'
+  | 'telegram-web-mini-app';
+export type ComputerUseCheckpointState =
+  | 'PENDING' | 'READY' | 'SATISFIED' | 'VIOLATED' | 'INCONCLUSIVE';
+export type ComputerUseRunState =
+  | 'CREATED' | 'ATTESTING' | 'EXECUTING' | 'CHECKPOINTING'
+  | 'CLEANING' | 'DONE' | 'BLOCKED' | 'FAILED' | 'QUARANTINED';
+
+export type ComputerUseAction =
+  | { kind: 'activate-app'; application: 'Google Chrome' | 'Telegram Web' }
+  | { kind: 'navigate-reviewed-route'; routeId: string }
+  | { kind: 'activate-accessible-target'; role: 'button' | 'link' | 'tab' | 'menuitem'; nameToken: string }
+  | { kind: 'wait-semantic'; predicate: 'document-ready' | 'heading-present' | 'mini-app-ready'; timeoutMs: number }
+  | { kind: 'copy-vpn-configuration' }
+  | { kind: 'launch-telegram-bot-mini-app'; botUsername: 'dmf0_bot' }
+  | { kind: 'return-to-safe-surface' };
+
+export interface ComputerUseScenario {
+  schemaVersion: 1;
+  scenarioId: string;
+  revision: string;
+  requirementIds: string[];
+  ticketRefs: string[];
+  checkId: string;
+  surface: ComputerUseSurface;
+  allowedApplications: Array<'Google Chrome' | 'Telegram Web' | 'macOS Pasteboard'>;
+  allowedOrigins: string[];
+  personaKinds: Array<'public' | 'paid-vpn' | 'telegram-qa'>;
+  preconditions: Array<
+    'candidate-attested' | 'persona-leased' | 'clipboard-clear' |
+    'telegram-session-authenticated'
+  >;
+  steps: Array<{
+    stepId: string;
+    action: ComputerUseAction;
+    checkpointIds: string[];
+    evidence: 'safe-metadata' | 'safe-screenshot-crop' | 'suppressed';
+  }>;
+  checkpoints: Array<{
+    checkpointId: string;
+    kind:
+      | 'candidate-match' | 'origin-match' | 'accessible-target-present'
+      | 'clipboard-valid' | 'telegram-runtime-match' | 'cleanup-complete';
+    expected: Readonly<Record<string, string | number | boolean>>;
+  }>;
+  prohibitedActions: Array<
+    'arbitrary-url' | 'arbitrary-script' | 'arbitrary-shell' |
+    'arbitrary-coordinates' | 'purchase' | 'third-party-message' | 'unsafe-capture'
+  >;
+  maxRecoveryAttempts: number;
+  timeoutMs: number;
+  cleanup: Array<
+    'return-safe-surface' | 'clear-clipboard' | 'close-mini-app' | 'release-persona'
+  >;
+}
+
+export interface ComputerUseObservation {
+  schemaVersion: 1;
+  observedBy: 'host-computer-use' | 'test-double';
+  hostSessionId: string;
+  observedAt: string;
+  application: 'Google Chrome' | 'Telegram Web' | 'macOS Pasteboard';
+  windowId: string | null;
+  topLevelOrigin: string | null;
+  frameOrigin: string | null;
+  candidateDigest: string | null;
+  appEnvironment: 'staging' | 'production' | 'unknown';
+  accessibleFacts: Array<{ role: string; nameToken: string; present: boolean }>;
+  telegram: TelegramRuntimeObservation | null;
+  clipboard: ClipboardReceipt | null;
+  screenshot: null | { restrictedArtifactId: string; safeCropAttested: boolean };
+}
+
+export interface ComputerUseCheckpointReceipt {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  scenarioId: string;
+  scenarioRevision: string;
+  scenarioDigest: string;
+  stepId: string;
+  checkpointId: string;
+  sequence: number;
+  state: ComputerUseCheckpointState;
+  reasonCode: string;
+  candidateDigest: string;
+  personaId: string | null;
+  fencingEpoch: number | null;
+  observationDigest: string;
+}
+
+export interface ComputerUseAdapter {
+  readonly kind: 'host-computer-use' | 'test-double';
+  readonly hostSessionId: string;
+  observe(signal: AbortSignal): Promise<ComputerUseObservation>;
+  authorize(input: ComputerUseActionGuardRequest, signal: AbortSignal): Promise<GuardedComputerUseAction>;
+  perform(command: GuardedComputerUseAction, signal: AbortSignal): Promise<ComputerUseObservation>;
+}
+
+export interface ComputerUseActionGuardRequest {
+  qaRunKey: QaRunKey;
+  action: ComputerUseAction;
+  expectedApplication: 'Google Chrome' | 'Telegram Web' | 'macOS Pasteboard';
+  expectedWindowId: string | null;
+  expectedTopOrigin: string | null;
+  expectedFrameOrigin: string | null;
+  expectedCandidateDigest: string;
+  personaId: string | null;
+  fencingEpoch: number | null;
+  preActionObservationDigest: string;
+}
+
+export interface ComputerUseActionGuard {
+  schemaVersion: 1;
+  qaRunKey: QaRunKey;
+  hostSessionId: string;
+  expectedApplication: 'Google Chrome' | 'Telegram Web' | 'macOS Pasteboard';
+  expectedWindowId: string | null;
+  expectedTopOrigin: string | null;
+  expectedFrameOrigin: string | null;
+  expectedCandidateDigest: string;
+  personaId: string | null;
+  fencingEpoch: number | null;
+  preActionObservationDigest: string;
+  actionDigest: string;
+  actionNonce: string;
+  issuedAt: string;
+  expiresAt: string;
+  guardDigest: string;
+  guardMac: string;
+}
+
+export interface GuardedComputerUseAction {
+  action: ComputerUseAction;
+  guard: ComputerUseActionGuard;
+}
+
+export function executeScenario(
+  input: {
+    qaRunKey: QaRunKey;
+    expectedCandidateDigest: string;
+    scenario: ComputerUseScenario;
+    personaLease: PersonaLease | null;
+    attemptKind: 'VERDICT' | 'DIAGNOSTIC' | 'CONFIRMATION';
+    attemptIndex: number;
+  } & (
+    | { live: false; adapter: ComputerUseAdapter }
+    | { live: true; adapter?: never }
+  ),
+  signal: AbortSignal,
+): Promise<QaLaneExecution>;
+```
+
+Telegram and clipboard contracts disclose facts, never values:
+
+```ts
+export interface TelegramRuntimeObservation {
+  topLevelOrigin: 'https://web.telegram.org';
+  botUsername: 'dmf0_bot';
+  miniAppOrigin: string;
+  miniAppPath: string;
+  webAppApiPresent: boolean;
+  initDataPresent: boolean;
+  platform: string;
+  webAppVersion: string;
+  backendEnvironment: 'staging' | 'production' | 'unknown';
+  backendReleaseDigest: string | null;
+}
+
+export interface TelegramRuntimeIdentity extends TelegramRuntimeObservation {
+  status: 'MATCHED_STAGING' | 'PRODUCTION_COMPATIBILITY_ONLY' | 'UNVERIFIED';
+  reasonCode:
+    | 'telegram_staging_matched'
+    | 'telegram_candidate_mismatch'
+    | 'telegram_backend_unattributed'
+    | 'telegram_runtime_invalid';
+}
+
+export interface ClipboardReceipt {
+  source: 'os-pasteboard';
+  nonEmpty: boolean;
+  formatValid: boolean;
+  schemeClass: 'vless' | 'vmess' | 'trojan' | 'wireguard' | 'unknown';
+  byteLengthBucket:
+    | '0' | '1-255' | '256-1023' | '1024-4095' | '4096-8192' | 'over-limit';
+  cleared: boolean;
+}
+
+export function attestTelegramRuntime(
+  observation: TelegramRuntimeObservation,
+  expected: { candidateDigest: string; allowedMiniAppOrigins: string[] },
+): TelegramRuntimeIdentity;
+```
+
+Persona contracts are shared unchanged with N5:
+
+```ts
+export type PersonaState =
+  | 'AVAILABLE' | 'LEASED' | 'PAYMENT_HOLD'
+  | 'RESETTING' | 'QUARANTINED' | 'RETIRED';
+
+export interface PersonaLease {
+  personaId: string;
+  accountAlias: string;
+  environment: 'staging' | 'production';
+  qaRunKey: QaRunKey;
+  fencingEpoch: number;
+  leasedUntil: string;
+}
+
+export interface PersonaPaymentHold extends PersonaLease {
+  state: 'PAYMENT_HOLD';
+  canonicalIntentId: string;
+}
+
+export interface CleanupReceipt {
+  schemaVersion: 1;
+  personaId: string;
+  fencingEpoch: number;
+  clipboardCleared: boolean;
+  safeSurfaceRestored: boolean;
+  restrictedArtifactsScheduledForDeletion: boolean;
+  receiptDigest: string;
+}
+
+export interface PersonaLeaseService {
+  acquire(input: {
+    personaId: string;
+    environment: 'staging' | 'production';
+    qaRunKey: QaRunKey;
+    ttlMs: number;
+  }): Promise<PersonaLease>;
+  heartbeat(lease: PersonaLease): Promise<PersonaLease>;
+  release(lease: PersonaLease, cleanupReceipt: CleanupReceipt): Promise<void>;
+  holdForPayment(
+    lease: PersonaLease,
+    canonicalIntentId: string,
+  ): Promise<PersonaPaymentHold>;
+  quarantine(lease: PersonaLease, reason: string): Promise<void>;
+}
+```
+
+The Unix wire protocol is one newline-delimited request and response per connection:
+
+```ts
+export interface CdpUnixRequest {
+  protocolVersion: 1;
+  requestId: string;
+  command: CdpCommand;
+}
+
+export interface CdpUnixResponse {
+  protocolVersion: 1;
+  requestId: string;
+  result: CdpRunResult;
+}
+
+export function runCdpDaemon(
+  args: string[],
+  deps: CdpDaemonDependencies,
+): Promise<number>;
+export function executeCdpCli(
+  command: CdpCommand,
+  deps: CdpCliDependencies,
+): Promise<CdpRunResult>;
+export function runCdpCli(
+  args: string[],
+  io: CdpCliIo,
+  deps: CdpCliDependencies,
+): Promise<number>;
+```
+
+
+The same daemon process exposes a distinct authenticated host-control socket at
+`/private/tmp/freelandqa-cu-${sessionId}/control.sock`. This namespace never
+enters `CdpCommand` and never becomes a Nuanu command:
+
+```ts
+export type ClosedHostCommandId =
+  | 'payment-fill-fields-v1'
+  | 'payment-submit-v1';
+
+export interface PrivateControlEnvelopeV1<T> {
+  schemaVersion: 1;
+  requestId: string;
+  qaRunKey: QaRunKey;
+  sessionId: string;
+  commandId: ClosedHostCommandId;
+  issuedAt: string;
+  expiresAt: string;
+  nonce: string;
+  payloadDigest: string;
+  mac: string;
+  payload: T;
+}
+
+export interface PaymentFillFieldsCommandV1 {
+  schemaVersion: 1;
+  commandId: 'payment-fill-fields-v1';
+  authorizationId: string;
+  canonicalIntentId: string;
+  checkoutDigest: string;
+  fencingEpoch: number;
+  expectedWindowId: string;
+  expectedCandidateDigest: string;
+  personaId: string;
+  personaFencingEpoch: number;
+  expectedTopOrigin: string;
+  expectedFrameOrigin: string;
+  secretLeaseId: string;
+  panHandleId: string;
+  expiryHandleId: string;
+  cvvHandleId: string;
+  registeredArtifactIds: string[];
+}
+
+export interface PaymentFillFieldsResultV1 {
+  schemaVersion: 1;
+  canonicalIntentId: string;
+  fencingEpoch: number;
+  originDigest: string;
+  panFieldPresent: true;
+  expiryFieldPresent: true;
+  cvvFieldPresent: true;
+  artifactInventoryDigest: string;
+  observationDigest: string;
+  observedAt: string;
+}
+
+export interface PaymentSubmitCommandV1 {
+  schemaVersion: 1;
+  commandId: 'payment-submit-v1';
+  canonicalIntentId: string;
+  authorizationId: string;
+  fencingEpoch: number;
+  expectedWindowId: string;
+  expectedCandidateDigest: string;
+  personaId: string;
+  personaFencingEpoch: number;
+  submitPermitDigest: string;
+  expectedTopOrigin: string;
+  expectedFrameOrigin: string;
+}
+
+export interface PaymentSubmitResultV1 {
+  schemaVersion: 1;
+  submittedAt: string;
+  observationDigest: string;
+  providerHandleAlias: string;
+}
+
+export interface HostControlAuthenticator {
+  verify(
+    envelope: PrivateControlEnvelopeV1<
+      PaymentFillFieldsCommandV1 | PaymentSubmitCommandV1
+    >,
+    peer: { uid: number; pid: number },
+  ): Promise<VerifiedHostControlRequest>;
+}
+
+export type VerifiedHostControlRequest =
+  | {
+      commandId: 'payment-fill-fields-v1';
+      envelope: PrivateControlEnvelopeV1<PaymentFillFieldsCommandV1>;
+      peer: { uid: number; pid: number };
+    }
+  | {
+      commandId: 'payment-submit-v1';
+      envelope: PrivateControlEnvelopeV1<PaymentSubmitCommandV1>;
+      peer: { uid: number; pid: number };
+    };
+
+export interface HostControlHandlerRegistry {
+  'payment-fill-fields-v1': null | ((
+    request: Extract<VerifiedHostControlRequest, { commandId: 'payment-fill-fields-v1' }>,
+    signal: AbortSignal,
+  ) => Promise<PaymentFillFieldsResultV1>);
+  'payment-submit-v1': null | ((
+    request: Extract<VerifiedHostControlRequest, { commandId: 'payment-submit-v1' }>,
+    signal: AbortSignal,
+  ) => Promise<PaymentSubmitResultV1>);
+}
+
+export type CdpDaemonDependencies = CdpDaemonCoreDependencies & {
+  readonly hostControlHandlers: HostControlHandlerRegistry;
+};
+
+export interface PrivateControlClient {
+  fillPaymentFields(
+    command: PaymentFillFieldsCommandV1,
+    signal: AbortSignal,
+  ): Promise<PaymentFillFieldsResultV1>;
+  submitPayment(
+    command: PaymentSubmitCommandV1,
+    signal: AbortSignal,
+  ): Promise<PaymentSubmitResultV1>;
+}
+
+export interface HostControlEnvelopeSigner {
+  sign<T extends PaymentFillFieldsCommandV1 | PaymentSubmitCommandV1>(input: {
+    qaRunKey: QaRunKey;
+    sessionId: string;
+    command: T;
+    issuedAt: string;
+    expiresAt: string;
+  }): Promise<PrivateControlEnvelopeV1<T>>;
+}
+
+export function createPrivateControlClient(input: {
+  qaRunKey: QaRunKey;
+  sessionId: string;
+  ownedSessionControl: SessionControl;
+  signer: HostControlEnvelopeSigner;
+  now(): Date;
+}): PrivateControlClient;
+```
+
+`CdpDaemonCoreDependencies` is the closed internal broker/process/ownership/
+peer/authenticator dependency object in `daemon.ts`; it has no module path,
+plugin name, callback name, or dynamic-loader field. N3 exports these types and
+the fail-closed client. N5 alone implements the fill handler, submit handler,
+submit adapter, and static payment-host composition root. N3's default registry
+sets both entries to `null` and rejects both IDs as
+`host_handler_not_registered`; a payment-enabled daemon must receive both
+non-null entries before either socket binds. The daemon rejects a partial
+registry. No N3 scenario can fill fields or submit payment.
+
+Validate UUID fields canonically; require every nonce/digest/intent ID to be lowercase 64-hex; require positive safe payment and persona fencing epochs; require a bounded canonical window ID, persona ID, exact candidate digest, and canonical HTTPS top/frame origins without userinfo; bound opaque authorization, lease, handle, alias, and artifact IDs to 128 safe characters; require 1–16 unique registered artifact IDs; and require canonical UTC timestamps. Card values, expiry, CVV, selectors, coordinates, field names, arbitrary URLs, and secret bytes are not members of either command or result. The N5 handler resolves opaque handles inside its restricted payment boundary and must verify that every artifact ID was registered before fill.
+
+The outer authenticated envelope supplies the exact `qaRunKey` and host
+`sessionId`; the payload supplies window, candidate, persona, and both fencing
+epochs. N5 must bind them into its own single-use host activation guard. The
+host daemon holds one exclusive action mutex while it rereads app/window,
+top/frame origin, candidate, persona epoch, permit/checkout digest, and nonce
+immediately before field entry or submit. A switch after authorization but
+before dispatch produces no UI action; after a durable submit claim it remains
+an ambiguous consumed fence eligible only for reconciliation.
+
+
+---
+
+### Task 1: Closed Computer Use, Telegram, and Persona Contracts
+
+**Files:**
+
+- Create: `packages/contracts/src/computer-use.ts`
+- Create: `packages/contracts/src/telegram.ts`
+- Create: `packages/contracts/src/persona.ts`
+- Create: the six JSON Schemas listed under **Exact Files**
+- Modify: `packages/contracts/src/index.ts`
+- Test: `tests/contracts/computer-use.test.ts`
+- Test: `tests/contracts/telegram.test.ts`
+- Test: `tests/contracts/persona.test.ts`
+
+**Interfaces:** Produce every type under **Shared Interfaces**, plus `validateComputerUseScenario`, `validateComputerUseObservation`, `validateComputerUseCheckpointReceipt`, `validateTelegramRuntimeIdentity`, `validatePersonaManifest`, `validatePersonaLease`, and canonical JSON serializers ending in one newline.
+
+- [ ] **Step 1: Write RED tests**
+
+Add these exact test cases:
+
+```ts
+test('manual validators and independent schemas accept the closed v1 contracts');
+test('scenario actions reject URL selector coordinate script shell and arbitrary key fields');
+test('scenario revisions require unique ordered step and checkpoint identifiers');
+test('live observations reject test-double provenance and unbounded disclosure fields');
+test('telegram contracts reject initData values hashes chat text phone cookies and storage');
+test('clipboard contracts contain structural facts and cannot carry a copied value or digest');
+test('persona contracts require a positive safe fencing epoch and canonical UTC expiry');
+test('manual validators and Ajv schemas agree over the mutation corpus');
+test('canonical serializers are byte-stable and end in exactly one newline');
+```
+
+Mutate every fixture property independently and add string/symbol keys. Assert `maxRecoveryAttempts` is 0–2, `timeoutMs` is 1,000–300,000, origins are canonical HTTPS origins without path/query/fragment/userinfo, IDs are bounded, arrays are unique, SHA-256 values are lowercase, and `initDataPresent` is boolean only.
+
+- [ ] **Step 2: Run focused tests and observe RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/contracts/computer-use.test.ts tests/contracts/telegram.test.ts tests/contracts/persona.test.ts
+```
+
+Expected: `ERR_MODULE_NOT_FOUND` for the new contract modules.
+
+- [ ] **Step 3: Implement strict validators and independent schemas**
+
+Use `Reflect.ownKeys` and exact key sets before reading values. Return deep snapshots, freeze roots, reject inherited/accessor properties, and use independent schemas with `additionalProperties: false` at every object. Enforce:
+
+```ts
+const SHA256 = /^[0-9a-f]{64}$/u;
+const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u;
+const REQUEST_ID = /^[0-9a-f]{32}$/u;
+const BOT_USERNAME = /^dmf0_bot$/u;
+const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
+```
+
+Reject keys named `url`, `selector`, `coordinates`, `x`, `y`, `script`, `javascript`, `shell`, `command`, `path`, `clipboardValue`, `initData`, `initDataHash`, `chatText`, `phone`, `cookie`, `storageState`, `token`, or `signedUrl` unless they are exact members of another already-closed contract. Export only validators, serializers, enums, and types.
+
+- [ ] **Step 4: Run focused tests and verify GREEN**
+
+Run Step 2 again. Expected: all three files pass with no skipped tests.
+
+- [ ] **Step 5: Run aggregate verification**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:unit
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+```
+
+Expected: all exit 0 and existing CDP/coverage suites remain green.
+
+- [ ] **Step 6: Commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/contracts/src/computer-use.ts packages/contracts/src/telegram.ts packages/contracts/src/persona.ts packages/contracts/src/index.ts packages/contracts/schemas/computer-use-scenario.v1.schema.json packages/contracts/schemas/computer-use-observation.v1.schema.json packages/contracts/schemas/computer-use-checkpoint-receipt.v1.schema.json packages/contracts/schemas/telegram-runtime-identity.v1.schema.json packages/contracts/schemas/persona-manifest.v1.schema.json packages/contracts/schemas/persona-lease.v1.schema.json tests/contracts/computer-use.test.ts tests/contracts/telegram.test.ts tests/contracts/persona.test.ts
+git commit -m "feat(contracts): define bounded computer use protocols"
+```
+
+---
+
+### Task 2: Private Unix Protocol for the Existing CDP Broker
+
+**Files:**
+
+- Create: `packages/cdp-broker/src/unix-protocol.ts`
+- Test: `tests/cdp/unix-protocol.test.ts`
+
+**Interfaces:** Produce `validateCdpUnixRequest`, `validateCdpUnixResponse`, `encodeCdpUnixRequest`, `encodeCdpUnixResponse`, and `readOneCdpUnixFrame`. Reuse `validateCdpCommand` and `validateCdpRunResult`.
+
+- [ ] **Step 1: Write RED tests**
+
+```ts
+test('round trips one canonical newline-delimited request and response');
+test('rejects unknown protocol versions request ids and command keys');
+test('rejects a second frame pipelining and bytes after the first newline');
+test('rejects requests over 8192 bytes and responses over 131072 bytes');
+test('times out an incomplete frame and destroys the socket');
+test('never accepts URL selector shell script path executable or arbitrary CDP fields');
+```
+
+Use in-memory duplex streams and fragmented writes. Parse/size/timeout errors expose stable reason codes and never echo received bytes.
+
+- [ ] **Step 2: Run focused test and observe RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/cdp/unix-protocol.test.ts
+```
+
+Expected: `ERR_MODULE_NOT_FOUND` for `unix-protocol.js`.
+
+- [ ] **Step 3: Implement one-frame helpers**
+
+Canonical JSON uses sorted keys and exactly one newline. Read at most 8,193 request bytes or 131,073 response bytes, require a newline before timeout, reject bytes after it, validate UTF-8 and JSON, then pass the nested value through existing closed CDP validators. On timeout, oversize, abort, second frame, or parse failure, destroy the socket and return a non-secret reason code. The protocol has no priority, attempt, retry, queue, lease, scheduling, or worker field; assert each absence in tests.
+
+- [ ] **Step 4: Run focused and aggregate tests**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/cdp/unix-protocol.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/cdp/*.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all exit 0.
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/cdp-broker/src/unix-protocol.ts tests/cdp/unix-protocol.test.ts
+git commit -m "feat(cdp): add closed private unix protocol"
+```
+
+---
+
+### Task 3: CDP Daemon, CLI, Ownership, and Real Broker Smoke
+
+**Files:**
+
+- Create: `packages/cdp-broker/src/daemon.ts`
+- Create: `packages/cdp-broker/src/cli.ts`
+- Create: `packages/computer-use/src/control-contracts.ts`
+- Create: `packages/computer-use/src/control-client.ts`
+- Modify: `packages/cdp-broker/src/process-owner.ts`
+- Modify: `tests/cdp/chrome-lifecycle.test.ts`
+- Modify: `package.json`
+- Test: `tests/cdp/daemon.test.ts`
+- Test: `tests/cdp/cli.test.ts`
+- Test: `tests/cdp/live-smoke.live.ts`
+- Test: `tests/computer-use/control-client.test.ts`
+
+**Interfaces:** Produce `runCdpDaemon`, `executeCdpCli`, `runCdpCli`, the exact private-control types under **Shared Interfaces**, `createPrivateControlClient`, and a closed `HostControlHandlerRegistry` whose only keys are `payment-fill-fields-v1` and `payment-submit-v1`. Keep `FreelandCdpBroker` and `CdpCommand` unchanged except for a narrow defect proven by an existing broker test. N5 supplies the two real handlers; N3 supplies transport, authentication, validation, and fail-closed unregistered-handler behavior.
+
+- [ ] **Step 1: Write RED tests**
+
+```ts
+test('daemon creates a 0700 directory and 0600 socket owned by the current uid');
+test('daemon runs exactly one broker command and rejects concurrent work as busy');
+test('daemon returns closed results and never serializes thrown error text');
+test('daemon removes only owned controls on signal broker exit and startup failure');
+test('CLI start spawns the exact Node 20 tsx daemon argv and validates its direct child');
+test('CLI status through stop derive the session socket and send one closed command');
+test('CLI emits canonical result JSON only to stdout and reason codes to stderr');
+test('CLI rejects URL selector script shell executable path retry queue lease and worker flags');
+test('CLI never reports success when socket broker or attestation is absent');
+test('host control accepts only fill-fields and submit command ids outside CdpCommand');
+test('host control requires same-uid peer credentials fresh HMAC and unique nonce');
+test('host control key crosses an inherited fd and never argv env disk logs or results');
+test('daemon receives a fresh one-shot key pipe that cannot alias Nuanu worker control');
+test('daemon consumes and closes key fd before bind and Chrome descendants observe EBADF');
+test('daemon child env is built from an exact non-secret allowlist and drops worker DB browser and Nuanu authority');
+test('Chrome and watchdog descendants receive fresh minimal envs without parent sentinels');
+test('host control rejects replay expiry payload mismatch wrong peer and absent handler');
+test('daemon rejects a partial payment registry before binding either socket');
+test('daemon accepts only both-null N3 or both-non-null N5 payment registry slots');
+test('fill and submit contracts reject card values selectors coordinates and extra keys');
+test('N3 scenarios cannot invoke either payment host operation');
+```
+
+Update ownership expectations to this exact prefix:
+
+```ts
+[
+  '/opt/homebrew/opt/node@20/bin/node',
+  '--import',
+  'tsx',
+  daemonEntryPath,
+  '--repository-root',
+  repositoryRoot,
+  '--session',
+  session,
+  '--startup-timeout-ms',
+  '90000',
+]
+```
+
+CLI grammar is closed: `start --environment freeland-staging-public-cdp`; `status|attest|back|reload|snapshot|console-summary|network-summary|screenshot-safe|stop --session SESSION`; `navigate --session SESSION --route ROUTE_ID`; and `wait --session SESSION --predicate document-ready|heading-present --timeout-ms INTEGER`.
+
+- [ ] **Step 2: Run focused tests and observe RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/cdp/daemon.test.ts tests/cdp/cli.test.ts tests/cdp/chrome-lifecycle.test.ts tests/computer-use/control-client.test.ts
+```
+
+Expected: missing modules and old ownership argv fail.
+
+- [ ] **Step 3: Implement daemon and CLI**
+
+`runCdpDaemon` validates repository root, session alias, timeout, process identity, uid, and derived controls; atomically creates the `0700` directory; binds a `0600` socket; refuses symlinks, foreign owners, pre-existing non-sockets, and unresolved paths; owns exactly one broker; accepts one request at a time; returns `cdp_busy` rather than enqueueing; and on signal aborts active work, stops the broker, verifies Chrome/watchdog termination, removes owned controls, and exits non-zero on incomplete cleanup.
+
+For `start`, `runCdpCli` generates a session and a fresh anonymous one-shot
+host-key pipe, then spawns the pinned Node 20 argv above with `shell: false`,
+`detached:false`, and an exact `stdio` mapping containing only descriptors
+`0`–`2` plus that newly created pipe at one reviewed child-local slot. The
+mapping replaces rather than inherits any parent descriptor with the same
+number. The daemon reads exactly 32 bytes, verifies the pipe is not the Nuanu
+worker-control socket by descriptor identity/peer/type, zeroes its buffer, and
+closes the descriptor before binding either socket. Chrome and every watchdog
+descendant must observe it as `EBADF`. The CLI verifies direct-child identity,
+waits for the owned socket, and sends the broker `start` command. Later commands
+derive the socket from a validated session and send one request. Use
+eight-second connect/read limits outside broker budgets. Never invoke a shell,
+inherit an ambient descriptor, or accept an executable.
+
+`runCdpCli` also constructs the daemon environment from nothing. Its complete
+allowlist is fixed `PATH`, `TZ`, `LANG`, a custody-owned `TMPDIR`,
+`FREELAND_STAGING_BASE_URL`, `FREELAND_EXPECTED_STAGE_SHA`, and optional
+`FREELAND_STAGING_MESH_IP`; it passes no test email/password/auth file, Nuanu
+value, payment runtime/reconciler/owner/migration/test DSN, secret-broker value,
+authorization/program/switch file, Node/DYLD/npm/proxy injection, or unknown
+parent key. The daemon independently builds Chrome/watchdog child environments
+from only fixed locale/time/temp/cache values and the browser's reviewed
+non-secret launch flags. Hostile-parent sentinel tests cover worker→daemon and
+daemon→Chrome/watchdog boundaries and fail on any copied extra key.
+
+The same daemon also binds `/private/tmp/freelandqa-cu-${sessionId}/control.sock` in a `0700` directory with socket mode `0600`, but routes it through a separate host-control parser and registry rather than `CdpCommand`. At session creation, generate a 32-byte HMAC-SHA256 key and deliver it to the daemon through an inherited anonymous file descriptor; retain it only in the in-process client. Never place it in argv, environment, a file, manifest, stdout, logs, or artifacts. The daemon obtains the accepted Unix peer's macOS uid/pid through an injected fail-closed peer-credential adapter and requires the exact expected uid. `HostControlAuthenticator.verify` requires UUID request/session IDs, canonical UTC timestamps, expiry no more than 30 seconds after issue, a unique 64-hex nonce, canonical payload digest, a 64-hex constant-time HMAC, matching envelope/payload command ID, and an active session. Close the connection on replay, expiry, peer mismatch, digest mismatch, MAC mismatch, unknown ID, or unregistered handler. Cap the request at 32 KiB and the sanitized response at 8 KiB.
+
+The N3 registry has no production handler and therefore returns
+`host_handler_not_registered` for both payment IDs. Before creating either
+socket, the daemon accepts only the exact all-null N3 registry or the exact
+all-non-null N5 registry and rejects either partial combination. N5 registers
+both exact typed handlers inside the same owned daemon process through its
+static composition root; no string-key plugin, dynamic import, arbitrary
+callback name, or caller-selected module is accepted. Filling and submission
+remain prohibited in every N3 scenario and live command.
+
+Add:
+
+```json
+{
+  "cdp:cli": "/opt/homebrew/opt/node@20/bin/node --import tsx packages/cdp-broker/src/cli.ts",
+  "test:cdp": "/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/cdp/*.test.ts",
+  "test:cdp:live": "FREELAND_CDP_LIVE=1 /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/cdp/live-smoke.live.ts"
+}
+```
+
+- [ ] **Step 4: Run focused and aggregate tests**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/cdp/daemon.test.ts tests/cdp/cli.test.ts tests/cdp/chrome-lifecycle.test.ts tests/computer-use/control-client.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:cdp
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all pass and tests prove no socket/profile/process orphan.
+
+- [ ] **Step 5: Verify, commit, and pin before the real smoke**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+git add packages/cdp-broker/src/daemon.ts packages/cdp-broker/src/cli.ts packages/cdp-broker/src/process-owner.ts packages/computer-use/src/control-contracts.ts packages/computer-use/src/control-client.ts tests/cdp/daemon.test.ts tests/cdp/cli.test.ts tests/cdp/live-smoke.live.ts tests/cdp/chrome-lifecycle.test.ts tests/computer-use/control-client.test.ts package.json
+git commit -m "feat(cdp): expose broker through owned unix daemon"
+git status --short
+```
+
+Expected: clean status. Record the commit and config/handler digests before a
+real Chrome process is started.
+
+- [ ] **Step 6: Run the real daemon/CLI smoke from the committed checkout**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+FREELAND_CDP_LIVE=1 /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:cdp:live
+```
+
+Exercise `start → status → attest → navigate → wait → snapshot → screenshot-safe → stop` exclusively through the Unix CLI, using the actual home route ID loaded from `public-staging-routes.v1.yaml` rather than guessing it. Assert candidate identity, artifact custody, socket/profile cleanup, and no owned Chrome/watchdog/daemon. Missing Chrome/config/staging is a typed failure, never `test.skip()`.
+
+---
+
+### Task 4: PostgreSQL Persona Manifest, Leases, and Fencing Races
+
+**Files:**
+
+- Create: `packages/personas/src/contracts.ts`
+- Create: `packages/personas/src/postgres-store.ts`
+- Create: `packages/personas/src/lease-service.ts`
+- Create: `db/migrations/0010_persona_leases.sql`
+- Create: `tools/db/migrate.ts`
+- Create: `config/postgres/payment-test.compose.yaml`
+- Create: `config/personas/freeland.v1.yaml`
+- Modify: `package.json` and `package-lock.json`
+- Test: `tests/personas/manifest.test.ts`
+- Test: `tests/personas/lease-service.test.ts`
+- Test: `tests/personas/persona-race.test.ts`
+
+**Interfaces:** Implement `PersonaLeaseService` exactly. Public `PersonaLease`, `PersonaPaymentHold`, and `CleanupReceipt` live in `packages/contracts/src/persona.ts` and are exported by `packages/contracts/src/index.ts`; `packages/personas/src/contracts.ts` re-exports them and adds store-local types only, so contracts never depend on personas. Produce `loadPersonaManifest`, `PostgresPersonaStore`, `assertActivePersonaFence`, and immutable migration custody. Add `pg@8.16.3` and `@types/pg@8.15.5`; use raw ESM SQL, not an ORM.
+
+- [ ] **Step 1: Write RED tests**
+
+```ts
+test('manifest contains public paid-vpn and telegram-qa without credentials');
+test('manifest rejects duplicate aliases secret fields and file-lock configuration');
+test('acquire advances a monotonic fence in the requested environment');
+test('heartbeat release hold quarantine and reset reject stale epochs');
+test('release requires a matching complete cleanup receipt');
+test('expired ordinary lease can be taken over with a larger epoch');
+test('PAYMENT_HOLD cannot expire release or become available without reconciliation and reset');
+test('quarantine prevents acquisition until explicit reviewed reset');
+test('thirty-two competing processes produce one winner and thirty-one conflicts');
+test('changed migration bytes are rejected after application');
+```
+
+The race test spawns 32 independent Node 20 processes against PostgreSQL, synchronizes start, and proves one winner, monotonic epoch, unique events, and no lost update. It cannot use an in-memory store.
+
+- [ ] **Step 2: Create only the test-infrastructure scaffold**
+
+This is the configuration/dependency exception required to make the RED test
+executable. Do not create the migration, manifest, store, service, or migration
+runner in this step.
+
+Install the pinned PostgreSQL client packages through the pinned Node 20/npm
+pair, then create `config/postgres/payment-test.compose.yaml` with only this
+disposable loopback test service:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js install --save-exact pg@8.16.3
+/opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js install --save-dev --save-exact @types/pg@8.15.5
+```
+
+```yaml
+services:
+  postgres:
+    image: postgres:16.12-alpine
+    environment:
+      POSTGRES_USER: freelandqa
+      POSTGRES_PASSWORD: freelandqa
+      POSTGRES_DB: freelandqa_test
+    ports:
+      - 127.0.0.1:55432:5432
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U freelandqa -d freelandqa_test]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql/data
+```
+
+- [ ] **Step 3: Run focused tests and observe RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+docker compose -f config/postgres/payment-test.compose.yaml up -d --wait
+FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/personas/manifest.test.ts tests/personas/lease-service.test.ts tests/personas/persona-race.test.ts
+```
+
+Expected before implementation: `ERR_MODULE_NOT_FOUND` for the persona
+manifest/lease implementation. The database service itself must be healthy, so
+the RED result proves the missing behavior rather than missing infrastructure.
+The compose service is PostgreSQL `16.12-alpine` on loopback port `55432`,
+database `freelandqa_test`; tests must refuse other database names.
+
+- [ ] **Step 4: Implement schema and serializable service**
+
+Migration `0010` creates the exact authority:
+
+```sql
+CREATE TABLE persona_leases (
+  persona_id text PRIMARY KEY,
+  environment text NOT NULL,
+  account_alias text NOT NULL,
+  state text NOT NULL CHECK (state IN (
+    'AVAILABLE','LEASED','PAYMENT_HOLD','RESETTING','QUARANTINED','RETIRED'
+  )),
+  fencing_epoch bigint NOT NULL DEFAULT 0 CHECK (fencing_epoch >= 0),
+  holder_qa_run_key char(64),
+  leased_until timestamptz,
+  canonical_intent_id text,
+  updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  UNIQUE (environment, account_alias)
+);
+
+CREATE TABLE persona_lease_events (
+  event_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  persona_id text NOT NULL REFERENCES persona_leases(persona_id),
+  fencing_epoch bigint NOT NULL,
+  qa_run_key char(64),
+  event_type text NOT NULL,
+  reason_code text NOT NULL,
+  event_digest char(64) NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+```
+
+Add check constraints in the same migration: `LEASED` requires holder and expiry; `PAYMENT_HOLD` requires holder and canonical intent; other states reject a canonical intent. The migration runner reads sorted SQL, takes `pg_advisory_lock(hashtext('freelandqa-schema-migrations-v1'))`, records `schema_migrations(version text PRIMARY KEY, sha256 char(64), applied_at timestamptz)`, applies transactionally, and rejects changed applied bytes.
+
+Every method uses `BEGIN ISOLATION LEVEL SERIALIZABLE`, `SELECT FOR UPDATE`, exact environment/run/epoch predicates, and an append-only event. Bounded database serialization retries may repeat the SQL transaction only; they cannot repeat browser actions. Ordinary takeover records `LEASE_EXPIRED` and advances the epoch. `PAYMENT_HOLD` ignores lease expiry and accepts only the later N5 reconciliation/reset transition.
+
+The manifest is non-secret:
+
+```yaml
+schemaVersion: 1
+personas:
+  - personaId: freeland-public-web-01
+    accountAlias: public-web
+    environment: staging
+    kind: public
+    capabilities: [public-web]
+  - personaId: freeland-paid-vpn-01
+    accountAlias: paid-vpn-primary
+    environment: staging
+    kind: paid-vpn
+    capabilities: [vpn-copy-existing]
+  - personaId: freeland-telegram-qa-01
+    accountAlias: telegram-qa-primary
+    environment: staging
+    kind: telegram-qa
+    capabilities: [telegram-web-mini-app]
+```
+
+The restricted host resolves credentials and Chrome profiles from `personaId`; neither is a manifest field.
+
+- [ ] **Step 5: Run focused tests and verify GREEN**
+
+Run the migration and then the same focused tests:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+FREELAND_QA_MIGRATION_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx tools/db/migrate.ts
+FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/personas/manifest.test.ts tests/personas/lease-service.test.ts tests/personas/persona-race.test.ts
+```
+
+Expected: manifest, lifecycle, migration-integrity, and 32-process race tests
+pass.
+
+- [ ] **Step 6: Add scripts and aggregate verification**
+
+```json
+{
+  "db:migrate": "/opt/homebrew/opt/node@20/bin/node --import tsx tools/db/migrate.ts",
+  "db:migrate:test": "FREELAND_QA_MIGRATION_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx tools/db/migrate.ts",
+  "test:unit": "FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/**/*.test.ts",
+  "test:personas": "FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/personas/manifest.test.ts tests/personas/lease-service.test.ts",
+  "test:personas:race": "FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test --test-concurrency=1 tests/personas/persona-race.test.ts"
+}
+```
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:personas
+FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:personas:race
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+```
+
+Expected: all exit 0. Keep the disposable PostgreSQL fixture for later N3 integration tests.
+`test:unit` intentionally runs serially from this task onward because its
+recursive glob includes database-backed persona and all later payment tests;
+the fixed loopback-only DSN is part of the test script, never ambient state.
+
+- [ ] **Step 7: Commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/personas/src/contracts.ts packages/personas/src/postgres-store.ts packages/personas/src/lease-service.ts db/migrations/0010_persona_leases.sql tools/db/migrate.ts config/postgres/payment-test.compose.yaml config/personas/freeland.v1.yaml tests/personas/manifest.test.ts tests/personas/lease-service.test.ts tests/personas/persona-race.test.ts package.json package-lock.json
+git commit -m "feat(personas): add postgres leases and monotonic fencing"
+```
+
+
+---
+
+### Task 5: Deterministic Scenario Controller, Checkpoint Machine, and Staging Origin Guard
+
+**Files:**
+
+- Create: `packages/computer-use/src/checkpoint.ts`
+- Create: `packages/computer-use/src/origin-guard.ts`
+- Create: `packages/computer-use/src/host-runtime.ts`
+- Create: `packages/computer-use/src/session.ts`
+- Create: `packages/computer-use/src/scenario.ts`
+- Create: `scenarios/computer-use/staging-web-smoke.v1.yaml`
+- Test: `tests/computer-use/checkpoint.test.ts`
+- Test: `tests/computer-use/origin-guard.test.ts`
+- Test: `tests/computer-use/host-runtime.test.ts`
+- Test: `tests/computer-use/scenario.test.ts`
+- Test: `tests/computer-use/staging-web.live.ts`
+
+**Interfaces:**
+
+- Produce `reduceComputerUseCheckpoint(state, event)` as a pure exhaustive reducer.
+- Produce `loadComputerUseScenario(path)` with manual validator/Ajv agreement and canonical scenario digest.
+- Produce `assertWebStagingObservation(observation, expectedCandidateDigest)`.
+- Keep both `createHostComputerUseAdapter(bridge)` and
+  `isOwnedHostComputerUseAdapter(adapter)` module-private. The package public
+  surface accepts no live adapter, bridge, provider, verifier, or constructor.
+- Produce an internal-only `openOwnedHostComputerUseAdapter()` with no bridge
+  argument; it uses fixed static imports for the remote-worker bridge and pinned
+  host-attestation verifier and is not re-exported from the package index.
+- Produce `executeScenario(input, signal): Promise<QaLaneExecution>` using the N1 type.
+- Define closed host-bridge IDs `cu.observe.v1`, `cu.activate-app.v1`, `cu.navigate-reviewed-route.v1`, `cu.activate-accessible-target.v1`, `cu.wait-semantic.v1`, `cu.copy-vpn-configuration.v1`, `cu.launch-telegram-bot-mini-app.v1`, and `cu.return-safe-surface.v1`. These are process-local adapter operations, not Nuanu worker commands.
+
+The controller state table is exact:
+
+| From | Event | To | Required effect |
+| --- | --- | --- | --- |
+| `CREATED` | `START` | `ATTESTING` | acquire/verify persona fence and deadline |
+| `ATTESTING` | `ATTESTATION_OK` | `EXECUTING` | record candidate-before and origin-before receipt |
+| `ATTESTING` | `ATTESTATION_BLOCKED` | `BLOCKED` | perform cleanup; no scenario action |
+| `EXECUTING` | `ACTION_OBSERVED` | `CHECKPOINTING` | record sanitized observation digest |
+| `CHECKPOINTING` | `CHECKPOINT_SATISFIED` | `EXECUTING` or `CLEANING` | advance exactly one ordered step |
+| `CHECKPOINTING` | `CHECKPOINT_VIOLATED` | `FAILED` | mark product assertion only when environment remains attested |
+| `CHECKPOINTING` | `CHECKPOINT_INCONCLUSIVE` | `BLOCKED` | mark environment/adapter/evidence block |
+| `EXECUTING` or `CHECKPOINTING` | `RECOVERABLE_OBSERVATION` | `ATTESTING` | consume one of at most two recovery attempts |
+| any nonterminal state | `ABORT` | `CLEANING` | stop actions and preserve original reason |
+| `FAILED` or `BLOCKED` | `BEGIN_CLEANUP` | `CLEANING` | run every declared cleanup action |
+| `CLEANING` | `CLEANUP_OK` | `DONE` | release ordinary persona with receipt |
+| `CLEANING` | `CLEANUP_FAILED` | `QUARANTINED` | quarantine persona and block result |
+
+No transition may leave `DONE`, `BLOCKED`, `FAILED`, or `QUARANTINED` after finalization. An unknown event, duplicate sequence, skipped checkpoint, action after deadline, stale persona epoch, or observation from a different host session is a harness failure followed by cleanup.
+
+- [ ] **Step 1: Write controller and guard RED tests**
+
+```ts
+test('pure reducer accepts only the exact state transition table');
+test('checkpoint sequence cannot skip duplicate reorder or mutate a final receipt');
+test('live scenario rejects test-double adapter before its first action');
+test('live scenario rejects a forged object whose kind string says host-computer-use');
+test('live input rejects every caller-supplied adapter bridge provider verifier or factory');
+test('host runtime rejects an unsigned replayed or wrong-peer bridge attestation');
+test('every action carries a single-use MAC guard for candidate origin window host-session and fence');
+test('host bridge blocks an app window origin or candidate switch after controller attestation and before dispatch');
+test('host bridge rejects a stale persona epoch expired guard reused nonce and altered action');
+test('staging guard requires exact https mf0 origin appEnv staging and candidate digest');
+test('redirect subdomain port userinfo path confusion and release drift block the lane');
+test('a violated product checkpoint is FAIL only while all environment guards remain valid');
+test('abort timeout and unexpected adapter loss still execute every cleanup action');
+test('cleanup failure returns cleanup_failed and quarantines a leased persona');
+test('maximum two semantic recoveries never replay a side-effecting action');
+test('controller emits a closed deterministic QaLaneExecution');
+```
+
+Use a test-double adapter only with `live: false`. Assert `live: true` returns `executionHealth: 'INFRA_FAILURE'` and `reasonCode: 'worker_unavailable'` before calling `perform`. Assert semantic receipt reasons preserve `origin_mismatch`, `persona_fence_stale`, `live_adapter_required`, and `telegram_backend_unattributed`, while the coarse N1 lane maps environment unavailability to `worker_unavailable`, candidate drift to `candidate_changed`, cleanup to `cleanup_failed`, and sanitizer failure to `redaction_failed`.
+
+- [ ] **Step 2: Run focused tests and observe RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/checkpoint.test.ts tests/computer-use/origin-guard.test.ts tests/computer-use/host-runtime.test.ts tests/computer-use/scenario.test.ts
+```
+
+Expected: missing Computer Use modules.
+
+- [ ] **Step 3: Implement minimal deterministic controller**
+
+Load YAML once, validate it, canonicalize it, and retain `scenarioDigest`.
+Before every adapter `perform`, construct a closed
+`ComputerUseActionGuardRequest` from the fresh observation and exact action,
+then call the private adapter's `authorize`. The host bridge validates the
+request and returns the exact action plus a `ComputerUseActionGuard`
+authenticated with a per-session key that never leaves the host process.
+Under one exclusive host-session action mutex, the bridge rereads the active
+application/window, top/frame origin, candidate marker, current persona
+lease/epoch, deadline, nonce, and action digest, consumes the nonce, and only
+then dispatches the semantic operation. Verification and dispatch are one
+critical section; a foreground/window/navigation/lease change at any point
+returns `guard_race_blocked` without an external action. After every permitted
+action:
+
+1. assert the monotonic deadline and non-aborted signal;
+2. call `assertActivePersonaFence` when the scenario requires a persona;
+3. require `adapter.kind === 'host-computer-use'` when `live` is true;
+4. require the same `hostSessionId`;
+5. validate the observation as a closed contract;
+6. call the surface-specific origin/candidate attestor;
+7. reduce each declared checkpoint in order and append a sanitized immutable receipt.
+
+The guard schema requires canonical values, a maximum five-second validity
+window, a lowercase 64-hex nonce/digests/MAC, and an exact action binding. Its
+MAC key is created with the private host session, held only in process memory,
+and zeroized when the session ends. The controller cannot mint a guard for a
+URL, selector, coordinate, key sequence, or command outside the closed semantic
+action union. Tests inject a barrier between controller observation and bridge
+dispatch, switch the foreground app/window/origin/candidate and advance the
+persona epoch, then prove `perform` emitted no host action.
+
+A recovery may only re-activate the allowed app, return to a safe surface, re-attest, and retry a read-only semantic observation. It cannot replay `copy-vpn-configuration`, a Telegram launch, payment, account mutation, or any other externally visible action. Always run declared cleanup in `finally`.
+
+For `live:true`, `executeScenario` rejects an `adapter` or any bridge/provider/
+verifier/factory field and calls the internal no-argument
+`openOwnedHostComputerUseAdapter()`. `host-runtime.ts` statically imports the
+actual remote-worker Computer Use bridge and a pinned host public-key verifier,
+issues a fresh challenge, and binds the signed response to the local socket
+peer, host process, session ID, candidate, and expiry before its module-private
+`createHostComputerUseAdapter` may wrap the bridge. The private constructor
+token and module-private `WeakSet` provide provenance after that cryptographic
+bootstrap. The bridge executes only the closed `cu.*.v1` operations.
+`executeScenario(live: true)` checks `isOwnedHostComputerUseAdapter`, not the
+forgeable `kind` string; plain objects, fixtures, Playwright adapters, caller-
+wrapped structural bridges, and test doubles cannot enter a live run. The host
+runtime is not re-exported by the package index and exposes no dependency-
+injection overload.
+
+Create the staging scenario exactly as a public no-persona scenario:
+
+```yaml
+schemaVersion: 1
+scenarioId: freeland.staging-web-smoke
+revision: 1.0.0
+requirementIds: [STAGING.SUPPORTED_INGRESS]
+ticketRefs: []
+checkId: CU.STAGING.PUBLIC_ORIGIN
+surface: staging-web
+allowedApplications: [Google Chrome]
+allowedOrigins: [https://mf0.forum]
+personaKinds: [public]
+preconditions: [candidate-attested]
+steps:
+  - stepId: activate-chrome
+    action: {kind: activate-app, application: Google Chrome}
+    checkpointIds: [web-origin-before]
+    evidence: safe-metadata
+  - stepId: navigate-landing
+    action: {kind: navigate-reviewed-route, routeId: landing}
+    checkpointIds: [web-origin-after, landing-heading]
+    evidence: safe-screenshot-crop
+  - stepId: restore-safe-surface
+    action: {kind: return-to-safe-surface}
+    checkpointIds: [web-cleanup]
+    evidence: suppressed
+checkpoints:
+  - checkpointId: web-origin-before
+    kind: candidate-match
+    expected: {origin: https://mf0.forum, appEnvironment: staging}
+  - checkpointId: web-origin-after
+    kind: origin-match
+    expected: {origin: https://mf0.forum, appEnvironment: staging}
+  - checkpointId: landing-heading
+    kind: accessible-target-present
+    expected: {role: heading, nameToken: landing}
+  - checkpointId: web-cleanup
+    kind: cleanup-complete
+    expected: {safeSurfaceRestored: true}
+prohibitedActions:
+  - arbitrary-url
+  - arbitrary-script
+  - arbitrary-shell
+  - arbitrary-coordinates
+  - purchase
+  - third-party-message
+  - unsafe-capture
+maxRecoveryAttempts: 2
+timeoutMs: 120000
+cleanup: [return-safe-surface]
+```
+
+The expected candidate digest is runtime input from the exact external runner envelope; it is never copied into YAML. `navigate-reviewed-route` resolves `landing` through the existing reviewed CDP route config and cannot accept a URL.
+
+- [ ] **Step 4: Run focused tests and verify GREEN**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/checkpoint.test.ts tests/computer-use/origin-guard.test.ts tests/computer-use/host-runtime.test.ts tests/computer-use/scenario.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all pass.
+
+- [ ] **Step 5: Aggregate, commit, and pin before live acceptance**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:unit
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+git add packages/computer-use/src/checkpoint.ts packages/computer-use/src/origin-guard.ts packages/computer-use/src/host-runtime.ts packages/computer-use/src/session.ts packages/computer-use/src/scenario.ts scenarios/computer-use/staging-web-smoke.v1.yaml tests/computer-use/checkpoint.test.ts tests/computer-use/origin-guard.test.ts tests/computer-use/host-runtime.test.ts tests/computer-use/scenario.test.ts tests/computer-use/staging-web.live.ts
+git commit -m "feat(computer-use): execute guarded semantic scenarios"
+git status --short
+```
+
+Expected: clean status and a recorded source/scenario/schema digest set.
+
+- [ ] **Step 6: Run real staging web acceptance from the committed checkout**
+
+With a real host Computer Use bridge available to the test process:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+FREELAND_COMPUTER_USE_LIVE=1 FREELAND_STAGING_BASE_URL=https://mf0.forum /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/staging-web.live.ts
+```
+
+The test must visibly activate Chrome, reach `landing` through the reviewed route, attest exact origin/app environment/candidate before and after action, observe the semantic heading, capture only an attested safe crop, restore the safe surface, and return a real `computer-use` lane. Absent bridge or candidate config fails; no mock or `test.skip()` is allowed.
+
+---
+
+### Task 6: FREEL-206 Real macOS Clipboard Scenario
+
+**Files:**
+
+- Create: `packages/computer-use/src/clipboard.ts`
+- Create: `scenarios/computer-use/vpn-clipboard.v1.yaml`
+- Modify: `coverage/requirements/semantic/vpn.clipboard_fallback.yaml`
+- Test: `tests/computer-use/clipboard.test.ts`
+- Test: `tests/computer-use/clipboard.live.ts`
+
+**Interfaces:** Produce `inspectAndClearVpnClipboard(deps, signal): Promise<ClipboardReceipt>`. It may execute only exact binaries `/usr/bin/pbpaste` and `/usr/bin/pbcopy` with `shell: false` and no caller-controlled arguments.
+
+- [ ] **Step 1: Write clipboard RED tests**
+
+```ts
+test('accepts bounded vless vmess trojan and wireguard configurations');
+test('reports only scheme class validity length bucket and clear confirmation');
+test('rejects empty malformed unknown-scheme NUL and over-8192-byte values');
+test('never logs returns hashes snapshots or embeds clipboard bytes in errors');
+test('zeroes every collected Buffer and clears pasteboard after pass failure abort and timeout');
+test('fails cleanup when pbcopy or empty verification fails');
+test('uses exact absolute binaries no shell no arguments and bounded output');
+test('pasteboard children inherit only stdio 0-2 and observe fd3 plus higher descriptors as EBADF');
+test('FREEL-206 scenario requires a fenced paid-vpn persona and prohibits purchase');
+```
+
+Inject a fake spawn boundary that retains references to every input/output
+`Buffer`. The real spawn uses `detached:false` and exact
+`stdio: ['pipe', 'pipe', 'pipe']`; it never inherits the worker-control or host-
+key descriptor. It builds each pasteboard child environment from only fixed
+`PATH`, `TZ`, `LANG`, and custody-owned `TMPDIR`, rejecting every other parent
+key. After completion, assert all buffers are zero-filled and
+serialize the receipt/error/log capture to prove a unique sentinel from the
+clipboard is absent.
+
+- [ ] **Step 2: Run focused test and observe RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/clipboard.test.ts
+```
+
+Expected: `ERR_MODULE_NOT_FOUND` for `clipboard.js`.
+
+- [ ] **Step 3: Implement bounded pasteboard custody and scenario**
+
+Spawn `/usr/bin/pbpaste` with no args and `encoding: 'buffer'` semantics, cap collected bytes at 8,192, never convert the full value to a JavaScript string, and recognize an ASCII scheme prefix before the first colon. Parse only enough structure to reject whitespace-only, embedded NUL, control characters, missing payload, and unknown schemes. Derive a length bucket without retaining content. In `finally`, send zero bytes to `/usr/bin/pbcopy`, run `pbpaste` again, require zero bytes, and fill every buffer with zero. Do not hash clipboard bytes.
+
+Create this scenario:
+
+```yaml
+schemaVersion: 1
+scenarioId: freeland.vpn-clipboard
+revision: 1.0.0
+requirementIds: [VPN.CLIPBOARD_FALLBACK]
+ticketRefs: [FREEL-206]
+checkId: CU.VPN.OS_CLIPBOARD
+surface: vpn-os-clipboard
+allowedApplications: [Google Chrome, macOS Pasteboard]
+allowedOrigins: [https://mf0.forum]
+personaKinds: [paid-vpn]
+preconditions: [candidate-attested, persona-leased, clipboard-clear]
+steps:
+  - stepId: open-vpn
+    action: {kind: activate-accessible-target, role: link, nameToken: vpn}
+    checkpointIds: [vpn-origin, vpn-copy-control]
+    evidence: safe-metadata
+  - stepId: copy-existing-configuration
+    action: {kind: copy-vpn-configuration}
+    checkpointIds: [os-clipboard-valid]
+    evidence: suppressed
+  - stepId: restore-and-clear
+    action: {kind: return-to-safe-surface}
+    checkpointIds: [vpn-cleanup]
+    evidence: suppressed
+checkpoints:
+  - checkpointId: vpn-origin
+    kind: candidate-match
+    expected: {origin: https://mf0.forum, appEnvironment: staging}
+  - checkpointId: vpn-copy-control
+    kind: accessible-target-present
+    expected: {role: button, nameToken: copy-vpn}
+  - checkpointId: os-clipboard-valid
+    kind: clipboard-valid
+    expected: {source: os-pasteboard, nonEmpty: true, formatValid: true, cleared: true}
+  - checkpointId: vpn-cleanup
+    kind: cleanup-complete
+    expected: {safeSurfaceRestored: true, clipboardCleared: true}
+prohibitedActions:
+  - arbitrary-url
+  - arbitrary-script
+  - arbitrary-shell
+  - arbitrary-coordinates
+  - purchase
+  - third-party-message
+  - unsafe-capture
+maxRecoveryAttempts: 1
+timeoutMs: 120000
+cleanup: [clear-clipboard, return-safe-surface, release-persona]
+```
+
+Update `VPN.CLIPBOARD_FALLBACK` to add persona `paid-vpn`, preconditions `existing-paid-vpn-entitlement` and `exclusive-persona-lease`, transport `public` alongside existing `mesh`, explicit clipboard-clear cleanup text, and the required check:
+
+```yaml
+  - id: CU.VPN.OS_CLIPBOARD
+    kind: computer-use
+    stableTag: "@check:CU.VPN.OS_CLIPBOARD"
+    file: scenarios/computer-use/vpn-clipboard.v1.yaml
+    assertionIds: [reviewed-executable-oracle]
+    resultPolicy: MUST_PASS
+    stability: UNKNOWN
+    observedOutcome:
+      status: NOT_RUN
+```
+
+Retain the two existing Playwright checks and `externalEffects: []`: the current schema has no clipboard effect class, so the temporary OS write is represented by the scenario checkpoint and cleanup receipt rather than an invalid effect value. Keep coverage-registry `ticketRefs: []` because the audited registry has no authoritative `coverage/tickets/freel-206.yaml` snapshot to reverse-link; do not invent issue metadata. The reviewed scenario itself carries `ticketRefs: [FREEL-206]`, so every lane result and sanitized artifact retains the approved design provenance. Keep lifecycle `CANDIDATE` until real evidence is reviewed.
+
+- [ ] **Step 4: Run focused and registry tests**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/clipboard.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/coverage/registry-validation.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:validate
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all pass, with the coverage registry binding `CU.VPN.OS_CLIPBOARD` to `VPN.CLIPBOARD_FALLBACK` and the validated scenario retaining FREEL-206 provenance.
+
+- [ ] **Step 5: Aggregate, commit, and pin before real clipboard use**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+git add packages/computer-use/src/clipboard.ts scenarios/computer-use/vpn-clipboard.v1.yaml coverage/requirements/semantic/vpn.clipboard_fallback.yaml tests/computer-use/clipboard.test.ts tests/computer-use/clipboard.live.ts
+git commit -m "feat(computer-use): add FREEL-206 clipboard acceptance"
+git status --short
+```
+
+Expected: clean status and recorded scenario/check/commit digests.
+
+- [ ] **Step 6: Run real FREEL-206 acceptance from the committed checkout**
+
+Acquire `freeland-paid-vpn-01` from PostgreSQL, use its existing entitlement, and run:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+FREELAND_COMPUTER_USE_LIVE=1 FREELAND_QA_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/clipboard.live.ts
+```
+
+The committed test must use the real host adapter and real OS pasteboard, prove a non-empty valid VPN configuration without disclosing it, clear and verify the pasteboard, restore a safe surface, release with matching epoch/cleanup receipt, and emit `CU.VPN.OS_CLIPBOARD`. It must not purchase or provision. Missing entitlement/persona/bridge is typed blocked, not skipped.
+
+---
+
+### Task 7: Real Telegram Web Mini App Runtime Attestation
+
+**Files:**
+
+- Create: `packages/computer-use/src/telegram.ts`
+- Create: `scenarios/computer-use/telegram-mini-app-smoke.v1.yaml`
+- Create: `coverage/requirements/semantic/telegram.real_miniapp_runtime.yaml`
+- Modify: `coverage/requirements/legacy/bot-03.yaml`
+- Test: `tests/computer-use/telegram.test.ts`
+- Test: `tests/computer-use/telegram.live.ts`
+
+**Interfaces:** Implement `attestTelegramRuntime` and a scenario checkpoint adapter that observes only the Telegram contract fields. Raw `initData` is consumed inside the restricted runtime boundary only to determine the boolean `initDataPresent` and is immediately discarded without hashing or logging.
+
+- [ ] **Step 1: Write Telegram RED tests**
+
+```ts
+test('matches real web.telegram.org dmf0_bot WebApp API and exact staging release');
+test('classifies an otherwise real production mini app as compatibility-only');
+test('classifies missing backend release attribution as unverified');
+test('rejects direct mini-app URL injected Telegram API empty initData and wrong bot');
+test('rejects top-level lookalike origins subdomains ports and non-HTTPS origins');
+test('never includes initData hash chat text phone cookies storage token or signed URL');
+test('suppresses screenshots until mini-app safe-crop attestation succeeds');
+test('test-double and Playwright Telegram stubs cannot satisfy a live checkpoint');
+test('Telegram incompatibility cannot be turned into a staging product failure');
+```
+
+Include mutation fixtures for platform/version bounds, mini-app origin allowlist, candidate mismatch, missing release digest, and a sentinel raw initData value; prove the sentinel is absent from result, errors, logs, receipts, and artifact input.
+
+- [ ] **Step 2: Run focused test and observe RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/telegram.test.ts
+```
+
+Expected: `ERR_MODULE_NOT_FOUND` for `telegram.js`.
+
+- [ ] **Step 3: Implement attestation and scenario**
+
+`attestTelegramRuntime` requires exact top-level `https://web.telegram.org`, bot `dmf0_bot`, allowlisted HTTPS Mini App origin, non-root Mini App path, `webAppApiPresent: true`, `initDataPresent: true`, bounded non-empty platform/version, and a backend identity observation. Return:
+
+- `MATCHED_STAGING` only when backend environment is `staging` and backend release digest equals the expected candidate digest;
+- `PRODUCTION_COMPATIBILITY_ONLY` when the runtime is real and internally valid but backend environment is `production` or its digest is a different known release;
+- `UNVERIFIED` when any runtime identity fact is absent/invalid or the backend cannot be attributed.
+
+Only `MATCHED_STAGING` satisfies the staging checkpoint. The latter two produce a healthy compatibility observation but an environment-blocked required lane; they never produce product PASS/FAIL for staging.
+
+Create the scenario:
+
+```yaml
+schemaVersion: 1
+scenarioId: freeland.telegram-mini-app-smoke
+revision: 1.0.0
+requirementIds: [TELEGRAM.REAL_MINIAPP_RUNTIME]
+ticketRefs: []
+checkId: CU.TELEGRAM.REAL_MINI_APP
+surface: telegram-web-mini-app
+allowedApplications: [Telegram Web, Google Chrome]
+allowedOrigins: [https://web.telegram.org]
+personaKinds: [telegram-qa]
+preconditions: [persona-leased, telegram-session-authenticated]
+steps:
+  - stepId: activate-telegram-web
+    action: {kind: activate-app, application: Telegram Web}
+    checkpointIds: [telegram-web-origin]
+    evidence: suppressed
+  - stepId: launch-dmf0-mini-app
+    action: {kind: launch-telegram-bot-mini-app, botUsername: dmf0_bot}
+    checkpointIds: [real-telegram-runtime, staging-backend-identity]
+    evidence: safe-metadata
+  - stepId: close-mini-app
+    action: {kind: return-to-safe-surface}
+    checkpointIds: [telegram-cleanup]
+    evidence: suppressed
+checkpoints:
+  - checkpointId: telegram-web-origin
+    kind: origin-match
+    expected: {origin: https://web.telegram.org}
+  - checkpointId: real-telegram-runtime
+    kind: accessible-target-present
+    expected: {botUsername: dmf0_bot, webAppApiPresent: true, initDataPresent: true}
+  - checkpointId: staging-backend-identity
+    kind: telegram-runtime-match
+    expected: {status: MATCHED_STAGING}
+  - checkpointId: telegram-cleanup
+    kind: cleanup-complete
+    expected: {safeSurfaceRestored: true}
+prohibitedActions:
+  - arbitrary-url
+  - arbitrary-script
+  - arbitrary-shell
+  - arbitrary-coordinates
+  - purchase
+  - third-party-message
+  - unsafe-capture
+maxRecoveryAttempts: 1
+timeoutMs: 180000
+cleanup: [close-mini-app, return-safe-surface, release-persona]
+```
+
+Create `TELEGRAM.REAL_MINIAPP_RUNTIME` as a P1 semantic requirement with surface `telegram-mini-app`, required lane `freeland-staging`, transport `telegram-web`, persona `telegram-qa`, preconditions `dedicated-authenticated-qa-session` and `same-candidate-backend-attestation`, assertion limited to real launch/initData/WebApp/runtime identity, and one `MUST_PASS` check `CU.TELEGRAM.REAL_MINI_APP` pointing at this scenario.
+
+Do not claim Stars/payment coverage in N3. Modify legacy `BOT-03` only to record the reviewed decomposition: real launch/runtime is covered by dependency `TELEGRAM.REAL_MINIAPP_RUNTIME`, while MainButton/BackButton/Stars remain `MISSING` for their later explicit requirements. Keep BOT-03 `MISSING` and its zero-credit semantics so a runtime PASS cannot falsely close the composite legacy row.
+
+- [ ] **Step 4: Run focused and registry tests**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/telegram.test.ts
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/coverage/registry-validation.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run coverage:validate
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+```
+
+Expected: all pass, the semantic requirement is executable, and BOT-03 remains zero-credit MISSING.
+
+- [ ] **Step 5: Aggregate, commit, and pin before real Telegram use**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+git add packages/computer-use/src/telegram.ts scenarios/computer-use/telegram-mini-app-smoke.v1.yaml coverage/requirements/semantic/telegram.real_miniapp_runtime.yaml coverage/requirements/legacy/bot-03.yaml tests/computer-use/telegram.test.ts tests/computer-use/telegram.live.ts
+git commit -m "feat(telegram): add real web mini app acceptance"
+git status --short
+```
+
+Expected: clean status and recorded scenario/check/commit digests.
+
+- [ ] **Step 6: Run real Telegram acceptance from the committed checkout**
+
+Use the already authenticated dedicated `freeland-telegram-qa-01` profile and run:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+FREELAND_COMPUTER_USE_LIVE=1 FREELAND_TELEGRAM_LIVE=1 FREELAND_QA_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/telegram.live.ts
+```
+
+The committed test must visibly open real Telegram Web, select only `dmf0_bot`, launch through the Telegram UI, prove real non-empty initData presence and WebApp API without retaining either raw value, attest the Mini App/backend release, close it, restore safe surface, and release the exact persona epoch. It may not open personal chats, send messages, buy Stars, inject `window.Telegram`, navigate directly to a Mini App URL, or take an unsafe screenshot. A production-only or unattributed runtime yields an explicit environment-blocked record and makes the acceptance command non-zero until a staging-attributed Mini App is available.
+
+---
+
+### Task 8: Single External Runner Entry, Lane Agreement, and Sanitized Artifacts
+
+**Files:**
+
+- Create: `packages/computer-use/src/runner-lanes.ts`
+- Modify: `packages/contracts/src/qa-run.ts`
+- Modify: `packages/contracts/schemas/qa-lane-execution.v1.schema.json`
+- Modify: `packages/contracts/schemas/qa-artifact-bundle.v1.schema.json`
+- Modify: `packages/contracts/schemas/qa-run-evidence.v1.schema.json`
+- Modify: `packages/runner/src/commands.ts`
+- Modify: `packages/runner/src/selection.ts`
+- Modify: `packages/runner/src/run-authority.ts`
+- Modify: `packages/runner/src/evaluator.ts`
+- Modify: `packages/runner/src/evidence.ts`
+- Modify: `packages/runner/src/nuanu-worker-dependencies.ts`
+- Modify: `tools/runner/run-qa.ts`
+- Modify: `package.json`
+- Test: `tests/computer-use/runner-integration.test.ts`
+- Test: `tests/computer-use/evidence-redaction.test.ts`
+- Test: `tests/computer-use/nuanu-worker-integration.test.ts`
+- Modify: `tests/runner/selection.test.ts`
+- Modify: `tests/runner/run-authority.test.ts`
+- Modify: `tests/contracts/qa-run.test.ts`
+
+**Interfaces:** Import the N1 `NuanuTaskEnvelope` and external command without
+redeclaring or adding fields:
+
+```ts
+import type { NuanuTaskEnvelope } from '../../contracts/src/qa-run.js';
+
+export type QaSanitizedLaneEvidence =
+  | { schemaVersion: 1; kind: 'none' }
+  | {
+      schemaVersion: 1;
+      kind: 'cdp';
+      scenario: { id: string; revision: string; digest: string };
+      publicOrigin: { expected: string; observed: string };
+      appEnvironment: 'staging';
+      candidateDigest: string;
+      custodyReceiptDigest: string;
+      cleanupReceiptDigest: string;
+    }
+  | {
+      schemaVersion: 1;
+      kind: 'computer-use';
+      scenario: { id: string; revision: string; digest: string };
+      publicOrigin: { expected: string; observed: string };
+      appEnvironment: 'staging';
+      candidateDigest: string;
+      persona: { id: string; kind: string; fencingEpoch: number };
+      checkpoints: Array<{
+        sequence: number;
+        state: 'PASS' | 'FAIL' | 'BLOCKED';
+        reasonCode: string;
+        observationDigest: string;
+      }>;
+      clipboard: null | {
+        schemeClass: 'vless' | 'vmess' | 'trojan' | 'wireguard';
+        validity: 'VALID' | 'INVALID';
+        lengthBucket: string;
+        cleared: true;
+      };
+      safeCrop: null | {
+        artifactId: string;
+        versionId: string;
+        sha256: string;
+      };
+      cleanupReceiptDigest: string;
+    }
+  | {
+      schemaVersion: 1;
+      kind: 'telegram';
+      scenario: { id: string; revision: string; digest: string };
+      candidateDigest: string;
+      persona: { id: string; kind: string; fencingEpoch: number };
+      status: 'REAL_MINIAPP' | 'COMPATIBILITY_ONLY' | 'BLOCKED';
+      botUsername: string;
+      telegramOrigin: string;
+      miniAppOrigin: string;
+      pathClass: string;
+      apiPresent: boolean;
+      initDataPresent: boolean;
+      platform: string;
+      version: string;
+      backendEnvironment: 'staging';
+      backendReleaseDigest: string;
+      cleanupReceiptDigest: string;
+    };
+```
+
+`runnerCommandId: 'freeland-qa-run-v1'` is the only external Nuanu
+ticket-validation entry. N1 planning, Playwright execution, Computer Use
+scenario execution, aggregation, and publication are sequential internal
+phases of that run. Internal `qa.plan.v1`, `qa.playwright.v1`,
+`qa.aggregate.v1` and `cu.*.v1` IDs are never accepted as external Nuanu
+commands and never appear in `NuanuTaskEnvelope`. A later N9 maintenance
+General Process may use its own separately closed inventory-audit command; it
+cannot validate or route a ticket.
+
+- [ ] **Step 1: Write runner/evidence RED tests**
+
+```ts
+test('freeland-qa-run-v1 selects required Playwright and Computer Use checks');
+test('reviewed N3 checks resolve exact cdp computer-use and telegram scenario IDs');
+test('N3 run authority derives surfaces and all three extension lanes before qaRunKey');
+test('N3 registers exact cdp computerUse and telegram RunnerExtensionPorts');
+test('required N3 lane with null or wrong executor is harness_invalid and cannot publish PASS');
+test('external envelope rejects processRunId taskId stepId environmentId surface and output fields');
+test('external entry rejects internal qa phase and cu host command ids');
+test('required Computer Use absence cannot be replaced by Playwright pass');
+test('Computer Use and Playwright disagreement yields NEEDS_HUMAN');
+test('candidate or origin drift yields ENV_BLOCKED and never PRODUCT_FAIL');
+test('real Telegram production-only observation cannot satisfy staging');
+test('test-double lane cannot satisfy a live check even when every assertion says pass');
+test('sanitized bundle contains receipts identities and refs but no restricted values');
+test('redaction failure yields redaction_failed and publishes no Nuanu artifact');
+test('packaged Nuanu worker factory registers exact cdp computer-use and telegram ports');
+test('packaged worker executes required N3 lanes through the sole nine-field command path');
+test('packaged worker children cannot inherit Nuanu control and host key pipe never aliases it');
+test('lane evidence schema accepts only exact none cdp computer-use and telegram variants');
+test('nested extra secret-shaped or cross-kind lane evidence fails manual and Ajv validation');
+```
+
+Use exact fixtures for: both lanes pass; Playwright pass/CU fail; Playwright fail/CU pass; CU missing; mock CU pass; candidate drift; origin mismatch; Telegram compatibility-only; persona conflict; cleanup failure; and artifact sentinel contamination.
+
+- [ ] **Step 2: Run focused tests and observe RED**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/runner-integration.test.ts tests/computer-use/evidence-redaction.test.ts tests/computer-use/nuanu-worker-integration.test.ts tests/runner/selection.test.ts tests/runner/run-authority.test.ts tests/contracts/qa-run.test.ts
+```
+
+Expected: N1 runner lacks N3 lane registration/agreement/redaction logic.
+
+- [ ] **Step 3: Integrate lanes without forking the evaluator**
+
+Implement `RunnerExtensionLaneExecutor<'cdp'>`,
+`RunnerExtensionLaneExecutor<'computer-use'>`, and
+`RunnerExtensionLaneExecutor<'telegram'>` in `runner-lanes.ts`, returning the
+exact N1 extension result with `payment: null`. Inject them through the N1
+`RunnerDependencies.extensionLanes` object; do not add an entry-point argument,
+overload, dispatcher, or parallel result type. Extend the reviewed registry
+mapping so each N3 check deterministically produces the exact
+`QaPlannedLane` variant and scenario ID. The runner rejects any returned
+lane/check/scenario mismatch before evaluation.
+
+Modify the existing N1 `nuanu-worker-dependencies.ts` in place. Its static
+factory constructs the same reviewed three executors from fixed staging
+profiles and installs them in `extensionLanes.cdp`, `computerUse`, and
+`telegram`; it preserves the inherited-control freshness/publisher adapters and
+keeps `payment:null`. It accepts no executor, scenario, module, URL, or lane
+override from the environment, seed, stdin, or worker handler. Do not modify or
+fork `run-nuanu-worker.ts`: the deployed `qa:nuanu-worker` script must pick up
+these ports through the one shared factory. The packaged-worker integration
+test runs the vendored N0 binding with fake authenticated control and proves a
+required N3 plan reaches each exact executor, the common evaluator, one
+sanitized publication, and the nine-field output projection.
+
+Modify `selection.ts` and `run-authority.ts` in this task, rather than only the
+executor registry. Add the closed `freeland-cdp`, `freeland-computer-use`, and
+`freeland-telegram-web` mappings from reviewed check metadata to exact scenario
+IDs; reject a missing, duplicate, unreviewed, or cross-lane scenario. Recompute
+the identity's sorted `surfaces` and `lanes` from that extended plan before
+deriving `qaRunKey`, and prove the preparation-time and execution-time
+authority snapshots agree byte-for-byte.
+
+Replace N1's sole `{ kind: 'none' }` `QaSanitizedLaneEvidence` with exactly the
+four-variant union above and update the manual validator plus
+`qa-lane-execution`, `qa-artifact-bundle`, and `qa-run-evidence` schemas in the
+same commit. Every nested object is required and
+`additionalProperties:false`; IDs, public origins, bot username, path class,
+persona kind, checkpoint reason, platform/version, and length bucket use
+reviewed bounded enums or public-value patterns, while every digest uses the
+lowercase SHA-256 pattern. Cross-kind keys, raw observations, arbitrary reason
+text, query strings, initData, clipboard bytes, account aliases, and unknown
+fields fail both manual and Ajv validation. Playwright/API lanes retain only the
+exact `none` variant.
+
+Inside `freeland-qa-run-v1`, use the N1 planner to select checks. Execute
+required Computer Use/Telegram black-box lanes first, then the required CDP
+custody/observation lane, then the required Playwright/API secondary lanes, all
+with the same `qaRunKey` and candidate digest. A CDP lane cannot replace a
+required Computer Use or Telegram observation. Continue to the secondary lanes
+after a safe primary product failure so
+the deterministic evaluator can detect disagreement; stop only when safety,
+identity, custody, or cleanup blocks further action. Do not let the envelope
+select a scenario path, adapter, persona, route, URL, or lane primitive; resolve
+the check ID through the reviewed coverage registry and scenario manifest.
+
+Normalize each scenario to one `QaLaneExecution`:
+
+- `lane` is `computer-use` for web/clipboard and `telegram` for real Telegram;
+- `selectedCheckIds` contains the one reviewed `CU.*` check;
+- `candidateBeforeDigest` and `candidateAfterDigest` come from guard observations;
+- the checkpoint assertion maps to `PASS`, `FAIL`, or `SKIPPED`;
+- environment, persona, live-adapter, and runtime-attribution blocks use `executionHealth: 'INFRA_FAILURE'` and coarse `reasonCode: 'worker_unavailable'` unless exact candidate drift requires `candidate_changed`;
+- cleanup and sanitizer failures use `cleanup_failed` and `redaction_failed`;
+- test-double provenance forces `evidenceStatus: 'INCOMPLETE'` and cannot produce a clean verdict.
+
+Extend the deterministic evaluator by rule table, not prose: every required lane must be present; all required lanes PASS for issue PASS; any environment/applicability block yields `ENV_BLOCKED`; any lane disagreement yields `NEEDS_HUMAN`; a product failure requires stable matching-candidate evidence; missing/incomplete/redaction-blocked evidence cannot pass. Keep candidate release verdict inconclusive for all N3 conflict/block states.
+
+- [ ] **Step 4: Implement sanitized artifact projection**
+
+The sanitized bundle may contain only:
+
+- `qaRunKey`, scenario ID/revision/digest, check/requirement/ticket IDs;
+- expected and observed candidate digest, exact public origin, app environment;
+- persona ID, kind, and fencing epoch, but not `accountAlias` or profile path;
+- checkpoint sequence/state/reason and digest of the already-sanitized observation;
+- Telegram status, bot username, origins, path class, API/initData presence booleans, platform/version, backend environment/release digest;
+- clipboard structural receipt;
+- approved safe-crop restricted artifact reference and sanitized derivative SHA-256;
+- cleanup status and cleanup receipt digest.
+
+The projector rejects keys/patterns for clipboard payloads, Telegram initData, chat/phone data, cookies/storage, authorization, bearer values, signed query strings, credentials, PAN/CVV, raw provider data, profile paths, and account aliases. Run recursive key denylisting, secret-pattern scan, URL query stripping/allowlisting, and mutation/sentinel tests before `QaArtifactRef` creation. If any scan fails, delete the pending sanitized derivative, retain restricted custody for incident handling, set `redaction_failed`, and publish nothing to Nuanu.
+
+- [ ] **Step 5: Run focused and aggregate tests**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/runner-integration.test.ts tests/computer-use/evidence-redaction.test.ts tests/computer-use/nuanu-worker-integration.test.ts tests/runner/selection.test.ts tests/runner/run-authority.test.ts tests/contracts/qa-run.test.ts
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:runner
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+```
+
+Expected: all pass; fixture snapshots are deterministic; no restricted sentinel appears anywhere under ordinary artifact output.
+
+- [ ] **Step 6: Add script and commit**
+
+Add:
+
+```json
+{
+  "test:computer-use": "/opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/checkpoint.test.ts tests/computer-use/origin-guard.test.ts tests/computer-use/host-runtime.test.ts tests/computer-use/scenario.test.ts tests/computer-use/clipboard.test.ts tests/computer-use/telegram.test.ts tests/computer-use/runner-integration.test.ts tests/computer-use/evidence-redaction.test.ts tests/computer-use/nuanu-worker-integration.test.ts tests/contracts/qa-run.test.ts"
+}
+```
+
+Then commit:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add packages/computer-use/src/runner-lanes.ts packages/contracts/src/qa-run.ts packages/contracts/schemas/qa-lane-execution.v1.schema.json packages/contracts/schemas/qa-artifact-bundle.v1.schema.json packages/contracts/schemas/qa-run-evidence.v1.schema.json packages/runner/src/commands.ts packages/runner/src/selection.ts packages/runner/src/run-authority.ts packages/runner/src/evaluator.ts packages/runner/src/evidence.ts packages/runner/src/nuanu-worker-dependencies.ts tools/runner/run-qa.ts tests/computer-use/runner-integration.test.ts tests/computer-use/evidence-redaction.test.ts tests/computer-use/nuanu-worker-integration.test.ts tests/runner/selection.test.ts tests/runner/run-authority.test.ts tests/contracts/qa-run.test.ts package.json
+git commit -m "feat(runner): evaluate real computer use lanes"
+```
+
+---
+
+### Task 9: Worker-Loss Drills, Live Acceptance Commands, and N3 Exit
+
+**Files:**
+
+- Create: `tests/computer-use/recovery.live.ts`
+- Modify: `package.json`
+
+**Interfaces:** Add explicit acceptance scripts. They invoke the same `freeland-qa-run-v1` external path or focused live test harness around its actual lane adapters; none is included in generic `verify:deterministic`.
+
+- [ ] **Step 1: Write the focused recovery acceptance test**
+
+```ts
+test('worker loss aborts broker custody and leaves no owned process or socket');
+test('Nuanu redelivery reuses qaRunKey but does not replay completed side effects');
+test('expired ordinary persona takeover advances epoch and fences the old worker');
+test('PAYMENT_HOLD remains held across worker loss timeout and redelivery');
+test('cleanup failure quarantines persona and prevents another worker acquisition');
+test('concurrent lane conflict becomes NEEDS_HUMAN with candidate inconclusive');
+test('clipboard abort clears OS pasteboard and emits no payload evidence');
+test('restricted artifact contamination blocks sanitized publication');
+```
+
+The redelivery test is not a daemon queue: terminate worker A after a recorded checkpoint, then invoke worker B with the same immutable `NuanuTaskEnvelope` from the Nuanu test harness. Worker B reads durable runner/persona receipts, re-attests, and resumes only safe observation. The CDP daemon neither stores nor requeues the task. Prove stale worker A cannot act after takeover.
+
+- [ ] **Step 2: Add exact acceptance scripts without running them**
+
+```json
+{
+  "acceptance:computer-use:web": "FREELAND_COMPUTER_USE_LIVE=1 /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/staging-web.live.ts",
+  "acceptance:computer-use:clipboard": "FREELAND_COMPUTER_USE_LIVE=1 /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/clipboard.live.ts",
+  "acceptance:telegram-web": "FREELAND_COMPUTER_USE_LIVE=1 FREELAND_TELEGRAM_LIVE=1 /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/telegram.live.ts",
+  "acceptance:computer-use:recovery": "FREELAND_COMPUTER_USE_LIVE=1 /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/recovery.live.ts"
+}
+```
+
+Scheduled regression is an external Nuanu Process trigger sending the same exact envelope with `runnerCommandId: 'freeland-qa-run-v1'`. Do not add cron, a local scheduler, or a repeat loop to the broker/daemon. The schedule chooses requirement IDs; the runner deterministically resolves reviewed scenarios.
+
+- [ ] **Step 3: Run the complete non-live deterministic gate**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+/opt/homebrew/opt/node@20/bin/node --version
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run db:migrate:test
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run typecheck
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:cdp
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:personas
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:personas:race
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:runner
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:computer-use
+/usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run verify:deterministic
+```
+
+Expected Node output: `v20.20.2` on the audited machine. Every test exits 0, with zero skipped tests in required suites.
+
+- [ ] **Step 4: Commit and pin the reviewed live test instruments**
+
+Typecheck has compiled the complete recovery test and package scripts, but no
+live profile has been opened. Commit these instruments now and require a clean
+checkout before they can control Chrome, Telegram, or the pasteboard:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git add tests/computer-use/recovery.live.ts package.json
+git diff --cached --check
+git commit -m "test(computer-use): add committed N3 recovery gate"
+git status --short
+```
+
+Expected: empty status. Record this commit plus the N3 worker/handler/schema
+deployment pins.
+
+- [ ] **Step 5: Run the focused recovery acceptance from the committed checkout**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+FREELAND_COMPUTER_USE_LIVE=1 FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /opt/homebrew/opt/node@20/bin/node --import tsx --test tests/computer-use/recovery.live.ts
+```
+
+This is a test-only acceptance task after Tasks 5–8, not a new production-code
+TDD cycle. Expected: every recovery/resume assertion passes against the already
+committed adapters and receipt integration, with zero skips. If any assertion
+fails, stop, return to the task that owns the missing behavior, add a focused
+RED regression there, commit its verified fix, re-pin the deployment, and only
+then rerun this acceptance test.
+
+- [ ] **Step 6: Run the real N3 gate**
+
+With owner-approved restricted profiles/host bridge, exact candidate identity, and PostgreSQL DSNs configured outside Git:
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+FREELAND_CDP_LIVE=1 /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run test:cdp:live
+FREELAND_STAGING_BASE_URL=https://mf0.forum FREELAND_QA_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run acceptance:computer-use:web
+FREELAND_STAGING_BASE_URL=https://mf0.forum FREELAND_QA_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run acceptance:computer-use:clipboard
+FREELAND_QA_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run acceptance:telegram-web
+FREELAND_QA_TEST_DATABASE_URL=postgresql://freelandqa:freelandqa@127.0.0.1:55432/freelandqa_test /usr/bin/env PATH=/opt/homebrew/opt/node@20/bin:/usr/bin:/bin /opt/homebrew/opt/node@20/bin/node /opt/homebrew/opt/node@20/lib/node_modules/npm/bin/npm-cli.js run acceptance:computer-use:recovery
+```
+
+Review the generated sanitized bundle and restricted deletion receipts after each command. A typed `ENV_BLOCKED` result is correct classification during diagnosis but is not a successful N3 exit; the live gate is complete only when required web, clipboard, and same-candidate Telegram checks truly pass.
+
+- [ ] **Step 7: Verify scope without rewriting the reviewed commit**
+
+```bash
+cd /Users/danilsolomin/projectsnew/NuanuFlowQA/.worktrees/freelandqa-personal-cdp-i1-local
+git status --short
+git diff --check
+git diff --name-only 72378f3e32f8da3d1e5226e8737a3717e48a6347..HEAD
+```
+
+Expected final status: clean. The changed-file list contains only the files
+enumerated by this plan plus N1 files already introduced on the same
+implementation branch. Runtime evidence remains in restricted custody and the
+sanitized Nuanu Artifact; do not amend the committed test instrument or commit
+live identifiers.
+
+## N3 Definition of Done
+
+- [ ] The private CDP Unix daemon owns one existing `FreelandCdpBroker`, serves one bounded closed command at a time, rejects concurrent work rather than queueing it, and proves orphan-free shutdown.
+- [ ] The CLI supports only the reviewed CDP command grammar, uses pinned Node 20 plus `--import tsx`, validates direct-child/process/socket ownership, and prints canonical non-secret results.
+- [ ] The separate private host-control socket authenticates same-uid peers with a short-lived replay-safe HMAC envelope and exposes only dormant `payment-fill-fields-v1`/`payment-submit-v1` registry slots for N5; neither ID enters `CdpCommand`, a Nuanu envelope, or an N3 scenario.
+- [ ] Versioned scenarios contain semantic actions, ordered checkpoints, allowed apps/origins, persona/preconditions, prohibited actions, recovery/time limits, evidence policy, and terminal cleanup; arbitrary execution fields are structurally impossible.
+- [ ] The pure checkpoint machine rejects invalid transitions, never trusts free-form success, prevents side-effect replay, and always reaches cleanup.
+- [ ] Real staging web Computer Use attests `https://mf0.forum`, `appEnvironment: staging`, and the exact candidate before and after action; origin/candidate drift never passes.
+- [ ] Persona manifest is non-secret, PostgreSQL 16 is the sole lease authority, 32-process contention has one winner, stale epochs are fenced, ordinary takeover is monotonic, quarantine is enforced, and `PAYMENT_HOLD` survives loss/expiry.
+- [ ] FREEL-206 passes through a real already-paid QA persona and macOS pasteboard, records only structural validity, clears and verifies the pasteboard, zeroes buffers, and never purchases or discloses the VPN configuration.
+- [ ] Real Telegram Web launches `dmf0_bot` through the authenticated Telegram UI, proves genuine initData/WebApp presence without retaining raw values, and attributes the Mini App backend to the exact staging candidate.
+- [ ] Production-only/unattributed Telegram observations remain compatibility evidence and block staging; Playwright stubs, injected Telegram APIs, direct URLs, screenshots, and mocks cannot satisfy the gate.
+- [ ] `freeland-qa-run-v1` remains the sole external Nuanu ticket-validation
+  command. Internal QA phases, CU host IDs, and CDP commands are not external
+  entries.
+- [ ] Required Computer Use and Playwright/API lanes agree. Missing required lanes, mocks, environment blocks, and conflicts cannot yield `PASS` or `CANDIDATE_RELEASE_READY`.
+- [ ] Sanitized artifacts contain only reviewed identities, receipts, booleans, buckets, digests of already-sanitized structures, and safe derivative refs; restricted sentinels fail publication.
+- [ ] Worker loss, Nuanu redelivery, persona takeover/fencing, `PAYMENT_HOLD` survival, quarantine, lane conflict, clipboard abort, and redaction-block drills pass.
+- [ ] All deterministic and live acceptance commands above have zero exits under Node 20.20.x, with no skips used as live evidence, and the implementation worktree is clean.

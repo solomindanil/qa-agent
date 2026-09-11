@@ -1,0 +1,913 @@
+# Nuanu Flow Deep E2E QA Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (- [ ]) syntax for tracking.
+
+**Goal:** Build and execute a guarded, layered E2E campaign that covers every visible Nuanu Flow module, performs owned CRUD only in NF QA Sandbox, and files independently confirmed defects only in Nuanu Flow project NUANU.
+
+**Architecture:** Keep the anonymous Playwright baseline independent, add an opt-in authenticated project, and centralize sandbox identity, QA E2E naming, cleanup ownership, and route readiness in fixtures and page objects. Combine conditional Playwright automation with signed-in Chrome recon and Nuanu Flow MCP/API parity checks; mutable suites run serially and clean up only exact IDs created during the current run.
+
+**Tech Stack:** TypeScript 6, Playwright 1.61, @axe-core/playwright, Nuanu Flow MCP, authenticated Chrome browser automation, Node.js.
+
+## Global Constraints
+
+- Target application: https://flow.nuanu.com.
+- Mutable test workspace: NF QA Sandbox, exact slug nf-qa-sandbox.
+- Stable host project: NF QA Sandbox, exact UUID 2c2298c0-7bdc-42a5-a5f5-54ad2cb5d3cf.
+- Every created entity name begins with exact prefix QA E2E and includes a unique run ID.
+- Never mutate pre-existing sandbox records; cleanup may delete only exact IDs registered by the current run.
+- Confirmed bugs are filed only through Nuanu Flow MCP in workspace nuanu-flow-qa, project NUANU, never Linear.
+- Do not connect personal third-party integrations or send real invitations, emails, messages, calendar events, payments, or notifications.
+- Public tests must run without credentials or storage state.
+- Authenticated Playwright tests activate only when NUANUFLOW_STORAGE_STATE names an approved gitignored file.
+- Mutable authenticated specs run serially and restore or remove every reversible change in finally blocks or fixture teardown.
+- Use semantic locators and observable UI/network states; do not add arbitrary sleeps or universal networkidle waits.
+- Repeat suspicious flaky-looking cases ten times before product-bug classification.
+
+---
+
+## File Structure
+
+~~~text
+playwright.config.ts
+.env.example
+.github/workflows/e2e.yml
+package.json
+package-lock.json
+README.md
+skills/qa-check/SKILL.md
+.claude/skills/qa-check/SKILL.md
+tests/nuanuflow/
+  accessibility.spec.ts
+  api.spec.ts
+  performance.spec.ts
+  routes.ts
+  sandbox-data.spec.ts
+  fixtures/
+    authenticated.fixture.ts
+    sandbox-data.ts
+  fixtures/files/
+    qa-e2e-note.txt
+  pages/
+    auth.page.ts
+    workspace.page.ts
+    work-items.page.ts
+    project-features.page.ts
+    processes.page.ts
+    meetings.page.ts
+  authenticated/
+    workspace.spec.ts
+    work-items.spec.ts
+    project-lifecycle.spec.ts
+    cycles-modules.spec.ts
+    views-wiki.spec.ts
+    pulse-automations.spec.ts
+    artifacts-decisions.spec.ts
+    teams-settings.spec.ts
+    marketplace-integrations.spec.ts
+    processes.spec.ts
+    meetings-transcription.spec.ts
+    accessibility-responsive.spec.ts
+    api-contracts.spec.ts
+docs/local/nuanuflow/
+  TEST-CASES.md
+  evidence/
+~~~
+
+Public specs own anonymous behavior. Authenticated specs import the guarded fixture rather than Playwright base test. Page objects contain selectors and actions; specs contain assertions. sandbox-data.ts owns immutable workspace identity, unique names, ownership validation, and cleanup bookkeeping.
+
+---
+
+### Task 1: Separate public and authenticated Playwright projects
+
+**Files:**
+- Modify: playwright.config.ts
+- Modify: .env.example
+- Test: Playwright project listing
+
+**Interfaces:**
+- Consumes: existing product helper and NUANUFLOW_BASE_URL.
+- Produces: independently runnable projects named nuanuflow and conditional nuanuflow-auth.
+
+- [ ] **Step 1: Record the current failing isolation behavior**
+
+Run:
+
+~~~bash
+npx playwright test --project=nuanuflow --list
+~~~
+
+Expected current result: the public project lists authenticated/processes.spec.ts, proving that scopes are mixed.
+
+- [ ] **Step 2: Add an explicit Nuanu Flow project factory**
+
+Add this factory above defineConfig:
+
+~~~ts
+const nuanuFlowProjects = (
+  baseURL: string | undefined,
+  storageState: string | undefined,
+): Project[] => {
+  if (!baseURL) return [];
+
+  const sharedUse = { ...devices['Desktop Chrome'], baseURL };
+  const projects: Project[] = [
+    {
+      name: 'nuanuflow',
+      testDir: './tests/nuanuflow',
+      testIgnore: [/authenticated\//, /auth\.setup\.ts/],
+      use: sharedUse,
+    },
+  ];
+
+  if (storageState) {
+    projects.push({
+      name: 'nuanuflow-auth',
+      testDir: './tests/nuanuflow',
+      testMatch: /authenticated\/.*\.spec\.ts/,
+      fullyParallel: false,
+      use: { ...sharedUse, storageState },
+    });
+  }
+
+  return projects;
+};
+~~~
+
+Replace the current Nuanu Flow product entry with:
+
+~~~ts
+...nuanuFlowProjects(
+  process.env.NUANUFLOW_BASE_URL,
+  process.env.NUANUFLOW_STORAGE_STATE,
+),
+~~~
+
+- [ ] **Step 3: Document authenticated inputs**
+
+Add to .env.example:
+
+~~~dotenv
+NUANUFLOW_WORKSPACE_SLUG=nf-qa-sandbox
+NUANUFLOW_PROJECT_ID=2c2298c0-7bdc-42a5-a5f5-54ad2cb5d3cf
+~~~
+
+Environment values are checked against compiled constants; they never override the safe target.
+
+- [ ] **Step 4: Verify isolation**
+
+Run:
+
+~~~bash
+npx playwright test --project=nuanuflow --list
+NUANUFLOW_STORAGE_STATE=playwright/.auth/nonexistent.json npx playwright test --project=nuanuflow-auth --list
+npm run typecheck
+~~~
+
+Expected: public listing contains no authenticated path; auth listing contains only authenticated specs; typecheck passes. The nonexistent state is used only for listing.
+
+- [ ] **Step 5: Commit**
+
+~~~bash
+git add playwright.config.ts .env.example
+git commit -m "test: isolate Nuanu Flow authenticated project"
+~~~
+
+---
+
+### Task 2: Build sandbox identity and cleanup fixtures
+
+**Files:**
+- Create: tests/nuanuflow/fixtures/sandbox-data.ts
+- Create: tests/nuanuflow/fixtures/authenticated.fixture.ts
+- Create: tests/nuanuflow/sandbox-data.spec.ts
+- Create: tests/nuanuflow/pages/workspace.page.ts
+- Modify: tests/nuanuflow/authenticated/processes.spec.ts
+
+**Interfaces:**
+- Produces: SANDBOX, QA_PREFIX, OwnedEntity, CleanupLedger, createRunId(), qaName(), authenticated test/expect, and WorkspacePage.
+- Consumed by: every later authenticated page object and spec.
+
+- [ ] **Step 1: Write failing safety tests**
+
+Create sandbox-data.spec.ts:
+
+~~~ts
+import { expect, test } from '@playwright/test';
+import {
+  CleanupLedger,
+  SANDBOX,
+  createRunId,
+  qaName,
+} from './fixtures/sandbox-data';
+
+test('generates worker-safe QA E2E names', () => {
+  const runId = createRunId(3, new Date('2026-07-26T10:11:12.000Z'));
+  expect(qaName(runId, 'work item')).toMatch(
+    /^QA E2E 20260726T101112Z-w3-[a-f0-9]{6} work item$/,
+  );
+});
+
+test('rejects cleanup outside the exact sandbox and prefix', () => {
+  const ledger = new CleanupLedger();
+  expect(() =>
+    ledger.register({
+      kind: 'work-item',
+      id: 'unsafe-1',
+      name: 'Existing item',
+      workspaceSlug: SANDBOX.workspaceSlug,
+      cleanup: async () => {},
+    }),
+  ).toThrow(/QA E2E/);
+  expect(() =>
+    ledger.register({
+      kind: 'work-item',
+      id: 'unsafe-2',
+      name: 'QA E2E wrong workspace',
+      workspaceSlug: 'nuanu-flow-qa',
+      cleanup: async () => {},
+    }),
+  ).toThrow(/nf-qa-sandbox/);
+});
+
+test('cleans in reverse order and reports exact residual IDs', async () => {
+  const calls: string[] = [];
+  const ledger = new CleanupLedger();
+  ledger.register({
+    kind: 'work-item',
+    id: 'one',
+    name: 'QA E2E one',
+    workspaceSlug: SANDBOX.workspaceSlug,
+    cleanup: async () => calls.push('one'),
+  });
+  ledger.register({
+    kind: 'cycle',
+    id: 'two',
+    name: 'QA E2E two',
+    workspaceSlug: SANDBOX.workspaceSlug,
+    cleanup: async () => {
+      calls.push('two');
+      throw new Error('cleanup failed');
+    },
+  });
+
+  await expect(ledger.cleanupAll()).resolves.toEqual([
+    { kind: 'cycle', id: 'two', name: 'QA E2E two' },
+  ]);
+  expect(calls).toEqual(['two', 'one']);
+});
+~~~
+
+- [ ] **Step 2: Prove the tests fail**
+
+~~~bash
+npx playwright test tests/nuanuflow/sandbox-data.spec.ts --project=nuanuflow
+~~~
+
+Expected: FAIL because fixtures/sandbox-data does not exist.
+
+- [ ] **Step 3: Implement immutable constants and cleanup ledger**
+
+Create sandbox-data.ts:
+
+~~~ts
+import { randomBytes } from 'node:crypto';
+
+export const QA_PREFIX = 'QA E2E';
+export const SANDBOX = Object.freeze({
+  workspaceName: 'NF QA Sandbox',
+  workspaceSlug: 'nf-qa-sandbox',
+  projectName: 'NF QA Sandbox',
+  projectId: '2c2298c0-7bdc-42a5-a5f5-54ad2cb5d3cf',
+});
+
+export type OwnedEntity = {
+  kind: string;
+  id: string;
+  name: string;
+  workspaceSlug: string;
+  cleanup: () => Promise<unknown>;
+};
+
+export type ResidualEntity = Pick<OwnedEntity, 'kind' | 'id' | 'name'>;
+
+export const createRunId = (workerIndex: number, now = new Date()) => {
+  const timestamp = now
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace('.000', '')
+    .replace(/\.\d{3}/, '');
+  return timestamp + '-w' + workerIndex + '-' + randomBytes(3).toString('hex');
+};
+
+export const qaName = (runId: string, suffix: string) =>
+  QA_PREFIX + ' ' + runId + ' ' + suffix;
+
+const assertOwned = (entry: OwnedEntity) => {
+  if (!entry.name.startsWith(QA_PREFIX + ' ')) {
+    throw new Error('Cleanup name must begin with ' + QA_PREFIX);
+  }
+  if (entry.workspaceSlug !== SANDBOX.workspaceSlug) {
+    throw new Error('Cleanup workspace must be ' + SANDBOX.workspaceSlug);
+  }
+  if (!entry.id) throw new Error('Cleanup entity must have an exact ID');
+};
+
+export class CleanupLedger {
+  readonly #entries: OwnedEntity[] = [];
+
+  register(entry: OwnedEntity) {
+    assertOwned(entry);
+    this.#entries.push(entry);
+  }
+
+  async cleanupAll(): Promise<ResidualEntity[]> {
+    const residuals: ResidualEntity[] = [];
+    for (const entry of [...this.#entries].reverse()) {
+      try {
+        assertOwned(entry);
+        await entry.cleanup();
+      } catch {
+        residuals.push({ kind: entry.kind, id: entry.id, name: entry.name });
+      }
+    }
+    this.#entries.length = 0;
+    return residuals;
+  }
+}
+~~~
+
+- [ ] **Step 4: Add WorkspacePage and the guarded fixture**
+
+WorkspacePage exposes workspaceSwitcher, commandSearch, mainSidebar, goto(path), and gotoProject(path). authenticated.fixture.ts extends Playwright with runId, ownedName, cleanupLedger, workspacePage, and assertSandbox. assertSandbox verifies a pathname beginning /nf-qa-sandbox/ plus visible button text NF QA Sandbox. Teardown calls cleanupAll() and asserts an empty residual list.
+
+Use these exact fixture types:
+
+~~~ts
+type AuthFixtures = {
+  runId: string;
+  ownedName: (suffix: string) => string;
+  cleanupLedger: CleanupLedger;
+  workspacePage: WorkspacePage;
+  assertSandbox: () => Promise<void>;
+};
+~~~
+
+- [ ] **Step 5: Correct NUANU-8 safety**
+
+Import the guarded fixture, navigate to /nf-qa-sandbox/process/, call assertSandbox() before the dialog opens, generate ownedName('[BPMN] punctuation'), and wrap the correct-behavior assertion in try/finally. If creation succeeds, register its exact response ID and delete callback before the expected-failure assertion completes.
+
+- [ ] **Step 6: Verify and commit**
+
+~~~bash
+npx playwright test tests/nuanuflow/sandbox-data.spec.ts --project=nuanuflow
+npm run typecheck
+git add tests/nuanuflow/fixtures tests/nuanuflow/pages/workspace.page.ts tests/nuanuflow/sandbox-data.spec.ts tests/nuanuflow/authenticated/processes.spec.ts
+git commit -m "test: guard Nuanu Flow sandbox mutations"
+~~~
+
+Expected: three safety tests pass; the regression lists only under nuanuflow-auth.
+
+---
+
+### Task 3: Inventory authenticated routes and workspace shell
+
+**Files:**
+- Create: tests/nuanuflow/routes.ts
+- Create: tests/nuanuflow/authenticated/workspace.spec.ts
+- Modify: tests/nuanuflow/pages/workspace.page.ts
+- Modify privately: docs/local/nuanuflow/TEST-CASES.md
+
+**Interfaces:**
+- Consumes: guarded fixture.
+- Produces: AUTHENTICATED_ROUTES and stable workspace-shell actions.
+
+- [ ] **Step 1: Perform signed-in Chrome route recon**
+
+Map these exact routes: Home, Drafts, Your work, Decisions, workspace Artifacts, Marketplace, Integrations, Projects, Processes, Teams, Work Items, Cycles, Modules, Views, Wiki, Pulse, Automations, and project Artifacts. Use the known workspace and project prefixes from SANDBOX. For every route record final URL, route-specific heading or empty state, console errors, and first-party responses at or above 400.
+
+- [ ] **Step 2: Write AUTHENTICATED_ROUTES**
+
+Each entry has name, path, and exact readiness locator discovered in Step 1:
+
+~~~ts
+export type AuthenticatedRoute = {
+  name: string;
+  path: string;
+  ready: { role: 'heading' | 'button' | 'link'; name: string };
+};
+~~~
+
+No route may use networkidle as readiness.
+
+- [ ] **Step 3: Write workspace shell tests**
+
+Loop through the catalog and assert exact pathname, sandbox identity, readiness locator, and no unexpected first-party failure. Add separate tests for reload, browser back/forward, unknown authenticated route, expired-session redirect in an isolated anonymous context, cross-workspace URL protection, sidebar collapse/expand, global command search cancel, and notifications entry.
+
+- [ ] **Step 4: Cover Home, Drafts, Your work, and AI sidebar behavior**
+
+Assert Home cards/counts and stable reload; Draft create/cancel/resume using an owned title and guarded cleanup; Your work filters plus links to an owned item without changing pre-existing assignments; and AI sidebar open/close, new topic, topic list, empty input validation, and attachment preconditions without sending a message or uploading personal data.
+
+- [ ] **Step 5: Run or record the exact auth blocker**
+
+~~~bash
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/workspace.spec.ts --list
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/workspace.spec.ts
+~~~
+
+When approved storage state is absent, execute every case in Chrome, mark automation blocked by missing state, and do not inspect Chrome cookies or session storage.
+
+- [ ] **Step 6: Update the matrix and commit**
+
+~~~bash
+git add tests/nuanuflow/routes.ts tests/nuanuflow/pages/workspace.page.ts tests/nuanuflow/authenticated/workspace.spec.ts
+git commit -m "test: cover Nuanu Flow authenticated workspace shell"
+~~~
+
+---
+
+### Task 4: Cover work-item lifecycle and UI controls
+
+**Files:**
+- Create: tests/nuanuflow/pages/work-items.page.ts
+- Create: tests/nuanuflow/authenticated/work-items.spec.ts
+- Create: tests/nuanuflow/fixtures/files/qa-e2e-note.txt
+- Modify privately: docs/local/nuanuflow/TEST-CASES.md
+
+**Interfaces:**
+- Consumes: guarded fixture.
+- Produces: WorkItemsPage.create(), openByName(), updateTitle(), setState(), deleteOwned(), search(), and exact form/detail locators.
+
+- [ ] **Step 1: Recon exact controls and mutation responses**
+
+Using one disposable owned item in Chrome, map Add work item, title, description, state, priority, dates, assignee, labels, comments, sub-items, relations, attachments, duplicate, archive, delete, Display, Analytics, filters, grouping, and sorting. Record which create/update/delete response contains the exact ID.
+
+- [ ] **Step 2: Write the serial lifecycle spec first**
+
+Cover create, edit title/description, state change, priority/date fields, reload persistence, comment, text attachment, copy link, duplicate under a second owned name, archive eligibility, delete-cancel, and exact delete. Register cleanup immediately after every create response.
+
+The main lifecycle test follows this form:
+
+~~~ts
+test('persists an owned work item lifecycle', async ({
+  assertSandbox,
+  cleanupLedger,
+  ownedName,
+  workItemsPage,
+}) => {
+  const initialName = ownedName('work item');
+  const updatedName = initialName + ' updated';
+  await workItemsPage.goto();
+  await assertSandbox();
+  const created = await workItemsPage.create({
+    title: initialName,
+    description: 'Synthetic QA record with no personal data.',
+  });
+  cleanupLedger.register({
+    kind: 'work-item',
+    id: created.id,
+    name: initialName,
+    workspaceSlug: 'nf-qa-sandbox',
+    cleanup: () => workItemsPage.deleteOwned(created.id, updatedName),
+  });
+  await workItemsPage.updateTitle(updatedName);
+  await workItemsPage.setState('In Progress');
+  await workItemsPage.reloadCurrent();
+  await expect(workItemsPage.title).toHaveText(updatedName);
+  await expect(workItemsPage.stateButton).toHaveText('In Progress');
+});
+~~~
+
+- [ ] **Step 3: Add negative and list behavior**
+
+Cover empty title, cancel, discovered maximum-length boundary, rapid double-submit creating one item, search hit/miss, filters, display modes, analytics entry, confirmation cancel, and stale update behavior.
+
+- [ ] **Step 4: Implement response-backed actions**
+
+Pair each click with waitForResponse. create() returns an exact response ID; deleteOwned() navigates by ID and asserts both response success and disappearance. Never infer an ID from list order.
+
+- [ ] **Step 5: Execute and commit**
+
+~~~bash
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/work-items.spec.ts
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/work-items.spec.ts --repeat-each=3
+npm run typecheck
+git add tests/nuanuflow/pages/work-items.page.ts tests/nuanuflow/authenticated/work-items.spec.ts tests/nuanuflow/fixtures/files/qa-e2e-note.txt
+git commit -m "test: cover Nuanu Flow work-item lifecycle"
+~~~
+
+Expected: no residual IDs and no changes to NFQAS-prefixed records.
+
+---
+
+### Task 5: Cover project, cycle, and module lifecycles
+
+**Files:**
+- Create: tests/nuanuflow/pages/project-features.page.ts
+- Create: tests/nuanuflow/authenticated/project-lifecycle.spec.ts
+- Create: tests/nuanuflow/authenticated/cycles-modules.spec.ts
+- Modify privately: docs/local/nuanuflow/TEST-CASES.md
+
+**Interfaces:**
+- Consumes: sandbox fixture and WorkItemsPage.
+- Produces: project, cycle, and module CRUD actions returning exact IDs.
+
+- [ ] **Step 1: Recon forms and constraints**
+
+Capture project identifier rules, duplicate behavior, cycle/module date validation, archive eligibility, work-item assignment/removal, progress/count updates, and confirmations. Create a separate owned project for project lifecycle; use the stable sandbox project only for owned cycles/modules/items.
+
+- [ ] **Step 2: Write project lifecycle tests**
+
+Assert required fields, unique owned identifier, creation, edit, reload persistence, copy when available, archive rules, delete-cancel, and exact delete. Register cleanup before leaving created detail.
+
+- [ ] **Step 3: Write cycle and module tests**
+
+For each container: create an owned work item and owned container; add item; assert count/progress; reload; remove item; assert item still exists; validate dates/required fields; delete container and item.
+
+- [ ] **Step 4: Implement, execute, commit**
+
+~~~bash
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/project-lifecycle.spec.ts tests/nuanuflow/authenticated/cycles-modules.spec.ts
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/cycles-modules.spec.ts --repeat-each=3
+npm run typecheck
+git add tests/nuanuflow/pages/project-features.page.ts tests/nuanuflow/authenticated/project-lifecycle.spec.ts tests/nuanuflow/authenticated/cycles-modules.spec.ts
+git commit -m "test: cover Nuanu Flow project planning lifecycle"
+~~~
+
+---
+
+### Task 6: Cover views, Wiki, artifacts, and decisions
+
+**Files:**
+- Modify: tests/nuanuflow/pages/project-features.page.ts
+- Create: tests/nuanuflow/authenticated/views-wiki.spec.ts
+- Create: tests/nuanuflow/authenticated/artifacts-decisions.spec.ts
+- Modify privately: docs/local/nuanuflow/TEST-CASES.md
+
+**Interfaces:**
+- Consumes: owned work-item factory and project-feature page object.
+- Produces: saved-view, Wiki page, artifact, and decision lifecycle coverage.
+
+- [ ] **Step 1: Recon supported creation and scope**
+
+Identify saved-view filters, Wiki save semantics, workspace/project artifact routes, decision fields, upload constraints, hierarchy, unsaved-change warning, and permissions.
+
+- [ ] **Step 2: Write correct-behavior specs**
+
+Cover a saved view matching one owned item; Wiki formatted-body persistence and validation; synthetic workspace/project artifacts with scope non-leakage; and decision create/edit/filter/delete when supported. A permission-gated action must show an exact explanation and is recorded as blocked, not silently skipped.
+
+- [ ] **Step 3: Implement exact-ID actions and cleanup**
+
+Every create method returns id and name. Register before navigation. Scope tests compare route plus exact membership, not counts.
+
+- [ ] **Step 4: Run and commit**
+
+~~~bash
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/views-wiki.spec.ts tests/nuanuflow/authenticated/artifacts-decisions.spec.ts
+npm run typecheck
+git add tests/nuanuflow/pages/project-features.page.ts tests/nuanuflow/authenticated/views-wiki.spec.ts tests/nuanuflow/authenticated/artifacts-decisions.spec.ts
+git commit -m "test: cover Nuanu Flow knowledge workflows"
+~~~
+
+---
+
+### Task 7: Cover Pulse, automations, teams, settings, marketplace, and integrations
+
+**Files:**
+- Create: tests/nuanuflow/authenticated/pulse-automations.spec.ts
+- Create: tests/nuanuflow/authenticated/teams-settings.spec.ts
+- Create: tests/nuanuflow/authenticated/marketplace-integrations.spec.ts
+- Modify: tests/nuanuflow/pages/workspace.page.ts
+- Modify: tests/nuanuflow/pages/project-features.page.ts
+- Modify privately: docs/local/nuanuflow/TEST-CASES.md
+
+**Interfaces:**
+- Consumes: guards, cleanup ledger, project-feature actions.
+- Produces: dashboard/card coverage plus reversible owned automation/team coverage.
+
+- [ ] **Step 1: Recon all controls without external completion**
+
+Map Pulse filters/empty states, automation trigger/action choices, team form/membership UI, profile/workspace/project/notification/appearance settings, marketplace cards, and integration cards. For Connect actions record destination origin without completing OAuth.
+
+- [ ] **Step 2: Write Pulse and automation specs**
+
+Assert dashboard health and ranges. Create an automation restricted to an owned item, validate missing trigger/action, save disabled, reload, enable only when no external effect exists, disable, and delete. Record unsafe execution as blocked.
+
+- [ ] **Step 3: Write team and settings specs**
+
+Create/edit/delete an owned team without invitations. Capture each reversible setting value, change and reload it, then restore inside finally. Permission-gated settings must explain their state without a failing mutation.
+
+- [ ] **Step 4: Write marketplace/integration specs**
+
+Assert discovered cards, category/filter behavior, connection state, accessible Connect actions, correct handoff origin, cancel/back, and unchanged Not connected state.
+
+- [ ] **Step 5: Run and commit**
+
+~~~bash
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/pulse-automations.spec.ts tests/nuanuflow/authenticated/teams-settings.spec.ts tests/nuanuflow/authenticated/marketplace-integrations.spec.ts
+npm run typecheck
+git add tests/nuanuflow/authenticated/pulse-automations.spec.ts tests/nuanuflow/authenticated/teams-settings.spec.ts tests/nuanuflow/authenticated/marketplace-integrations.spec.ts tests/nuanuflow/pages/workspace.page.ts tests/nuanuflow/pages/project-features.page.ts
+git commit -m "test: cover Nuanu Flow workspace operations"
+~~~
+
+---
+
+### Task 8: Deepen BPMN process coverage
+
+**Files:**
+- Create: tests/nuanuflow/pages/processes.page.ts
+- Modify: tests/nuanuflow/authenticated/processes.spec.ts
+- Modify privately: docs/local/nuanuflow/TEST-CASES.md
+
+**Interfaces:**
+- Consumes: guarded fixture and NUANU-8 expected failure.
+- Produces: process lifecycle/editor/run actions and exact cleanup.
+
+- [ ] **Step 1: Recon process lifecycle and editor**
+
+Create one owned process and map create validation, metadata, copy, status, archive/delete, palette, connections, property panel, undo/redo, save indicator, reload, run, history/logs, and errors.
+
+- [ ] **Step 2: Write lifecycle/editor specs**
+
+Cover plain create/edit/copy/delete, required/duplicate/special names, Start to Human Task to End graph, rename, gateway, connections, undo/redo, autosave, reload persistence, invalid graph prevention, and navigation during pending save.
+
+- [ ] **Step 3: Add run-state coverage**
+
+Start a minimal owned graph and wait for the run response or visible status transition. Assert it leaves created within the observed product timeout, then inspect history/log detail. If stuck, reproduce with a fresh process and ten targeted repeats before filing; existing NFQAS-8 is corroboration only.
+
+- [ ] **Step 4: Preserve NUANU-8 safely**
+
+Repeat the bracketed-name regression ten times. Retain test.fail while it fails correctly. If consistently fixed, remove test.fail only after cleanup and tracker verification.
+
+- [ ] **Step 5: Run and commit**
+
+~~~bash
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/processes.spec.ts
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/processes.spec.ts --repeat-each=3
+npm run typecheck
+git add tests/nuanuflow/pages/processes.page.ts tests/nuanuflow/authenticated/processes.spec.ts
+git commit -m "test: deepen Nuanu Flow BPMN coverage"
+~~~
+
+---
+
+### Task 9: Deepen meetings and transcription coverage
+
+**Files:**
+- Create: tests/nuanuflow/pages/meetings.page.ts
+- Create: tests/nuanuflow/authenticated/meetings-transcription.spec.ts
+- Modify: .env.example
+- Modify privately: docs/local/nuanuflow/TEST-CASES.md
+
+**Interfaces:**
+- Consumes: guarded fixture and optional private synthetic audio.
+- Produces: meeting/transcript lifecycle, upload validation, status, fidelity, and cleanup coverage.
+
+- [ ] **Step 1: Document private synthetic audio**
+
+Add NUANUFLOW_AUDIO_FIXTURE example pointing to docs/local/nuanuflow/evidence/qa-transcription-sample-valid.mp3. Runtime validates a qa- basename, nonzero size, and a path inside the gitignored evidence directory.
+
+- [ ] **Step 2: Recon forms and statuses**
+
+Map Create Meet, instant precondition, Schedule with Notetaker, Add transcript, upload, required fields, participants, date/time, modal behavior, card/detail, edit/delete, and processing statuses.
+
+- [ ] **Step 3: Write manual-transcript lifecycle**
+
+Use an owned title and synthetic three-line text. Assert validation, create response, modal success/close, Completed card, exact text/participants, reload, edit when available, delete, double-submit, and cancel.
+
+- [ ] **Step 4: Write audio cases**
+
+Cover empty, unsupported, zero-byte, valid private MP3, duplicate, cancel, and visible size boundary. Valid audio must transition to Completed or actionable failure, preserve the known synthetic sentence and speaker label, survive reload, and clean up. Only the valid-audio case skips when the private path is absent; negative tests still run.
+
+- [ ] **Step 5: Reproduce known observations independently**
+
+Re-test first submit, success-modal closure, and status transitions with fresh owned records. NFQAS-9 and NFQAS-10 are corroboration only; confirmed defects go to NUANU.
+
+- [ ] **Step 6: Run and commit**
+
+~~~bash
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/meetings-transcription.spec.ts
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/meetings-transcription.spec.ts --repeat-each=3
+npm run typecheck
+git add .env.example tests/nuanuflow/pages/meetings.page.ts tests/nuanuflow/authenticated/meetings-transcription.spec.ts
+git commit -m "test: deepen Nuanu Flow meeting transcription coverage"
+~~~
+
+---
+
+### Task 10: Add accessibility, responsive, API, security, and performance layers
+
+**Files:**
+- Modify: package.json
+- Modify: package-lock.json
+- Create: tests/nuanuflow/accessibility.spec.ts
+- Create: tests/nuanuflow/api.spec.ts
+- Create: tests/nuanuflow/performance.spec.ts
+- Create: tests/nuanuflow/authenticated/accessibility-responsive.spec.ts
+- Create: tests/nuanuflow/authenticated/api-contracts.spec.ts
+- Modify: playwright.config.ts
+- Modify privately: docs/local/nuanuflow/TEST-CASES.md
+
+**Interfaces:**
+- Consumes: projects, route catalog, guarded fixture.
+- Produces: axe scan, real keyboard checks, mobile/browser switch, API leak checks, and performance observations.
+
+- [ ] **Step 1: Write an axe test and prove missing dependency**
+
+Create a public test importing AxeBuilder from @axe-core/playwright, scanning sign-in with WCAG 2.2 A/AA tags, and asserting no manually triaged violation.
+
+~~~bash
+npx playwright test tests/nuanuflow/accessibility.spec.ts --project=nuanuflow
+~~~
+
+Expected: FAIL because the package is absent.
+
+- [ ] **Step 2: Install and add keyboard semantics**
+
+~~~bash
+npm install --save-dev @axe-core/playwright
+~~~
+
+Replace direct focus with real Tab/Shift+Tab. Cover dialog focus trap/restoration, labels, validation announcements, landmarks, and heading order. Do not call a clean axe scan complete WCAG certification.
+
+- [ ] **Step 3: Add authenticated responsive coverage**
+
+Check shell, work-item list/detail, process editor, meetings, and one dialog at 320, 375, 768, 1024, and 1440. Add opt-in Pixel 5 and Firefox/WebKit release projects under NUANUFLOW_FULL_BROWSER_MATRIX=1 while daily Chromium names remain stable.
+
+- [ ] **Step 4: Add API and leak contracts**
+
+Public protected endpoints must return 401/403, never 200/500. Authenticated tests use only first-party endpoints observed during UI recon, assert status/shape, and reject stack traces, SQL fragments, bearer tokens, private keys, and internal hosts in errors.
+
+Use this exact matcher:
+
+~~~ts
+const sensitiveErrorPattern =
+  /(traceback|node_modules\/|select\s+.+\s+from|bearer\s+[a-z0-9._-]+|BEGIN [A-Z ]+PRIVATE KEY|https?:\/\/(?:localhost|[^/]*\.internal))/i;
+~~~
+
+- [ ] **Step 5: Add non-gating performance observations**
+
+Capture navigation duration, resource count/bytes, layout shifts, and long tasks after semantic readiness. Assert finite structural values and no failed critical first-party resource; attach metrics to test annotations. Do not invent product budgets.
+
+- [ ] **Step 6: Run and commit**
+
+~~~bash
+npm run typecheck
+npx playwright test --project=nuanuflow tests/nuanuflow/accessibility.spec.ts tests/nuanuflow/api.spec.ts tests/nuanuflow/performance.spec.ts
+npx playwright test --project=nuanuflow-auth tests/nuanuflow/authenticated/accessibility-responsive.spec.ts tests/nuanuflow/authenticated/api-contracts.spec.ts
+git add package.json package-lock.json playwright.config.ts tests/nuanuflow/accessibility.spec.ts tests/nuanuflow/api.spec.ts tests/nuanuflow/performance.spec.ts tests/nuanuflow/authenticated/accessibility-responsive.spec.ts tests/nuanuflow/authenticated/api-contracts.spec.ts
+git commit -m "test: add Nuanu Flow cross-cutting quality coverage"
+~~~
+
+---
+
+### Task 11: Verify official Nuanu Flow plugin integration
+
+Nuanu Flow MCP access is provided only by the canonical production plugin
+`nuanu-flow@nuanu`, installed from the `nuanu-ai/agent-tools` marketplace and
+authenticated through native OAuth. The retired repository-local HTTP client,
+manual header configuration, and parity harness are intentionally absent.
+
+- [ ] **Step 1: Verify the official installation source**
+
+Require Codex CLI 0.145.0 or newer. Confirm marketplace `nuanu` is backed by
+`nuanu-ai/agent-tools` at `main`, plugin `nuanu-flow@nuanu` is enabled, and the
+MCP server is named `nuanu-flow`.
+
+- [ ] **Step 2: Complete native OAuth**
+
+Use `codex mcp login nuanu-flow` and let Codex own the OAuth callback and
+credential storage. Do not request, copy, persist, or inject a personal token.
+Restart/resume the same Codex conversation after authentication so the MCP
+tools load at process start.
+
+- [ ] **Step 3: Verify MCP-to-UI and UI-to-MCP parity**
+
+Use the plugin-provided MCP tools only after live schema discovery. Create one
+response-owned `QA E2E ` item in `NF QA Sandbox`/`NFQAS`, register its exact ID
+for cleanup, verify UI visibility, and delete it by exact ID. Then create one
+owned item through the UI, verify it through MCP, and clean it through the
+already guarded product path. One mutation at a time; require residual zero.
+
+- [ ] **Step 4: Record live evidence**
+
+Record only sanitized schema names, canonical returned product IDs, observable
+UI outcomes, and exact cleanup results in the private matrix. Never add a
+repository-local MCP transport or credential handling implementation.
+
+---
+
+### Task 12: Make tracker routing and CI activation explicit
+
+**Files:**
+- Modify: README.md
+- Modify: skills/qa-check/SKILL.md
+- Modify: .claude/skills/qa-check/SKILL.md
+- Modify: .github/workflows/e2e.yml
+- Modify privately: docs/local/nuanuflow/TEST-CASES.md
+
+**Interfaces:**
+- Consumes: Nuanu Flow tracker rule and public project.
+- Produces: instructions that prevent wrong-tracker filing and CI that runs public Nuanu tests.
+
+- [ ] **Step 1: Add the exact documentation contract**
+
+Near every generic Linear instruction add:
+
+~~~markdown
+For Nuanu Flow, never use Linear. File confirmed defects through the configured
+Nuanu Flow MCP in workspace nuanu-flow-qa, project NUANU, and verify the issue
+plus screenshot attachment through MCP read-back.
+~~~
+
+Generic behavior for other products remains unchanged.
+
+- [ ] **Step 2: Activate public Nuanu Flow CI**
+
+Map repository variable NUANUFLOW_BASE_URL into the same-name test-step environment variable alongside existing product variables. Do not add storage state or credentials.
+
+- [ ] **Step 3: Verify and commit**
+
+~~~bash
+rg -n "Nuanu Flow|nuanu-flow-qa|NUANU|Linear" README.md skills/qa-check/SKILL.md .claude/skills/qa-check/SKILL.md .github/workflows/e2e.yml
+npx playwright test --project=nuanuflow --list
+npm run typecheck
+git add README.md skills/qa-check/SKILL.md .claude/skills/qa-check/SKILL.md .github/workflows/e2e.yml
+git commit -m "docs: route Nuanu Flow QA through its MCP"
+~~~
+
+---
+
+### Task 13: Triage findings and close the verification loop
+
+**Files:**
+- Modify privately: docs/local/nuanuflow/TEST-CASES.md
+- Modify: exact tests corresponding to confirmed defects
+- Add private evidence: docs/local/nuanuflow/evidence/
+
+**Interfaces:**
+- Consumes: all suites, Chrome evidence, MCP search/execute.
+- Produces: verified NUANU tickets, expected-failure regressions, final evidence, clean branch.
+
+- [ ] **Step 1: Execute every matrix row**
+
+For each module record happy path, negative path, reload persistence, cleanup, console/network, accessibility/responsive, and exact blocker. Record every created ID and prove no residuals. Mark visual regression INCONCLUSIVE without a committed baseline.
+
+- [ ] **Step 2: Reproduce suspicious behavior**
+
+Use a fresh owned record/context. Rule out workspace, auth, hydration, locale, selector, permission, rollout, and timing. Select the suspect test from Playwright list and run that exact test with repeat-each=10; never repeat a broad mutating suite ten times.
+
+- [ ] **Step 3: File each confirmed defect through Nuanu Flow MCP**
+
+Capture a redacted screenshot; search current MCP schemas; create/reuse Bug plus area label; create issue in nuanu-flow-qa / NUANU / Backlog with severity priority; upload evidence; read back title, description, state, priority, labels, and attachment. Never edit NFQAS issues as a substitute.
+
+- [ ] **Step 4: Add concrete expected-failure regressions**
+
+Copy each returned NUANU sequence identifier and exact symptom into test.fail before saving. The regression asserts correct behavior, uses owned sandbox data, and cleans up whether the known failure persists or flips. No guessed identifier is accepted.
+
+- [ ] **Step 5: Run the verification loop**
+
+~~~bash
+npm run typecheck
+npx playwright test --project=nuanuflow --list
+npx playwright test --project=nuanuflow
+npx playwright test --project=nuanuflow --repeat-each=2
+~~~
+
+With approved auth state:
+
+~~~bash
+npx playwright test --project=nuanuflow-auth --list
+npx playwright test --project=nuanuflow-auth
+~~~
+
+Repository hygiene:
+
+~~~bash
+git diff --check
+git status --short
+git diff --stat
+git grep -n -E 'Bearer [A-Za-z0-9._-]{20,}|BEGIN [A-Z ]+PRIVATE KEY' -- . ':!package-lock.json'
+~~~
+
+Expected: types and applicable suites pass; known bugs are expected failures; repeats are stable; secret scan is empty; changes are intentional.
+
+- [ ] **Step 6: Update report and commit**
+
+Record exact totals for passed, expected-failed, skipped, manual, blocked, and inconclusive; list every NUANU ticket and residual ID; report build/lint as not applicable if scripts remain absent.
+
+~~~bash
+git add tests/nuanuflow playwright.config.ts .env.example package.json package-lock.json README.md skills/qa-check/SKILL.md .claude/skills/qa-check/SKILL.md .github/workflows/e2e.yml
+git commit -m "test: complete deep Nuanu Flow E2E campaign"
+~~~
+
+Do not add docs/local, reports, storage state, private audio, or unredacted screenshots.
+
+---
+
+## Plan Self-Review
+
+- Spec coverage: Tasks 3 through 10 map every functional and cross-cutting section; Tasks 1 and 2 implement auth isolation and mutation safety; Task 11 covers UI/MCP parity; Tasks 12 and 13 cover tracker routing, CI, triage, reporting, and verification.
+- Safety consistency: all mutating tasks consume the exact sandbox fixture and current-run cleanup ledger; OAuth completion and real outgoing effects remain excluded.
+- Interface consistency: later tasks import the same test, expect, SANDBOX, ownedName, cleanupLedger, and assertSandbox interfaces from Task 2. Create actions return exact IDs.
+- Dynamic defect identifiers: Task 12 requires the concrete MCP-returned NUANU identifier before saving; no guessed ticket is allowed.
+- Scope discipline: generic products retain their existing project helper and Linear behavior; only Nuanu Flow receives explicit project isolation and tracker routing.
