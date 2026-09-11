@@ -67,7 +67,38 @@ The Console fixture exercises healthy versus leaking pages, authored execution, 
 
 Observed non-product issues are retained: the first dependency-install attempts were rejected because the private recorder incorrectly used the same npm file for user/global configuration; distinct files resolved this before installation. Console's compiler rewrote its tracked cache; the generated output was preserved and only that known artifact restored. Its build reports a large bundle warning; pinned eslint reports deprecation. No check was weakened to hide these observations.
 
-Further integration/entry qualification and final source identities are recorded in the current checkpoint. Do not reinterpret this table as a full component-suite or cloud readiness claim.
+### Canonical local delivery
+
+Reviewed source commit `0f508ba54d6a7e2dd356a460db5ce3efa852c536`, tree `078a321108f516fd4d113c415e287df3c3f37dfe`, was restored in a new normal clone using only its own bundles: source restore/verify exit0, root57/57 and450/450 tracked root files identical. Independent Lead AQA accepted that exact tree and the post-cold adoption gate.
+
+The main qa-agent directory was then fast-forwarded from48bccef to that reviewed source. Three old component directories and both differing untracked plans were preserved under `.local/full-reconciliation-20260911.0l1hJ4/main-before.A7fgRs/`, with original hashes/HEADs rechecked; the unchanged inactive reporting child was retained in place. The original root also remains at local ref `codex/pre-reconciliation-20260911`. Nothing was deleted or pushed remotely.
+
+Main components were restored from the new manifest. Dependencies were separately installed offline from each lockfile with lifecycle scripts disabled: Kernel54, Console296 and Freeland8 packages. Main Kernel/Console builds and Freeland typecheck exited0. Generated Console compiler cache was preserved before restoring only that known artifact; main source verification passed again. This makes the main source locally provisioned, not a configured product campaign or a cloud service.
+
+The reviewed complete `qa-check`/`qa-bugfix` bundles were selectively delivered to the three host skill directories:21/21 files match canonical source. The other18 qa-init/product/Freeland files remain unchanged and also match their selected source. The existing machine index now points to the main source; both Freeland and Agentify owner-binding lines are byte-identical to its backup. Backups/readbacks and raw installation/build logs remain in the reconciliation's private directory. File delivery to Claude is not an actual Claude execution result.
+
+Full staged whitespace checking reports preserved donor whitespace and the copied historical September10 plan's final blank line. Those exact snapshots were not reformatted to manufacture a green result. The scoped current-code check excluding those historical paths passed. Earlier `git diff --check` results applied to unstaged changes and must not be relabeled as a full staged-history check.
+
+### Fresh entry-consumer readback
+
+A separate fresh-context Codex consumer exercised three read-only routing/intake requests on main source `0f508ba`: continue Freeland QA-column review, continue Agentify, and start an unfamiliar appointment-booking product. It checked installed instruction parity (7/7 selected files), root source verification, actual owner identities and existing product models. No live product, browser, tracker or account operation occurred.
+
+The consumer kept Freeland's frozen harness/private graph with its active owner, and kept Agentify on its existing Console `f3660d0` / Kernel `15a067c` runtime rather than silently adopting the newer source. Agentify's existing `read-review` and `validate` CLI paths exited0: the former distinguished a historical agent review from the current retained receipt; the latter reported `readyToRun:false`, one executable target and20 blocked targets. Those are local evidence/plan readbacks, not a new product campaign.
+
+For the unfamiliar product, the consumer requested the missing target/environment, offered to investigate roles/materials itself, and separated hypothetical risks from sourced expectations. It retained product-design, dependency, accessibility/security/performance questions without inventing requirements or permitting bookings/payments. This is one known-case Codex routing sample, not a blind benchmark or actual Claude qualification.
+
+Full private report, including the post-sample attribution correction below: `.local/full-reconciliation-20260911.0l1hJ4/FRESH-CONSUMER.md`, SHA-256 `ce4c11a7669f7007f645a6ea3a90cbe045e3793a5aa4a98902110705eab288b2`.
+
+Final independent review corrected one consumer-report omission: the baseline-first paragraph and false automatic-bug claim were present in both the frozen Agentify README and canonical Console718, not only the owner copy. The actual runner already returns `needs_review` / `INCONCLUSIVE` with no dossier for two matching oracle failures. Its existing exact control was rerun successfully (1/1); no runtime fix was needed.
+
+Separately reviewed Console **`b392e888bc8bfc98a756ba7e971a86000d6f2098`**, tree `3de13e3512835a66f00d9b57032709c6b2658523`, changes only README relative to718. It corrects analysis-before-registration, registration/recovery/I2 routing, existing/authored plans, optional baseline and unresolved-only oracle approval, and diagnosis rather than automatic bug confirmation. All runtime, test and skill bytes are unchanged. The final manifest selects this README-only successor and its complete-history bundle. The consumer remains attributed to0f508ba/Console718; it is not relabeled as a new-source execution.
+
+Two residual instruction hazards need a separately reviewed owner-compatible follow-up:
+
+- The frozen Agentify owner checkout's old README still names an obsolete Kernel and baseline/oracle guidance. Current complete installed skills, checkpoint and embedded exact Kernel authority resolved the conflict in this sample. The final canonical README successor above corrects that guidance; the old owner checkout was deliberately not edited during its campaign.
+- The frozen Freeland specialist's area-exploration paragraph references recon/matrix content no longer present in routing-only `qa-check`. The explicit QA-column route worked; that does not qualify the separate area-exploration cross-reference. Repair it in the specialist source after coordination, preserving current owner identities and scope.
+
+Historical runbook access/spend examples also remain dated references, not current authority. Final documentation readbacks retain their own attribution. This delivery does not establish a full component-suite, product or cloud readiness claim.
 
 ## What this does not close
 

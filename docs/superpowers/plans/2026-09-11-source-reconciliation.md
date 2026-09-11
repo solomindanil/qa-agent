@@ -58,11 +58,11 @@ Files: existing root/component tests; private logs/command records under this re
 
 ## Task 5 — Canonical adoption and consumer readback
 
-- [ ] Commit reviewed source; verify cold delivery from this commit's own bundles.
-- [ ] Preserve the old main root/children and untracked plans, then adopt the reviewed source into the main qa-agent directory without destroying historical copies.
-- [ ] Selectively synchronize only approved generic QA entry bundles across actual hosts with backups and complete member/hash readback; leave Freeland pins unchanged.
-- [ ] Update the existing machine registry to canonical source while retaining product-owner locators and historical evidence. No new parallel registry.
-- [ ] Fresh consumer resolves the main source and full skills, distinguishes active product owner from current source, and keeps blocked/unknown outcomes explicit.
-- [ ] Final report separates migrated source, preserved references, functional test results, product/host gaps and remaining universal-agent work.
+- [x] Commit reviewed source0f508ba; cold own-bundle restore/verify0, root57/57,450/450 tracked bytes match.
+- [x] Preserve old main48bccef ref, three old component directories and both differing untracked plans; fast-forward the main directory, restore/verify and provision dependencies without deleting historical copies.
+- [x] Selectively synchronize two approved generic bundles with backups:21/21 installed members match,18 specialized members unchanged/source-matching. Freeland pins preserved.
+- [x] Update the existing machine registry to main canonical source; both Freeland/Agentify owner-binding lines remain byte-identical. No parallel registry.
+- [x] Fresh Codex consumer on main0f508ba resolves all three routes (Freeland, Agentify, unfamiliar booking product), verifies7/7 selected installed instructions and actual existing reader/validator behavior, preserving owner bindings and blocked/unknown outcomes. This is one no-live known-case sample, not actual Claude or universal qualification.
+- [x] Final reconciliation report separates migrated source,391 preserved references, exact functional test results, product/host gaps and remaining universal-agent work; both residual owner-doc/specialist cross-reference hazards are explicitly retained for coordinated follow-up.
 
 No remote push is implied by this plan. Main directory adoption is explicitly requested; remote publication remains a separate operation unless requested.

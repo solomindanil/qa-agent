@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "718bf86f6649b1c15ae1ce1999c4a6ffd5a902ac",
-      "tree": "682c18d5a5865e62308da3dc3aee1cef60dea46b",
+      "commit": "b392e888bc8bfc98a756ba7e971a86000d6f2098",
+      "tree": "3de13e3512835a66f00d9b57032709c6b2658523",
       "bundle": "sources/console.bundle",
-      "sha256": "71b9f64c7ad8d9a58f39eb944d159e754feff1b215ecb0c14cd30d61a09981ab",
+      "sha256": "4cf99ec0787a89a9621f09969557b1de24f4031a1953ade7ab75dd24309fac04",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed718bf86 portable explicit paths and no unconfigured historical receipt read; existing exact Kernel authority unchanged; fresh final120/120 compatibility,8/8 affected public-auth graph/regression records,typecheck/build0;45 other functional records retain unchanged dependency attribution from initial53/53 candidate run; existing3 lint errors and large-bundle warning remain; historical1c5c502 reviews,af832c9 interruption andf3660d0 trace counts retained; not full-suite, product, production recovery, dual-host or cloud qualification"
+      "qualification": "reviewed b392e88 README-only successor of718bf86: current analysis/authored/optional-baseline and needs_review guidance, existing oracle control1/1 rerun; all runtime/test/skill bytes unchanged from718bf86 portable explicit paths and no unconfigured historical receipt read; exact Kernel authority unchanged;718bf86 fresh120/120 compatibility,8/8 affected public-auth graph/regression records,typecheck/build0;45 other functional records retain unchanged dependency attribution from initial53/53 candidate run; existing3 lint errors and large-bundle warning remain; historical1c5c502 reviews,af832c9 interruption andf3660d0 trace counts retained; not full-suite, product, production recovery, dual-host or cloud qualification"
     },
     {
       "id": "freeland",
