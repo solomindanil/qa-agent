@@ -27,6 +27,20 @@ Until these fixes pass relevant controls and review, do not claim the affected p
 
 ## Latest Freeland repair — explicitly not adopted
 
+**M1 follow-up:** source `9f848bb01f0fdde3f6b0841019243e64494e24b5` closes the
+bounded SharedWorker setup-admission defect with an owned Playwright page fixture,
+including first-document, iframe, cleanup and late-denial controls. Independent
+Lead AQA and whole-delivery review passed; fresh full offline gate2753 test
+executions passed, root packaging57/57 and cold archive restoration passed.
+[The repair report](browser-guard-admission-review-20260913.md) records both failed
+intermediate gates, the test-quality correction, exact identities and limits.
+This source is delivered as an inactive archive, not selected by the active
+manifest. M2–M6 remain open. Historical qualified declarations remain stale with
+no receipt authority; no old PASS was transferred. Next implementation is M2's
+actual late-finalization counterexample and repair, not another M1 redesign.
+
+The preceding rejected source and its original evidence remain historical:
+
 Candidate `722bf1be5f08cc1904808af749e9c1c7f5b96881`, tree `aab9c1c340c2cafca6e5f5d914c2a1f045c3d2c4`, includes reviewed work on single-ticket binding, continuation instructions, route readiness, bounded request journaling, source-grounded graph links and Obsidian UNCOMPUTED views. Its full internal gate completed 2739 executions with no failures/skips/cancellations: 426 main, 1382 graph/verdict, 658 replacements, 70 overlapping transport, 23 baseline, 115 canaries, 65 embedded Console. These are **not 2739 unique product tests**.
 
 Independent final review reproduced M1 despite that green gate. Therefore **NOT READY TO ADOPT**. Canonical Freeland pin, installed skills and existing campaigns have not switched. The code is preserved in the repository as an [explicitly inactive development bundle](../../sources/candidates/README.md), with independent review/repair instructions and an exact pack checksum. It is not in the active manifest and is not restored automatically. A new developer can inspect that source without the author's checkout; a product consumer must not silently fall back to it. Cold source integrity is not adoption approval.

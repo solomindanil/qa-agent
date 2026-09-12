@@ -4,6 +4,12 @@ Updated 2026-09-13. This is the current source index. [Manifest](../../sources/m
 
 Maintenance checkpoint, 13 September: [portable maintenance summary](maintenance-backlog-20260913.md) records exact-ticket binding, continuation and guard/readiness/knowledge fixes. These isolated candidates have **not** replaced manifest pins or existing campaign runtimes. A passing tool test is not source adoption or a product verdict.
 
+Latest scoped repair: [M1 browser admission](browser-guard-admission-review-20260913.md),
+source9f848bb, passed independent review, full offline2753 test executions and cold
+archive restoration. It is delivered here as an **inactive** candidate; M2–M6 and
+source adoption remain separate. Next: reproduce and fix Console's late-finalization
+failure without optional dependency metadata deciding whether earlier PASS survives.
+
 New consumers start with [portable setup](../getting-started.md); original-machine files and chat history are not prerequisites. Current delivery and pending component fixes are distinct. The [approved global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) is the continuation order.
 
 ## Start from one place
@@ -47,6 +53,6 @@ For an **existing** Freeland, Agentify or MagicCard campaign, first read the own
 
 Fresh results and exact source attribution: [2026-09-11 reconciliation](reconciliation-20260911.md). Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
 
-Immediate maintenance step: candidate `722bf1b` completed2739 aggregate executions with zero failures and fresh structural graph readback. Independent final fix review accepted the map-age warning and diagnostics-link repairs, but reproduced a SharedWorker created during guard installation that survives admission and reaches forbidden checkout GET. **The candidate is NOT READY TO ADOPT; canonical pins, installed skills and campaign runtime remain unchanged.** Settle the browser admission boundary before accepted-source promotion or another affected dry lane. The particular C5 row is corrected, but a fresh formatting-only probe still breaks the general source-locator parser; that separate defect is recorded, not called fixed. [Portable maintenance summary](maintenance-backlog-20260913.md) records exact results and limits. This does not forbid independently authorized unaffected work or a different product.
+Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. Its successor9f848bb now closes the bounded M1 counterexample with source-owned controls and a fresh full gate; it does not automatically replace canonical pins, installed skills or campaigns. The generic C5 source-locator formatting defect remains open as M5, together with the other [maintenance findings](maintenance-backlog-20260913.md). The active old helper must not be presented as repaired merely because a newer inactive archive exists. Independently authorized unaffected work remains possible.
 
 Then a new substantive authorized full/ticket product slice consumes the accepted source and current owner skills, and a fresh session resumes it. Convert only demonstrated reusable gaps into shared reviewed helpers. Actual current Claude execution and a bounded cloud pilot follow as separate exits; native/mobile, performance/load and provider internals are not silently covered. The [global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) preserves the previous seven substantive exits and deferred Freeland coverage work.

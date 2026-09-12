@@ -2,6 +2,27 @@
 
 These bundles preserve unfinished development without depending on the author's local checkout. They are **not selected by sources/manifest.v1.json**, are not restored by sources:restore, and grant no product/runtime/skill-installation authority. The manifest remains the only active source selector. Do not copy an archived skill over an accepted one.
 
+## Freeland browser-guard repair, 13 September 2026
+
+- Source commit: `9f848bb01f0fdde3f6b0841019243e64494e24b5`.
+- Tree: `d28fb587203937aab748e8d935e710ea881ab18a`.
+- Bundle SHA256: `56e45dcc9bacd0e8461f927d39c2ad4f6c5c83efcb90e36f1a3cf0079932c7b9`.
+- Bundle: `freeland-browser-guard-9f848bb.bundle`, complete history with sole `HEAD` reference; includes the older722bf1b maintenance source, scoped M1 repair, test correction and four-shadow source-binding refresh. Intermediate25d6ac2/c47e90a commits remain in this history, not competing active bundles.
+- Status: **reviewed M1 development candidate, NOT ACTIVE**. Current gates and limits are in [the portable repair report](../../docs/qualification/browser-guard-admission-review-20260913.md). Other maintenance findings are not closed by this archive.
+- A new independent clone recovered the exact HEAD/tree, passed `git fsck --full`, provenance verification and clean QA source-authority collection, without an alternates store or installed dependencies. This establishes source portability, not browser/product acceptance on another machine.
+
+For deliberate review, use a fresh path (not a component or campaign directory):
+
+```sh
+git bundle verify sources/candidates/freeland-browser-guard-9f848bb.bundle
+git clone --no-checkout -- sources/candidates/freeland-browser-guard-9f848bb.bundle /absolute/new-guard-review
+git -C /absolute/new-guard-review switch -c codex/browser-guard-review 9f848bb01f0fdde3f6b0841019243e64494e24b5
+```
+
+Existing campaigns retain their frozen runtime. Do not transfer an older receipt to
+this changed source or install its skills implicitly. The old rejected archive
+below is retained for history and reproduction, not recommended as a fallback.
+
 ## Freeland maintenance, 13 September 2026
 
 - Source commit: `722bf1be5f08cc1904808af749e9c1c7f5b96881`.
