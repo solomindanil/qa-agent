@@ -20,7 +20,7 @@ Source links resolve after restore. Evidence strength is intentionally explicit;
 | M2 / P1 | Actual loopback reproduction on b392 retained PASS in trace/result/receipt after a blocked POST or close rejection without dependency metadata. Fixed and reviewed in inactive dc8eb59, fresh121/121 gate; active pin remains unchanged. | [Repair, exact source and replay](console-finalization-review-20260913.md). Final flags now reconciled regardless of optional summary; six real-browser controls verify all persisted outcomes and safe positive. Adoption remains pending. |
 | M3 / P1 | Reproduced with two independent processes: both succeeded from one expected digest. A per-plan admission repair is implemented in inactive b474d52, with215/215 selected controls; independent review remains pending because its host is unavailable. | [Exact source, replay, outcomes and review gate](console-plan-write-candidate-20260913.md); owner writeCampaignPlan. One owner covers condition, publish and readback; interrupted/uncertain writes are not blindly retried. No live corruption or active adoption claimed. |
 | M4 / P1 integrity | Kernel's public expected-absent writer has the same check/rename flaw. Controlled probe accepted two different writes. Higher registration/discovery owners have additional fences; lost authoritative dispatch/registration is not established. | [private-store.ts](../../components/kernel/src/kernel/private-store.ts), writePrivateFileAtomic: test absent and digest cases in separate processes; retain existing higher fences and interrupted-write reconciliation. Avoid rewriting all callers as an inferred necessity. |
-| M5 / P2 | Markdown backticks around an error identifier cause the Freeland source-locator parser to drop five file links. Fresh pure formatting probe on 722 reproduces it. Fixing today's C5 row did not fix the generic parser. | [graph model](../../components/freeland/tools/freeland-graph/model.mjs), extractSourceLocators: exact file-link set invariant under formatting; prose error name not a file; real parse/build/selection controls. |
+| M5 / P2 | Markdown backticks hid true file links. Fixed in inactive b30ef13: full owning offline2758/2758, cold19/19, independent review pending. The active old parser is unchanged. | [Exact repair and replay](graph-locator-candidate-20260913.md): real corpus restores five paths and drops eleven non-source tokens without inventing acceptance; parse/build/impact controls retained. |
 | M6 / before new consumer | Public generic manual receipt validation accepted plain text instead of required screenshot and capture after an old handoff expiry. Stored negative probe reviewed, not live Console/I2 acceptance. | [run-receipt contract](../../components/kernel/src/contracts/run-receipt.ts): agree action/capture/expiry semantics first; enforce kinds/identity/time as supported. Keep legitimate historical evidence and shared-check cases. Do not connect an unqualified public API to a new runtime. |
 
 Until these fixes pass relevant controls and review, do not claim the affected path's guarantee. A missing capability or unsafe path blocks that path, not independently authorized work with another supported mechanism. Fresh identity and scope remain necessary even on previously accepted code.
@@ -37,8 +37,11 @@ intermediate gates, the test-quality correction, exact identities and limits.
 This source is delivered as an inactive archive, not selected by the active
 manifest. Historical qualified declarations remain stale with no receipt authority;
 no old PASS was transferred. M2 has since been repaired in separate inactive
-Console dc8eb59 ([report](console-finalization-review-20260913.md)); M3–M6 remain
-open. Next implementation is Console conditional-write M3, not another M1 redesign.
+Console dc8eb59 ([report](console-finalization-review-20260913.md)). M3 and M5
+are implemented and locally verified but await independent review; M4's isolated
+repair passed35 focused controls and is under full compatibility testing. M6 and
+active-source adoption remain open. Do not restart M1 or mistake archive delivery
+for adoption.
 
 The preceding rejected source and its original evidence remain historical:
 

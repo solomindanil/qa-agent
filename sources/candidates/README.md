@@ -2,6 +2,17 @@
 
 These bundles preserve unfinished development without depending on the author's local checkout. They are **not selected by sources/manifest.v1.json**, are not restored by sources:restore, and grant no product/runtime/skill-installation authority. The manifest remains the only active source selector. Do not copy an archived skill over an accepted one.
 
+## Freeland source-locator formatting, 13 September 2026
+
+- Commit: `b30ef1316d3db08c71ccaa398a2b4fac76fd4ae9`, based on9f848bb below.
+- Tree: `250ff11d6d578de8e38f1b678c4afbe4cdc40639`.
+- Archive: `freeland-graph-locators-b30ef13.bundle`, complete history, sole HEAD.
+- SHA256: `1691fa2f702767837bf0854e91862ea5f6b37f1a6e9e1b9913cf678a3540e917`.
+- **REVIEW PENDING / NOT ACTIVE.** Full owning offline gate2758/2758;
+  cold source restore and19 pure controls passed without dependencies.
+  [Exact scope, failed attempts and replay](../../docs/qualification/graph-locator-candidate-20260913.md).
+  No source-pin switch, receipt promotion, live product proof or graph-debt closure.
+
 ## Console conditional plan write, 13 September 2026
 
 - Commit: `b474d52fb6b8b2d13fe362a3f551f8ef6b6ee17a`, based on dc8eb59 below.

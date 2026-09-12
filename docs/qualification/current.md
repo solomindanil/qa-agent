@@ -12,8 +12,11 @@ Both passed independent Lead AQA review and are delivered as **inactive** candid
 M3 now has an [implemented candidate b474d52](console-plan-write-candidate-20260913.md):
 215/215 scoped compatibility controls, cold archive delivery, but **independent
 review pending**, not accepted or active. Reviewers are unavailable because of a
-host usage limit. M4–M6 and source adoption remain separate; independent local
-maintenance continues without changing campaign runtimes.
+host usage limit. M5 also has a [locally verified parser candidate
+b30ef13](graph-locator-candidate-20260913.md), full offline2758/2758 and cold
+source replay19/19, with independent review pending. M4 implementation/full
+compatibility testing is in progress; M6 and adoption remain separate. Campaign
+runtimes have not changed.
 
 New consumers start with [portable setup](../getting-started.md); original-machine files and chat history are not prerequisites. Current delivery and pending component fixes are distinct. The [approved global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) is the continuation order.
 
