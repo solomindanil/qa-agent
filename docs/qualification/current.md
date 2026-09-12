@@ -36,10 +36,11 @@ pending; this is not the completed unfamiliar-product stage.
 
 Stage3 now has a [reproducible process-interruption gap](../../evals/campaign-continuation/README.md):
 attempt files survive, but the fresh campaign reader has no partial/resume state
-and ordinary execution repeats a finished check. Source audit also identifies the
-registered CLI/Kernel nonterminal-directory seam that its eventual fix must cover.
-The probe diagnoses the public runner/reader boundary; it does not qualify the
-registered CLI, repair it, or establish crash recovery.
+and ordinary execution repeats a finished check. A separate actual registration
+and CLI probe now confirms that a synthetic unsealed campaign directory blocks
+workspace preflight before plan loading. That is an executed grammar check, not
+an actual CLI crash or successful product campaign. The two probes cover distinct
+boundaries; neither repairs or establishes crash recovery.
 
 New consumers start with [portable setup](../getting-started.md); original-machine files and chat history are not prerequisites. Current delivery and pending component fixes are distinct. The [approved global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) is the continuation order.
 

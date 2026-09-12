@@ -81,6 +81,10 @@ Actual release policy still falls back to full on this debt. A synthetic two-tes
   SIGKILL, but the fresh reader returns null without a terminal receipt; ordinary
   execution repeats the finished first check. This is a diagnosed missing campaign
   continuation contract, not a false product PASS or an accepted recovery feature.
+- The companion registered-probe now uses real registration/Kernel validation and
+  CLI to confirm that one synthetic0700 run directory blocks preflight before plan
+  loading. It never contacts the declared URL. This separately exercises the
+  owning consumer seam, but is not a real CLI SIGKILL test or a resume repair.
 - Preserve full acceptance conditions and original reproduction. Missing fixture or access is QA-blocked, not automatically development In Progress; a workaround or generic green suite is not a ticket FIXED. Human requests name exactly what to do, where, and what resumes; independent work continues.
 - Six source-skill reasoning controls were adequate after review, but were open-context answers, not autonomous execution against withheld seeded defects. Qualify actual independent test design/execution, false bug/pass, lost scope and unnecessary human blocks before an autonomy claim.
 - Read/repair of the shared registration store may touch unrelated product history. Measure target-scoped continuation and damaged-neighbour behavior before adding new indexes or memory services.
