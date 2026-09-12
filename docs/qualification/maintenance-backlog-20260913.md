@@ -40,8 +40,11 @@ no old PASS was transferred. M2 has since been repaired in separate inactive
 Console dc8eb59 ([report](console-finalization-review-20260913.md)). M3 and M5
 are implemented and locally verified but await independent review; M4's isolated
 repair passed41 focused and56 registration controls after fixing a real recovery
-compatibility regression; its unfiltered full gate is still running. M6 and
-active-source adoption remain open. Do not restart M1 or mistake archive delivery
+compatibility regression; its unfiltered full gate is still running.
+The full M4 run subsequently observed one120s timeout in existing registration/service
+replacement-publication; final gate is not green. Next is sequential baseline versus
+candidate reproduction, not a blanket timeout increase. M6 and active-source adoption
+remain open. Do not restart M1 or mistake archive delivery
 for adoption.
 
 Stage2 E1 has an [inactive successor6e84afb](public-input-candidate-20260913.md):

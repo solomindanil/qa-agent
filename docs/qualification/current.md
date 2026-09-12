@@ -18,6 +18,12 @@ source replay19/19, with independent review pending. M4 implementation/full
 compatibility testing is in progress; M6 and adoption remain separate. Campaign
 runtimes have not changed.
 
+M4 full-gate observation: the existing registration/service replacement-publication
+case exceeded its120-second test deadline. The run continues collecting the other
+results; no full-gate PASS or new build claim. Before any timeout/code change,
+compare that exact case on clean15a067c and the candidate sequentially without
+concurrent heavy gates. The repair remains uncommitted and not accepted.
+
 The first Stage2 mechanism is [inactive E1, now6e84afb](public-input-candidate-20260913.md):
 public literal search/filter input. Follow-up found the old00e4102 reader did not
 consume these plans despite its passing raw-JSON fixture. The successor fixes that
