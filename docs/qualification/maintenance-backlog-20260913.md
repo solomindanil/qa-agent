@@ -39,9 +39,14 @@ manifest. Historical qualified declarations remain stale with no receipt authori
 no old PASS was transferred. M2 has since been repaired in separate inactive
 Console dc8eb59 ([report](console-finalization-review-20260913.md)). M3 and M5
 are implemented and locally verified but await independent review; M4's isolated
-repair passed35 focused controls and is under full compatibility testing. M6 and
+repair passed41 focused and56 registration controls after fixing a real recovery
+compatibility regression; its unfiltered full gate is still running. M6 and
 active-source adoption remain open. Do not restart M1 or mistake archive delivery
 for adoption.
+
+Stage2 E1 has an [inactive public-input candidate](public-input-candidate-20260913.md)
+with262/262 compatibility controls and33/33 cold replay. Source review, current
+skill-reference qualification and fresh-agent use are still separate open exits.
 
 The preceding rejected source and its original evidence remain historical:
 

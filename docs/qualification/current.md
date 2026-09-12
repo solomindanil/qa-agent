@@ -18,6 +18,13 @@ source replay19/19, with independent review pending. M4 implementation/full
 compatibility testing is in progress; M6 and adoption remain separate. Campaign
 runtimes have not changed.
 
+The first Stage2 mechanism is also [implemented as inactive E1
+00e4102](public-input-candidate-20260913.md): public literal search/filter input in
+the existing Console pipeline,262/262 compatibility controls and cold33/33 replay.
+It preserves needs_review and all public-lane boundaries. Independent review,
+source skill-reference update/retrieval exercise and fresh-agent product use are
+pending; this is not the completed unfamiliar-product stage.
+
 New consumers start with [portable setup](../getting-started.md); original-machine files and chat history are not prerequisites. Current delivery and pending component fixes are distinct. The [approved global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) is the continuation order.
 
 ## Start from one place
@@ -61,6 +68,6 @@ For an **existing** Freeland, Agentify or MagicCard campaign, first read the own
 
 Fresh results and exact source attribution: [2026-09-11 reconciliation](reconciliation-20260911.md). Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
 
-Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. Its successor9f848bb now closes the bounded M1 counterexample with source-owned controls and a fresh full gate; it does not automatically replace canonical pins, installed skills or campaigns. The generic C5 source-locator formatting defect remains open as M5, together with the other [maintenance findings](maintenance-backlog-20260913.md). The active old helper must not be presented as repaired merely because a newer inactive archive exists. Independently authorized unaffected work remains possible.
+Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. Its successor9f848bb now closes the bounded M1 counterexample with source-owned controls and a fresh full gate; it does not automatically replace canonical pins, installed skills or campaigns. The generic C5 source-locator defect has a locally verified inactive M5 repair, but independent acceptance and adoption remain open alongside the other [maintenance findings](maintenance-backlog-20260913.md). The active old helper must not be presented as repaired merely because a newer inactive archive exists. Independently authorized unaffected work remains possible.
 
 Then a new substantive authorized full/ticket product slice consumes the accepted source and current owner skills, and a fresh session resumes it. Convert only demonstrated reusable gaps into shared reviewed helpers. Actual current Claude execution and a bounded cloud pilot follow as separate exits; native/mobile, performance/load and provider internals are not silently covered. The [global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) preserves the previous seven substantive exits and deferred Freeland coverage work.

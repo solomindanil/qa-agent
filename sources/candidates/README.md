@@ -2,6 +2,15 @@
 
 These bundles preserve unfinished development without depending on the author's local checkout. They are **not selected by sources/manifest.v1.json**, are not restored by sources:restore, and grant no product/runtime/skill-installation authority. The manifest remains the only active source selector. Do not copy an archived skill over an accepted one.
 
+## Console public input, 13 September 2026
+
+The [E1 public-input candidate](../../docs/qualification/public-input-candidate-20260913.md):
+Console00e410253d59d4f913eaf290c4abaa6bd0605446, tree3fc9bbb45062ab132c0a09e0de581270003c28aa,
+archive `console-public-input-00e4102.bundle`, SHA256
+`1d08b598cd6f40ba5f79792dd3cfd7b0109f90df3420672025ec2989eb16591e`.
+Locally verified262/262 controls, based on inactive M3. **REVIEW AND SKILL REFERENCE
+UPDATE PENDING / NOT ACTIVE.** It does not change the existing needs_review policy.
+
 ## Freeland source-locator formatting, 13 September 2026
 
 - Commit: `b30ef1316d3db08c71ccaa398a2b4fac76fd4ae9`, based on9f848bb below.
