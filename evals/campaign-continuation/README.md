@@ -75,3 +75,29 @@ need. Required acceptance is this actual interruption followed by remaining-only
 execution and a valid final readback, plus a stale-input/second-owner negative.
 Until then, human-help fixture success and durable individual files do not close
 Stage3's real campaign recovery exit.
+
+### Additional source seams found before implementation
+
+The following are source inspection findings on Console6e84afb and Kernel15a067c,
+not extra outcomes of the two-request probe:
+
+- `scripts/qa-campaign.ts` validates the managed workspace before invoking the
+  runner. Kernel `src/kernel/workspace-validator.ts` accepts the campaign run
+  directories as sealed0500 and result files0400. The interrupted runner leaves
+  unsealed0700/0600 entries. The registered CLI boundary therefore needs its own
+  actual recovery test; bypassing it with a direct API is not sufficient.
+- Console `server/campaign-receipts.mjs` mirrors that file grammar and exact
+  artifact inventory. Adding arbitrary checkpoint files without updating both
+  owning consumers would invalidate completed evidence. Do not loosen unknown
+  file admission generally or delete abandoned evidence to unblock validation.
+- The current binding covers graph, plan and registered product/baseURL/catalog;
+  it does not itself freshly collect a live deployment identity or account state.
+  Resume must not claim an unchanged candidate from that binding alone. Qualify
+  the supported fresh-context mechanism and retain explicit uncertainty where a
+  product cannot provide it.
+- A per-check terminal-run workaround changes the canonical whole-scope plan and
+  needs new aggregation semantics. It is not automatically simpler than extending
+  the existing run and should not silently replace the current full-scope reader.
+
+The next design must cover this actual execution path, not just a helper returning
+the desired status. No continuation runtime or interface has been changed here.

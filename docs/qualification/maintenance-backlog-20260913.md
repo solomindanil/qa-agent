@@ -40,10 +40,12 @@ no old PASS was transferred. M2 has since been repaired in separate inactive
 Console dc8eb59 ([report](console-finalization-review-20260913.md)). M3 and M5
 are implemented and locally verified but await independent review; M4's isolated
 repair passed41 focused and56 registration controls after fixing a real recovery
-compatibility regression; its unfiltered full gate is still running.
-The full M4 run subsequently observed one120s timeout in existing registration/service
-replacement-publication; final gate is not green. Next is sequential baseline versus
-candidate reproduction, not a blanket timeout increase. M6 and active-source adoption
+compatibility regression. Its [full gate and exact sequential follow-up](kernel-write-candidate-20260913.md)
+are now complete:1719 passed/1 timeout; the one case separately passed on baseline
+and candidate in100660/101339ms. A new real filesystem-alias counterexample still
+admits two writers for state.json/STATE.json; the candidate is not accepted, even
+if the timeout proves environmental. A bounded namespace correction awaits agreement.
+M6 and active-source adoption
 remain open. Do not restart M1 or mistake archive delivery
 for adoption.
 

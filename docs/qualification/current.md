@@ -18,11 +18,12 @@ source replay19/19, with independent review pending. M4 implementation/full
 compatibility testing is in progress; M6 and adoption remain separate. Campaign
 runtimes have not changed.
 
-M4 full-gate observation: the existing registration/service replacement-publication
-case exceeded its120-second test deadline. The run continues collecting the other
-results; no full-gate PASS or new build claim. Before any timeout/code change,
-compare that exact case on clean15a067c and the candidate sequentially without
-concurrent heavy gates. The repair remains uncommitted and not accepted.
+M4 [completed its full gate with1719 passed/1 timeout](kernel-write-candidate-20260913.md).
+The exact failed case then passed sequentially on clean15a067c (100660ms) and
+the candidate (101339ms); that does not turn the failed full gate green. An
+additional real filesystem-alias counterexample admits two successful writes
+through state.json/STATE.json. The correction is proposed, not implemented;
+M4 remains uncommitted and **not accepted** independently of the timeout.
 
 The first Stage2 mechanism is [inactive E1, now6e84afb](public-input-candidate-20260913.md):
 public literal search/filter input. Follow-up found the old00e4102 reader did not
@@ -35,8 +36,10 @@ pending; this is not the completed unfamiliar-product stage.
 
 Stage3 now has a [reproducible process-interruption gap](../../evals/campaign-continuation/README.md):
 attempt files survive, but the fresh campaign reader has no partial/resume state
-and ordinary execution repeats a finished check. The probe diagnoses this boundary;
-it does not repair it or qualify crash recovery.
+and ordinary execution repeats a finished check. Source audit also identifies the
+registered CLI/Kernel nonterminal-directory seam that its eventual fix must cover.
+The probe diagnoses the public runner/reader boundary; it does not qualify the
+registered CLI, repair it, or establish crash recovery.
 
 New consumers start with [portable setup](../getting-started.md); original-machine files and chat history are not prerequisites. Current delivery and pending component fixes are distinct. The [approved global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) is the continuation order.
 
