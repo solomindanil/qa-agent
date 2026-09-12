@@ -4,11 +4,13 @@ Updated 2026-09-13. This is the current source index. [Manifest](../../sources/m
 
 Maintenance checkpoint, 13 September: [portable maintenance summary](maintenance-backlog-20260913.md) records exact-ticket binding, continuation and guard/readiness/knowledge fixes. These isolated candidates have **not** replaced manifest pins or existing campaign runtimes. A passing tool test is not source adoption or a product verdict.
 
-Latest scoped repair: [M1 browser admission](browser-guard-admission-review-20260913.md),
-source9f848bb, passed independent review, full offline2753 test executions and cold
-archive restoration. It is delivered here as an **inactive** candidate; M2–M6 and
-source adoption remain separate. Next: reproduce and fix Console's late-finalization
-failure without optional dependency metadata deciding whether earlier PASS survives.
+Latest scoped repairs: [M1 browser admission](browser-guard-admission-review-20260913.md),
+source9f848bb, and [M2 Console finalization](console-finalization-review-20260913.md),
+source dc8eb59. M1 passed full offline2753 test executions; M2 passed its fresh
+121/121 adapter/dependency/runner gate after actual false-PASS reproduction.
+Both passed independent Lead AQA review and are delivered as **inactive** candidates.
+M3–M6 and source adoption remain separate. Next: Console conditional-write
+cross-process counterexample, one committed winner and a typed conflict.
 
 New consumers start with [portable setup](../getting-started.md); original-machine files and chat history are not prerequisites. Current delivery and pending component fixes are distinct. The [approved global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) is the continuation order.
 

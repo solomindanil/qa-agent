@@ -17,7 +17,7 @@ Source links resolve after restore. Evidence strength is intentionally explicit;
 | ID / priority | Finding and scope | Owning source / required acceptance |
 | --- | --- | --- |
 | M1 / P1 | Freeland guard admits a SharedWorker created between its target scan and async constructor ban. A real loopback sentinel followed a redirect to forbidden checkout GET, got 200, left no attempts and passed the no-mutation assertion. Reproduced on repair `722bf1b`; not measured in a live product. | [pay-sheet.ts](../../components/freeland/tests/freeland-staging-replacements/support/pay-sheet.ts), whose delivered source is still 9c. Settle the supported admission boundary before product JS runs; repeat actual setup-interleaving negative plus safe reads. Do not claim read-only from the vulnerable helper alone. |
-| M2 / P1 | Console can persist earlier PASS after a late guard/close error when dependency metadata is absent. Confirmed control flow in an admitted path; browser false-PASS reproduction is still outstanding. | [playwright-campaign-adapter.ts](../../components/console/src/node/playwright-campaign-adapter.ts): reconcile final flags after closure regardless of optional dependency summary. Negative controls with/without dependencies must agree in persisted trace/result/receipt; keep safe positive. |
+| M2 / P1 | Actual loopback reproduction on b392 retained PASS in trace/result/receipt after a blocked POST or close rejection without dependency metadata. Fixed and reviewed in inactive dc8eb59, fresh121/121 gate; active pin remains unchanged. | [Repair, exact source and replay](console-finalization-review-20260913.md). Final flags now reconciled regardless of optional summary; six real-browser controls verify all persisted outcomes and safe positive. Adoption remains pending. |
 | M3 / P1 | Console's two digest reads followed by unconditional rename are not conditional atomic replacement. Two controlled same-process authors both succeeded and one plan update was lost; supported authored/approve-oracles paths reach it. Cross-process repro remains a repair gate. | [qa-campaign-files.ts](../../components/console/src/node/qa-campaign-files.ts), writeCampaignPlan: one mutation owner across condition, publish and readback; one committed winner, typed conflict, interrupted/unknown reconciliation. Do not rely on a lock only in one CLI caller. |
 | M4 / P1 integrity | Kernel's public expected-absent writer has the same check/rename flaw. Controlled probe accepted two different writes. Higher registration/discovery owners have additional fences; lost authoritative dispatch/registration is not established. | [private-store.ts](../../components/kernel/src/kernel/private-store.ts), writePrivateFileAtomic: test absent and digest cases in separate processes; retain existing higher fences and interrupted-write reconciliation. Avoid rewriting all callers as an inferred necessity. |
 | M5 / P2 | Markdown backticks around an error identifier cause the Freeland source-locator parser to drop five file links. Fresh pure formatting probe on 722 reproduces it. Fixing today's C5 row did not fix the generic parser. | [graph model](../../components/freeland/tools/freeland-graph/model.mjs), extractSourceLocators: exact file-link set invariant under formatting; prose error name not a file; real parse/build/selection controls. |
@@ -35,9 +35,10 @@ executions passed, root packaging57/57 and cold archive restoration passed.
 [The repair report](browser-guard-admission-review-20260913.md) records both failed
 intermediate gates, the test-quality correction, exact identities and limits.
 This source is delivered as an inactive archive, not selected by the active
-manifest. M2–M6 remain open. Historical qualified declarations remain stale with
-no receipt authority; no old PASS was transferred. Next implementation is M2's
-actual late-finalization counterexample and repair, not another M1 redesign.
+manifest. Historical qualified declarations remain stale with no receipt authority;
+no old PASS was transferred. M2 has since been repaired in separate inactive
+Console dc8eb59 ([report](console-finalization-review-20260913.md)); M3–M6 remain
+open. Next implementation is Console conditional-write M3, not another M1 redesign.
 
 The preceding rejected source and its original evidence remain historical:
 

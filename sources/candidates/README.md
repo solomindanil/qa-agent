@@ -2,6 +2,25 @@
 
 These bundles preserve unfinished development without depending on the author's local checkout. They are **not selected by sources/manifest.v1.json**, are not restored by sources:restore, and grant no product/runtime/skill-installation authority. The manifest remains the only active source selector. Do not copy an archived skill over an accepted one.
 
+## Console finalization repair, 13 September 2026
+
+- Source commit: `dc8eb59dfeb2b5231617379096e945f0ccfc09da`.
+- Tree: `b2b9d32c0a4e27b930d7e1053772440cfa335015`.
+- Bundle SHA256: `cd6c4b97baa5c5f19f0942c857eb6338f6ba283e969ceeb4b8b4c682a75961c4`.
+- Bundle: `console-finalization-dc8eb59.bundle`, complete reachable history, sole `HEAD` reference.
+- Status: **reviewed M2 development candidate, NOT ACTIVE**. Only the browser adapter and six source-owned loopback regression controls changed from canonical b392. [Exact results and replay](../../docs/qualification/console-finalization-review-20260913.md): actual RED4/6, GREEN6/6, fresh combined121/121, TypeScript/lint/build0. No full-product or all-unit qualification is implied.
+
+For deliberate review, from the repository root, use a fresh directory:
+
+```sh
+git bundle verify sources/candidates/console-finalization-dc8eb59.bundle
+git clone --no-checkout -- sources/candidates/console-finalization-dc8eb59.bundle /absolute/new-console-review
+git -C /absolute/new-console-review switch -c codex/console-review dc8eb59dfeb2b5231617379096e945f0ccfc09da
+```
+
+This does not restore or replace an active component. Follow the repair report for
+bounded local replay; do not run Console's default `npm test` as an offline gate.
+
 ## Freeland browser-guard repair, 13 September 2026
 
 - Source commit: `9f848bb01f0fdde3f6b0841019243e64494e24b5`.
