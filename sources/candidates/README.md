@@ -2,6 +2,17 @@
 
 These bundles preserve unfinished development without depending on the author's local checkout. They are **not selected by sources/manifest.v1.json**, are not restored by sources:restore, and grant no product/runtime/skill-installation authority. The manifest remains the only active source selector. Do not copy an archived skill over an accepted one.
 
+## Console conditional plan write, 13 September 2026
+
+- Commit: `b474d52fb6b8b2d13fe362a3f551f8ef6b6ee17a`, based on dc8eb59 below.
+- Tree: `53aa0c134f1bbe599c5de98f56638bb5f6355cd7`.
+- Archive: `console-plan-write-b474d52.bundle`, complete history, sole HEAD.
+- SHA256: `1cebf0c95a785bc3787bda315c02abb930857836742c0cfabe6e3184cd0bd070`.
+- **REVIEW PENDING / NOT ACTIVE.** Locally verified215/215 with cold restore;
+  independent Lead AQA unavailable. [Diff scope, replay and unresolved-operation
+  instructions](../../docs/qualification/console-plan-write-candidate-20260913.md).
+  Do not substitute this candidate for a manifest-selected runtime.
+
 ## Console finalization repair, 13 September 2026
 
 - Source commit: `dc8eb59dfeb2b5231617379096e945f0ccfc09da`.

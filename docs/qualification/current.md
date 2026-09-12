@@ -9,8 +9,11 @@ source9f848bb, and [M2 Console finalization](console-finalization-review-2026091
 source dc8eb59. M1 passed full offline2753 test executions; M2 passed its fresh
 121/121 adapter/dependency/runner gate after actual false-PASS reproduction.
 Both passed independent Lead AQA review and are delivered as **inactive** candidates.
-M3–M6 and source adoption remain separate. Next: Console conditional-write
-cross-process counterexample, one committed winner and a typed conflict.
+M3 now has an [implemented candidate b474d52](console-plan-write-candidate-20260913.md):
+215/215 scoped compatibility controls, cold archive delivery, but **independent
+review pending**, not accepted or active. Reviewers are unavailable because of a
+host usage limit. M4–M6 and source adoption remain separate; independent local
+maintenance continues without changing campaign runtimes.
 
 New consumers start with [portable setup](../getting-started.md); original-machine files and chat history are not prerequisites. Current delivery and pending component fixes are distinct. The [approved global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) is the continuation order.
 

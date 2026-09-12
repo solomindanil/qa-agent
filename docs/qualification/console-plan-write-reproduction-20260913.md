@@ -1,6 +1,8 @@
 # M3 — two processes can lose a plan update
 
-13 September 2026. **Reproduced, not fixed or independently accepted.**
+13 September 2026. **Historical counterexample.** Follow-up repair b474d52 is
+[implemented and locally verified](console-plan-write-candidate-20260913.md), but
+not independently accepted or active. The original reproduction below is retained.
 
 Source: Console `dc8eb59dfeb2b5231617379096e945f0ccfc09da`, whose
 `src/node/qa-campaign-files.ts` is unchanged from canonical b392. This does not
@@ -52,8 +54,8 @@ no-follow/containment controls, old digest rejection and exact owner cleanup.
 Qualify interrupted/uncertain publication separately from a definite no-write.
 No public Kernel API or second generic lock service is proposed.
 
-This design still needs its bounded implementation approval and independent
-Lead AQA review. Required controls: real separate processes, one committed
+The owner subsequently approved the bounded implementation; independent
+Lead AQA review is still pending. Required controls: real separate processes, one committed
 winner, explicit loser conflict, sequential success, stale digest, restrictive
 umask, unsafe path/foreign lock, and interruption without silent retry or cleanup.
 
