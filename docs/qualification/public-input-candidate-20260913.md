@@ -6,7 +6,61 @@ runner or product acceptance. Active source pins, installed skills and campaigns
 are unchanged. The independent reviewer host remains unavailable; this report is
 not an approval and does not close the fresh-agent stage of the global plan.
 
-## Exact source
+## Current successor — actual evidence-consumer readback
+
+Continuation review found a real omission in00e4102: the independent persisted-plan
+parser in `server/campaign-receipts.mjs` still accepted only environment values.
+The initial fixture read raw receipt JSON; it did **not** prove that a subsequent
+Console consumer could load it. Its earlier test results remain true within that
+narrower scope, but00e4102 must not be adopted as a finished input feature.
+
+The bounded successor is **6e84afbeef9dc660fd7b5b4c7096c17e7cfd72f0**, tree
+`e35b38ae136258104fa287b5c3c632bcbe328885`, based on00e4102. Its
+[complete-history archive](../../sources/candidates/console-public-input-readback-6e84afb.bundle)
+has SHA256 `f59331434c8476cf26f10e502a3c787c54e7d627e1552de76d962473e03821ad`.
+It is still **INDEPENDENT REVIEW PENDING / NOT ACTIVE**.
+
+Only two files change from00e4102:
+
+| Path | SHA256 |
+| --- | --- |
+| `server/campaign-receipts.mjs` | `0678eb432c8a256a3b410b5d809af9d599c6a54230031051ab0680b024b31572` |
+| `tests/unit/public-input-campaign.test.ts` | `f4c88fe9ecf7661c877149671ef1fbc3c1f5ac34e5ee0e5948714cf0c89ca14b` |
+
+The reader now admits the same bounded literal representation and only counts
+actual environment references as secrets. No permission, classification, receipt
+integrity or plan binding check was removed. Both actual browser fixture campaigns
+now create the canonical plan through `writeNewCampaignPlan` and consume the sealed
+run through `readLatestCampaignEvidence`. Healthy search remains PASS; deliberately
+broken search remains INCONCLUSIVE/needs_review, with identical check/plan/run IDs.
+
+Verification on the successor:
+
+- **RED2/4**, both consumer-readback assertions failed on00e4102; the two adapter
+  controls passed. Raw RED log SHA256 `bbf9fb4c6b5c0328da8d11bcafa43ee433bc73fed608c95365881c6421f4aea2`.
+- **124/124** actual input/receipt-ingestion/dependency-readback controls, zero
+  failed/skipped/cancelled,8924ms, with the accepted15a067c Kernel explicitly
+  configured. An earlier attempt omitted that prerequisite:36passed/1setup failure;
+  that attempt is not a passing gate. Configured test-log SHA256
+  `97275ea9a54ec76c115d24f741e56770c5f03b6981a8b3bcf4c5db9e3a15a1cd`.
+- TypeScript, Node syntax check and changed-test ESLint exit0. Reader ESLint
+  exit1: pre-existing `process` no-undef at former line822/current825; confirmed
+  by linting exact00e4102 bytes with the same tool. No blanket lint-green claim.
+- Independent normal cold clone from the archive: exact SHA/tree/two hashes,
+  `git fsck --full`, own296 lockfile dependencies, no Git alternates, clean source,
+  **4/4** real public-input/consumer checks, zero failed/skipped/cancelled,4849ms.
+
+Portable minimum replay: restore the successor archive into a new normal clone,
+install that clone's lockfile using the dependency command below, then run
+`node --import tsx --test tests/unit/public-input-campaign.test.ts`. The broader
+124-control command additionally includes `tests/unit/campaign-receipt-ingestion.test.ts`
+and `tests/unit/campaign-dependency-readback.test.ts`; provide a separately restored,
+clean15a067c Kernel as `QA_STARTER_REPO` and its full SHA as `QA_STARTER_EXPECTED_SHA`.
+This is owned-loopback evidence ingestion, not registration, crash recovery,
+fresh-agent test design, product acceptance or source adoption. Skill-reference
+qualification remains pending; previous acceptance limits below still apply.
+
+## Initial source — historical and incomplete without the successor
 
 - Base Console: `b474d52fb6b8b2d13fe362a3f551f8ef6b6ee17a` (inactive M3).
 - Candidate: `00e410253d59d4f913eaf290c4abaa6bd0605446`.

@@ -1,0 +1,77 @@
+# Console campaign interruption — diagnostic counterexample
+
+This is a reproducible **known gap**, not a recovery implementation, acceptance
+test, independent agent evaluation or product QA. It is deliberately outside the
+root packaging test glob. An exit0 means the stated limitation was reproduced.
+Do not count it as a passing resume gate or keep its limitation assertion once
+the owning runtime gains real continuation support.
+
+## Measured behavior
+
+On inactive Console6e84afbeef9dc660fd7b5b4c7096c17e7cfd72f0:
+
+1. The actual catalog-bound runner and Playwright API adapter finish `GET /first`.
+2. The owned server receives and holds `GET /second`; the parent sends SIGKILL to
+   its owned worker process group. No fabricated timeout or synthetic exception.
+3. The first attempt's actual result/trace and canonical plan survive byte-for-byte.
+   No terminal receipt exists and no owned process remains.
+4. A new process calls the actual evidence reader. It returns `null`, not a
+   partial, completed or resumable campaign result.
+5. Ordinary execution in another process creates a new run and calls `/first`
+   again. The reader accepts this new complete run. This is **rerun, not resume**.
+
+Both read-only requests are strictly confined to a newly allocated127.0.0.1
+server. All temporary files belong to the probe and are retained. The test child
+receives a narrow environment without copied credentials or product URLs.
+It does not initialize a managed registration or exercise the registered CLI,
+browser process recovery, host restart, native devices or payment retries.
+
+## Portable replay
+
+Restore `sources/candidates/console-public-input-readback-6e84afb.bundle` into a
+fresh normal clone and install **that clone's** lockfile (`npm ci --ignore-scripts
+--no-audit --no-fund`). Node22 and a POSIX host are required. From that clone,
+run the root-owned [probe.mjs](probe.mjs), passing its absolute path:
+
+```sh
+export QA_CONTINUATION_CONSOLE_ROOT="$PWD"
+node --import tsx /absolute/path/to/qa-agent/evals/campaign-continuation/probe.mjs
+```
+
+The source input is explicit, constrained to6e84afb, and requires unchanged tracked
+`src/` and `server/` bytes. This is a local fixture guard, not an attestation service.
+No author registry or original-machine file is needed. The final JSON prints the
+retained audit directory; `REPORT.json` includes process IDs, requests, byte hashes
+and the outcome of the separate reader processes.
+
+Fresh portable run13 September2026: exit0, interrupted worker killed by SIGKILL,
+first request observed twice across original/rerun, no product network calls.
+Raw report SHA256 `2ccd2cf4b55bab7d4c412f5edbcdb8a606e35f041f999d924e5c4283bf421a5f`.
+The historical raw report is private; this nonsecret source makes the behavior
+reproducible. The first development probe independently reproduced the same gap.
+
+## Owning next step — design before implementation
+
+`runQaCampaign` already persists per-attempt artifacts; `readLatestCampaignEvidence`
+deliberately ignores nonterminal runs. Registration/discovery resume APIs concern
+different state and are not a campaign resume implementation. Do not make the
+reader accept half-written receipts or relabel the old trace as newly sealed PASS.
+
+Reuse existing campaign identity, artifact writer/reader, status classification,
+scope and effect policy. The next bounded design must resolve:
+
+- how a run records its complete input identity before first dispatch;
+- how a finished check becomes a durable checkpoint only after adapter finalization;
+- how a fresh consumer distinguishes completed, unstarted and uncertain attempts;
+- one continuation owner, exact unchanged product/source/plan boundary, no stale
+  transfer to a new candidate, and readable nonterminal scope;
+- preserving completed work while unknown operations require reconciliation, not
+  blind replay; the present runtime is read-only, not a money authorization layer.
+
+Compare a small extension to the current run's artifacts against a per-check
+terminal-run orchestration using existing tools. Choose based on the actual
+consumer contract; do not create a second runner/journal or broaden I2 without
+need. Required acceptance is this actual interruption followed by remaining-only
+execution and a valid final readback, plus a stale-input/second-owner negative.
+Until then, human-help fixture success and durable individual files do not close
+Stage3's real campaign recovery exit.

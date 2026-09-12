@@ -44,8 +44,10 @@ compatibility regression; its unfiltered full gate is still running. M6 and
 active-source adoption remain open. Do not restart M1 or mistake archive delivery
 for adoption.
 
-Stage2 E1 has an [inactive public-input candidate](public-input-candidate-20260913.md)
-with262/262 compatibility controls and33/33 cold replay. Source review, current
+Stage2 E1 has an [inactive successor6e84afb](public-input-candidate-20260913.md):
+124/124 input/ingestion controls and4/4 cold reader checks. Earlier00e4102 had262/262
+controls but its separate receipt reader rejected literal plans; raw JSON readback
+was insufficient. That concrete integration defect is repaired in the successor. Source review, current
 skill-reference qualification and fresh-agent use are still separate open exits.
 
 The preceding rejected source and its original evidence remain historical:
@@ -69,6 +71,11 @@ Actual release policy still falls back to full on this debt. A synthetic two-tes
 - Catalog-bound Console fill/select currently has no admitted representation for an ordinary nonsecret text value. Underlying browser interaction exists, but bypassing catalog validation is not an accepted workaround. First qualification target: normal search/filter, missing-result defect and healthy unusual behavior, with correct persisted evidence.
 - Receipt-bound agent review interprets existing saved artifacts. It does not ingest arbitrary new browser observations or upgrade verdict. The active Kernel lacks the optional reporting API; do not activate reference-only Kernel to obtain it. Local fallback observations must retain their unsealed status.
 - Continuation improvements recovered eight Freeland tickets plus VELVET without asking for repeated purchases in a bounded fresh-consumer exercise. They do not prove complete crash recovery. Next: actual interruption, fresh process, preserved completed checks, remaining-only work and unknown-effect reconciliation.
+- A [portable real interruption probe](../../evals/campaign-continuation/README.md)
+  now reproduces the specific Console gap on6e84afb: completed attempt files survive
+  SIGKILL, but the fresh reader returns null without a terminal receipt; ordinary
+  execution repeats the finished first check. This is a diagnosed missing campaign
+  continuation contract, not a false product PASS or an accepted recovery feature.
 - Preserve full acceptance conditions and original reproduction. Missing fixture or access is QA-blocked, not automatically development In Progress; a workaround or generic green suite is not a ticket FIXED. Human requests name exactly what to do, where, and what resumes; independent work continues.
 - Six source-skill reasoning controls were adequate after review, but were open-context answers, not autonomous execution against withheld seeded defects. Qualify actual independent test design/execution, false bug/pass, lost scope and unnecessary human blocks before an autonomy claim.
 - Read/repair of the shared registration store may touch unrelated product history. Measure target-scoped continuation and damaged-neighbour behavior before adding new indexes or memory services.

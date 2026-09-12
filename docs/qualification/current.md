@@ -18,12 +18,19 @@ source replay19/19, with independent review pending. M4 implementation/full
 compatibility testing is in progress; M6 and adoption remain separate. Campaign
 runtimes have not changed.
 
-The first Stage2 mechanism is also [implemented as inactive E1
-00e4102](public-input-candidate-20260913.md): public literal search/filter input in
-the existing Console pipeline,262/262 compatibility controls and cold33/33 replay.
+The first Stage2 mechanism is [inactive E1, now6e84afb](public-input-candidate-20260913.md):
+public literal search/filter input. Follow-up found the old00e4102 reader did not
+consume these plans despite its passing raw-JSON fixture. The successor fixes that
+seam:124/124 input/ingestion/dependency controls and cold4/4 actual consumer checks.
+Earlier262/262 and33/33 remain attributed to00e4102, not re-run on the successor.
 It preserves needs_review and all public-lane boundaries. Independent review,
 source skill-reference update/retrieval exercise and fresh-agent product use are
 pending; this is not the completed unfamiliar-product stage.
+
+Stage3 now has a [reproducible process-interruption gap](../../evals/campaign-continuation/README.md):
+attempt files survive, but the fresh campaign reader has no partial/resume state
+and ordinary execution repeats a finished check. The probe diagnoses this boundary;
+it does not repair it or qualify crash recovery.
 
 New consumers start with [portable setup](../getting-started.md); original-machine files and chat history are not prerequisites. Current delivery and pending component fixes are distinct. The [approved global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) is the continuation order.
 

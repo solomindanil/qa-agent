@@ -4,12 +4,20 @@ These bundles preserve unfinished development without depending on the author's 
 
 ## Console public input, 13 September 2026
 
-The [E1 public-input candidate](../../docs/qualification/public-input-candidate-20260913.md):
+Current [E1 public-input candidate](../../docs/qualification/public-input-candidate-20260913.md):
+Console6e84afbeef9dc660fd7b5b4c7096c17e7cfd72f0, treee35b38ae136258104fa287b5c3c632bcbe328885,
+archive `console-public-input-readback-6e84afb.bundle`, SHA256
+`f59331434c8476cf26f10e502a3c787c54e7d627e1552de76d962473e03821ad`.
+124/124 input/receipt-ingestion/dependency controls and cold4/4 actual reader checks.
+**REVIEW AND SKILL REFERENCE UPDATE PENDING / NOT ACTIVE.**
+
+The preceding incomplete source remains retained:
 Console00e410253d59d4f913eaf290c4abaa6bd0605446, tree3fc9bbb45062ab132c0a09e0de581270003c28aa,
 archive `console-public-input-00e4102.bundle`, SHA256
 `1d08b598cd6f40ba5f79792dd3cfd7b0109f90df3420672025ec2989eb16591e`.
-Locally verified262/262 controls, based on inactive M3. **REVIEW AND SKILL REFERENCE
-UPDATE PENDING / NOT ACTIVE.** It does not change the existing needs_review policy.
+Its262/262 controls did not exercise the actual evidence reader; that integration
+failed and is repaired in6e84afb above. Both are based on inactive M3 and preserve
+the existing needs_review policy.
 
 ## Freeland source-locator formatting, 13 September 2026
 
