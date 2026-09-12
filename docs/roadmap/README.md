@@ -2,11 +2,19 @@
 
 The north star is agent-first QA that can test products through dialogue first and later run on another host. Assembly reuses the existing implementations; it does not restart the roadmap or count source tests as product coverage.
 
-## Current execution — 2026-09-11
+## Approved global plan — 2026-09-13
+
+The [consolidated global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) brings the existing seven substantive exits and the latest dialogue/architecture findings into one staged order. The owner approved this order and required self-contained repository delivery. This is not a source promotion or permission to start cloud/product effects. Current execution still follows [current qualification](../qualification/current.md); Freeland repair722bf1b remains NOT READY TO ADOPT. The dated material below preserves task provenance and earlier evidence, not a competing current-source selector.
+
+## Current execution — 2026-09-13
 
 Use [current source/qualification](../qualification/current.md), the [full reconciliation](../qualification/reconciliation-20260911.md) and the [consolidated seven-slice plan](../superpowers/plans/2026-09-10-universal-qa-next-plan.md). This reconciliation updates canonical delivery/skills/portable startup and verifies existing local pipelines; it does not replace the substantive product, agent-decision, graph-learning, host or cloud exits below.
 
+Current maintenance follows the user-approved Freeland dialogue audit: exact-ticket binding and continuation, actual graph-to-test use, route readiness and interrupted-request evidence. Its [current results and limits](../qualification/maintenance-backlog-20260913.md) supersede earlier immediate-next-action prose only; candidate source is not yet adopted. The frozen aggregate passed, but an independent SharedWorker counterexample still blocks adoption. Finish the admission-boundary repair and its review before using the affected guarantee. Independent permitted work on another product need not wait for every Freeland coverage gap.
+
 Next after source adoption: consume this main workspace in a substantive authorized full/ticket product scope, preserving existing campaign owners, and turn demonstrated reusable gaps into reviewed shared changes. Actual current Claude execution and cloud remain separately unqualified.
+
+First delivery slice: [portable setup](../getting-started.md), current limitations and this approved plan must be consumable from tracked repository files. Historical `.local` artifacts below retain provenance, but are not required onboarding inputs or fresh PASS evidence.
 
 ### Historical source candidate — 2026-09-10
 

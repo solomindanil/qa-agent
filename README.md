@@ -4,7 +4,7 @@ One portable workspace for the existing agent-first QA tools. The agent chooses 
 
 ## Start here
 
-Prerequisites: Node.js >=22.12 and Git. From a normal Git clone of this repository:
+Prerequisites: Node.js >=22.12 and Git. From a normal Git clone of this private repository:
 
 ```sh
 npm run sources:restore
@@ -14,10 +14,12 @@ npm test
 
 Restore uses only the local reviewed bundles. It does not install dependencies, contact a product, install skills or acquire credentials. Conflicting/dirty destinations are refused, not repaired or deleted. Each child keeps its own Git history and lockfile; do not share writable node_modules. See [source inventory](sources/manifest.v1.json), [source proof](docs/qualification/source-delivery.md) and [assembly qualification](docs/qualification/assembly.md).
 
+The root commands restore and verify complete component Git repositories and test only this delivery/packaging boundary; they do not prove that Console, Kernel, a browser lane or any product is ready. `components/` is deliberately ignored by the outer repository, so outer `git status` is not evidence that a component is absent. Use `sources:verify` and the component's own Git status instead. For a fresh operator walkthrough, including explicit private runtime paths, read [Getting started](docs/getting-started.md).
+
 | Need | Entry point |
 | --- | --- |
 | Codex or Claude session | Read [AGENTS.md](AGENTS.md); Claude starts at [CLAUDE.md](CLAUDE.md) |
-| New product / existing Starter workspace | [Product routing](products/README.md), then the full [qa-init](components/console/skills/qa-init/SKILL.md) or [qa-product-v0](components/console/skills/qa-product-v0/SKILL.md) skill |
+| New product / existing Starter workspace | [Product routing](products/README.md), then the full [qa-product-v0](components/console/skills/qa-product-v0/SKILL.md) skill; use [qa-init](components/console/skills/qa-init/SKILL.md) only when registration, registration recovery or a separately authorized I2 review is needed |
 | Freeland release, QA column, sprint or ticket | [Freeland skill](components/freeland/skills/freeland-release-qa/SKILL.md), resolving an existing campaign's frozen owner runtime before commands |
 | Bug backlog / developer fix prompts | [qa-bugfix](skills/qa-bugfix/SKILL.md), using the product-selected tracker and exact state roles |
 | Agent skills / host prerequisites | [Skills index](skills/README.md) |
