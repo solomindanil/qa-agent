@@ -1,6 +1,17 @@
 # Development source archives
 
-These bundles preserve reviewed and unfinished development without depending on the author's local checkout. The manifest is the only source selector: Kernel657894d, Console1c715a1 and Freeland21c1c61 below are selected after [14 September adoption](../../docs/qualification/source-adoption-20260914.md); the other archives remain inactive. The `candidates/` directory is a provenance location, not a runtime status. No archive grants product execution, campaign migration or skill-installation authority. Do not copy an archived skill over an accepted one.
+These bundles preserve reviewed and unfinished development without depending on the author's local checkout. The manifest is the only source selector: Kernel657894d, Console881a93e and Freeland21c1c61. Console881a93e adds only test-fixture extraction to the [14 September repair adoption](../../docs/qualification/source-adoption-20260914.md); the other archives remain historical or inactive. The `candidates/` directory is a provenance location, not a runtime status. No archive grants product execution, campaign migration or skill-installation authority. Do not copy an archived skill over an accepted one.
+
+## Console owned catalog fixture, 14 September 2026
+
+Source `881a93e43fd9b90f3dcf9812812f6cf8ad854789`, parent1c715a1,
+tree `b03f187bc55483f63e93f2cbcf357a16ceb0efa5`.
+Archive `console-public-fixture-881a93e.bundle`, complete history and sole HEAD,
+SHA256 `7ab032c7facee983186d12c44b46ee4431ea31b288c3d9fbe91397e3c00532ba`.
+Three test files only; production runtime/skills and exact Kernel pin unchanged.
+Independent Lead AQA review approved,5 focused lifecycle/public-input controls
+and typecheck passed. The [fresh-agent exercise](../../evals/public-input-agent-cycle/README.md)
+is separate from these deterministic fixture controls.
 
 ## Kernel reserved write admission, 14 September 2026
 
@@ -21,7 +32,7 @@ Console `1c715a1980dac52fb8ba1d267c8c8e2d97b406e8`,
 tree `f6fc0cc720008dde02891592f988a331ab24e289`, parent ce80729.
 Archive `console-m4-pair-1c715a1.bundle`, complete history and sole HEAD,
 SHA256 `044a018d6ff7de2e7f66ed6a1d03bdeea4f32a0039ed4f3ab3a0febba4d02415`.
-**PAIRED SOURCE REVIEWED / MANIFEST SELECTED.** Four-file exact Kernel657894d pin and
+**PAIRED SOURCE REVIEWED / PREVIOUS MANIFEST SELECTION.** Four-file exact Kernel657894d pin and
 matching tests/README only. Fresh121 authority,21 actual consumers and160 E1/M3/M2
 executions passed, independent review passed; nonincremental typecheck/Vite0.
 Cold source,2 skill controls and new/old Kernel authority checks passed.

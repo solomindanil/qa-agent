@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "1c715a1980dac52fb8ba1d267c8c8e2d97b406e8",
-      "tree": "f6fc0cc720008dde02891592f988a331ab24e289",
-      "bundle": "sources/candidates/console-m4-pair-1c715a1.bundle",
-      "sha256": "044a018d6ff7de2e7f66ed6a1d03bdeea4f32a0039ed4f3ab3a0febba4d02415",
+      "commit": "881a93e43fd9b90f3dcf9812812f6cf8ad854789",
+      "tree": "b03f187bc55483f63e93f2cbcf357a16ceb0efa5",
+      "bundle": "sources/candidates/console-public-fixture-881a93e.bundle",
+      "sha256": "7ab032c7facee983186d12c44b46ee4431ea31b288c3d9fbe91397e3c00532ba",
       "runtimeAuthority": true,
-      "qualification": "reviewed integrated M2 close-error finalization, M3 conditional plan writes and E1 public-input/evidence-reader successor; exact Kernel657894d authority; fresh121 authority/21 consumer/160 integration controls, nonincremental typecheck/Vite0, cold source/authority/skill checks; existing lint findings and566.95kB build warning retained, no full-suite or production crash-recovery claim; historical gates keep their original attribution; see docs/qualification/console-kernel-pair-20260914.md and source-adoption-20260914.md; not product, installed-host, dual-host or cloud qualification"
+      "qualification": "881a93e is a reviewed three-test-file fixture extraction from1c715a1; five focused lifecycle/public-input controls and typecheck passed; production runtime and skills unchanged, exact Kernel657894d authority retained. Earlier121 authority/21 consumer/160 integration controls, typecheck/Vite and cold source/skill gates remain attributed to1c715a1 in docs/qualification/console-kernel-pair-20260914.md and source-adoption-20260914.md. Existing lint findings/build warning retained. Fixture/agent execution is separately scoped in evals/public-input-agent-cycle/README.md; no full-suite, product, installed-host, dual-host, crash-recovery or cloud qualification."
     },
     {
       "id": "freeland",

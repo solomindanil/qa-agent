@@ -7,7 +7,7 @@ Updated 2026-09-14. This is the current source index. [Manifest](../../sources/m
 | Component | Selected source | Included bounded repairs |
 | --- | --- | --- |
 | Kernel | `657894dbd61561a634f36669a0874dccccbea59e` | M4 conditional-write admission, alias arbitration and owned-temp cleanup |
-| Console | `1c715a1980dac52fb8ba1d267c8c8e2d97b406e8` | M2 finalization, M3 conditional plan writes, E1 public input and evidence reader; exact Kernel657 authority |
+| Console | `881a93e43fd9b90f3dcf9812812f6cf8ad854789` | Same1c715a1 runtime/skills and exact Kernel657 authority; extracted owned catalog fixture for fresh-agent execution |
 | Freeland | `21c1c617a2dbe5d1131215dc738dba2556851ae3` | M1 bounded browser admission and M5 format/URL-safe source locators |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **not active** |
 
@@ -16,6 +16,12 @@ work. Bundle directory names do not select versions; the manifest does. No
 existing campaign, registration, account, installed skill or live product build
 is migrated. Their owner checkpoints still govern continuation. Complete source
 skills are consumed from this restore, not from a historical installed copy.
+
+Console881a93e adds only a reviewed test-fixture extraction on top of the repair
+source1c715a1:5 focused controls and source typecheck passed. Prior repair gates
+stay attributed to1c715a1. The [fresh-agent local exercise](../../evals/public-input-agent-cycle/README.md)
+uses this fixture, existing registration, knowledge publication and campaign APIs;
+its setup is not autonomous product QA or campaign migration.
 
 Next: a fresh agent must choose and execute meaningful checks through the
 existing E1/knowledge/campaign path, then read the results back. Tool gates alone
