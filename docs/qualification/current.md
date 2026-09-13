@@ -24,6 +24,12 @@ API qualification, remaining graph/business gaps and actual dual-host/cloud
 execution remain open. M6 is not used by the current Console/E1 path and must not
 be connected as a shortcut.
 
+The [fresh source-entry observation](../../evals/source-entry/20260914/README.md)
+selected current sources and preserved frozen campaign ownership, but its answer
+conflated resume with migration and requested redundant checkpoint fields.
+Lead AQA assessed it as conditional. This is one retained reasoning sample, not
+actual product execution or completed current-entry/continuation qualification.
+
 ## Historical candidate qualification — 13–14 September
 
 The following records describe the candidates **before this source selection**.
