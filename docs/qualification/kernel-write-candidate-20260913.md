@@ -66,17 +66,54 @@ Raw private log identities (not needed to reproduce the supplied diagnostic):
 - Portable baseline alias reproduction: `c24ddbe7abf3ebaac9d1b98d044422c4709f736b3570082a6f27fffa1b1e459e`.
 - Separate candidate build: `0f2d9eeb6484ef8b78bf32dcc7e3a6ed7836504f0ead975edbe4cbad1f4d0955`.
 
-## Next action
+## Namespace pre-review — compatibility finding, not an implementation
+
+Independent Lead AQA inspected the proposed per-parent admission directory
+against the actual consumer grammar. An adjacent directory is not a drop-in
+replacement for the current flat admission lock files:
+
+- `workspace-validator.ts:2676–2684,2918–2950` admits only known private data
+  directory roots; a new central directory under `.qa-private` is not currently
+  recognized either.
+- `registration-store.ts:748–750,2853–2861,4562–4566` rejects unknown member/job
+  entries, including an empty admission directory left after release.
+- `discovery-run-service.ts:1132–1161` and the workspace validator enforce exact
+  run/evidence file layouts. Transactions likewise have their own exact grammar;
+  they are not a free place for new writer metadata.
+- `registration-service.ts:481–510` uses those workspace checks during recovery
+  and after publication, so the issue can affect real consumers, not only an
+  optional diagnostic.
+- `private-store.ts:535–551` currently reserves no admission subtree/name for
+  internal use. Any added namespace needs an explicit boundary against ordinary
+  public writer targets and foreign entries.
+
+These are code-level compatibility findings, independently checked against the
+unchanged candidate. No new directory/probe was created and no runtime failure
+is claimed for an unimplemented design. The earlier raw alias counterexample
+remains the measured writer defect.
+
+## Next action — revise the namespace design before implementation
 
 The owner has been asked to agree the bounded namespace correction: a private
 admission directory per canonical physical parent, with the original target
 filename as its leaf, so the filesystem's own alias semantics arbitrate one
-target. Different target files must remain independent. This is a proposal,
-not an implemented or reviewed change.
+target. Different target files must remain independent. The pre-review above
+shows that this original proposal is insufficient without a deliberate reserved
+metadata layout and narrowly matched consumer validation. Do not implement it
+as an adjacent directory merely on the basis of the earlier short proposal.
+
+Prefer reusing the existing private store with one explicitly reserved admission
+area and validation of its exact metadata, rather than scattering extra entries
+into member/job/evidence directories. Exact placement, reservation and retained
+residue behavior still require agreement. This is design guidance, not accepted
+source or a new storage service. Automatic directory deletion is not a remedy:
+it cannot make live or interrupted metadata valid and adds shared cleanup races.
 
 Required controls include real case aliases, distinct targets, same basenames
 under separate parents, foreign/symlink/unsafe metadata, and all existing
-interruption/rename/readback cases. Preserve higher registration/discovery fences
+interruption/rename/readback cases. Add consumer validation with admission held,
+released and retained after interruption, including private-root/member/job/
+run/evidence/journal consumers and reserved-name collisions. Preserve higher registration/discovery fences
 and unknown outcomes. Requalify affected consumers on the final source, then
 independent Lead AQA review and cold delivery. Review capability has resumed, but
 this namespace correction is not yet implemented or independently accepted.

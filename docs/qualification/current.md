@@ -24,6 +24,10 @@ the candidate (101339ms); that does not turn the failed full gate green. An
 additional real filesystem-alias counterexample admits two successful writes
 through state.json/STATE.json. The correction is proposed, not implemented;
 M4 remains uncommitted and **not accepted** independently of the timeout.
+Read-only Lead AQA pre-review also found the proposed new admission directory
+incompatible with current private/member/job/run grammar. Revise its reserved
+metadata layout and consumer-validation contract before implementation; adding
+a directory alone is not an accepted fix.
 
 The first Stage2 mechanism is [inactive E1, integrated successor ce80729](public-input-candidate-20260913.md):
 public literal search/filter input. Follow-up found the old00e4102 reader did not
