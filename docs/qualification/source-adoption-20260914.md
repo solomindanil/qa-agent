@@ -5,6 +5,12 @@ and local restore tool. It does not add another runner, registry or verdict.
 The root candidate starts at `5ba9895bba13a83bae58c7df3db25a2f081fdfaf`.
 Final root adoption is gated by independent review and the cold checks below.
 
+**Canonical integration completed:** root `90ac8caf1de26446a4c48e7e48140ed884f401fa`,
+tree `1ea30d72763a111b770c750bf89d16a0abb884ec`, matches the reviewed candidate's
+source tree exactly. All three selected component directories are restored in
+the main workspace and `sources:verify` succeeds; old clean children were
+preserved recoverably, not deleted. Existing owner checkpoints are unchanged.
+
 ## Exact selection
 
 | Source | Selected commit | Source tree | Delivered bundle SHA256 |
@@ -79,6 +85,15 @@ logs, source selection, scope and evidence attribution without rerunning gates.
 Canonical replacement still requires the owner/process recheck and recoverable
 source preservation below; review is not campaign migration authority.
 
+Final transfer evidence: normal independent clone at candidate
+`a5635b84b4f01bbb3b4c1740ab5ef2fd3ce50854` restored/verified all four components and
+passed59/59 root controls in27.252s, no failures/skips/cancellations; cold log
+SHA256`f09ccf7b719099ecef73079171cd09264d5c972945269088bb38d93115a486c1`.
+The canonical root then restored/verified the same sources and passed59/59 in
+26.486s; log`66b7ecfa76b7c5d8879173084abe8327ee9b11ec5c4de160b96e24985bda6c2d`.
+The staged canonical tree matched the independently cloned candidate tree before
+commit. These are separate packaging executions, not177 distinct QA cases.
+
 Replay from a new normal Git clone, using Node>=22.12 and Git:
 
 ```sh
@@ -99,6 +114,13 @@ no main-component runtime process was observed. Before any canonical replacement
 recheck those boundaries and preserve old clean children as a recoverable local
 source backup. Do not move managed workspaces, change owner checkpoints or
 silently upgrade a historical campaign. New users need no such historical state.
+
+The integration recheck observed zero main-component processes. Original
+Kernel15a/Consoleb392/Freeland9c directories were preserved with their clean Git
+state and local dependencies under `.local/source-backup-20260914.2kN3Mj/`;
+the backup is not an active selector. Hashes of all three inspected historical
+owner checkpoints were unchanged after integration. This is local preservation,
+not automatic campaign recovery or a universal concurrent-owner guarantee.
 
 Original root user changes are outside this slice. Installed Codex/Claude skills
 are not overwritten. Source references and compatibility mirrors are delivered,
