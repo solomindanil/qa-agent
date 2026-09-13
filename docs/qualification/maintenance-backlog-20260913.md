@@ -54,8 +54,9 @@ Stage2 E1 has an [inactive successor6e84afb](public-input-candidate-20260913.md)
 controls but its separate receipt reader rejected literal plans; raw JSON readback
 was insufficient. That concrete integration defect is repaired in the successor.
 Runtime review passed; reference successor ad9e58e passed fresh-agent retrieval,
-independent review and cold2/2 mirror controls. M3 integration, adoption and actual
-fresh-agent product execution remain separate open exits.
+independent review and cold2/2 mirror controls. The combined sourcece80729 now
+includes reviewed M3 and passes154 controls plus cold restoration. Adoption and
+actual fresh-agent product execution remain separate open exits.
 
 The preceding rejected source and its original evidence remain historical:
 

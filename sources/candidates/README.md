@@ -4,13 +4,22 @@ These bundles preserve unfinished development without depending on the author's 
 
 ## Console public input, 13 September 2026
 
-Latest source-reference successor: Console`ad9e58e08937f50fdc8f6bf8102086cda4c63ed3`,
+Latest integrated successor: Console`ce80729994ec812dcf10b54910cde0bddf306e1a`,
+tree`3f76d017f98afcf38850a3acaaa3ff1370b841b4`,
+archive`console-public-input-integrated-ce80729.bundle`, SHA256
+`9208220904604b5b378b58a19f0c0895ef5e5c3b0bf03185b1e9ed25d2a36dcd`.
+**INTEGRATED SOURCE REVIEWED / NOT ACTIVE.** Exact reviewed M3 handover correction
+on ad9e58e, with E1 runtime/reader/skills unchanged. Combined154/154 controls,
+TypeScript and independent review passed; cold exact restore and mirror2/2 passed.
+No active adoption or real unfamiliar-product acceptance follows from these gates.
+
+Prior source-reference successor: Console`ad9e58e08937f50fdc8f6bf8102086cda4c63ed3`,
 tree`7340bbe07bc4b1ed99f1dec4d7bb5ae87ecee756`,
 archive`console-public-input-reference-ad9e58e.bundle`, SHA256
 `8329a352ecb12c7b3aa611cab788f15bb69db58512ec4c5fb9fff5a321e70cfa`.
 **SOURCE/REFERENCE REVIEWED / NOT ACTIVE.** Five documentation files only;
 fresh reference application and cold2/2 mirror controls passed. Runtime remains
-6e84afb and requires the separate M3 correction before adoption.
+6e84afb; it lacks the M3 correction now present in ce80729 above.
 
 Prior [E1 runtime candidate](../../docs/qualification/public-input-candidate-20260913.md):
 Console6e84afbeef9dc660fd7b5b4c7096c17e7cfd72f0, treee35b38ae136258104fa287b5c3c632bcbe328885,

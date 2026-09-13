@@ -4,19 +4,58 @@
 This is a bounded extension of the existing Console campaign pipeline, not a new
 runner or product acceptance. Active source pins, installed skills and campaigns
 are unchanged. Independent review approved the bounded runtime source6e84afb;
-reference application passed separately, while actual unfamiliar-product
+reference application and the M3 integration passed separately, while actual unfamiliar-product
 qualification remains open. This does not close the fresh-agent stage of the plan.
 
-## Source-reference successor
+## Current integrated source — E1 plus reviewed M3
 
-Current reference delivery: **ad9e58e08937f50fdc8f6bf8102086cda4c63ed3**, tree
+Latest inactive source: **ce80729994ec812dcf10b54910cde0bddf306e1a**, tree
+`3f76d017f98afcf38850a3acaaa3ff1370b841b4`, parent ad9e58e.
+[Complete-history bundle](../../sources/candidates/console-public-input-integrated-ce80729.bundle),
+sole HEAD, 4239114 bytes, SHA256
+`9208220904604b5b378b58a19f0c0895ef5e5c3b0bf03185b1e9ed25d2a36dcd`.
+
+It applies only the three already-reviewed M3 files from
+`4fddb679f84619a7e8e7ac871efa84a1493cb5ed`; the commit records that source.
+The binary-capable diff is identical to the original M3 correction, SHA256
+`24abd5ba6b2988170155a5584b5b9afaa979f0a8ab2d6ea4e56d09818bb00412`.
+All three resulting hashes match the [M3 delivery](console-plan-write-candidate-20260913.md).
+E1 schema, runner, adapter, actual receipt reader, README and both skill mirrors
+remain byte-identical to ad9e58e. This resolves the known M3 defect in this chain;
+it neither repairs Kernel M4 nor enables automatic crash recovery.
+
+Fresh combined controls passed **154/154**, no failures/skips/cancellations:
+28 concurrency/mode +124 input/receipt/dependency-readback +2 skill-mirror tests.
+An independent root repeat also passed154/154 in10797.215459ms; log SHA256
+`89eb785e5b039742c5595a04dc9da5bb510c089272443d72c71588ed0c700e37`.
+Full source TypeScript check passed and the checkout stayed clean. This is a
+selected compatibility gate, not the full Console suite. Lead AQA independently
+approved patch identity, integration semantics and the bounded evidence claims.
+
+Replay the combined gate on Node22 from the candidate's own lockfile install:
+
+```sh
+node --import tsx --test --test-concurrency=2 tests/unit/campaign-plan-concurrency.test.ts tests/unit/qa-campaign-files-umask.test.ts tests/unit/public-input-campaign.test.ts tests/unit/campaign-receipt-ingestion.test.ts tests/unit/campaign-dependency-readback.test.ts tests/unit/qa-product-skill.test.ts
+node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
+```
+
+Use the explicit clean15a067c Kernel and private real TMPDIR described below,
+without inherited product/auth/loader variables. Existing supported Chromium is
+required only for owned loopback browser controls. No live product is contacted.
+A fresh normal bundle clone recovered exact SHA/tree and passed strict fsck and
+2/2 mirror controls without node_modules or alternates, remaining clean. That
+cold packaging check is not a repeated runtime154 gate or Claude-host execution.
+
+## Prior source-reference successor
+
+Prior reference delivery: **ad9e58e08937f50fdc8f6bf8102086cda4c63ed3**, tree
 `7340bbe07bc4b1ed99f1dec4d7bb5ae87ecee756`, based on6e84afb.
 [Complete-history bundle](../../sources/candidates/console-public-input-reference-ad9e58e.bundle),
 SHA256 `8329a352ecb12c7b3aa611cab788f15bb69db58512ec4c5fb9fff5a321e70cfa`.
 Only two skill references, their identical Claude mirrors, and README changed;
 runtime/test bytes are identical to6e84afb. This chain still contains historical
-M3b474d52 and must be reconciled with the separately reviewed M3 correction before
-adoption; a reference fix does not cure that underlying write defect.
+M3b474d52. The integrated successor above includes the separately reviewed M3
+correction; the reference fix alone did not cure that underlying write defect.
 
 | File (both skill mirrors have identical bytes) | SHA256 |
 | --- | --- |
@@ -54,7 +93,7 @@ not browser execution; exact labels/counts must remain unknown until observed.
 No installed skill, active pin, product or campaign was changed. This qualifies
 the bounded documentation use, not all agent reasoning or Claude-host execution.
 
-## Current successor — actual evidence-consumer readback
+## Prior runtime successor — actual evidence-consumer readback
 
 Continuation review found a real omission in00e4102: the independent persisted-plan
 parser in `server/campaign-receipts.mjs` still accepted only environment values.
@@ -219,14 +258,23 @@ tests/unit/campaign-observation.test.ts
 
 ## Remaining acceptance
 
-The runtime review and bounded source-reference exercise are complete above.
-Reconcile the separately reviewed M3 correction with this source chain and verify
-the resulting candidate before adoption. Historical6e84afb/00e4102 references
-remain old; use the exact reviewed successor, not an untracked manual skill copy.
+The runtime review, bounded source-reference exercise and M3 source integration
+are complete above. Active source adoption remains separate. Historical
+ad9e58e/6e84afb/00e4102 references retain their attribution; use the exact reviewed
+successor for deliberate qualification, not an untracked manual skill copy.
 
 Then qualify a fresh authorized consumer on a substantive unfamiliar product,
 including source-grounded expectations, mixed outcomes, durable continuation and
 the agent's explanation. Source tests cannot substitute for that acceptance.
+
+Reuse assessment found that existing `tests/unit/public-input-campaign.test.ts`
+and `tests/unit/nuanu-authored-revision.test.ts` preauthor plans and expose their
+answer-bearing variants in source. They are useful runtime controls, not blind
+agent evaluations. Reuse their owned fixtures for a separately scoped coordinator
+launcher/actor packet rather than another runner. Mere prompt separation on a
+shared readable filesystem is still open-context; do not claim a withheld-key
+evaluation without actual access separation. Normative ambiguity also needs its
+own source-grounding task, not a renamed unavailable-endpoint fixture.
 
 Retained log SHA256: schema RED `75912d3cff4ccd30611849bbb4ad42c9e94fd7938c0c1786a77f0991f8a9fa57`;
 runtime RED `0022afc8b6a11e52a8c4b0347dedfbf57bbe8de7c3bda1fc9e2bf70fc12d7707`;

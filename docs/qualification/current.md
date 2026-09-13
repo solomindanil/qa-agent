@@ -25,7 +25,7 @@ additional real filesystem-alias counterexample admits two successful writes
 through state.json/STATE.json. The correction is proposed, not implemented;
 M4 remains uncommitted and **not accepted** independently of the timeout.
 
-The first Stage2 mechanism is [inactive E1, reference successor ad9e58e](public-input-candidate-20260913.md):
+The first Stage2 mechanism is [inactive E1, integrated successor ce80729](public-input-candidate-20260913.md):
 public literal search/filter input. Follow-up found the old00e4102 reader did not
 consume these plans despite its passing raw-JSON fixture. The successor fixes that
 seam:124/124 input/ingestion/dependency controls and cold4/4 actual consumer checks.
@@ -33,8 +33,9 @@ Earlier262/262 and33/33 remain attributed to00e4102, not re-run on the successor
 It preserves needs_review and all public-lane boundaries. Runtime and source
 reference reviews passed. A fresh reference consumer now selects public input
 automation while retaining blocked auth and agent diagnosis; source mirrors and
-cold packaging passed2/2. This was not product execution. M3 chain reconciliation,
-adoption and substantive fresh-agent product use remain open.
+cold packaging passed2/2. M3 chain reconciliation is now source-reviewed in
+ce80729:154 combined controls and independent cold restoration passed. This was
+not product execution. Adoption and substantive fresh-agent product use remain open.
 
 Stage3 now has a [reproducible process-interruption gap](../../evals/campaign-continuation/README.md):
 attempt files survive, but the fresh campaign reader has no partial/resume state

@@ -51,8 +51,9 @@ release/foreign-owner/uncertain/pre-publication controls.
 An independent normal clone recovered the exact commit/tree, three hashes and
 complete history, passed strict Git fsck, and remained clean with no alternates
 or node_modules. That cold check is source verification, not a runtime rerun.
-The source integration with E1 public input is a separate candidate; this bundle
-does not itself contain E1. No active pin, product, tracker or campaign changed.
+The [source integration with E1 public input](public-input-candidate-20260913.md)
+is separately reviewed candidatece80729; this M3 bundle does not itself contain
+E1. No active pin, product, tracker or campaign changed.
 
 Retained log SHA256: focused RED
 `7b82f15223fd2b5f4115152abd565249137e9dab82bc1ef8db04a9b163a4bdc2`;
@@ -159,8 +160,9 @@ in this run. Unsupported platforms are rejected, not silently downgraded.
 ## Continuation and review gate
 
 Review of the successor accepted the narrow release correction. Its three-file
-diff, tests and history are delivered above. Active adoption and E1 integration
-qualification remain separate; the original b474d52 alone is not accepted.
+diff, tests and history are delivered above. E1 integration is separately
+qualified in ce80729; active adoption remains open. The original b474d52 alone
+is not accepted.
 
 For an unresolved write, first preserve the lock, predecessor/successor digests,
 actual plan bytes and any retained stage. Stop only writers for that target and
