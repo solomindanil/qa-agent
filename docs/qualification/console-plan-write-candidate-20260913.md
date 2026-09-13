@@ -1,10 +1,26 @@
 # M3 — conditional plan write candidate
 
-13 September 2026. **IMPLEMENTED / LOCALLY VERIFIED / REVIEW PENDING / NOT ACTIVE.**
+13 September 2026. **b474d52: CHANGES REQUESTED / NOT ACTIVE.**
 The owner approved this bounded repair and continuing the global plan. Independent
-Lead AQA review could not start because the reviewer host returned its usage
-limit; that is not an approval. This report and archive allow another reviewer to
-continue without the original checkout or chat. Active source pins are unchanged.
+Lead AQA resumed after an earlier host limit and reproduced a false UNKNOWN on
+legitimate lock handover. The narrow correction is independently approved on its
+working bytes; expanded verification and portable successor delivery are pending.
+Active source pins are unchanged.
+
+## Independent finding and bounded correction
+
+After writer A really unlinks its admission lock, writer B may legitimately
+reacquire that pathname. A's generic rollback helper then sees B's new file and
+returns UNKNOWN despite A's exact completed publication. Two real processes
+reproduced this; the supplied27 controls did not cover release/reacquire.
+
+The correction allows a replacement after successful unlink **only for admission
+release**, preserving pre-unlink ownership, directory fsync/revalidation, generic
+stage rollback and genuine uncertain outcomes. A source-owned two-process test
+failed before correction, then passed with all28 focused controls. Independent
+Lead AQA executed4 boundary controls and approved the three exact working files;
+no source adoption or Linux/product qualification follows from that review.
+The historical b474d52 source and gates below retain their original attribution.
 
 ## Exact source and changes
 

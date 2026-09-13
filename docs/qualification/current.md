@@ -9,14 +9,14 @@ source9f848bb, and [M2 Console finalization](console-finalization-review-2026091
 source dc8eb59. M1 passed full offline2753 test executions; M2 passed its fresh
 121/121 adapter/dependency/runner gate after actual false-PASS reproduction.
 Both passed independent Lead AQA review and are delivered as **inactive** candidates.
-M3 now has an [implemented candidate b474d52](console-plan-write-candidate-20260913.md):
-215/215 scoped compatibility controls, cold archive delivery, but **independent
-review pending**, not accepted or active. Reviewers are unavailable because of a
-host usage limit. M5 also has a [locally verified parser candidate
-b30ef13](graph-locator-candidate-20260913.md), full offline2758/2758 and cold
-source replay19/19, with independent review pending. M4 implementation/full
-compatibility testing is in progress; M6 and adoption remain separate. Campaign
-runtimes have not changed.
+Independent reviews resumed. [M3b474d52](console-plan-write-candidate-20260913.md)
+was rejected for false UNKNOWN on legitimate lock handover; its narrow correction
+has passed28 focused controls and independent review, with expanded gate/delivery
+pending. [M5b30ef13](graph-locator-candidate-20260913.md) was rejected for URL
+query/fragment text creating local dependencies. Its correction passed20 focused
+controls,31 provenance controls and independent review; full verification/delivery
+is in progress. Historical215/215 and2758/2758 are not reattributed to these fixes.
+M4, M6 and adoption remain separate; campaign runtimes have not changed.
 
 M4 [completed its full gate with1719 passed/1 timeout](kernel-write-candidate-20260913.md).
 The exact failed case then passed sequentially on clean15a067c (100660ms) and
@@ -25,14 +25,16 @@ additional real filesystem-alias counterexample admits two successful writes
 through state.json/STATE.json. The correction is proposed, not implemented;
 M4 remains uncommitted and **not accepted** independently of the timeout.
 
-The first Stage2 mechanism is [inactive E1, now6e84afb](public-input-candidate-20260913.md):
+The first Stage2 mechanism is [inactive E1, reference successor ad9e58e](public-input-candidate-20260913.md):
 public literal search/filter input. Follow-up found the old00e4102 reader did not
 consume these plans despite its passing raw-JSON fixture. The successor fixes that
 seam:124/124 input/ingestion/dependency controls and cold4/4 actual consumer checks.
 Earlier262/262 and33/33 remain attributed to00e4102, not re-run on the successor.
-It preserves needs_review and all public-lane boundaries. Independent review,
-source skill-reference update/retrieval exercise and fresh-agent product use are
-pending; this is not the completed unfamiliar-product stage.
+It preserves needs_review and all public-lane boundaries. Runtime and source
+reference reviews passed. A fresh reference consumer now selects public input
+automation while retaining blocked auth and agent diagnosis; source mirrors and
+cold packaging passed2/2. This was not product execution. M3 chain reconciliation,
+adoption and substantive fresh-agent product use remain open.
 
 Stage3 now has a [reproducible process-interruption gap](../../evals/campaign-continuation/README.md):
 attempt files survive, but the fresh campaign reader has no partial/resume state
@@ -85,6 +87,6 @@ For an **existing** Freeland, Agentify or MagicCard campaign, first read the own
 
 Fresh results and exact source attribution: [2026-09-11 reconciliation](reconciliation-20260911.md). Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
 
-Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. Its successor9f848bb now closes the bounded M1 counterexample with source-owned controls and a fresh full gate; it does not automatically replace canonical pins, installed skills or campaigns. The generic C5 source-locator defect has a locally verified inactive M5 repair, but independent acceptance and adoption remain open alongside the other [maintenance findings](maintenance-backlog-20260913.md). The active old helper must not be presented as repaired merely because a newer inactive archive exists. Independently authorized unaffected work remains possible.
+Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. Its successor9f848bb now closes the bounded M1 counterexample with source-owned controls and a fresh full gate; it does not automatically replace canonical pins, installed skills or campaigns. The generic C5 source-locator defect has an inactive M5 repair whose URL-boundary successor passed independent review; final qualification and adoption remain open alongside the other [maintenance findings](maintenance-backlog-20260913.md). The active old helper must not be presented as repaired merely because a newer inactive archive exists. Independently authorized unaffected work remains possible.
 
 Then a new substantive authorized full/ticket product slice consumes the accepted source and current owner skills, and a fresh session resumes it. Convert only demonstrated reusable gaps into shared reviewed helpers. Actual current Claude execution and a bounded cloud pilot follow as separate exits; native/mobile, performance/load and provider internals are not silently covered. The [global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) preserves the previous seven substantive exits and deferred Freeland coverage work.

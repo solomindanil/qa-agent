@@ -1,8 +1,23 @@
 # M5 — formatting-safe source locators
 
-13 September 2026. **LOCALLY VERIFIED / REVIEW PENDING / NOT ACTIVE.** Independent
-Lead AQA remains unavailable on the reviewer host. This source maintenance is not
+13 September 2026. **b30ef13: CHANGES REQUESTED / NOT ACTIVE.** Independent
+Lead AQA reproduced invented dependencies from URL queries/fragments. Its bounded
+correction has passed focused controls and independent review; full verification
+and portable successor delivery are pending. This source maintenance is not
 product acceptance. No active source pin, installed skill or campaign was changed.
+
+## Independent finding and correction
+
+A backticked `https://example.test/?next=apps/provider.ts` or fragment equivalent
+was parsed as a local file. If the file existed, actual build/validation accepted
+an `implements` edge and impact selected a test; the old base created neither.
+The initial URL-path negative did not cover this. The fix excludes whole URL
+tokens before file extraction. A new real parse/build/impact regression failed
+before the fix;20 focused controls and31 provenance controls now pass, including
+query, fragment, protocol-relative and parenthesized-query text while preserving
+a genuine neighboring source. Independent review executed20 further variants and
+confirmed unchanged real-corpus semantics. Full owning verification is still
+running; the historical b30ef13 gate below is not reattributed to the correction.
 
 ## Source and exact delivery
 

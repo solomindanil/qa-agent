@@ -57,10 +57,12 @@ on another host. The regression runs above used the separate provisioned repair 
 Root packaging was rerun: **57/57**, no failures/skips/cancellations. Fresh
 `sources:verify` passed with all four manifest identities unchanged. Packaging
 tests cover the distribution, not additional product checks or candidate activation.
-The additional whole-delivery reviewer stopped on a host usage-limit error before
-returning a verdict. No whole-delivery independent approval is claimed; archive,
-hashes and cold restoration were verified by the controller. The completed Lead
-AQA code/regression review above remains valid for its exact bytes.
+The additional whole-delivery review was initially interrupted by a host usage
+limit. Its late completion returned **APPROVED** for this exact dc8eb59 delivery:
+source/archive/cold-clone identities, retained log hashes and bounded claims were
+checked. This completes the earlier review task; it is not a fresh runtime rerun,
+an E1 approval or active adoption. The completed Lead AQA code/regression review
+above retains its exact source attribution.
 
 ## Verification and replay
 

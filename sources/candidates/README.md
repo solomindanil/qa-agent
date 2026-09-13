@@ -4,12 +4,21 @@ These bundles preserve unfinished development without depending on the author's 
 
 ## Console public input, 13 September 2026
 
-Current [E1 public-input candidate](../../docs/qualification/public-input-candidate-20260913.md):
+Latest source-reference successor: Console`ad9e58e08937f50fdc8f6bf8102086cda4c63ed3`,
+tree`7340bbe07bc4b1ed99f1dec4d7bb5ae87ecee756`,
+archive`console-public-input-reference-ad9e58e.bundle`, SHA256
+`8329a352ecb12c7b3aa611cab788f15bb69db58512ec4c5fb9fff5a321e70cfa`.
+**SOURCE/REFERENCE REVIEWED / NOT ACTIVE.** Five documentation files only;
+fresh reference application and cold2/2 mirror controls passed. Runtime remains
+6e84afb and requires the separate M3 correction before adoption.
+
+Prior [E1 runtime candidate](../../docs/qualification/public-input-candidate-20260913.md):
 Console6e84afbeef9dc660fd7b5b4c7096c17e7cfd72f0, treee35b38ae136258104fa287b5c3c632bcbe328885,
 archive `console-public-input-readback-6e84afb.bundle`, SHA256
 `f59331434c8476cf26f10e502a3c787c54e7d627e1552de76d962473e03821ad`.
 124/124 input/receipt-ingestion/dependency controls and cold4/4 actual reader checks.
-**REVIEW AND SKILL REFERENCE UPDATE PENDING / NOT ACTIVE.**
+**RUNTIME SOURCE REVIEWED / NOT ACTIVE.** Reference successor above; actual
+unfamiliar-product qualification and adoption remain separate.
 
 The preceding incomplete source remains retained:
 Console00e410253d59d4f913eaf290c4abaa6bd0605446, tree3fc9bbb45062ab132c0a09e0de581270003c28aa,
@@ -25,7 +34,8 @@ the existing needs_review policy.
 - Tree: `250ff11d6d578de8e38f1b678c4afbe4cdc40639`.
 - Archive: `freeland-graph-locators-b30ef13.bundle`, complete history, sole HEAD.
 - SHA256: `1691fa2f702767837bf0854e91862ea5f6b37f1a6e9e1b9913cf678a3540e917`.
-- **REVIEW PENDING / NOT ACTIVE.** Full owning offline gate2758/2758;
+- **CHANGES REQUESTED / NOT ACTIVE.** Review found URL query/fragment false
+  dependencies; successor correction is being qualified. Historical full owning offline gate2758/2758;
   cold source restore and19 pure controls passed without dependencies.
   [Exact scope, failed attempts and replay](../../docs/qualification/graph-locator-candidate-20260913.md).
   No source-pin switch, receipt promotion, live product proof or graph-debt closure.
@@ -36,8 +46,9 @@ the existing needs_review policy.
 - Tree: `53aa0c134f1bbe599c5de98f56638bb5f6355cd7`.
 - Archive: `console-plan-write-b474d52.bundle`, complete history, sole HEAD.
 - SHA256: `1cebf0c95a785bc3787bda315c02abb930857836742c0cfabe6e3184cd0bd070`.
-- **REVIEW PENDING / NOT ACTIVE.** Locally verified215/215 with cold restore;
-  independent Lead AQA unavailable. [Diff scope, replay and unresolved-operation
+- **CHANGES REQUESTED / NOT ACTIVE.** Review found a false UNKNOWN after
+  legitimate lock handover; narrow successor correction is being qualified.
+  Historical215/215 with cold restore. [Diff scope, replay and unresolved-operation
   instructions](../../docs/qualification/console-plan-write-candidate-20260913.md).
   Do not substitute this candidate for a manifest-selected runtime.
 

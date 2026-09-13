@@ -18,9 +18,9 @@ Source links resolve after restore. Evidence strength is intentionally explicit;
 | --- | --- | --- |
 | M1 / P1 | Freeland guard admits a SharedWorker created between its target scan and async constructor ban. A real loopback sentinel followed a redirect to forbidden checkout GET, got 200, left no attempts and passed the no-mutation assertion. Reproduced on repair `722bf1b`; not measured in a live product. | [pay-sheet.ts](../../components/freeland/tests/freeland-staging-replacements/support/pay-sheet.ts), whose delivered source is still 9c. Settle the supported admission boundary before product JS runs; repeat actual setup-interleaving negative plus safe reads. Do not claim read-only from the vulnerable helper alone. |
 | M2 / P1 | Actual loopback reproduction on b392 retained PASS in trace/result/receipt after a blocked POST or close rejection without dependency metadata. Fixed and reviewed in inactive dc8eb59, fresh121/121 gate; active pin remains unchanged. | [Repair, exact source and replay](console-finalization-review-20260913.md). Final flags now reconciled regardless of optional summary; six real-browser controls verify all persisted outcomes and safe positive. Adoption remains pending. |
-| M3 / P1 | Reproduced with two independent processes: both succeeded from one expected digest. A per-plan admission repair is implemented in inactive b474d52, with215/215 selected controls; independent review remains pending because its host is unavailable. | [Exact source, replay, outcomes and review gate](console-plan-write-candidate-20260913.md); owner writeCampaignPlan. One owner covers condition, publish and readback; interrupted/uncertain writes are not blindly retried. No live corruption or active adoption claimed. |
+| M3 / P1 | Initial lost-update fix b474d52 passed215/215, but independent review found a false UNKNOWN after legitimate lock reacquisition. Narrow correction passed28 focused controls and independent review; expanded gate/delivery pending. | [Exact source, replay, outcomes and review gate](console-plan-write-candidate-20260913.md); owner writeCampaignPlan. Preserve ownership before unlink and genuine unknown outcomes. No live corruption or active adoption claimed. |
 | M4 / P1 integrity | Kernel's public expected-absent writer has the same check/rename flaw. Controlled probe accepted two different writes. Higher registration/discovery owners have additional fences; lost authoritative dispatch/registration is not established. | [private-store.ts](../../components/kernel/src/kernel/private-store.ts), writePrivateFileAtomic: test absent and digest cases in separate processes; retain existing higher fences and interrupted-write reconciliation. Avoid rewriting all callers as an inferred necessity. |
-| M5 / P2 | Markdown backticks hid true file links. Fixed in inactive b30ef13: full owning offline2758/2758, cold19/19, independent review pending. The active old parser is unchanged. | [Exact repair and replay](graph-locator-candidate-20260913.md): real corpus restores five paths and drops eleven non-source tokens without inventing acceptance; parse/build/impact controls retained. |
+| M5 / P2 | b30ef13 restored true paths but independent review found URL query/fragment false dependencies. Successor passed20 graph controls,31 provenance controls and independent review; full gate/delivery pending. Active parser unchanged. | [Exact repair and replay](graph-locator-candidate-20260913.md): preserve real neighboring paths without accepting URL substrings; do not transfer historical2758/2758 to new source. |
 | M6 / before new consumer | Public generic manual receipt validation accepted plain text instead of required screenshot and capture after an old handoff expiry. Stored negative probe reviewed, not live Console/I2 acceptance. | [run-receipt contract](../../components/kernel/src/contracts/run-receipt.ts): agree action/capture/expiry semantics first; enforce kinds/identity/time as supported. Keep legitimate historical evidence and shared-check cases. Do not connect an unqualified public API to a new runtime. |
 
 Until these fixes pass relevant controls and review, do not claim the affected path's guarantee. A missing capability or unsafe path blocks that path, not independently authorized work with another supported mechanism. Fresh identity and scope remain necessary even on previously accepted code.
@@ -38,7 +38,7 @@ This source is delivered as an inactive archive, not selected by the active
 manifest. Historical qualified declarations remain stale with no receipt authority;
 no old PASS was transferred. M2 has since been repaired in separate inactive
 Console dc8eb59 ([report](console-finalization-review-20260913.md)). M3 and M5
-are implemented and locally verified but await independent review; M4's isolated
+have independently reviewed narrow corrections awaiting final gates/delivery; M4's isolated
 repair passed41 focused and56 registration controls after fixing a real recovery
 compatibility regression. Its [full gate and exact sequential follow-up](kernel-write-candidate-20260913.md)
 are now complete:1719 passed/1 timeout; the one case separately passed on baseline
@@ -52,8 +52,10 @@ for adoption.
 Stage2 E1 has an [inactive successor6e84afb](public-input-candidate-20260913.md):
 124/124 input/ingestion controls and4/4 cold reader checks. Earlier00e4102 had262/262
 controls but its separate receipt reader rejected literal plans; raw JSON readback
-was insufficient. That concrete integration defect is repaired in the successor. Source review, current
-skill-reference qualification and fresh-agent use are still separate open exits.
+was insufficient. That concrete integration defect is repaired in the successor.
+Runtime review passed; reference successor ad9e58e passed fresh-agent retrieval,
+independent review and cold2/2 mirror controls. M3 integration, adoption and actual
+fresh-agent product execution remain separate open exits.
 
 The preceding rejected source and its original evidence remain historical:
 

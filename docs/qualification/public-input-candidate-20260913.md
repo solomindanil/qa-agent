@@ -1,10 +1,58 @@
 # E1 — public search and filter input
 
-13 September 2026. **LOCALLY VERIFIED / INDEPENDENT REVIEW PENDING / NOT ACTIVE.**
+13 September 2026. **RUNTIME AND REFERENCE SOURCE REVIEWED / NOT ACTIVE.**
 This is a bounded extension of the existing Console campaign pipeline, not a new
 runner or product acceptance. Active source pins, installed skills and campaigns
-are unchanged. The independent reviewer host remains unavailable; this report is
-not an approval and does not close the fresh-agent stage of the global plan.
+are unchanged. Independent review approved the bounded runtime source6e84afb;
+reference application passed separately, while actual unfamiliar-product
+qualification remains open. This does not close the fresh-agent stage of the plan.
+
+## Source-reference successor
+
+Current reference delivery: **ad9e58e08937f50fdc8f6bf8102086cda4c63ed3**, tree
+`7340bbe07bc4b1ed99f1dec4d7bb5ae87ecee756`, based on6e84afb.
+[Complete-history bundle](../../sources/candidates/console-public-input-reference-ad9e58e.bundle),
+SHA256 `8329a352ecb12c7b3aa611cab788f15bb69db58512ec4c5fb9fff5a321e70cfa`.
+Only two skill references, their identical Claude mirrors, and README changed;
+runtime/test bytes are identical to6e84afb. This chain still contains historical
+M3b474d52 and must be reconciled with the separately reviewed M3 correction before
+adoption; a reference fix does not cure that underlying write defect.
+
+| File (both skill mirrors have identical bytes) | SHA256 |
+| --- | --- |
+| `references/declarative-campaign.md` | `85feb7a60f1ff1165e6d345159c207d6e94d9feaf1b22ed01ea319cdf6130c37` |
+| `references/agent-observations.md` | `95abac1385217f4b456f6367d5071bf5939205b2e2c6cee33cd0b4a0c4068d95` |
+| `README.md` | `f2a79db433c3ec24d6bc836cb314150429171db38f08c798667fcde282710670` |
+
+Fresh reference exercise: a registered public gardening catalog requires query
+`orchid`, category`outdoor`, then clearing, with independent counts at each state.
+Account/checkout checks lack credentials; only public read-only work is allowed.
+The agent must choose actions, retain blocked scope and diagnose two count
+failures/needs_review without inventing a bug. This is a simulated retrieval task,
+not browser execution; exact labels/counts must remain unknown until observed.
+
+- Old-reference blind baseline chose declarative actions`[]`: “no literal-public-value
+  action contract.” Its blocked-auth and needs_review decisions were correct.
+- A different fresh agent with revised references chose valid literal actions,
+  separate state-prefix checks, retained credential scope and agent diagnosis.
+  It preserved whitespace/expression text and refused owner tokens as literals.
+- That consumer identified absent per-check ordering guidance. A small follow-up
+  now explains fresh contexts and operations-before-assertions and links the
+  complete source-owned example. Follow-up source inspection confirmed it; this
+  second response is not another blind sample.
+- Independent Lead AQA approved exact five-file source/reference consistency.
+  Existing mirror/reference packaging passed2/2, including an independent repeat;
+  main also parsed the documented action JSON through actual6e84afb BrowserCheckSchema.
+  These do not establish graph/catalog admission or a real product run.
+- Cold normal clone: exact SHA/tree/hashes, fsck, clean, no alternates/dependencies,
+  packaging2/2 on Node22.23.1. Replay: `node --experimental-strip-types --test
+  tests/unit/qa-product-skill.test.ts`. Generic Python skill validation could not
+  start because PyYAML is absent; unchanged frontmatter is not claimed newly validated
+  by that tool. Reviewer tsx attempts similarly lacked dependencies; its runtime
+  schema assessment was static, not a successful execution.
+
+No installed skill, active pin, product or campaign was changed. This qualifies
+the bounded documentation use, not all agent reasoning or Claude-host execution.
 
 ## Current successor — actual evidence-consumer readback
 
@@ -18,7 +66,10 @@ The bounded successor is **6e84afbeef9dc660fd7b5b4c7096c17e7cfd72f0**, tree
 `e35b38ae136258104fa287b5c3c632bcbe328885`, based on00e4102. Its
 [complete-history archive](../../sources/candidates/console-public-input-readback-6e84afb.bundle)
 has SHA256 `f59331434c8476cf26f10e502a3c787c54e7d627e1552de76d962473e03821ad`.
-It is still **INDEPENDENT REVIEW PENDING / NOT ACTIVE**.
+It is **RUNTIME SOURCE REVIEWED / NOT ACTIVE**. Independent review verified exact
+archive/source/reader integration and retained test logs but did not rerun tests.
+The approval excludes M3 correctness, reference changes, actual new-product use
+and adoption. Literal data is an author's nonsecret declaration, not a detector.
 
 Only two files change from00e4102:
 
@@ -57,8 +108,9 @@ install that clone's lockfile using the dependency command below, then run
 and `tests/unit/campaign-dependency-readback.test.ts`; provide a separately restored,
 clean15a067c Kernel as `QA_STARTER_REPO` and its full SHA as `QA_STARTER_EXPECTED_SHA`.
 This is owned-loopback evidence ingestion, not registration, crash recovery,
-fresh-agent test design, product acceptance or source adoption. Skill-reference
-qualification remains pending; previous acceptance limits below still apply.
+fresh-agent test design, product acceptance or source adoption. For6e84afb,
+reference qualification was still pending; ad9e58e above completes that bounded
+exercise. Other acceptance limits below still apply.
 
 ## Initial source — historical and incomplete without the successor
 
@@ -167,13 +219,10 @@ tests/unit/campaign-observation.test.ts
 
 ## Remaining acceptance
 
-Independent Lead AQA/code review and a fresh-agent reference exercise remain open.
-The unchanged source skill `qa-product-v0/references/declarative-campaign.md`
-still describes the old input restriction; update and test that reference before
-adoption, including public search vs credential distinction and agent diagnosis
-of `needs_review`. `writing-skills` requires a fresh behavioral/retrieval baseline;
-review-host unavailability is not permission to skip it or install untested skills.
-The candidate README explicitly warns about this pending source-reference work.
+The runtime review and bounded source-reference exercise are complete above.
+Reconcile the separately reviewed M3 correction with this source chain and verify
+the resulting candidate before adoption. Historical6e84afb/00e4102 references
+remain old; use the exact reviewed successor, not an untracked manual skill copy.
 
 Then qualify a fresh authorized consumer on a substantive unfamiliar product,
 including source-grounded expectations, mixed outcomes, durable continuation and
