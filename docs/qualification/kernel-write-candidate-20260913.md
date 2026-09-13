@@ -1,5 +1,10 @@
 # M4 Kernel conditional write — not accepted
 
+Historical candidate. The approved namespace correction is now implemented in
+the [14 September successor](kernel-admission-20260914.md); see that record for
+current qualification and delivery. Failures below retain their original source
+attribution and are not rewritten as passing results.
+
 13 September2026. The isolated repair is based on Kernel
 `15a067c9a694de26460102ce5dadb9707c7977b1`. Its implementation is still uncommitted,
 not archived as an accepted source, and not selected by the manifest. No product

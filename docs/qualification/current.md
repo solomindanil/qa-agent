@@ -1,6 +1,6 @@
 # Current QA-agent source and execution entry
 
-Updated 2026-09-13. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. [Reconciliation](reconciliation-20260911.md) records the last adoption and its actual gates. Older pages are dated evidence, not competing current manifests.
+Updated 2026-09-14. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. [Reconciliation](reconciliation-20260911.md) records the last adoption and its actual gates. Older pages are dated evidence, not competing current manifests.
 
 Maintenance checkpoint, 13 September: [portable maintenance summary](maintenance-backlog-20260913.md) records exact-ticket binding, continuation and guard/readiness/knowledge fixes. These isolated candidates have **not** replaced manifest pins or existing campaign runtimes. A passing tool test is not source adoption or a product verdict.
 
@@ -18,16 +18,15 @@ text creating local dependencies. Successor21c1c61 passed full owning offline
 Historical215/215 and2758/2758 are not reattributed to these fixes.
 M4, M6 and adoption remain separate; campaign runtimes have not changed.
 
-M4 [completed its full gate with1719 passed/1 timeout](kernel-write-candidate-20260913.md).
-The exact failed case then passed sequentially on clean15a067c (100660ms) and
-the candidate (101339ms); that does not turn the failed full gate green. An
-additional real filesystem-alias counterexample admits two successful writes
-through state.json/STATE.json. The correction is proposed, not implemented;
-M4 remains uncommitted and **not accepted** independently of the timeout.
-Read-only Lead AQA pre-review also found the proposed new admission directory
-incompatible with current private/member/job/run grammar. Revise its reserved
-metadata layout and consumer-validation contract before implementation; adding
-a directory alone is not an accepted fix.
+M4's [historical full gate1719 passed/1 timeout and alias counterexample](kernel-write-candidate-20260913.md)
+remain recorded on their original bytes. The [14 September successor](kernel-admission-20260914.md)
+implements the approved reserved metadata namespace, native basename arbitration
+and verified owned-temp cleanup. Fresh55 writer and10 actual consumer controls,
+typecheck/build and independent Lead AQA source review passed. The broader
+five-file compatibility gate passed244/244; exact source657894d is delivered in
+an inactive complete-history bundle, cold-restored with build0 and55/55.
+There is no fresh full-suite or active adoption claim. Existing cache-repair
+semantics were retained after rejecting an early-admission variant.
 
 The first Stage2 mechanism is [inactive E1, integrated successor ce80729](public-input-candidate-20260913.md):
 public literal search/filter input. Follow-up found the old00e4102 reader did not

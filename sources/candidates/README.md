@@ -2,6 +2,19 @@
 
 These bundles preserve unfinished development without depending on the author's local checkout. They are **not selected by sources/manifest.v1.json**, are not restored by sources:restore, and grant no product/runtime/skill-installation authority. The manifest remains the only active source selector. Do not copy an archived skill over an accepted one.
 
+## Kernel reserved write admission, 14 September 2026
+
+Source `657894dbd61561a634f36669a0874dccccbea59e`,
+tree `4e57a5e0a21a3f5fc838295a75e06a94e13c4081`, based on15a067c.
+Archive `kernel-admission-657894d.bundle`, complete history and sole HEAD,
+SHA256 `84c443bf1bb0ed715b96989cc71906ea04652ab7d0a840529d7a351110e10de7`.
+**SOURCE REVIEWED / NOT ACTIVE.** Reserved native-leaf arbitration plus exact
+consumer metadata and verified own-temp cleanup. Fresh55 writer,10 actual
+consumer and244 broader compatibility controls passed; typecheck/build and
+independent Lead AQA review passed. No full-suite, hostile-filesystem, automatic
+recovery or product claim. [Replay, original failures and limits](../../docs/qualification/kernel-admission-20260914.md).
+Console still needs a separately qualified exact-pin successor before adoption.
+
 ## Console public input, 13 September 2026
 
 Latest integrated successor: Console`ce80729994ec812dcf10b54910cde0bddf306e1a`,

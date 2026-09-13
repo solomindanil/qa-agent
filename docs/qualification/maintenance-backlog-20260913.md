@@ -25,6 +25,30 @@ Source links resolve after restore. Evidence strength is intentionally explicit;
 
 Until these fixes pass relevant controls and review, do not claim the affected path's guarantee. A missing capability or unsafe path blocks that path, not independently authorized work with another supported mechanism. Fresh identity and scope remain necessary even on previously accepted code.
 
+### M6 reachability rechecked, 14 September
+
+Read-only inspection of Kernel15a067c and Console b392e88/ce80729 confirms that
+the generic public `validateRunReceiptAgainstPlan` / `run-receipt.v1` API is not
+called by the current Console runtime. E1 uses `qa-campaign-receipt.v0`; I2 uses
+`discovery-run-receipt.v1`; draft handoffs remain NOT_EVALUATED. Therefore M6
+blocks a **new generic manual completion/import consumer**, not current E1 or
+the paired source adoption. Do not connect that public API before its repair.
+
+Independent API-level synthetic probes separated the two failures: text instead
+of a required screenshot before expiry was accepted; a screenshot after expiry
+was also accepted. A shared check with two handoffs requiring screenshot and
+api-summary accepted only screenshot. This is not a live product PASS. Preserve
+valid historical evidence, shared checks and provisional manual_pending.
+
+Owning locations: `src/contracts/campaign-plan.ts` ManualHandoffSchema and
+target/check relationships; `src/contracts/run-receipt.ts`
+validateRunReceiptAgainstPlan; `tests/contracts/five-contracts.test.ts` explicitly
+excludes captureTime from semantic digest. Free-string evidence requirements
+are not an executable actions policy. Before implementation agree literal-kind
+matching, capture deadline and its equality boundary; do not invent submission
+timestamps, use today's clock to invalidate history, or silently change existing
+digests. A new operational consumer must separately establish actual authority.
+
 ## Latest Freeland repair — explicitly not adopted
 
 **M1 follow-up:** source `9f848bb01f0fdde3f6b0841019243e64494e24b5` closes the
@@ -41,11 +65,14 @@ Console dc8eb59 ([report](console-finalization-review-20260913.md)). M3 and M5
 have independently reviewed, gated and delivered narrow corrections4fddb67/21c1c61; M4's isolated
 repair passed41 focused and56 registration controls after fixing a real recovery
 compatibility regression. Its [full gate and exact sequential follow-up](kernel-write-candidate-20260913.md)
-are now complete:1719 passed/1 timeout; the one case separately passed on baseline
-and candidate in100660/101339ms. A new real filesystem-alias counterexample still
-admits two writers for state.json/STATE.json; the candidate is not accepted, even
-if the timeout proves environmental. A bounded namespace correction awaits agreement.
-M6 and active-source adoption
+completed1719 passed/1 timeout; the one case separately passed on baseline
+and candidate in100660/101339ms. An additional real filesystem-alias counterexample
+admitted two writers for state.json/STATE.json, so that candidate was rejected
+independently of the timeout and required a revised namespace contract.
+That original alias candidate is superseded by [reviewed657894d](kernel-admission-20260914.md):
+approved reserved namespace, fresh55 writer/10 consumer/244 compatibility controls,
+typecheck/build, independent Lead AQA review and cold55 passed. Historical full
+gate1719/1 remains on its original bytes. M6 and active-source adoption
 remain open. Do not restart M1 or mistake archive delivery
 for adoption.
 
