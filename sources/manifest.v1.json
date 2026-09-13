@@ -4,32 +4,32 @@
     {
       "id": "kernel",
       "path": "components/kernel",
-      "commit": "15a067c9a694de26460102ce5dadb9707c7977b1",
-      "tree": "4e865e14beac98930651a6b0a790e13e69affab3",
-      "bundle": "sources/kernel.bundle",
-      "sha256": "52071a93dd534aa2c38e67ab1b0778b26e09f0777d3e2655aad4f06432cedefe",
+      "commit": "657894dbd61561a634f36669a0874dccccbea59e",
+      "tree": "4e57a5e0a21a3f5fc838295a75e06a94e13c4081",
+      "bundle": "sources/candidates/kernel-admission-657894d.bundle",
+      "sha256": "84c443bf1bb0ed715b96989cc71906ea04652ab7d0a840529d7a351110e10de7",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed; existing private reader public re-export with scoped24/24 and build consumer proof; fresh2026-09-11 typecheck/build and270/270 selected contract/knowledge/private-store/security controls; prior1701/1701 belongs to11d013c; not full-suite, product or cloud qualification"
+      "qualification": "reviewed M4 reserved write-admission successor:55 writer/10 consumer/244 compatibility controls, typecheck/build and cold55; Console1c715a1 paired302 controls; historical1719pass/1timeout is not a new full-suite PASS; supported native basename arbitration only, not hostile filesystem or universal exactly-once; generic manual-receipt API remains unqualified for new consumers; see docs/qualification/kernel-admission-20260914.md and source-adoption-20260914.md; no product or cloud qualification"
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "b392e888bc8bfc98a756ba7e971a86000d6f2098",
-      "tree": "3de13e3512835a66f00d9b57032709c6b2658523",
-      "bundle": "sources/console.bundle",
-      "sha256": "4cf99ec0787a89a9621f09969557b1de24f4031a1953ade7ab75dd24309fac04",
+      "commit": "1c715a1980dac52fb8ba1d267c8c8e2d97b406e8",
+      "tree": "f6fc0cc720008dde02891592f988a331ab24e289",
+      "bundle": "sources/candidates/console-m4-pair-1c715a1.bundle",
+      "sha256": "044a018d6ff7de2e7f66ed6a1d03bdeea4f32a0039ed4f3ab3a0febba4d02415",
       "runtimeAuthority": true,
-      "qualification": "reviewed b392e88 README-only successor of718bf86: current analysis/authored/optional-baseline and needs_review guidance, existing oracle control1/1 rerun; all runtime/test/skill bytes unchanged from718bf86 portable explicit paths and no unconfigured historical receipt read; exact Kernel authority unchanged;718bf86 fresh120/120 compatibility,8/8 affected public-auth graph/regression records,typecheck/build0;45 other functional records retain unchanged dependency attribution from initial53/53 candidate run; existing3 lint errors and large-bundle warning remain; historical1c5c502 reviews,af832c9 interruption andf3660d0 trace counts retained; not full-suite, product, production recovery, dual-host or cloud qualification"
+      "qualification": "reviewed integrated M2 close-error finalization, M3 conditional plan writes and E1 public-input/evidence-reader successor; exact Kernel657894d authority; fresh121 authority/21 consumer/160 integration controls, nonincremental typecheck/Vite0, cold source/authority/skill checks; existing lint findings and566.95kB build warning retained, no full-suite or production crash-recovery claim; historical gates keep their original attribution; see docs/qualification/console-kernel-pair-20260914.md and source-adoption-20260914.md; not product, installed-host, dual-host or cloud qualification"
     },
     {
       "id": "freeland",
       "path": "components/freeland",
-      "commit": "9c2509e32462319d5b96ccb49d5ae2070df7b18d",
-      "tree": "8912f07768e38918b3e732118fd966fd1480d712",
-      "bundle": "sources/freeland.bundle",
-      "sha256": "8789ca70ea15d1829ac59090e65e9408a1c26152fc101ababb25dbed39015d27",
+      "commit": "21c1c617a2dbe5d1131215dc738dba2556851ae3",
+      "tree": "f691a01e33aabb8a72673326ec524d955c4794e8",
+      "bundle": "sources/candidates/freeland-graph-url-boundary-21c1c61.bundle",
+      "sha256": "2646e64b1a623530d0cab99f07a2d5d0a920245e75bb858001e9fc3c645ca066",
       "runtimeAuthority": true,
-      "qualification": "source-reviewed; four stale code-locator findings repaired without new verifies/acceptance; historical full qa:verify2442 on these component bytes; fresh2026-09-11 provenance/typecheck/private-binding and2369 unique selected controls, three shared-staging-lock discovery controls deliberately unrun, not a fresh full qa:verify PASS; source-only projection180to176 uses frozen catalog on product2981985, not fresh runtime or release acceptance; prior guest evidence remains attributed to04b771a; strict graph gaps and PAY07/PAY09 qualification remain separate"
+      "qualification": "reviewed M1 bounded SharedWorker admission repair and M5 format-stable source locator with URL query/fragment negative controls; full owning offline gate2759 executions and cold51 graph/provenance controls at21c1c61; existing graph gaps and paid-operation qualifications remain separate; no new live deployment, product test, graph coverage, campaign migration or installed skill claim; see docs/qualification/graph-locator-candidate-20260913.md and source-adoption-20260914.md"
     },
     {
       "id": "kernel-reporting-reference",

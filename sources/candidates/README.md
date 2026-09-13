@@ -1,6 +1,6 @@
-# Inactive development sources
+# Development source archives
 
-These bundles preserve unfinished development without depending on the author's local checkout. They are **not selected by sources/manifest.v1.json**, are not restored by sources:restore, and grant no product/runtime/skill-installation authority. The manifest remains the only active source selector. Do not copy an archived skill over an accepted one.
+These bundles preserve reviewed and unfinished development without depending on the author's local checkout. The manifest is the only source selector: Kernel657894d, Console1c715a1 and Freeland21c1c61 below are selected after [14 September adoption](../../docs/qualification/source-adoption-20260914.md); the other archives remain inactive. The `candidates/` directory is a provenance location, not a runtime status. No archive grants product execution, campaign migration or skill-installation authority. Do not copy an archived skill over an accepted one.
 
 ## Kernel reserved write admission, 14 September 2026
 
@@ -8,12 +8,12 @@ Source `657894dbd61561a634f36669a0874dccccbea59e`,
 tree `4e57a5e0a21a3f5fc838295a75e06a94e13c4081`, based on15a067c.
 Archive `kernel-admission-657894d.bundle`, complete history and sole HEAD,
 SHA256 `84c443bf1bb0ed715b96989cc71906ea04652ab7d0a840529d7a351110e10de7`.
-**SOURCE REVIEWED / NOT ACTIVE.** Reserved native-leaf arbitration plus exact
+**SOURCE REVIEWED / MANIFEST SELECTED.** Reserved native-leaf arbitration plus exact
 consumer metadata and verified own-temp cleanup. Fresh55 writer,10 actual
 consumer and244 broader compatibility controls passed; typecheck/build and
 independent Lead AQA review passed. No full-suite, hostile-filesystem, automatic
 recovery or product claim. [Replay, original failures and limits](../../docs/qualification/kernel-admission-20260914.md).
-Its exact-pin Console successor is qualified below; root adoption is separate.
+Its exact-pin Console successor is qualified and selected below; existing campaign runtimes remain separate.
 
 ## Console–Kernel paired successor, 14 September 2026
 
@@ -21,12 +21,12 @@ Console `1c715a1980dac52fb8ba1d267c8c8e2d97b406e8`,
 tree `f6fc0cc720008dde02891592f988a331ab24e289`, parent ce80729.
 Archive `console-m4-pair-1c715a1.bundle`, complete history and sole HEAD,
 SHA256 `044a018d6ff7de2e7f66ed6a1d03bdeea4f32a0039ed4f3ab3a0febba4d02415`.
-**PAIRED SOURCE REVIEWED / NOT ACTIVE.** Four-file exact Kernel657894d pin and
+**PAIRED SOURCE REVIEWED / MANIFEST SELECTED.** Four-file exact Kernel657894d pin and
 matching tests/README only. Fresh121 authority,21 actual consumers and160 E1/M3/M2
 executions passed, independent review passed; nonincremental typecheck/Vite0.
 Cold source,2 skill controls and new/old Kernel authority checks passed.
 [Exact gates and limitations](../../docs/qualification/console-kernel-pair-20260914.md).
-This preserves the existing E1/M2/M3 source and needs separate root adoption.
+This preserves the existing E1/M2/M3 source; selection does not migrate campaigns.
 
 ## Console public input, 13 September 2026
 
@@ -69,7 +69,7 @@ Latest reviewed successor: `21c1c617a2dbe5d1131215dc738dba2556851ae3`,
 tree `f691a01e33aabb8a72673326ec524d955c4794e8`,
 archive `freeland-graph-url-boundary-21c1c61.bundle`, SHA256
 `2646e64b1a623530d0cab99f07a2d5d0a920245e75bb858001e9fc3c645ca066`.
-**SOURCE REVIEWED / NOT ACTIVE.** URL query/fragment regression repaired;
+**SOURCE REVIEWED / MANIFEST SELECTED.** URL query/fragment regression repaired;
 fresh full owning offline2759 executions and cold51 graph/provenance controls
 passed. Independent source review passed. The first full invocation's TMPDIR
 configuration failure remains recorded in the repair report, not counted green.

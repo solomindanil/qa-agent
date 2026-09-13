@@ -1,6 +1,34 @@
 # Current QA-agent source and execution entry
 
-Updated 2026-09-14. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. [Reconciliation](reconciliation-20260911.md) records the last adoption and its actual gates. Older pages are dated evidence, not competing current manifests.
+Updated 2026-09-14. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. [Source adoption](source-adoption-20260914.md) records this selection and its actual gates. Older pages, including the [11 September reconciliation](reconciliation-20260911.md), are dated evidence, not competing current manifests.
+
+## Selected source — 14 September
+
+| Component | Selected source | Included bounded repairs |
+| --- | --- | --- |
+| Kernel | `657894dbd61561a634f36669a0874dccccbea59e` | M4 conditional-write admission, alias arbitration and owned-temp cleanup |
+| Console | `1c715a1980dac52fb8ba1d267c8c8e2d97b406e8` | M2 finalization, M3 conditional plan writes, E1 public input and evidence reader; exact Kernel657 authority |
+| Freeland | `21c1c617a2dbe5d1131215dc738dba2556851ae3` | M1 bounded browser admission and M5 format/URL-safe source locators |
+| Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **not active** |
+
+These reviewed repairs are now the manifest-selected sources for new permitted
+work. Bundle directory names do not select versions; the manifest does. No
+existing campaign, registration, account, installed skill or live product build
+is migrated. Their owner checkpoints still govern continuation. Complete source
+skills are consumed from this restore, not from a historical installed copy.
+
+Next: a fresh agent must choose and execute meaningful checks through the
+existing E1/knowledge/campaign path, then read the results back. Tool gates alone
+do not establish autonomous QA. Stage3 crash recovery, M6 generic manual-receipt
+API qualification, remaining graph/business gaps and actual dual-host/cloud
+execution remain open. M6 is not used by the current Console/E1 path and must not
+be connected as a shortcut.
+
+## Historical candidate qualification — 13–14 September
+
+The following records describe the candidates **before this source selection**.
+Their former inactive/next-adoption language does not override the table above;
+original test results and rejected versions retain their attribution.
 
 Maintenance checkpoint, 13 September: [portable maintenance summary](maintenance-backlog-20260913.md) records exact-ticket binding, continuation and guard/readiness/knowledge fixes. These isolated candidates have **not** replaced manifest pins or existing campaign runtimes. A passing tool test is not source adoption or a product verdict.
 
@@ -96,8 +124,8 @@ For an **existing** Freeland, Agentify or MagicCard campaign, first read the own
 
 ## Qualification and remaining exits
 
-Fresh results and exact source attribution: [2026-09-11 reconciliation](reconciliation-20260911.md). Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
+Current packaging and selection: [14 September source adoption](source-adoption-20260914.md). Earlier results retain exact attribution in the [2026-09-11 reconciliation](reconciliation-20260911.md). Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
 
-Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. Its successor9f848bb now closes the bounded M1 counterexample with source-owned controls and a fresh full gate; it does not automatically replace canonical pins, installed skills or campaigns. The generic C5 source-locator defect has an inactive M5 repair whose URL-boundary successor passed independent review and full offline qualification; adoption remains open alongside the other [maintenance findings](maintenance-backlog-20260913.md). The active old helper must not be presented as repaired merely because a newer inactive archive exists. Independently authorized unaffected work remains possible.
+Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. The selected Freeland21c1c61 includes the reviewed M1 successor and M5 URL-boundary repair. This closes those bounded source findings, not product coverage or every browser boundary. Other [maintenance findings](maintenance-backlog-20260913.md) remain separately scoped. Historical campaigns using older helpers do not gain these repairs until their owners deliberately requalify a new runtime.
 
 Then a new substantive authorized full/ticket product slice consumes the accepted source and current owner skills, and a fresh session resumes it. Convert only demonstrated reusable gaps into shared reviewed helpers. Actual current Claude execution and a bounded cloud pilot follow as separate exits; native/mobile, performance/load and provider internals are not silently covered. The [global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) preserves the previous seven substantive exits and deferred Freeland coverage work.
