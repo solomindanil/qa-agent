@@ -23,9 +23,16 @@ stay attributed to1c715a1. The [fresh-agent local exercise](../../evals/public-i
 uses this fixture, existing registration, knowledge publication and campaign APIs;
 its setup is not autonomous product QA or campaign migration.
 
-Next: a fresh agent must choose and execute meaningful checks through the
-existing E1/knowledge/campaign path, then read the results back. Tool gates alone
-do not establish autonomous QA. Stage3 crash recovery, M6 generic manual-receipt
+The [first actual fresh-agent cycle](public-agent-cycle-20260914.md) now used that
+path:8 authored checks,5 pass/3 needs_review, retained staff gap, actual evidence
+readback and a grounded search diagnosis. Lead AQA accepted the bounded execution
+conditionally; unsupported exact empty-summary wording prevents treating its
+original plan as a qualified regression pack. [Original answer and correction](../../evals/public-input-agent-cycle/20260914/README.md)
+remain separate. This local prepared target is not full onboarding, live-product
+qualification, a blind benchmark or completed Stage2.
+
+Next: ground the revised regression expectations and qualify actual continuation;
+do not replay the preserved plan merely to obtain another count. Stage3 crash recovery, M6 generic manual-receipt
 API qualification, remaining graph/business gaps and actual dual-host/cloud
 execution remain open. M6 is not used by the current Console/E1 path and must not
 be connected as a shortcut.

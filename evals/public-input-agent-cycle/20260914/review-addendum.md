@@ -1,0 +1,11 @@
+# Review addendum — coached correction after frozen first report
+
+Source: independent Lead AQA feedback relayed by the coordinator after first-response.md was frozen at SHA-256 `8dd2d7c4fc593e8b5190f7bb39568e8f8f185d8831e18c2d4d3606114a1b453c`. This addendum is a coached correction, not first-attempt success. The first report, original plan, published knowledge and immutable receipts remain unchanged.
+
+I accept the finding: the exact empty-summary assertion `0 results` in checks `urn:qa:automated-check:2853f76c7733001593040d27` and `urn:qa:automated-check:a1b46591c42d3741824b4cd9` was not grounded. The brief requires agreement between summary and displayed items, not a specific empty-state wording. I had observed nonempty summaries but never an empty rendered state; extrapolating their wording into an exact empty-state oracle was unsupported.
+
+Both summary assertions were unrun because the preceding zero-item count assertions failed. Consequently, this oracle defect does not invalidate the bounded count-based search diagnosis or its independent rendered-UI corroboration. It does mean the preserved plan is **not ready to rerun as a qualified regression pack**. The original INCONCLUSIVE verdict and all attempt evidence remain authoritative for their recorded scope; this addendum does not promote them.
+
+Corrected next action: before any separately authorized regression execution, author and review a **separately versioned plan** through the existing managed APIs. Ground the summary expectation in an applicable source or an observed, appropriately interpreted empty-state representation; if that subcondition cannot be supported, explicitly leave summary semantics unassessed rather than invent exact wording. Preserve the substantive zero-count conditions for the literal no-match and incompatible category/search cases. Separately assert a genuinely narrowed intermediate state before claiming that clearing search restores results while preserving category. Retain the existing final-state clear checks only with their stated limited meaning.
+
+No new run, publication, campaign, browser interaction, source edit, receipt edit or original-artifact revision was performed for this correction. Actor work is released after this addendum.
