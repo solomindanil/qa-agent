@@ -13,6 +13,9 @@ is advertised as a blind benchmark.
 - [Coached correction after review](review-addendum.md), separate from the first
   answer; original plan/knowledge/receipts were not edited.
 - [Lead AQA review](review.md) and [qualification/next action](../../../docs/qualification/public-agent-cycle-20260914.md).
+- [Fresh reader's first response](resume-first-response.md) and separate
+  [completed-continuation/graph assessment](../../../docs/qualification/catalog-continuation-20260914.md).
+  This actor used existing persisted evidence without rerunning the product.
 
 The preserved report contains historical absolute paths for attribution. They are
 not setup dependencies or permission to use an old localhost port. The owned

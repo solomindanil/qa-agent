@@ -31,7 +31,12 @@ original plan as a qualified regression pack. [Original answer and correction](.
 remain separate. This local prepared target is not full onboarding, live-product
 qualification, a blind benchmark or completed Stage2.
 
-Next: ground the revised regression expectations and qualify actual continuation;
+The [fresh completed-campaign reader](catalog-continuation-20260914.md) recovered
+the same results through the actual evidence APIs without rerunning or migrating
+anything. Graph closure retained the blocked target; semantic metadata gaps remain.
+This is not interrupted-process recovery or full current-entry qualification.
+
+Next: ground the revised regression expectations and graph mappings;
 do not replay the preserved plan merely to obtain another count. Stage3 crash recovery, M6 generic manual-receipt
 API qualification, remaining graph/business gaps and actual dual-host/cloud
 execution remain open. M6 is not used by the current Console/E1 path and must not

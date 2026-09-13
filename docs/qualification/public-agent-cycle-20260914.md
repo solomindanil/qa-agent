@@ -115,3 +115,7 @@ private receipt remains attributed to root5fb22a1; later documentation commits d
 not retroactively become its execution source. Main source adoption preserves the
 three separately frozen Agentify/Freeland/universal owner runtimes and installs no
 skills or dependencies into them.
+
+Subsequent read-only [fresh continuation and graph assessment](catalog-continuation-20260914.md)
+retain the original result and correct the first report's swapped artifact labels
+without rewriting it. A second consumer is not a second product campaign.
