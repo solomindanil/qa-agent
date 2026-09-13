@@ -78,6 +78,7 @@ Required controls include real case aliases, distinct targets, same basenames
 under separate parents, foreign/symlink/unsafe metadata, and all existing
 interruption/rename/readback cases. Preserve higher registration/discovery fences
 and unknown outcomes. Requalify affected consumers on the final source, then
-independent Lead AQA review and cold delivery. The review host remains unavailable;
-self-review is not independent acceptance. Do not adopt this candidate merely
+independent Lead AQA review and cold delivery. Review capability has resumed, but
+this namespace correction is not yet implemented or independently accepted.
+Self-review is not independent acceptance. Do not adopt this candidate merely
 because its1719 other tests passed.

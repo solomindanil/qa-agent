@@ -30,24 +30,45 @@ the existing needs_review policy.
 
 ## Freeland source-locator formatting, 13 September 2026
 
+Latest reviewed successor: `21c1c617a2dbe5d1131215dc738dba2556851ae3`,
+tree `f691a01e33aabb8a72673326ec524d955c4794e8`,
+archive `freeland-graph-url-boundary-21c1c61.bundle`, SHA256
+`2646e64b1a623530d0cab99f07a2d5d0a920245e75bb858001e9fc3c645ca066`.
+**SOURCE REVIEWED / NOT ACTIVE.** URL query/fragment regression repaired;
+fresh full owning offline2759 executions and cold51 graph/provenance controls
+passed. Independent source review passed. The first full invocation's TMPDIR
+configuration failure remains recorded in the repair report, not counted green.
+
+Historical initial candidate:
+
 - Commit: `b30ef1316d3db08c71ccaa398a2b4fac76fd4ae9`, based on9f848bb below.
 - Tree: `250ff11d6d578de8e38f1b678c4afbe4cdc40639`.
 - Archive: `freeland-graph-locators-b30ef13.bundle`, complete history, sole HEAD.
 - SHA256: `1691fa2f702767837bf0854e91862ea5f6b37f1a6e9e1b9913cf678a3540e917`.
 - **CHANGES REQUESTED / NOT ACTIVE.** Review found URL query/fragment false
-  dependencies; successor correction is being qualified. Historical full owning offline gate2758/2758;
+  dependencies; reviewed successor is above. Historical full owning offline gate2758/2758;
   cold source restore and19 pure controls passed without dependencies.
   [Exact scope, failed attempts and replay](../../docs/qualification/graph-locator-candidate-20260913.md).
   No source-pin switch, receipt promotion, live product proof or graph-debt closure.
 
 ## Console conditional plan write, 13 September 2026
 
+Latest reviewed successor: `4fddb679f84619a7e8e7ac871efa84a1493cb5ed`,
+tree `e4e319dc45a71cc1856817efe890cae719353826`,
+archive `console-plan-write-handover-4fddb67.bundle`, SHA256
+`f542175a2d0206cd634fe1c3e9eefbc23768a14cd101b30d7f3c8406705d24d2`.
+**SOURCE REVIEWED / NOT ACTIVE.** Legitimate admission-lock handover stays
+definite; focused28 and expanded216 controls passed, independent Lead AQA approved.
+Cold source-only restoration passed; it does not contain the separate E1 lane.
+
+Historical initial candidate:
+
 - Commit: `b474d52fb6b8b2d13fe362a3f551f8ef6b6ee17a`, based on dc8eb59 below.
 - Tree: `53aa0c134f1bbe599c5de98f56638bb5f6355cd7`.
 - Archive: `console-plan-write-b474d52.bundle`, complete history, sole HEAD.
 - SHA256: `1cebf0c95a785bc3787bda315c02abb930857836742c0cfabe6e3184cd0bd070`.
 - **CHANGES REQUESTED / NOT ACTIVE.** Review found a false UNKNOWN after
-  legitimate lock handover; narrow successor correction is being qualified.
+  legitimate lock handover; reviewed successor is above.
   Historical215/215 with cold restore. [Diff scope, replay and unresolved-operation
   instructions](../../docs/qualification/console-plan-write-candidate-20260913.md).
   Do not substitute this candidate for a manifest-selected runtime.

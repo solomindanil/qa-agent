@@ -10,12 +10,12 @@ source dc8eb59. M1 passed full offline2753 test executions; M2 passed its fresh
 121/121 adapter/dependency/runner gate after actual false-PASS reproduction.
 Both passed independent Lead AQA review and are delivered as **inactive** candidates.
 Independent reviews resumed. [M3b474d52](console-plan-write-candidate-20260913.md)
-was rejected for false UNKNOWN on legitimate lock handover; its narrow correction
-has passed28 focused controls and independent review, with expanded gate/delivery
-pending. [M5b30ef13](graph-locator-candidate-20260913.md) was rejected for URL
-query/fragment text creating local dependencies. Its correction passed20 focused
-controls,31 provenance controls and independent review; full verification/delivery
-is in progress. Historical215/215 and2758/2758 are not reattributed to these fixes.
+was rejected for false UNKNOWN on legitimate lock handover; successor4fddb67
+passed28 focused and216 expanded controls, independent review and cold delivery.
+[M5b30ef13](graph-locator-candidate-20260913.md) was rejected for URL query/fragment
+text creating local dependencies. Successor21c1c61 passed full owning offline
+2759 executions, independent review and cold51 graph/provenance controls.
+Historical215/215 and2758/2758 are not reattributed to these fixes.
 M4, M6 and adoption remain separate; campaign runtimes have not changed.
 
 M4 [completed its full gate with1719 passed/1 timeout](kernel-write-candidate-20260913.md).
@@ -87,6 +87,6 @@ For an **existing** Freeland, Agentify or MagicCard campaign, first read the own
 
 Fresh results and exact source attribution: [2026-09-11 reconciliation](reconciliation-20260911.md). Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
 
-Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. Its successor9f848bb now closes the bounded M1 counterexample with source-owned controls and a fresh full gate; it does not automatically replace canonical pins, installed skills or campaigns. The generic C5 source-locator defect has an inactive M5 repair whose URL-boundary successor passed independent review; final qualification and adoption remain open alongside the other [maintenance findings](maintenance-backlog-20260913.md). The active old helper must not be presented as repaired merely because a newer inactive archive exists. Independently authorized unaffected work remains possible.
+Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. Its successor9f848bb now closes the bounded M1 counterexample with source-owned controls and a fresh full gate; it does not automatically replace canonical pins, installed skills or campaigns. The generic C5 source-locator defect has an inactive M5 repair whose URL-boundary successor passed independent review and full offline qualification; adoption remains open alongside the other [maintenance findings](maintenance-backlog-20260913.md). The active old helper must not be presented as repaired merely because a newer inactive archive exists. Independently authorized unaffected work remains possible.
 
 Then a new substantive authorized full/ticket product slice consumes the accepted source and current owner skills, and a fresh session resumes it. Convert only demonstrated reusable gaps into shared reviewed helpers. Actual current Claude execution and a bounded cloud pilot follow as separate exits; native/mobile, performance/load and provider internals are not silently covered. The [global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) preserves the previous seven substantive exits and deferred Freeland coverage work.

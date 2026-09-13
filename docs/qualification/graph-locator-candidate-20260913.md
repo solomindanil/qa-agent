@@ -1,9 +1,9 @@
 # M5 — formatting-safe source locators
 
-13 September 2026. **b30ef13: CHANGES REQUESTED / NOT ACTIVE.** Independent
-Lead AQA reproduced invented dependencies from URL queries/fragments. Its bounded
-correction has passed focused controls and independent review; full verification
-and portable successor delivery are pending. This source maintenance is not
+13 September 2026. **21c1c61: SOURCE REVIEWED / NOT ACTIVE.** Independent
+Lead AQA reproduced invented dependencies from URL queries/fragments in b30ef13.
+Its bounded correction passed focused controls, independent review, the full
+owning offline gate and cold delivery. This source maintenance is not
 product acceptance. No active source pin, installed skill or campaign was changed.
 
 ## Independent finding and correction
@@ -16,10 +16,51 @@ tokens before file extraction. A new real parse/build/impact regression failed
 before the fix;20 focused controls and31 provenance controls now pass, including
 query, fragment, protocol-relative and parenthesized-query text while preserving
 a genuine neighboring source. Independent review executed20 further variants and
-confirmed unchanged real-corpus semantics. Full owning verification is still
-running; the historical b30ef13 gate below is not reattributed to the correction.
+confirmed unchanged real-corpus semantics. The historical b30ef13 gate below is
+not reattributed to the correction; the successor has its own results.
 
-## Source and exact delivery
+## Reviewed URL-boundary successor
+
+- Parent: `b30ef1316d3db08c71ccaa398a2b4fac76fd4ae9`.
+- Source: `21c1c617a2dbe5d1131215dc738dba2556851ae3`.
+- Tree: `f691a01e33aabb8a72673326ec524d955c4794e8`.
+- [Complete-history archive](../../sources/candidates/freeland-graph-url-boundary-21c1c61.bundle), sole HEAD, 3621835 bytes.
+- Archive SHA256: `2646e64b1a623530d0cab99f07a2d5d0a920245e75bb858001e9fc3c645ca066`.
+
+Exactly three files changed (+38/-5):
+
+| Relative path | SHA256 |
+| --- | --- |
+| `tools/freeland-graph/model.mjs` | `a6afda42bb13055a4177c29a6f07a0311a2a31f45a5188ceadda17c214348a63` |
+| `tests/product-graph/freeland-source-locator-format.test.mjs` | `45b70f86eaedab4bf528248fc28035b4c9e953e61490b991a03297bb2e384e03` |
+| `provenance/source-manifest.v1.json` | `8e220b5aa45427e5b100ecfc30c1072fc95f337a3f2402c8c8ce969725bae0c4` |
+
+New parse/build/impact regression was RED on b30ef13; focused controls passed
+20/20 after the correction, and provenance controls31/31. Lead AQA approved the
+exact three source files and exercised20 additional URL/neighbor variants.
+The first full invocation failed two canary checks because its clean environment
+omitted TMPDIR and macOS `/tmp` resolves through a symlink. The evidence guard
+correctly refused it; no guard or canary source was weakened. After configuring
+an explicit private real TMPDIR, the **entire** owning `qa:verify:all` was repeated
+on identical source bytes: exit0, **2759 aggregate executions**, zero failures,
+skips or cancellations in every set (427 main,1401 graph/verdict,658 replacements,
+70 overlapping transport,23 baseline,115 canaries,65 embedded legacy Console).
+Provenance, source preflight, typechecks and builds passed. Existing Vite chunk
+warning remains. These are tool tests, not2759 distinct product acceptance cases.
+
+A fresh normal clone from the bundle recovered the exact commit/tree, passed
+`git fsck --full`, owning provenance CLI and51/51 pure graph/provenance controls.
+It remained clean, with neither object alternates nor node_modules. This proves
+source portability and the bounded parser regression, not another OS or live QA.
+
+Retained log SHA256: failed initial full invocation
+`0ff6cfa4501ac51bf27c6d3f0e802c016702c3ed3eb3792e3f3c0c1d01f4efab`;
+fresh full GREEN `93714a9c370be903200328b5e95e2c40172569bad98b2457757497e18419b401`;
+cold51 `a58f2d514fb73be465b757e64953fc6a0ac8a5ee8640feb290ef226031a86326`.
+Regression source and replay instructions travel with the archive; private raw
+logs are historical evidence, not required local dependencies.
+
+## Historical b30ef13 source and delivery
 
 - Base: Freeland `9f848bb01f0fdde3f6b0841019243e64494e24b5`, inactive M1 repair.
 - Candidate: `b30ef1316d3db08c71ccaa398a2b4fac76fd4ae9`.
@@ -97,11 +138,17 @@ the main host and an explicit absolute Node20 override for baseline:
 FREELAND_QA_NODE20_BIN=/absolute/node20 npm run qa:verify:all
 ```
 
+Use an explicit existing private `TMPDIR` resolving to a real directory (not a
+symlink) and an environment without product/auth/Node-loader variables. On macOS
+the default `/tmp` may not satisfy the owning evidence-root contract. For the
+successor's cold51 controls, add `tests/freeland-main/provenance.test.mjs` to the
+pure test command above.
+
 Qualified here: macOS, Node22.23.1 and Node20.20.2. No other OS or live staging was
 tested. Do not substitute Freeland's default `npm test` (product Playwright).
-Independent review must inspect the exact four-file diff, formatting invariance
-and the absence of invented accepted file dependencies. No active adoption before
-that review; source delivery alone does not approve a runtime.
+The original four-file change and the successor's three-file correction have
+separate attribution. Independent review accepted the correction; active source
+adoption and any product qualification remain separate.
 
 Retained log SHA256: corrected RED `c805b987b379f15914d1b1fafc497ff4ab2d74450cb1d6f76c89cbc6bffe0adb`;
 namespace RED `632416a86c79acfc7945cdf7980de6a5d9afe30bf5428404334219246fd75e37`;

@@ -1,10 +1,10 @@
 # M3 — conditional plan write candidate
 
-13 September 2026. **b474d52: CHANGES REQUESTED / NOT ACTIVE.**
+13 September 2026. **4fddb67: SOURCE REVIEWED / NOT ACTIVE.**
 The owner approved this bounded repair and continuing the global plan. Independent
 Lead AQA resumed after an earlier host limit and reproduced a false UNKNOWN on
-legitimate lock handover. The narrow correction is independently approved on its
-working bytes; expanded verification and portable successor delivery are pending.
+legitimate lock handover in b474d52. The narrow correction passed independent
+review, expanded verification and portable successor delivery.
 Active source pins are unchanged.
 
 ## Independent finding and bounded correction
@@ -22,7 +22,46 @@ Lead AQA executed4 boundary controls and approved the three exact working files;
 no source adoption or Linux/product qualification follows from that review.
 The historical b474d52 source and gates below retain their original attribution.
 
-## Exact source and changes
+## Reviewed handover successor
+
+- Parent: `b474d52fb6b8b2d13fe362a3f551f8ef6b6ee17a`.
+- Source: `4fddb679f84619a7e8e7ac871efa84a1493cb5ed`.
+- Tree: `e4e319dc45a71cc1856817efe890cae719353826`.
+- [Complete-history archive](../../sources/candidates/console-plan-write-handover-4fddb67.bundle), sole HEAD, 4229098 bytes.
+- Archive SHA256: `f542175a2d0206cd634fe1c3e9eefbc23768a14cd101b30d7f3c8406705d24d2`.
+
+Exactly three source files changed (+44/-1):
+
+| Relative path | SHA256 |
+| --- | --- |
+| `src/node/qa-campaign-files.ts` | `d9dfba5c09fd2d6dfc5e921171135e19a0f623b7f4a650a930360b3d98c30c6a` |
+| `tests/unit/campaign-plan-concurrency.test.ts` | `237b615ca299d4590d9bd79e60e4e87822b519a9230aaffdaec9f0a645bb6dc3` |
+| `tests/unit/fixtures/campaign-plan-writer.mjs` | `f0c147ba6f964eb9d4c3d1aea92637c5b3bb12b36dbe60e469ca4b5daa288561` |
+
+The new real-process regression was RED on b474d52 and GREEN after the correction.
+Focused gate28/28 and the **fresh expanded gate216/216** passed, all failure/skip/
+cancellation counts zero. Expanded gate used the ten files in the replay section,
+clean explicit Kernel15a067c, own dependencies and private real TMPDIR; it exited0
+in405487.70575ms. Source typecheck and changed TypeScript lint passed. The fixture
+has pre-existing undeclared Node `process` globals under direct ESLint; it passed
+with that Node global explicitly configured. No blanket whole-repo lint claim.
+Independent Lead AQA approved the exact three files and executed four relevant
+release/foreign-owner/uncertain/pre-publication controls.
+
+An independent normal clone recovered the exact commit/tree, three hashes and
+complete history, passed strict Git fsck, and remained clean with no alternates
+or node_modules. That cold check is source verification, not a runtime rerun.
+The source integration with E1 public input is a separate candidate; this bundle
+does not itself contain E1. No active pin, product, tracker or campaign changed.
+
+Retained log SHA256: focused RED
+`7b82f15223fd2b5f4115152abd565249137e9dab82bc1ef8db04a9b163a4bdc2`;
+focused GREEN `301115ab59044d443c137cffae1dc162c734b8e42e643fac90a3b7340c11d780`;
+28 controls `0c1039271003fb22592a0f889869d0bcec21980f8104d51aaf456ece30fb5d5c`;
+216 compatibility `ec57b35c463c94308ed99fe877871dc644c43876044eadcd88545098ad22b939`.
+Regression sources travel with the archive; raw logs remain historical evidence.
+
+## Historical b474d52 source and changes
 
 - Base: Console `dc8eb59dfeb2b5231617379096e945f0ccfc09da` (inactive M2 repair).
 - Candidate: `b474d52fb6b8b2d13fe362a3f551f8ef6b6ee17a`.
@@ -119,10 +158,9 @@ in this run. Unsupported platforms are rejected, not silently downgraded.
 
 ## Continuation and review gate
 
-Review exactly the base→candidate three-file diff, concentrating on cross-process
-admission, path aliases, cleanup ownership, uncertain finalization and whether the
-test barriers prove the claimed boundary. Acceptance and active adoption remain
-pending until that review; green local tests alone do not close M3.
+Review of the successor accepted the narrow release correction. Its three-file
+diff, tests and history are delivered above. Active adoption and E1 integration
+qualification remain separate; the original b474d52 alone is not accepted.
 
 For an unresolved write, first preserve the lock, predecessor/successor digests,
 actual plan bytes and any retained stage. Stop only writers for that target and
