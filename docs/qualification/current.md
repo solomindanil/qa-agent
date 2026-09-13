@@ -28,6 +28,13 @@ an inactive complete-history bundle, cold-restored with build0 and55/55.
 There is no fresh full-suite or active adoption claim. Existing cache-repair
 semantics were retained after rejecting an early-admission variant.
 
+The [exact Console–Kernel successor pair](console-kernel-pair-20260914.md) is now
+qualified: Console1c715a1 pins Kernel657894d;121 authority,21 actual consumer and160
+E1/M3/M2 executions passed, typecheck/Vite and independent source review passed.
+Both complete-history bundles are delivered inactive. Next: review and cold-check
+the root adoption before changing manifest-selected sources; keep frozen product
+campaigns and installed skills separate. This is not full product QA or cloud readiness.
+
 The first Stage2 mechanism is [inactive E1, integrated successor ce80729](public-input-candidate-20260913.md):
 public literal search/filter input. Follow-up found the old00e4102 reader did not
 consume these plans despite its passing raw-JSON fixture. The successor fixes that

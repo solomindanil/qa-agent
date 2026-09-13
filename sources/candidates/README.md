@@ -13,7 +13,20 @@ consumer metadata and verified own-temp cleanup. Fresh55 writer,10 actual
 consumer and244 broader compatibility controls passed; typecheck/build and
 independent Lead AQA review passed. No full-suite, hostile-filesystem, automatic
 recovery or product claim. [Replay, original failures and limits](../../docs/qualification/kernel-admission-20260914.md).
-Console still needs a separately qualified exact-pin successor before adoption.
+Its exact-pin Console successor is qualified below; root adoption is separate.
+
+## Console–Kernel paired successor, 14 September 2026
+
+Console `1c715a1980dac52fb8ba1d267c8c8e2d97b406e8`,
+tree `f6fc0cc720008dde02891592f988a331ab24e289`, parent ce80729.
+Archive `console-m4-pair-1c715a1.bundle`, complete history and sole HEAD,
+SHA256 `044a018d6ff7de2e7f66ed6a1d03bdeea4f32a0039ed4f3ab3a0febba4d02415`.
+**PAIRED SOURCE REVIEWED / NOT ACTIVE.** Four-file exact Kernel657894d pin and
+matching tests/README only. Fresh121 authority,21 actual consumers and160 E1/M3/M2
+executions passed, independent review passed; nonincremental typecheck/Vite0.
+Cold source,2 skill controls and new/old Kernel authority checks passed.
+[Exact gates and limitations](../../docs/qualification/console-kernel-pair-20260914.md).
+This preserves the existing E1/M2/M3 source and needs separate root adoption.
 
 ## Console public input, 13 September 2026
 

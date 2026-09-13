@@ -126,8 +126,8 @@ per-directory casefold, heterogeneous mounts and bind-mount parent aliases are
 not qualified. There is no universal external exactly-once or power-loss claim.
 Higher registration/discovery fences remain responsible for their own authority.
 
-Next qualify the exact new Kernel with a
-Console successor pinned to it. The existing Console embeds an exact Kernel SHA;
+The [Console1c715a1 successor](console-kernel-pair-20260914.md) has now passed its
+separate exact-pair qualification. Next review root adoption. Console embeds an exact Kernel SHA;
 changing an environment variable cannot adopt this repair. New source selection
 does not migrate existing product campaigns. M6 generic manual-receipt and real
 campaign interruption remain separate gaps; this file does not close them.
