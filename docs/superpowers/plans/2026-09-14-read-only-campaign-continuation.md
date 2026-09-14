@@ -170,8 +170,8 @@ normal component typecheck is green. No root adoption or live product QA claim.
 - Worker obtains an unforgeable-in-protocol session through its inherited host channel, not a supplied JSON death file. `session.assertCurrent()`, `session.nextExecution({checkId, attempt})` and `session.close()` bind run, source, private root and owner generation. No session can outlive host/channel termination.
 - Process proof uses original handle/nonce+actual exit/close and owned descendant termination, not a liveness query alone. Unsupported platform/descendant ownership => `ownership_unresolved` without unlock.
 
-- [ ] Write real child-process tests: second contender denied before dispatch; host observes exact worker close; resume admits successor only after owned group ends; fake death JSON cannot acquire; alternate store cannot become second owner.
-- [ ] Observe RED, implement local channel and campaign admission using Task2 exclusive/identity patterns. Do not persist a second authoritative check-progress snapshot in host state.
+- [x] Write real child-process tests: second contender denied before dispatch; host observes exact worker close; resume admits successor only after owned group ends; fake death JSON cannot acquire; alternate store cannot become second owner.
+- [x] Observe RED, implement local channel and campaign admission using Task2 exclusive/identity patterns. Do not persist a second authoritative check-progress snapshot in host state.
 
 ```ts
 await priorWorker.closed;
@@ -182,8 +182,16 @@ return launchNextGeneration();
 
 These operations are private to the host module and use retained handles/identities. There is no public `forceUnlock` or external callback that may simply assert death.
 
-- [ ] Add host-disconnect, descendant-alive and delayed old-worker controls. New host after host loss remains blocked; unsupported recovery is not a failed product check.
-- [ ] Focused child tests GREEN, independent concurrency review, Console commit `feat: admit bounded same-host campaign continuation`.
+- [x] Add host-disconnect, descendant-alive and delayed old-worker controls. New host after host loss remains blocked; unsupported recovery is not a failed product check.
+- [x] Focused child tests GREEN, independent concurrency review, Console commit `feat: admit bounded same-host campaign continuation`.
+
+Task4 accepted Console `64b9eaaaec32bd35a32d88adac9639cbddfbb0a4`.
+Independent Lead AQA spec and quality APPROVED; coordinator final58/58,
+0fail/cancel/skip,6324.893834ms, scoped strict TS and diff check0. The host
+retains admission across generations (superseding the illustrative release
+line above); unknown ownership closes descriptors via abandon without unlock.
+Actual CLI helper/process and publication integration remain Task5, not proven
+by the no-subprocess Task4 worker fixture. No active source adoption.
 
 ### Task 5: Connect the existing runner and registered CLI
 
