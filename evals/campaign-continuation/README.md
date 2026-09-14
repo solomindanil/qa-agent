@@ -1,5 +1,11 @@
 # Console campaign interruption — diagnostic counterexample
 
+Current successor: [registered CLI recovery candidate](recovery-acceptance.md)
+has now passed actual healthy and seeded-defect interruption/remaining-only
+execution on its stated source pair. Final review and cold delivery remain
+separate. Everything below retains its older source attribution and diagnostic
+meaning; do not run the historical counterexample as the new acceptance test.
+
 This is a reproducible **known gap**, not a recovery implementation, acceptance
 test, independent agent evaluation or product QA. It is deliberately outside the
 root packaging test glob. An exit0 means the stated limitation was reproduced.

@@ -206,8 +206,8 @@ by the no-subprocess Task4 worker fixture. No active source adoption.
 - Extend same CLI with `status --workspace --run-id` and `resume --workspace --run-id --execution-store`; `run` gets opt-in continuation and explicit store/host channel. No second CLI executor.
 - Fixture capability binds a concrete repeat-safe route set plus instance/build/data and anonymous context. An agent-authored `read_only` flag alone cannot grant replay.
 
-- [ ] Add runner test where A already finalized and B uncertain: adapter is called only for B and C, A artifact bytes unchanged. Assert real output receipt via Task3 reader, not a handcrafted expected JSON.
-- [ ] Observe RED. Introduce resume initialization in current loop; start before adapter; await adapter including finalization; publish accepted after validation/sanitation; keep logical retries intact. Rehydrate owned artifact identities before handling any old evidence.
+- [x] Add runner test where A already finalized and B uncertain: adapter is called only for B and C, A artifact bytes unchanged. Assert real output receipt via Task3 reader, not a handcrafted expected JSON.
+- [x] Observe RED. Introduce resume initialization in current loop; start before adapter; await adapter including finalization; publish accepted after validation/sanitation; keep logical retries intact. Rehydrate owned artifact identities before handling any old evidence.
 
 ```ts
 const snapshot = await readCampaignContinuation({workspacePath, runId});
@@ -220,9 +220,16 @@ await verifyFixtureIdentity(snapshot.identity);
 
 Identity verification compares exact current source/plan/authority before target reads, then the explicit fixture identity response before test dispatch and after execution. Its implementation lives with runner continuation integration, not a new global identity service.
 
-- [ ] Preserve current post-adapter late-guard semantics and both actual CLI Kernel validations. Unsupported browser/dependency/payment replay refuses before dispatch; result errors never become missing-data PASS.
-- [ ] Terminal repeat is read-only without target probe/request; sealing_pending finishes only permissions and actual reader. Static mismatch yields zero target reads; target mismatch permits identity read only.
-- [ ] Run new tests plus runner/CLI, receipt-ingestion, dependency and browser-finalization regressions. Independent review, then Console commit `feat: resume registered read-only campaigns`.
+- [x] Preserve current post-adapter late-guard semantics and both actual CLI Kernel validations. Unsupported browser/dependency/payment replay refuses before dispatch; result errors never become missing-data PASS.
+- [x] Terminal repeat is read-only without target probe/request; sealing_pending finishes only permissions and actual reader. Static mismatch yields zero target reads; target mismatch permits identity read only.
+- [x] Run new tests plus runner/CLI, receipt-ingestion, dependency and browser-finalization regressions. Independent review, then Console commit `feat: resume registered read-only campaigns`.
+
+Task5 accepted Console `b54b849ac0438408a2c92f899e5221c7496611d7` with
+Kernel185d3e7. Independent source review approved after two P1 repairs;
+coordinator43/43, then actual CLI core2/2. Fresh exact-pair continuation273/273,
+original eight-file compatibility270/270, Kernel29/29 and nonincremental
+typechecks passed. Historical269/270 remains a separate earlier failure.
+Full Task6 boundary review and Task7 cold delivery/adoption remain open.
 
 ### Task 6: Prove actual process interruption and fresh-session use
 
@@ -232,8 +239,8 @@ Identity verification compares exact current source/plan/authority before target
 - Create root `evals/campaign-continuation/recovery-acceptance.md`.
 - Reuse Console `tests/fixtures/nuanu-readonly/fixture.ts` `registerAuthoredFixture` and existing Kernel publication, with the owned API target replacing the fixture web routes.
 
-- [ ] Register an owned loopback fixture through real fixture registration/Kernel publication, freeze exact candidate pair, plan and fixture identity. No weakening of public HTTPS intake and no copied product credentials.
-- [ ] Through the actual CLI finish A, let server hold B, then SIGKILL only the owned worker. Fresh process reads progress and resumes through the same launcher. Actual final reader must accept the receipt.
+- [x] Register an owned loopback fixture through real fixture registration/Kernel publication, freeze exact candidate pair, plan and fixture identity. No weakening of public HTTPS intake and no copied product credentials.
+- [x] Through the actual CLI finish A, let server hold B, then SIGKILL only the owned worker. Fresh process reads progress and resumes through the same launcher. Actual final reader must accept the receipt.
 
 ```ts
 assert.deepEqual(serverCounts, {A: 1, B: 2, C: 1});
@@ -242,10 +249,17 @@ assert.equal(timestampAfterA, timestampBeforeA);
 assert.equal(finalReader.phase, 'terminal');
 ```
 
-- [ ] Repeat terminal read/resume and assert no count changes. Seed broken C and retain a blocked target: neither disappears or becomes PASS. Preserve old private/raw interrupted generation without publishing it.
-- [ ] Exercise each spec crash boundary, mid-sealing modes, static/target drift and concurrent-owner negative. Each test records whether it is an actual process kill, filesystem fault injection or source-only check; do not conflate those evidence classes.
-- [ ] Fresh independent agent gets source entry + run ID, reads actual progress and states the concrete next action. Record redundant user questions, lost scope, repeated requests and unsupported claims, not only whether the tool exited0.
-- [ ] Independent Lead AQA reviews source plus observed artifacts/counts. Commit the reproducible eval and a report retaining exact source attribution; no real-product recovery claim.
+- [x] Repeat terminal read/resume and assert no count changes. Seed broken C and retain a blocked target: neither disappears or becomes PASS. Preserve old private/raw interrupted generation without publishing it.
+- [x] Exercise each spec crash boundary, mid-sealing modes, static/target drift and concurrent-owner negative. Each test records whether it is an actual process kill, filesystem fault injection or source-only check; do not conflate those evidence classes.
+- [x] Fresh independent agent gets source entry + run ID, reads actual progress and states the concrete next action. Record redundant user questions, lost scope, repeated requests and unsupported claims, not only whether the tool exited0.
+- [x] Independent Lead AQA reviews source plus observed artifacts/counts. Commit the reproducible eval and a report retaining exact source attribution; no real-product recovery claim.
+
+Task6 independently accepted for the frozen b54b849/185d3e7 owned-local fixture:
+original held-response CLI2/2, post-start/pre-adapter CLI1/1, terminal sealing
+fault-injection CLI1/1, lower-layer boundary18/18 and strict TS. Spec PASS,
+quality APPROVED, no open findings. Exact artifacts and evidence classes remain
+in [recovery acceptance](../../../evals/campaign-continuation/recovery-acceptance.md).
+This does not establish host-loss, browser, payment or cloud recovery.
 
 ### Task 7: Deliver the reviewed pair without changing active campaigns
 
