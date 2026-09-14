@@ -1,6 +1,6 @@
 # Current QA-agent source and execution entry
 
-Updated 2026-09-14. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. This branch delivers the [reviewed continuation successor](campaign-continuation-20260914.md); cold delivery and whole-review gates passed. [Earlier source adoption](source-adoption-20260914.md) retains its exact prior selection and gates. Older pages are dated evidence, not competing current manifests. The user's existing canonical runtime is not switched by this independently approved isolated candidate.
+Updated 2026-09-14. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. This branch delivers the [reviewed continuation successor](campaign-continuation-20260914.md); cold delivery and whole-review gates passed. [Canonical adoption](continuation-adoption-20260914.md) is now complete with the user's approval and fresh packaging/source checks. [Earlier source adoption](source-adoption-20260914.md) retains its exact prior selection and gates. Older pages are dated evidence, not competing current manifests. Existing product runtimes and installed skills were not migrated.
 
 ## Selected source — 14 September
 
@@ -45,7 +45,7 @@ known-answer regression repair, not a new autonomous or blind agent sample.
 
 The [bounded actual interruption/remaining-only continuation](campaign-continuation-20260914.md)
 now passed Task6 source/runtime review on owned anonymous loopback API checks.
-Cold delivery and whole-review also passed; canonical integration is separate.
+Cold delivery and whole-review also passed; canonical source integration is recorded separately above.
 Do not replay a preserved product plan
 merely to obtain another count. Broader Stage3 recovery, M6 generic manual-receipt
 API qualification, remaining graph/business gaps and actual dual-host/cloud
@@ -158,7 +158,7 @@ For an **existing** Freeland, Agentify or MagicCard campaign, first read the own
 
 ## Qualification and remaining exits
 
-Current prepared selection: [bounded continuation delivery](campaign-continuation-20260914.md). Earlier adopted packaging remains at [14 September source adoption](source-adoption-20260914.md). All earlier results retain exact attribution. Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
+Current adopted selection: [bounded continuation delivery](campaign-continuation-20260914.md), with [canonical integration](continuation-adoption-20260914.md). Earlier adopted packaging remains at [14 September source adoption](source-adoption-20260914.md). All earlier results retain exact attribution. Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
 
 Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. The selected Freeland21c1c61 includes the reviewed M1 successor and M5 URL-boundary repair. This closes those bounded source findings, not product coverage or every browser boundary. Other [maintenance findings](maintenance-backlog-20260913.md) remain separately scoped. Historical campaigns using older helpers do not gain these repairs until their owners deliberately requalify a new runtime.
 
