@@ -82,3 +82,33 @@ node --import tsx --test ../../evals/public-input-agent-cycle/prepare.test.mts
 
 This checks the setup boundary and retained registration/target relationship, not
 agent competence. Existing public-input unit controls stay in the Console source.
+
+## Reviewed known-answer regression
+
+After the original agent sample exposed an oracle gap, the parent-authored
+`regression.mts` recipe records the reviewed exercise-specific expectations. It
+is not a second runner, autonomous test design or a template to copy into an
+unrelated product. The original sample remains unchanged.
+
+With the same exact paired Kernel environment and installed dependencies, from
+Console:
+
+```sh
+node --import tsx --test ../../evals/public-input-agent-cycle/regression.test.mts
+```
+
+This uses the existing registration/publication/campaign/reader APIs against a
+new private loopback fixture. It preserves four targets, executes eight final
+item-state checks on both implementations, and retains summary/staff blockers.
+Healthy gives eight pass with `NEEDS_HUMAN`; broken gives four pass/four
+needs_review with `INCONCLUSIVE`. Those are actual runner classifications, not
+instructions to ask a human for supported agent work. A wrong card plus a matching
+name outside the card must fail the item-membership oracle.
+
+The actual same-tab clear transitions and semantic summary are a separate
+agent-led observation, because this adapter asserts only after all operations
+and the selected Kernel has no agent-observation writer. See the
+[bounded qualification](../../docs/qualification/catalog-regression-20260914.md)
+and [unsealed observations](20260914/regression-agent-observations.md).
+The test retains its printed private evidence root; never overwrite a prior
+receipt or use the known-answer recipe as a claim of blind agent competence.

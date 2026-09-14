@@ -36,7 +36,14 @@ the same results through the actual evidence APIs without rerunning or migrating
 anything. Graph closure retained the blocked target; semantic metadata gaps remain.
 This is not interrupted-process recovery or full current-entry qualification.
 
-Next: ground the revised regression expectations and graph mappings;
+The [reviewed catalog regression revision](catalog-regression-20260914.md) now
+uses grounded item expectations and corrected graph assignments: healthy8pass,
+seeded-broken4pass/4needs_review, separate summary/staff scope. A wrong-card decoy
+reproduced and then rejected a false membership PASS. Root separately observed
+same-tab clear/summary behavior; those observations stay unsealed. This is a
+known-answer regression repair, not a new autonomous or blind agent sample.
+
+Next: the bounded actual interruption/remaining-only continuation contract;
 do not replay the preserved plan merely to obtain another count. Stage3 crash recovery, M6 generic manual-receipt
 API qualification, remaining graph/business gaps and actual dual-host/cloud
 execution remain open. M6 is not used by the current Console/E1 path and must not
