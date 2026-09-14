@@ -1,6 +1,6 @@
 # Current QA-agent source and execution entry
 
-Updated 2026-09-14. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. This branch delivers the [reviewed continuation successor](campaign-continuation-20260914.md); cold delivery and whole-review gates passed. [Canonical adoption](continuation-adoption-20260914.md) is now complete with the user's approval and fresh packaging/source checks. [Earlier source adoption](source-adoption-20260914.md) retains its exact prior selection and gates. Older pages are dated evidence, not competing current manifests. Existing product runtimes and installed skills were not migrated.
+Updated 2026-09-15. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. This branch delivers the [reviewed continuation successor](campaign-continuation-20260914.md); cold delivery and whole-review gates passed. [Canonical adoption](continuation-adoption-20260914.md) is now complete with the user's approval and fresh packaging/source checks. [Earlier source adoption](source-adoption-20260914.md) retains its exact prior selection and gates. Older pages are dated evidence, not competing current manifests. Existing product runtimes and installed skills were not migrated.
 
 ## Selected source — 14 September
 
@@ -15,11 +15,16 @@ graph-caused coverage**. Keep this first pair; do not rerun it until it diverges
 Independent Lead AQA accepted the bounded outcome and separately approved its
 portable delivery (97files,12verified inventory artifacts). Further usefulness, source-impact
 fallback, cross-product transfer and cloud readiness remain unqualified.
-The next implementation slice is the already recorded registration-plan wording
-fix: make `views/current-plan.md` explicitly a registration snapshot and retain
-Console as the sole runtime-plan reader/writer. Qualify absent/authored/CAS-revised
-states; do not add a second status engine or repeat this graph pair. See the
-[precise scoped next step](../superpowers/plans/2026-09-13-universal-qa-global-plan.md#71-дополнения-из-retest-включить-в-существующие-этапы).
+The recorded registration-plan wording fix is now a [reviewed, portable inactive
+candidate checkpoint](registration-planning-snapshot-20260915.md): Kernel
+`a9378b2` labels `views/current-plan.md` as a registration snapshot, while
+Console`d272f31` remains the sole runtime-plan reader/writer and covers
+absent/authored/CAS-revised states. The manifest still selects Kernel`185d3e7` /
+Console`66ac7db`; no existing registration or campaign was migrated. Only after
+the user resumes this global-plan line, preserve reviewed historical V0 plan bytes
+before revision and assess the separate narrow typed helper. Do not add a second
+status engine, activate this pair implicitly or repeat the graph pair. See
+[§7.1](../superpowers/plans/2026-09-13-universal-qa-global-plan.md#71-дополнения-из-retest-включить-в-существующие-этапы).
 [Console66ac7db](browser-journeys-20260914.md) now implements intermediate
 same-session assertions with321/321 expanded controls, cold29/29 and independent
 Lead AQA review. It is now **manifest-selected and restored/verified in the canonical

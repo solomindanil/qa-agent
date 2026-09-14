@@ -474,28 +474,24 @@ Freeland effect/readback и graph изменения принадлежат
 - [x] Выполнить два двухэтапных mixed-handoff decision controls: [четыре первых ответа и Lead AQA review](../../../evals/dialogue-quality/20260914/README.md) сохранены, существенных ложных PASS нет. Minor: в M2 SQL-запрос не адресован явно до Stage2; это сохранить для дальнейшей проверки общения, не переписывать первый ответ.
 - [x] Принять первый контролируемый actual mixed-ticket execution/сохранение/частичный handoff: [оригинальные отчёты,3runs,26artifacts, Lead AQA ACCEPT](../../qualification/mixed-handoff-execution-20260914.md). Он дополняет reasoning sample, но не закрывает full Stage3, live tracker/SQL/payments или общую надёжность агента.
 - [x] Выполнить первый graph-consumer comparison через existing publication/runner/reader; [оригинальная пара](../../qualification/graph-consumer-20260914.md) сохраняет полезный самостоятельный выбор control. Оба D+C,2runs/12artifacts; прирост покрытия не доказан. Независимая приёмка среза отдельна от факта выполнения.
-- [ ] По [наблюдаемому исполнению](../../qualification/mixed-handoff-execution-20260914.md) исправить название/подсказку registration `views/current-plan.md`: оно не должно утверждать отсутствие существующего Console-плана. Не создавать второго владельца runtime-статуса; проверить absent/authored/CAS-revised варианты.
+- [x] По [наблюдаемому исполнению](../../qualification/mixed-handoff-execution-20260914.md) исправить название/подсказку registration `views/current-plan.md`: [reviewed inactive candidate checkpoint](../../qualification/registration-planning-snapshot-20260915.md) на Kernel`a9378b2` / Console`d272f31` не утверждает отсутствие Console-плана, сохраняет единственного владельца runtime-статуса и проверяет absent/authored/CAS-revised варианты. Manifest/source/campaign activation и миграция не выполнялись.
 - [ ] Перед следующей ревизией V0-плана сохранять его reviewed snapshot для исторического чтения; нынешний receipt хранит digest, а не полные bytes плана. Уже выполненный initial run не выдавать за автоматически заархивированный. Это уточнение handoff, не новый resume/verdict engine.
 - [ ] После graph-consumer proof оценить узкий typed helper поверх существующей сборки graph/catalog/coverage: убрать повторяющийся синхронизирующий код и зависимость caller от test-fixture imports, но оставить требования/ожидания/выбор агенту. Проверить API/browser/manual примеры и отрицательные dropped-blocker/binding случаи; не вводить общий новый CLI без необходимости.
 - [ ] По результатам этих контролей принять минимальные skill/readback/effect изменения и доказать один graph consumer update.
 - [ ] Квалифицировать применимый цикл на незнакомом домене/свежем host, затем отдельно согласовать cloud pilot.
 
-**Ближайший отдельный implementation-срез после поставки graph-consumer:**
-уточнить только registration-представление плана. Read-only проверка active
-Kernel185 подтверждает: `src/kernel/workspace-blueprint.ts`,
-`renderRegistrationCurrentPlan`, безусловно пишет `No CampaignPlan exists`,
-хотя Console66 владеет существующим `tests/qa-campaign.v0.json` через
-`readCampaignPlan`/`writeNewCampaignPlan`/CAS `writeCampaignPlan`.
-Оставить путь и registration topology/bindings; назвать представление
-`Registration planning snapshot`, отделить registration-счётчики от runtime,
-указать существующий Console reader/validator для актуального плана. Kernel не
-должен начинать читать или синхронизировать Console-план. Проверки: owning
-`tests/workspace/blueprint.test.ts` сохраняет счётчики и исключает ложную фразу;
-существующий Console vertical fixture проходит absent → authored → CAS-revised,
-view остаётся registration snapshot, а Console читает соответствующий digest.
-Это отдельная reviewed source revision, не уже реализованный фикс. Typed
-graph/catalog helper не является prerequisite и остаётся следующим независимым
-решением, без нового CLI или selector.
+**Поставленный отдельный implementation-срез после graph-consumer:**
+[inactive checkpoint15сентября](../../qualification/registration-planning-snapshot-20260915.md)
+реализует только registration-представление плана. Kernel`a9378b2` сохраняет путь,
+topology/bindings и счётчики, называет view `Registration planning snapshot` и
+указывает существующие Console reader и `QaCampaignPlanV0Schema`; Kernel не читает
+и не синхронизирует Console-план. Console`d272f31` точечно обновляет exact pin и
+проверяет absent → authored → CAS-revised через owning reader/writers. Оба source
+commit и complete-history bundle независимо проверены; активный manifest остаётся
+Kernel185/Console66, старые registration bytes не мигрированы. После возвращения
+пользователя к global plan следующий отдельный пункт — сохранить reviewed snapshot
+V0-плана перед ревизией. Typed graph/catalog helper остаётся ещё одним независимым
+решением после этого, без нового CLI или selector.
 
 ## 8. Что сознательно не делаем сейчас
 
