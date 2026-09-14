@@ -1,5 +1,9 @@
 # Browser journey assertions — reviewed portable candidate
 
+This record preserves candidate qualification before adoption. The owner-approved
+[canonical adoption](browser-journey-adoption-20260914.md) now selects the same
+source66ac7db; the historical inactive wording below is not a current selector.
+
 14 September 2026. **Implemented, independently reviewed and cold-checked;
 not manifest-selected.** This extends the existing Console evaluator, not the
 product or a second QA engine. Existing campaigns, installed skills, Kernel,

@@ -4,10 +4,28 @@ Updated 2026-09-14. This is the current source index. [Manifest](../../sources/m
 
 ## Selected source — 14 September
 
+Operational priority after the user-requested Freeland retest: **qualify a fresh
+consumer using the adopted browser-journey source, then actual mixed handoff**.
+[Console66ac7db](browser-journeys-20260914.md) now implements intermediate
+same-session assertions with321/321 expanded controls, cold29/29 and independent
+Lead AQA review. It is now **manifest-selected and restored/verified in the canonical
+workspace**; [adoption](browser-journey-adoption-20260914.md) records the transition.
+Do not repeat its implementation or the earlier continuation adoption.
+The parallel [mixed-handoff reasoning sample](../../evals/dialogue-quality/20260914/README.md)
+retains four replies and Lead AQA acceptance, with one minor question-ownership
+finding. It does not qualify actual mixed-ticket execution or warrant a new engine.
+The existing Freeland campaign waits
+for Nikita/Alexander; no new product run, payment or delivery follows from this
+source entry. See the [portable retrospective](../retrospectives/2026-09-14-freeland-retest-lessons.md)
+and [updated global next steps](../superpowers/plans/2026-09-13-universal-qa-global-plan.md#71-дополнения-из-retest-включить-в-существующие-этапы).
+The adopted continuation and journey source are not awaiting integration.
+Neither change qualifies browser/payment
+replay, current installed hosts or cloud execution.
+
 | Component | Selected source | Included bounded repairs |
 | --- | --- | --- |
 | Kernel | `185d3e72309a4362db57cf2e805d1c00a5035909` | Prior M4 plus strict continuation v1 workspace grammar |
-| Console | `b54b849ac0438408a2c92f899e5221c7496611d7` | Immutable continuation, partial reader, surviving owner/registered CLI; exact Kernel185 authority |
+| Console | `66ac7db55a25f56b199b2cb00ad83df3b8dad868` | Intermediate same-session assertions and evidence reader; earlier immutable continuation retained; exact Kernel185 authority |
 | Freeland | `21c1c617a2dbe5d1131215dc738dba2556851ae3` | M1 bounded browser admission and M5 format/URL-safe source locators |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **not active** |
 
@@ -158,7 +176,7 @@ For an **existing** Freeland, Agentify or MagicCard campaign, first read the own
 
 ## Qualification and remaining exits
 
-Current adopted selection: [bounded continuation delivery](campaign-continuation-20260914.md), with [canonical integration](continuation-adoption-20260914.md). Earlier adopted packaging remains at [14 September source adoption](source-adoption-20260914.md). All earlier results retain exact attribution. Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
+Current adopted selection: [browser-journey adoption](browser-journey-adoption-20260914.md) on the source table above. Its predecessor [bounded continuation delivery](campaign-continuation-20260914.md) and [integration](continuation-adoption-20260914.md), plus the earlier [source adoption](source-adoption-20260914.md), retain their exact attribution. Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
 
 Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. The selected Freeland21c1c61 includes the reviewed M1 successor and M5 URL-boundary repair. This closes those bounded source findings, not product coverage or every browser boundary. Other [maintenance findings](maintenance-backlog-20260913.md) remain separately scoped. Historical campaigns using older helpers do not gain these repairs until their owners deliberately requalify a new runtime.
 

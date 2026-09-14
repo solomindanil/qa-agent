@@ -85,6 +85,12 @@ agent competence. Existing public-input unit controls stay in the Console source
 
 ## Reviewed known-answer regression
 
+Historical final-state regression on the sources recorded in its qualification.
+The later [Console66ac7db journey adoption](../../docs/qualification/browser-journey-adoption-20260914.md)
+adds intermediate same-session assertions. Do not interpret the old adapter
+limitation below as a restriction of the currently selected source, or reattribute
+these original results to it.
+
 After the original agent sample exposed an oracle gap, the parent-authored
 `regression.mts` recipe records the reviewed exercise-specific expectations. It
 is not a second runner, autonomous test design or a template to copy into an

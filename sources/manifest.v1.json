@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "b54b849ac0438408a2c92f899e5221c7496611d7",
-      "tree": "0f8efc0eb5b0208bbf91ec255cbc196a17ff146e",
-      "bundle": "sources/candidates/console-continuation-b54b849.bundle",
-      "sha256": "0f04587fad111d22a4b8bbf1133583397585071fc8d20a33d2d3af50cb4fc203",
+      "commit": "66ac7db55a25f56b199b2cb00ad83df3b8dad868",
+      "tree": "8c0a426b3133e326eb120f09a2e0c9408eb68eb5",
+      "bundle": "sources/candidates/console-browser-journeys-66ac7db.bundle",
+      "sha256": "9f9046afdf7f222a37f87ffca6a35badf1763fbf09c170b29ba0bbfdba366f8c",
       "runtimeAuthority": true,
-      "qualification": "reviewed opt-in continuation successor to881a93e; exact Kernel185d3e7 authority, immutable records, partial reader, surviving same-host launcher and existing runner/CLI; fresh273/273 continuation and270/270 compatibility, nonincremental typecheck; Task6 actual CLI held-response2/2, pre-dispatch1/1, sealing fault1/1 and lower-layer18/18 independently accepted. Source skills unchanged. Root cold delivery/whole review are separate in docs/qualification/campaign-continuation-20260914.md; no full-suite, product, installed-host, host-restart, browser/payment replay or cloud qualification."
+      "qualification": "reviewed browser-journey successor to b54b849; optional afterOperationIndex in existing browser evaluator and persisted reader, legacy plans unchanged, exact Kernel185d3e7 authority retained. Expanded321/321, exact cold29/29, typecheck/build0 and independent Lead AQA source/delivery review in docs/qualification/browser-journeys-20260914.md. Source reference and Claude mirror updated, installed skills not migrated. Earlier continuation evidence retains its original b54 attribution. No full-suite, product, browser/payment replay, actual dual-host or cloud qualification; canonical adoption recorded separately."
     },
     {
       "id": "freeland",

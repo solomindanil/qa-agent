@@ -8,7 +8,8 @@ Source `66ac7db55a25f56b199b2cb00ad83df3b8dad868`, parentb54b849,
 tree `8c0a426b3133e326eb120f09a2e0c9408eb68eb5`.
 Archive `console-browser-journeys-66ac7db.bundle`, complete history and sole HEAD,
 SHA256 `9f9046afdf7f222a37f87ffca6a35badf1763fbf09c170b29ba0bbfdba366f8c`.
-**REVIEWED / COLD-CHECKED / NOT MANIFEST-SELECTED.** Optional intermediate
+**REVIEWED / COLD-CHECKED / MANIFEST-SELECTED.** [Canonical adoption](../../docs/qualification/browser-journey-adoption-20260914.md).
+Optional intermediate
 assertions in the existing executor and persisted reader; old plans unchanged.
 Expanded321/321, exact cold29/29, typecheck/build0, independent Lead AQA review.
 Source references and Claude mirror updated; installed skills unchanged.
