@@ -23,6 +23,22 @@ but is not executed in this exercise. Reporting reference is not active.
 
 ## Controlled comparison
 
+Canonical local integration was completed after independent review, without push:
+
+- Original preparation `1925d37e4723d8a1c9f2ecc2a7dade5d3774b1f2` maps to
+  canonical `a97a77bc25aa652a2ce1fe6903c5add108dd99c6`; both complete Git trees are
+  `eabc380a11710187076425e5eb84b85d195c90b7`.
+- Original delivery `e88a25a30837edf7ebcd58fb35c057dce0997d4f` maps to canonical
+  `80ff1cc0f30106e6987b35e52245f55199dbd3ee`; both complete trees are
+  `52f33b5a5c808f12b423a7745d182a02fdf82c6c` before this integration note.
+- Original run reports retain their historical source SHA. The canonical
+  equivalents above are reachable in repository history; the original private
+  clone and its refs are not required to recover the reviewed bytes.
+- Fresh canonical `npm test`:59/59,0failed/skipped,26193.962958ms. All4components
+  passed `sources:verify`; fixture2/2 passed. Archive SHA remained unchanged.
+- Unrelated existing dirty diff/status and9file hashes matched the initial
+  snapshot exactly. No product, registration, installed skill or component pin changed.
+
 Two workspaces independently register the same brief, product identity and owned
 loopback API. Their common B contains journey J, invariant I, resolved D→J and
 resolved C→I. Both keep the same catalog checks and expectations. Treatment alone
