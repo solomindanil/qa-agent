@@ -1,6 +1,6 @@
 # Current QA-agent source and execution entry
 
-Updated 2026-09-14. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. This branch prepares the [reviewed continuation successor](campaign-continuation-20260914.md); its cold delivery and whole-review gates are pending. [Earlier source adoption](source-adoption-20260914.md) retains its exact prior selection and gates. Older pages are dated evidence, not competing current manifests. The user's existing canonical runtime is not switched by this isolated candidate.
+Updated 2026-09-14. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. This branch delivers the [reviewed continuation successor](campaign-continuation-20260914.md); cold delivery and whole-review gates passed. [Earlier source adoption](source-adoption-20260914.md) retains its exact prior selection and gates. Older pages are dated evidence, not competing current manifests. The user's existing canonical runtime is not switched by this independently approved isolated candidate.
 
 ## Selected source — 14 September
 
@@ -45,7 +45,8 @@ known-answer regression repair, not a new autonomous or blind agent sample.
 
 The [bounded actual interruption/remaining-only continuation](campaign-continuation-20260914.md)
 now passed Task6 source/runtime review on owned anonymous loopback API checks.
-Cold delivery and whole-review are next; do not replay a preserved product plan
+Cold delivery and whole-review also passed; canonical integration is separate.
+Do not replay a preserved product plan
 merely to obtain another count. Broader Stage3 recovery, M6 generic manual-receipt
 API qualification, remaining graph/business gaps and actual dual-host/cloud
 execution remain open. M6 is not used by the current Console/E1 path and must not

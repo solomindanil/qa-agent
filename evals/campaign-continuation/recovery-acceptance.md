@@ -1,7 +1,9 @@
 # Registered CLI recovery — candidate qualification
 
 Status: actual registered process qualification and independent final Lead AQA
-review passed for this bounded fixture. Cold-source delivery is pending.
+review passed for this bounded fixture. Cold-source representative recovery
+also passed; [whole-delivery qualification](../../docs/qualification/campaign-continuation-20260914.md)
+is independently approved as a portable candidate, not canonical adoption.
 This is not a product QA result, source adoption, or cloud-readiness verdict.
 
 ## Candidate and entrypoint
@@ -11,8 +13,10 @@ This is not a product QA result, source adoption, or cloud-readiness verdict.
 - Controlled registration setup: root `757ec0e`.
 - Consumer: [recovery.mts](recovery.mts), using the existing registered CLI,
   adapter, classifier, Kernel validation and versioned evidence reader.
-- The root active manifest still selects its previously adopted pair. Do not
-  restore that pair over this isolated candidate or migrate active campaigns.
+- At the original Task6 gate the root manifest still selected its prior pair.
+  The separate [Task7 delivery candidate](../../docs/qualification/campaign-continuation-20260914.md)
+  now prepares this exact pair through the manifest. It does not migrate the
+  user's canonical checkout, installed skills or existing product campaigns.
 
 From an explicit candidate root with its own lockfile-installed dependencies:
 
@@ -139,7 +143,10 @@ no open findings in the frozen b54b849/185d3e7 and reviewed root evals. This
 acceptance includes the stated lower-layer proof composition, not a claim that
 every crash point was reproduced through the actual CLI.
 
-Pending: cold restored source delivery. Browser/auth/
+Cold restored source consumer subsequently passed the healthy and modeled sealing
+cases2/2, along with18 boundary controls and59 root packaging checks. This does
+not reattribute the warm three-variant gate or add another fresh-agent sample.
+Final delivery review is approved; canonical adoption remains separate. Browser/auth/
 payment replay, host restart, cross-host recovery and arbitrary mutable products
 are outside this slice. The healthy campaign's blocker is intentionally retained,
 not a request to the user to intervene in this completed mechanism test.

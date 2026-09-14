@@ -229,7 +229,8 @@ Kernel185d3e7. Independent source review approved after two P1 repairs;
 coordinator43/43, then actual CLI core2/2. Fresh exact-pair continuation273/273,
 original eight-file compatibility270/270, Kernel29/29 and nonincremental
 typechecks passed. Historical269/270 remains a separate earlier failure.
-Full Task6 boundary review and Task7 cold delivery/adoption remain open.
+At the Task5 acceptance checkpoint, Task6/7 were still open; their later
+bounded acceptance and remaining canonical-integration boundary are recorded below.
 
 ### Task 6: Prove actual process interruption and fresh-session use
 
@@ -269,11 +270,21 @@ This does not establish host-loss, browser, payment or cloud recovery.
 - Add root `docs/qualification/campaign-continuation-20260914.md`.
 - Update root `docs/qualification/current.md`, global plan and relevant source-skill continuation reference.
 
-- [ ] Run exact candidate focused/full owning offline gates proportional to changed surfaces, nonincremental typecheck and consumer tests; retain warnings/failures by source. Root packaging is a separate test.
-- [ ] Generate and hash complete-history bundles, restore into a fresh normal root clone, verify exact sources and run the recovery consumer from those restored sources with its own dependencies.
-- [ ] Prepare adoption diff referencing reviewed hashes, source roles and old/new evidence scope. Independent whole-delivery review must include Kernel/Console pairing and no implicit campaign/installed-skill switch.
-- [ ] With adoption authority, change source manifest and current-entry links; otherwise retain candidates and report the remaining integration gate. No product push, deployment or tracker writes.
-- [ ] Record exact passing and blocked scope, next capability to qualify, and known host-loss/browser/cloud exclusions. Do not mark global Stage3 complete from this single recovery proof.
+- [x] Run exact candidate focused/full owning offline gates proportional to changed surfaces, nonincremental typecheck and consumer tests; retain warnings/failures by source. Root packaging is a separate test.
+- [x] Generate and hash complete-history bundles, restore into a fresh normal root clone, verify exact sources and run the recovery consumer from those restored sources with its own dependencies.
+- [x] Prepare adoption diff referencing reviewed hashes, source roles and old/new evidence scope. Independent whole-delivery review must include Kernel/Console pairing and no implicit campaign/installed-skill switch.
+- [x] With adoption authority, change source manifest and current-entry links; otherwise retain candidates and report the remaining integration gate. No product push, deployment or tracker writes.
+- [x] Record exact passing and blocked scope, next capability to qualify, and known host-loss/browser/cloud exclusions. Do not mark global Stage3 complete from this single recovery proof.
+
+Task7 accepted as a portable source candidate only. Independent whole-delivery
+review APPROVED, no findings; cold normal clone af4e193 restores the complete
+pair, source verification0, root59/59, boundaries18/18 and representative actual
+CLI recovery2/2. Own lockfile dependencies, no Git alternates or copied private
+state. See [delivery and review](../../qualification/campaign-continuation-20260914.md).
+The alternate retain-candidate branch of the integration step applies: canonical
+checkout adoption requires an explicit integration decision. Existing campaigns,
+installed skills and product state are unchanged; no push. This finishes the
+seven implementation/qualification tasks, not the global universal QA plan.
 
 ## Self-review and requirement map
 
