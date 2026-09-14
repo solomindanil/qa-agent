@@ -136,7 +136,7 @@ registered CLI recovery and root adoption remain Tasks3–7.
 - Identity includes canonical original plan and original blockers, graph/catalog/binding, source pair, registration/publication/oracle/dependency bindings, origin and supported target identity. Hash run/start canonically; complete hashes result/trace/required screenshot but not itself; terminal inventory hashes complete.
 - Kernel `consoleCampaignV1EntryPolicy(relativePath, phase)` recognizes only spec grammar. Semantic parent admission comes from parsed run/plan and exact receipt when phase is sealing_pending, not just a regex or claimed phase string.
 
-- [ ] Create real on-disk A/B/C partial tree with Task2 writer. Assert actual Kernel preflight and reader accept its safe partial state; a raw v0 writable directory remains rejected. Assert reader cannot obtain final verdict from a partial run.
+- [x] Create real on-disk A/B/C partial tree with Task2 writer. Assert actual Kernel preflight and reader accept its safe partial state; a raw v0 writable directory remains rejected. Assert reader cannot obtain final verdict from a partial run.
 
 ```ts
 assert.equal(snapshot.phase, 'partial');
@@ -145,10 +145,17 @@ assert.deepEqual(snapshot.progress.counts,
   {total: 3, finalized: 1, uncertain: 1, retryPending: 0, unstarted: 1});
 ```
 
-- [ ] Observe RED on both consumers, then implement strict v1 schemas/readback and delegate to Task1. Reject changed result/trace/complete, missing screenshot when required, extra files, unknown IDs and duplicate complete. Do not re-sanitize rejected history.
-- [ ] Add valid receipt + mixed ancestor0700/0500 tree: Kernel may accept sealing_pending; reader must not expose terminal receipt until fully sealed. Broken inventory still refuses all recovery.
-- [ ] New discovery lists v1 partial independently from older v0 PASS; explicit v1 selection never falls back to v0. Unknown version is refused; unchanged old binaries are unsupported for v1 rather than patched retroactively.
-- [ ] Run new Console/Kernel tests plus existing `campaign-receipt-ingestion.test.ts`, `qa-campaign-v0.test.ts` and Kernel workspace validation controls. Review both candidate diffs. Commit per repository, then pin the reviewed candidate Kernel in candidate Console only; no root active-manifest change.
+- [x] Observe RED on both consumers, then implement strict v1 schemas/readback and delegate to Task1. Reject changed result/trace/complete, missing screenshot when required, extra files, unknown IDs and duplicate complete. Do not re-sanitize rejected history.
+- [x] Add valid receipt + mixed ancestor0700/0500 tree: Kernel may accept sealing_pending; reader must not expose terminal receipt until fully sealed. Broken inventory still refuses all recovery.
+- [x] New discovery lists v1 partial independently from older v0 PASS; explicit v1 selection never falls back to v0. Unknown version is refused; unchanged old binaries are unsupported for v1 rather than patched retroactively.
+- [x] Run new Console/Kernel tests plus existing `campaign-receipt-ingestion.test.ts`, `qa-campaign-v0.test.ts` and Kernel workspace validation controls. Review both candidate diffs. Commit per repository, then pin the reviewed candidate Kernel in candidate Console only; no root active-manifest change.
+
+Task3 accepted Console `104687c55b26b0c9d8dd78dc987fa56813f04dd0` /
+Kernel `185d3e72309a4362db57cf2e805d1c00a5035909`. Final paired244/244,
+Kernel29/29, component typechecks and independent Lead AQA reviews GREEN.
+The readback is historical evidence, not current execution authority. Expanded
+ad-hoc strict legacy test typing still has24 baseline-identical diagnostics;
+normal component typecheck is green. No root adoption or live product QA claim.
 
 ### Task 4: Admit one live worker and transfer only after known termination
 
