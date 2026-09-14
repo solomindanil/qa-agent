@@ -13,6 +13,7 @@ For first use, start with [the portable setup](../docs/getting-started.md). A ne
 | Product-specific test design, clarification or delegated investigation | [product-analysis reference](../components/console/skills/qa-product-v0/references/product-analysis.md) |
 | Starter plan/oracle/managed knowledge operations | [declarative-campaign reference](../components/console/skills/qa-product-v0/references/declarative-campaign.md) |
 | Agent tools and observation-storage limitations | [agent-observations reference](../components/console/skills/qa-product-v0/references/agent-observations.md) |
+| Read an interrupted run; bounded continuation with original surviving owner | [continuation protocol and qualification](../docs/qualification/campaign-continuation-20260914.md) — source-selected v1 only; not host restart, browser or payment replay |
 | Freeland full/smoke, QA column/current cycle, one ticket or product area | [freeland-release-qa](../components/freeland/skills/freeland-release-qa/SKILL.md) |
 
 Console also preserves its original `.claude/skills/` compatibility sources. Root CLAUDE.md deliberately routes to the same full source instructions used by Codex. Host-level support skills (e2e-testing, browser-qa, verification/debugging, Nuanu Flow work-items/human-input) are not bundled. When a selected lane requires one, discover its availability and read its current instructions; do not silently install it.

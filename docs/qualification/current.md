@@ -1,13 +1,13 @@
 # Current QA-agent source and execution entry
 
-Updated 2026-09-14. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. [Source adoption](source-adoption-20260914.md) records this selection and its actual gates. Older pages, including the [11 September reconciliation](reconciliation-20260911.md), are dated evidence, not competing current manifests.
+Updated 2026-09-14. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. This branch prepares the [reviewed continuation successor](campaign-continuation-20260914.md); its cold delivery and whole-review gates are pending. [Earlier source adoption](source-adoption-20260914.md) retains its exact prior selection and gates. Older pages are dated evidence, not competing current manifests. The user's existing canonical runtime is not switched by this isolated candidate.
 
 ## Selected source — 14 September
 
 | Component | Selected source | Included bounded repairs |
 | --- | --- | --- |
-| Kernel | `657894dbd61561a634f36669a0874dccccbea59e` | M4 conditional-write admission, alias arbitration and owned-temp cleanup |
-| Console | `881a93e43fd9b90f3dcf9812812f6cf8ad854789` | Same1c715a1 runtime/skills and exact Kernel657 authority; extracted owned catalog fixture for fresh-agent execution |
+| Kernel | `185d3e72309a4362db57cf2e805d1c00a5035909` | Prior M4 plus strict continuation v1 workspace grammar |
+| Console | `b54b849ac0438408a2c92f899e5221c7496611d7` | Immutable continuation, partial reader, surviving owner/registered CLI; exact Kernel185 authority |
 | Freeland | `21c1c617a2dbe5d1131215dc738dba2556851ae3` | M1 bounded browser admission and M5 format/URL-safe source locators |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **not active** |
 
@@ -17,7 +17,7 @@ existing campaign, registration, account, installed skill or live product build
 is migrated. Their owner checkpoints still govern continuation. Complete source
 skills are consumed from this restore, not from a historical installed copy.
 
-Console881a93e adds only a reviewed test-fixture extraction on top of the repair
+Historical Console881a93e added only a reviewed test-fixture extraction on top of the repair
 source1c715a1:5 focused controls and source typecheck passed. Prior repair gates
 stay attributed to1c715a1. The [fresh-agent local exercise](../../evals/public-input-agent-cycle/README.md)
 uses this fixture, existing registration, knowledge publication and campaign APIs;
@@ -43,8 +43,10 @@ reproduced and then rejected a false membership PASS. Root separately observed
 same-tab clear/summary behavior; those observations stay unsealed. This is a
 known-answer regression repair, not a new autonomous or blind agent sample.
 
-Next: the bounded actual interruption/remaining-only continuation contract;
-do not replay the preserved plan merely to obtain another count. Stage3 crash recovery, M6 generic manual-receipt
+The [bounded actual interruption/remaining-only continuation](campaign-continuation-20260914.md)
+now passed Task6 source/runtime review on owned anonymous loopback API checks.
+Cold delivery and whole-review are next; do not replay a preserved product plan
+merely to obtain another count. Broader Stage3 recovery, M6 generic manual-receipt
 API qualification, remaining graph/business gaps and actual dual-host/cloud
 execution remain open. M6 is not used by the current Console/E1 path and must not
 be connected as a shortcut.
@@ -106,7 +108,7 @@ cold packaging passed2/2. M3 chain reconciliation is now source-reviewed in
 ce80729:154 combined controls and independent cold restoration passed. This was
 not product execution. Adoption and substantive fresh-agent product use remain open.
 
-Stage3 now has a [reproducible process-interruption gap](../../evals/campaign-continuation/README.md):
+Historical Stage3 diagnostic had a [reproducible process-interruption gap](../../evals/campaign-continuation/README.md):
 attempt files survive, but the fresh campaign reader has no partial/resume state
 and ordinary execution repeats a finished check. A separate actual registration
 and CLI probe now confirms that a synthetic unsealed campaign directory blocks
@@ -155,7 +157,7 @@ For an **existing** Freeland, Agentify or MagicCard campaign, first read the own
 
 ## Qualification and remaining exits
 
-Current packaging and selection: [14 September source adoption](source-adoption-20260914.md). Earlier results retain exact attribution in the [2026-09-11 reconciliation](reconciliation-20260911.md). Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
+Current prepared selection: [bounded continuation delivery](campaign-continuation-20260914.md). Earlier adopted packaging remains at [14 September source adoption](source-adoption-20260914.md). All earlier results retain exact attribution. Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
 
 Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. The selected Freeland21c1c61 includes the reviewed M1 successor and M5 URL-boundary repair. This closes those bounded source findings, not product coverage or every browser boundary. Other [maintenance findings](maintenance-backlog-20260913.md) remain separately scoped. Historical campaigns using older helpers do not gain these repairs until their owners deliberately requalify a new runtime.
 

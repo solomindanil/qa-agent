@@ -4,22 +4,22 @@
     {
       "id": "kernel",
       "path": "components/kernel",
-      "commit": "657894dbd61561a634f36669a0874dccccbea59e",
-      "tree": "4e57a5e0a21a3f5fc838295a75e06a94e13c4081",
-      "bundle": "sources/candidates/kernel-admission-657894d.bundle",
-      "sha256": "84c443bf1bb0ed715b96989cc71906ea04652ab7d0a840529d7a351110e10de7",
+      "commit": "185d3e72309a4362db57cf2e805d1c00a5035909",
+      "tree": "c6cb0331c2cca666d3cc4fef4524e3d2b62b3a52",
+      "bundle": "sources/candidates/kernel-continuation-185d3e7.bundle",
+      "sha256": "2541917e6e85b22d35a556448a4a4480550eaf2f0b05101fb55abb5bbbbdc442",
       "runtimeAuthority": true,
-      "qualification": "reviewed M4 reserved write-admission successor:55 writer/10 consumer/244 compatibility controls, typecheck/build and cold55; Console1c715a1 paired302 controls; historical1719pass/1timeout is not a new full-suite PASS; supported native basename arbitration only, not hostile filesystem or universal exactly-once; generic manual-receipt API remains unqualified for new consumers; see docs/qualification/kernel-admission-20260914.md and source-adoption-20260914.md; no product or cloud qualification"
+      "qualification": "reviewed continuation v1 workspace grammar successor to657894d; fresh29/29 grammar controls and nonincremental typecheck, paired Consoleb54b849 actual registered recovery and offline gates; Task6 Lead AQA accepted bounded same-host owned repeat-safe fixture; root cold delivery and whole-delivery review tracked separately in docs/qualification/campaign-continuation-20260914.md. Prior M4 and historical failed full gate keep original attribution; generic manual API, host restart, browser/payment replay and cloud remain unqualified"
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "881a93e43fd9b90f3dcf9812812f6cf8ad854789",
-      "tree": "b03f187bc55483f63e93f2cbcf357a16ceb0efa5",
-      "bundle": "sources/candidates/console-public-fixture-881a93e.bundle",
-      "sha256": "7ab032c7facee983186d12c44b46ee4431ea31b288c3d9fbe91397e3c00532ba",
+      "commit": "b54b849ac0438408a2c92f899e5221c7496611d7",
+      "tree": "0f8efc0eb5b0208bbf91ec255cbc196a17ff146e",
+      "bundle": "sources/candidates/console-continuation-b54b849.bundle",
+      "sha256": "0f04587fad111d22a4b8bbf1133583397585071fc8d20a33d2d3af50cb4fc203",
       "runtimeAuthority": true,
-      "qualification": "881a93e is a reviewed three-test-file fixture extraction from1c715a1; five focused lifecycle/public-input controls and typecheck passed; production runtime and skills unchanged, exact Kernel657894d authority retained. Earlier121 authority/21 consumer/160 integration controls, typecheck/Vite and cold source/skill gates remain attributed to1c715a1 in docs/qualification/console-kernel-pair-20260914.md and source-adoption-20260914.md. Existing lint findings/build warning retained. Fixture/agent execution is separately scoped in evals/public-input-agent-cycle/README.md; no full-suite, product, installed-host, dual-host, crash-recovery or cloud qualification."
+      "qualification": "reviewed opt-in continuation successor to881a93e; exact Kernel185d3e7 authority, immutable records, partial reader, surviving same-host launcher and existing runner/CLI; fresh273/273 continuation and270/270 compatibility, nonincremental typecheck; Task6 actual CLI held-response2/2, pre-dispatch1/1, sealing fault1/1 and lower-layer18/18 independently accepted. Source skills unchanged. Root cold delivery/whole review are separate in docs/qualification/campaign-continuation-20260914.md; no full-suite, product, installed-host, host-restart, browser/payment replay or cloud qualification."
     },
     {
       "id": "freeland",

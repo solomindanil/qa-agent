@@ -1,0 +1,105 @@
+# Bounded campaign continuation — delivery candidate
+
+This isolated source selection contains the reviewed read-only continuation pair.
+Task6 implementation and actual local recovery are accepted. Task7 cold restore,
+root packaging and whole-delivery review are still pending; do not describe this
+candidate as the user's already-adopted canonical runtime.
+
+## Exact sources and reuse
+
+| Component | Commit | Tree | Bundle SHA256 |
+| --- | --- | --- | --- |
+| Console | `b54b849ac0438408a2c92f899e5221c7496611d7` | `0f8efc0eb5b0208bbf91ec255cbc196a17ff146e` | `0f04587fad111d22a4b8bbf1133583397585071fc8d20a33d2d3af50cb4fc203` |
+| Kernel | `185d3e72309a4362db57cf2e805d1c00a5035909` | `c6cb0331c2cca666d3cc4fef4524e3d2b62b3a52` | `2541917e6e85b22d35a556448a4a4480550eaf2f0b05101fb55abb5bbbbdc442` |
+
+Their complete Git histories are delivered under `sources/candidates/`; the
+manifest selects sources, not that directory name. Freeland21c1c61 and inactive
+reporting reference10d398d8 are unchanged. Existing Console runner, adapter,
+classifier, registration and Kernel validation remain authoritative; there is
+no second runner or new PASS calculator. The full source skills and Claude
+mirrors are unchanged from the preceding pair.
+
+New opt-in v1 records retain accepted checks and uncertain executions. The
+versioned reader reports partial progress without a terminal verdict. The
+surviving original host may resume eligible remaining work only after proving
+its owned worker terminated and rechecking current authority. Historical v0
+campaigns keep their original contract and are not converted.
+
+## What was executed on this exact pair
+
+- Console continuation:273/273; compatibility across the eight changed-adjacent
+  runner/CLI/receipt/dependency/finalization files:270/270; both exit0 with no
+  failures, cancellations or skips. Kernel v1 grammar:29/29.
+- Both component nonincremental typechecks:exit0. Root eval strict TypeScript
+  and publication-worker syntax:exit0. These are not whole-child test suites.
+- Actual registered CLI SIGKILL while B is held:healthy and seeded-broken2/2.
+  A is not repeated; healthy countersA1/B2/C1; seededA1/B2/C2 and needs_review.
+- Actual registered CLI SIGKILL after durable B start, before adapter:1/1;
+  A1/B0/C0 becomes A1/B1/C1. Terminal repeats make no requests.
+- Actual registered CLI recovers a modeled interrupted terminal chmod:1/1;
+  same receipt/files retained, zero extra target/identity reads. This boundary
+  is filesystem fault injection, not a real SIGKILL at chmod.
+- Additional semantic publisher kills and direct identity/sealing controls:
+  18/18. Their synthetic-current-authority and byte-level evidence is not live
+  collector or actual adapter-output proof.
+- Fresh independent agent read one interrupted registered run, retained scope
+  and the missing-catalog blocker, and routed remaining work to its original
+  owner without redundant human questions or invented PASS.
+
+Exact reports, hashes, reproduction and evidence-class limitations:
+[recovery acceptance](../../evals/campaign-continuation/recovery-acceptance.md).
+Task6 root eval commit:`31cb76a2d6237545a22be6da75eda65e8678541b`.
+Independent Task6 Lead AQA:spec PASS / quality APPROVED, no open findings.
+The healthy fixture intentionally retains NEEDS_HUMAN; a completed harness test
+does not remove an untested requirement or claim the product is releasable.
+
+## Agent continuation protocol
+
+1. Read the exact owner checkpoint, source identity, workspace and run ID. A new
+   source selection does not switch an existing campaign's frozen runtime.
+2. Use the selected Console's `qa-campaign.ts status` through its installed tsx
+   loader with explicit `--workspace` and `--run-id`. Read accepted evidence;
+   distinguish finalized, uncertain, retry_pending, unstarted and blockers.
+3. Preserve completed checks and unknown outcomes. Do not rerun all work merely
+   because the dialogue restarted, and do not infer a product defect from an
+   interrupted transport. Request only the missing capability/input; independent
+   safe work can continue.
+4. The public `resume` command does not create ownership. The original surviving
+   registered host (`createRegisteredCampaignContinuationHost`) must hold the
+   actual owned worker handle/admission. Use its supported resume only for this
+   qualified owned anonymous repeat-safe API fixture. Missing launcher or unknown
+   descendants remain blocked; PID absence or editable JSON is not takeover proof.
+5. Read back the actual final receipt and retained evidence. Explain remaining
+   gaps and concrete next actions; do not overwrite a verdict with agent prose.
+
+Status reading is broader than dispatch authority. There is no general CLI
+one-liner here that revives an arbitrary historical or mutable product campaign.
+The executable fixture entry is in the linked acceptance document and requires
+no historical credentials, registrations or author-machine artifact paths.
+
+## Portable qualification and adoption gate
+
+From a normal clone with Node>=22.12 and Git, restore and verify source through
+`npm run sources:restore`, `npm run sources:verify`, then root `npm test`.
+These are local source/packaging operations, not product tests. For the explicitly
+owned eval install Console and Kernel dependencies independently from their own
+lockfiles with `npm ci --ignore-scripts --no-audit --no-fund`; no shared writable
+node_modules, dependency upgrades, browser downloads or host-skill installation.
+
+Cold clone results and whole-delivery review will be recorded here before final
+acceptance. Earlier root58/59 failed intentionally on old-manifest/new-child
+pairing; that failure remains historical, not a green packaging result.
+
+## Limits and next work
+
+No host restart/cross-host takeover, browser/auth/payment replay, arbitrary
+mutable target, full product coverage, installed Codex/Claude promotion, tracker
+write or cloud recovery is qualified. The source skills are delivered but actual
+dual-host execution remains a separate gate. M6 generic manual receipts remain
+unqualified for new consumers. Existing Freeland/other product campaigns and
+private state remain owner-managed; no migration or product request occurred.
+
+After portable delivery: complete the existing global plan's browser journey
+transitions, useful unfamiliar-product QA, mixed QA-ticket/help continuation and
+graph-to-execution improvement checks. This bounded recovery closes neither
+global Stage3 nor the whole universal-agent or cloud-readiness plan.
