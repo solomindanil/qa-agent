@@ -1,6 +1,18 @@
 # Development source archives
 
-These bundles preserve reviewed and unfinished development without depending on the author's local checkout. The manifest is the only source selector: Kernel657894d, Console881a93e and Freeland21c1c61. Console881a93e adds only test-fixture extraction to the [14 September repair adoption](../../docs/qualification/source-adoption-20260914.md); the other archives remain historical or inactive. The `candidates/` directory is a provenance location, not a runtime status. No archive grants product execution, campaign migration or skill-installation authority. Do not copy an archived skill over an accepted one.
+These bundles preserve reviewed and unfinished development without depending on the author's local checkout. The [manifest](../manifest.v1.json) is the only source selector; see [current qualification](../../docs/qualification/current.md) for current pins. Dated selection labels below are historical and do not override that selector. The `candidates/` directory is a provenance location, not a runtime status. No archive grants product execution, campaign migration or skill-installation authority. Do not copy an archived skill over an accepted one.
+
+## Console browser journey assertions, 14 September 2026
+
+Source `66ac7db55a25f56b199b2cb00ad83df3b8dad868`, parentb54b849,
+tree `8c0a426b3133e326eb120f09a2e0c9408eb68eb5`.
+Archive `console-browser-journeys-66ac7db.bundle`, complete history and sole HEAD,
+SHA256 `9f9046afdf7f222a37f87ffca6a35badf1763fbf09c170b29ba0bbfdba366f8c`.
+**REVIEWED / COLD-CHECKED / NOT MANIFEST-SELECTED.** Optional intermediate
+assertions in the existing executor and persisted reader; old plans unchanged.
+Expanded321/321, exact cold29/29, typecheck/build0, independent Lead AQA review.
+Source references and Claude mirror updated; installed skills unchanged.
+[Qualification, retained failures, replay and limits](../../docs/qualification/browser-journeys-20260914.md).
 
 ## Console owned catalog fixture, 14 September 2026
 
