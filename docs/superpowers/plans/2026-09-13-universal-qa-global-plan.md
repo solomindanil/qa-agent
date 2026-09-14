@@ -288,10 +288,26 @@ campaign-continuation contract, не переименование существ
 generic proof — не новый selector: после reviewed Kernel publication отдельный
 агент читает persisted graph/catalog, сам выбирает обоснованный новый check,
 исполняет его штатным runner и читает receipt. В согласованном counterfactual
-workspace без этой связи тот же target остаётся видимым gap, check не выбирается;
+workspace без этой связи тот же target остаётся видимым непроверенным пунктом
+этой кампании, check не выбирается именно на основании данной journey-связи;
 независимые проверки сохраняются. Это отличие реального потребления знания от
 проверки формы графа. Freeland-specific source-impact/fallback mappings остаются
 отдельной следующей веткой; его `UNCOMPUTED` не переносится в generic Console.
+
+Уточнение Lead AQA/reuse-аудита14сентября: первый comparison ограничен
+**переиспользованием текущего каталога для указанного journey**, не всем поведением
+QA-агента. В обеих ветках уже существуют journeyJ, invariantI, независимый
+checkD→J и checkC→I; только treatment получает reviewed `J --requires--> I`
+через existing Kernel revision/preview/apply. Входной каталог и ожидаемое поведение
+не меняются, кроме обязательного пересчёта digest. Свежие consumers самостоятельно
+читают graph/catalog, выбирают проверки и исполняют штатный V0-runner; fixture
+не подставляет им готовый план. Control сохраняет I/C непроверенными для этой
+кампании, а не объявляет исчезнувшим их уже существующее automated coverage.
+`prepareCampaignDraft` даёт inventory, но сам не выбирает по рёбрам; решение
+пока принимает агент. Полный QA-агент вправе самостоятельно обнаружить gap и
+проверить I даже без связи: такую полезную exploration нельзя запрещать ради
+красивого counterfactual и нельзя приписывать graph-driven selection. Проверка
+одной связи не закрывает Stage4 или универсальность всего планировщика.
 
 - [ ] Прослеживать существенное требование/изменение → зависимость → сценарий/ожидание → выбранная проверка → результат либо gap. Наличие одного теста у requirement само по себе не доказывает проверку всех его условий.
 - [ ] Подтверждённую зависимость, пропущенное условие или баг превращать в reviewed graph/test update; гипотезы оставлять отдельно. Ранее проверенные тикеты не означают автоматически актуальную приёмку новой версии.
@@ -422,7 +438,11 @@ assertions; legacy plans не нормализуются, terminal oracle обя
 является открытым design-вопросом. Переносимый кандидат принят без миграции
 существующих кампаний; отдельный fresh-consumer journey выполнен и оценён в
 [ограниченном actor proof](../../qualification/browser-journey-agent-20260914.md).
-Далее actual mixed-ticket execution, не повтор source adoption или тот же sample.
+Позднее [actual mixed-ticket execution](../../qualification/mixed-handoff-execution-20260914.md)
+принят независимым Lead AQA: новый actor сохранил7/7, не запустил campaign на
+ложное «готово», затем выполнил только разблокированныйQA-701. Итог4supported/
+1issue/2gaps, три отдельных receipts; не весь Stage3. Далее actual graph consumer,
+не повтор source adoption или оплаты Freeland.
 
 Вторая линия использует `evals/dialogue-quality/` и действующие source skill references;
 сначала сохранить фактический first response, включая правильный ответ, затем
@@ -438,7 +458,10 @@ Freeland effect/readback и graph изменения принадлежат
 - [x] Выполнить и независимо оценить fresh-consumer journey: [результат и оригинальный отчёт](../../qualification/browser-journey-agent-20260914.md),1pass/5needs_review/1blocked, conditional Lead AQA. Неисполненные suffixes и oracle reuse minor сохранены; не полная приёмка Stage2.
 - [ ] Перед переиспользованием данного summary-oracle обосновать язык/форму счётчика либо проверять семантическое соответствие без привязки к английским словам. Не править исходный receipt или считать этот minor новым багом продукта.
 - [x] Выполнить два двухэтапных mixed-handoff decision controls: [четыре первых ответа и Lead AQA review](../../../evals/dialogue-quality/20260914/README.md) сохранены, существенных ложных PASS нет. Minor: в M2 SQL-запрос не адресован явно до Stage2; это сохранить для дальнейшей проверки общения, не переписывать первый ответ.
-- [ ] Квалифицировать фактическое mixed-ticket исполнение/сохранение/ответ на частичный handoff; reasoning sample и его корректные ответы не закрывают этот пункт.
+- [x] Принять первый контролируемый actual mixed-ticket execution/сохранение/частичный handoff: [оригинальные отчёты,3runs,26artifacts, Lead AQA ACCEPT](../../qualification/mixed-handoff-execution-20260914.md). Он дополняет reasoning sample, но не закрывает full Stage3, live tracker/SQL/payments или общую надёжность агента.
+- [ ] По [наблюдаемому исполнению](../../qualification/mixed-handoff-execution-20260914.md) исправить название/подсказку registration `views/current-plan.md`: оно не должно утверждать отсутствие существующего Console-плана. Не создавать второго владельца runtime-статуса; проверить absent/authored/CAS-revised варианты.
+- [ ] Перед следующей ревизией V0-плана сохранять его reviewed snapshot для исторического чтения; нынешний receipt хранит digest, а не полные bytes плана. Уже выполненный initial run не выдавать за автоматически заархивированный. Это уточнение handoff, не новый resume/verdict engine.
+- [ ] После graph-consumer proof оценить узкий typed helper поверх существующей сборки graph/catalog/coverage: убрать повторяющийся синхронизирующий код и зависимость caller от test-fixture imports, но оставить требования/ожидания/выбор агенту. Проверить API/browser/manual примеры и отрицательные dropped-blocker/binding случаи; не вводить общий новый CLI без необходимости.
 - [ ] По результатам этих контролей принять минимальные skill/readback/effect изменения и доказать один graph consumer update.
 - [ ] Квалифицировать применимый цикл на незнакомом домене/свежем host, затем отдельно согласовать cloud pilot.
 

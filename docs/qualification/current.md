@@ -4,8 +4,8 @@ Updated 2026-09-14. This is the current source index. [Manifest](../../sources/m
 
 ## Selected source — 14 September
 
-Operational priority after the user-requested Freeland retest: **actual mixed
-handoff execution, then a separate consumer of reviewed graph knowledge**.
+Operational priority after the user-requested Freeland retest: **a separate actual
+consumer of reviewed graph knowledge**. Bounded mixed-handoff execution is accepted.
 [Console66ac7db](browser-journeys-20260914.md) now implements intermediate
 same-session assertions with321/321 expanded controls, cold29/29 and independent
 Lead AQA review. It is now **manifest-selected and restored/verified in the canonical
@@ -20,6 +20,14 @@ remain recorded. This is neither a product PASS nor complete Stage2/3.
 The parallel [mixed-handoff reasoning sample](../../evals/dialogue-quality/20260914/README.md)
 retains four replies and Lead AQA acceptance, with one minor question-ownership
 finding. It does not qualify actual mixed-ticket execution or warrant a new engine.
+The later [actual mixed execution](mixed-handoff-execution-20260914.md) now retains
+three runs and a fresh partial-reply continuation. A false-ready reply caused no
+new campaign; observed readiness led to QA-701 only. All7tickets remain visible:
+4supported,1diagnosed issue,2capability gaps. Independent Lead AQA accepted this
+bounded result; the [portable original reports](../../evals/mixed-handoff-agent-cycle/20260914/README.md)
+preserve mistakes/corrections and the actual receipts. This is a controlled local
+sample, not full Stage3, a live product/tracker run, automatic historical-plan
+archiving or cloud readiness. Runtime pins and installed skills did not change.
 The existing Freeland campaign waits
 for Nikita/Alexander; no new product run, payment or delivery follows from this
 source entry. See the [portable retrospective](../retrospectives/2026-09-14-freeland-retest-lessons.md)
