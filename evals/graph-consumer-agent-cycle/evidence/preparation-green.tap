@@ -1,0 +1,16 @@
+TAP version 13
+# Subtest: prepares equal registered bases and publishes one reviewed dependency without a campaign plan
+ok 1 - prepares equal registered bases and publishes one reviewed dependency without a campaign plan
+  ---
+  duration_ms: 75478.287708
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 75596.469542
