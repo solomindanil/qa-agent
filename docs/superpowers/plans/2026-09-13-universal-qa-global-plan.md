@@ -62,7 +62,7 @@ agent-first QA через диалог до проверенной готовн�
 | Очередь | Результат | Объективная приёмка | Связь с этапами |
 | --- | --- | --- | --- |
 | 1 — bounded API slice принят | Работа не теряется при разрыве; свежая сессия понимает остаток | Registered CLI: A завершён, B прерван, C не начат; A не повторяется, неопределённость B сохранена, разрешённый остаток исполнен; stale source/target и второй owner отклонены; reader и понятный handoff работают без исходного чата. Приёмка ограничена same-host owned repeat-safe API, не browser/payment/host restart | 1 и3; принятая continuation-delivery |
-| 2 — код принят, fresh consumer выполняется отдельно | Проверяются переходы, а не только последний экран | Console66ac7db: same-session search/clear, no-op контроли, остановка зависимых действий, late guard/close и reader;321/321 expanded,29/29 cold; canonical source принят с59/59 packaging. Далее результат самостоятельного применения свежим агентом | 2; существующий evaluator/trace/reader |
+| 2 — код и bounded fresh consumer приняты с оговоркой | Проверяются переходы, а не только последний экран | Console66ac7db:321/321 expanded,29/29 cold, source adoption59/59. Отдельный actor:1pass/5needs_review/1blocked, actual reader, category recovery и диагноз поиска; conditional Lead AQA. Неисполненные search-clear suffixes не закрыты; English zero-summary matcher не переносится на другие продукты | 2; существующий evaluator/trace/reader |
 | 3 | Агент самостоятельно понимает новый продукт и проводит полезный QA | Из brief/дизайна/документации выводит journeys, роли, риски и существенные AC; выполняет проверки healthy/buggy/ambiguous случаев и явно сохраняет недоступное; хотя бы один разрешённый реальный продукт помимо fixture | 2 и применимые части5 |
 | 4 | Full QA и QA-колонка проходят без ручного управления каждым тикетом | Mixed batch: fixed, broken, ambiguous, missing fixture и blocked capability; нет ложного FIXED; одна ветка ждёт человека, остальные продолжаются; после ответа сверяются условия; итог содержит следующий шаг | 3; существующие skills и продуктовый tracker plugin |
 | 5 | Граф и опыт действительно улучшают следующую проверку | Подтверждённая связь меняет реально исполненную выборку; неизвестные области остаются видимыми; новая reviewed поправка помогает свежему агенту на другом примере без потери соседнего настоящего дефекта | 4; существующие knowledge revision/graph/catalog |
@@ -85,8 +85,9 @@ Consoleb54b849 / Kernel185d3e7, Freeland21c1c61 без изменений. [Adop
 source references обновлены, независимое Lead AQA review пройдено. Manifest теперь
 выбирает66ac7db; [новая journey-adoption](../../qualification/browser-journey-adoption-20260914.md)
 выполнена с owning restore/verify и59/59 packaging. Не повторять ни её, ни старую
-continuation-интеграцию. Fresh consumer выполняется отдельно; product QA,
-весь Stage3 и cloud readiness не завершены.
+continuation-интеграцию. [Fresh consumer выполнен отдельно](../../qualification/browser-journey-agent-20260914.md)
+и получил conditional Lead AQA acceptance в ограниченном локальном сценарии;
+product QA, весь Stage3 и cloud readiness не завершены.
 
 Для каждого результата: сохраняем первую попытку, подтверждённые дефекты,
 ложные bug claims, потерянные проверки, повторные действия и вмешательства
@@ -406,8 +407,8 @@ VELVET paid expiry/rebuy выполнен с пользователем; пов�
 
 | Порядок / owning stage | Изменение | Проверяемый выход |
 | --- | --- | --- |
-| Сейчас — source entry, этап1 | Один актуальный CURRENT/следующий шаг; выбранный source отделён от исторического кандидата | Fresh reader выбирает manifestConsole66ac7db/Kernel185d3e7 и отдельный actual consumer gate. Не повторяет принятую adoption или оплату и не запускает Freeland |
-| Journey-source принят — этап2 | Существующие operation/assertion/trace/evidence-reader сохраняют промежуточные состояния; source66ac7db прошёл321/321 и cold29/29, canonical packaging59/59 | Healthy search→filtered→clear→restored; no-op контроли, остановка зависимого действия и late guard/close приняты в bounded-source. Далее применение свежим агентом, не новая реализация формата |
+| Source entry — этап1 | Один актуальный CURRENT/следующий шаг; выбранный source отделён от исторического кандидата | Fresh actor выбрал manifestConsole66ac7db/Kernel185d3e7 и выполнил owned journey. Далее actual mixed batch, не повтор принятой adoption/оплаты и не запуск Freeland |
+| Journey-source и bounded consumer приняты — этап2 | Существующие operation/assertion/trace/evidence-reader сохраняют промежуточные состояния; source66ac7db прошёл321/321 и cold29/29, canonical packaging59/59 | Механизм прошёл healthy/no-op/late-guard контроли. Отдельный fresh actor выполнил категорию→восстановление и обнаружил неработающий поиск; search-clear suffix не достигнут, original INCONCLUSIVE сохранён. Conditional review и oracle reuse minor явно записаны |
 | Параллельно — mixed ticket/help, этап3 | Стабильный набор scope, delta нового handoff, источник каждого обязательного AC и область developer evidence; одна компактная просьба о недостающем | Частичный VPN-handoff не закрывает номера/комиссии; дополнительный UI не становится AC;33mock/43VPN не становятся SQL431/433; paid evidence не вызывает лишний invoice; независимая ветка продолжает работу |
 | Перед повторным использованием API lane — этап1/5 | Exact product-owned effects и один повторяющийся session/readback helper вместо копирования probes | Служебный auth/quote эффект отделён от финансового; background GET не обходит запрет; partial/failed observation не становится PASS; admission collision не считается product failure |
 | Следом — graph consumer, этап4 | Одна подтверждённая provider→flow→test поправка; visible mapping debt и provenance selection | Actual consumer выполняет связанную проверку; удаление связи меняет выбор, неизвестный файл сохраняет fallback; UNCOMPUTED план не называется full campaign; SQL gaps остаются |
@@ -419,7 +420,9 @@ unit/fixture controls. Согласован и проверен optional `afterO
 assertions; legacy plans не нормализуются, terminal oracle обязателен, reader понимает
 тот же контракт. Штатные runner/files/classifier сохранены. Этот формат больше не
 является открытым design-вопросом. Переносимый кандидат принят без миграции
-существующих кампаний; следующий шаг — отдельно выполнить fresh-consumer journey.
+существующих кампаний; отдельный fresh-consumer journey выполнен и оценён в
+[ограниченном actor proof](../../qualification/browser-journey-agent-20260914.md).
+Далее actual mixed-ticket execution, не повтор source adoption или тот же sample.
 
 Вторая линия использует `evals/dialogue-quality/` и действующие source skill references;
 сначала сохранить фактический first response, включая правильный ответ, затем
@@ -432,7 +435,8 @@ Freeland effect/readback и graph изменения принадлежат
 - [x] Провести ограниченный fresh-reader контроль новых указателей; сохранить [первоначальный ответ и независимый Lead AQA вывод](../../qualification/reviews/retest-resume-plan-20260914.md). Это проверка навигации, не runtime или общая QA-квалификация.
 - [x] Реализовать, независимо проверить и переносимо доставить browser-transition candidate66ac7db (321/321 expanded,29/29 cold; не active-source adoption).
 - [x] Принять новый journey-кандидат через прежний manifest/restore путь, сохранив старые кампании и рабочие изменения; owning source verify и canonical59/59 прошли.
-- [ ] Выполнить и независимо оценить fresh-consumer journey; исправление механизма и source adoption не заменяют этот результат.
+- [x] Выполнить и независимо оценить fresh-consumer journey: [результат и оригинальный отчёт](../../qualification/browser-journey-agent-20260914.md),1pass/5needs_review/1blocked, conditional Lead AQA. Неисполненные suffixes и oracle reuse minor сохранены; не полная приёмка Stage2.
+- [ ] Перед переиспользованием данного summary-oracle обосновать язык/форму счётчика либо проверять семантическое соответствие без привязки к английским словам. Не править исходный receipt или считать этот minor новым багом продукта.
 - [x] Выполнить два двухэтапных mixed-handoff decision controls: [четыре первых ответа и Lead AQA review](../../../evals/dialogue-quality/20260914/README.md) сохранены, существенных ложных PASS нет. Minor: в M2 SQL-запрос не адресован явно до Stage2; это сохранить для дальнейшей проверки общения, не переписывать первый ответ.
 - [ ] Квалифицировать фактическое mixed-ticket исполнение/сохранение/ответ на частичный handoff; reasoning sample и его корректные ответы не закрывают этот пункт.
 - [ ] По результатам этих контролей принять минимальные skill/readback/effect изменения и доказать один graph consumer update.

@@ -4,13 +4,19 @@ Updated 2026-09-14. This is the current source index. [Manifest](../../sources/m
 
 ## Selected source — 14 September
 
-Operational priority after the user-requested Freeland retest: **qualify a fresh
-consumer using the adopted browser-journey source, then actual mixed handoff**.
+Operational priority after the user-requested Freeland retest: **actual mixed
+handoff execution, then a separate consumer of reviewed graph knowledge**.
 [Console66ac7db](browser-journeys-20260914.md) now implements intermediate
 same-session assertions with321/321 expanded controls, cold29/29 and independent
 Lead AQA review. It is now **manifest-selected and restored/verified in the canonical
 workspace**; [adoption](browser-journey-adoption-20260914.md) records the transition.
 Do not repeat its implementation or the earlier continuation adoption.
+The [fresh browser-journey consumer](browser-journey-agent-20260914.md) has now
+authored and executed one campaign:1pass/5needs_review/1blocked, actual reader
+and advisory-review readbacks, one diagnosed search-behavior cluster. Lead AQA
+conditionally accepted the bounded result; an unexecuted English zero-summary
+matcher must not be reused generically. Original failures and reporting assistance
+remain recorded. This is neither a product PASS nor complete Stage2/3.
 The parallel [mixed-handoff reasoning sample](../../evals/dialogue-quality/20260914/README.md)
 retains four replies and Lead AQA acceptance, with one minor question-ownership
 finding. It does not qualify actual mixed-ticket execution or warrant a new engine.

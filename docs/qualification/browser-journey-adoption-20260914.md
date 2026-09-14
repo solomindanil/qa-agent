@@ -63,13 +63,25 @@ The independent clone's focused29/29 log SHA256 is
 
 Canonical packaging passed59/59, no failures/skips/cancellations,30005.387375ms;
 log SHA256 `0a79bad8cf585f0ad221d0ffc34e17c597a02d738dad9769fa6a84e6b7b23a20`.
-Final documentation preservation/review and fresh-consumer execution are being
-finalized separately. Candidate321/29 evidence retains
+Independent Lead AQA delivery review approved the ten-file pre-actor slice,
+including preservation, source identities and portable link closure, with no
+Critical/Important finding. It was committed as
+`5e955ec5fb760d92741c948016452cf5ad94d3a7`; nine excluded pre-existing files stayed
+byte-identical. An independent normal clone of that exact commit restored and
+verified all four sources and passed root59/59, no failures/skips/cancellations,
+29947.059833ms; log SHA256
+`d770b9d41fcda26da3ac04b4fb0d85b8c2be52c1f0b126ef80f95ad18d5388e1`.
+The cold clone had no child dependencies and remained clean. These gates used
+only the delivered repository, not untracked drafts or private campaign files.
+
+The [fresh-consumer execution and its review](browser-journey-agent-20260914.md)
+are recorded separately. Candidate321/29 evidence retains
 its original qualification; it is not a fresh agent's product result.
 The prepared public-catalog exercise uses an isolated registration and the same
 selected66ac7db/185 source pair. Preparation is not autonomous onboarding.
 
 No installed skill, existing campaign/account/managed graph, Freeland product,
 tracker, payment, provider integration or cloud host changed. No push occurred.
-Next useful result is an actual authored same-session journey and evidence
-readback by a fresh consumer, then mixed-handoff and graph-consumer qualification.
+The actual authored journey/reader result must retain its own limits; then follow
+mixed-handoff and graph-consumer qualification. Source adoption alone does not
+complete those exits.
