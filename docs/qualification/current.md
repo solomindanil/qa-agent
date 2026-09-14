@@ -4,8 +4,22 @@ Updated 2026-09-14. This is the current source index. [Manifest](../../sources/m
 
 ## Selected source — 14 September
 
-Operational priority after the user-requested Freeland retest: **a separate actual
-consumer of reviewed graph knowledge**. Bounded mixed-handoff execution is accepted.
+Operational priority after the user-requested Freeland retest: **qualify graph
+usefulness and simplify demonstrated authoring/continuation friction**. Bounded
+mixed-handoff execution is accepted. The [actual graph-consumer pair](graph-consumer-20260914.md)
+has executed on unchanged selected components: both agents selected and ran the
+direct and invariant checks, retaining1pass/1needs_review/1blocked and INCONCLUSIVE
+each. Treatment cited the reviewed edge; control independently inferred the same
+check from the brief. This proves observed consumption/execution, **not incremental
+graph-caused coverage**. Keep this first pair; do not rerun it until it diverges.
+Independent Lead AQA accepted the bounded outcome and separately approved its
+portable delivery (97files,12verified inventory artifacts). Further usefulness, source-impact
+fallback, cross-product transfer and cloud readiness remain unqualified.
+The next implementation slice is the already recorded registration-plan wording
+fix: make `views/current-plan.md` explicitly a registration snapshot and retain
+Console as the sole runtime-plan reader/writer. Qualify absent/authored/CAS-revised
+states; do not add a second status engine or repeat this graph pair. See the
+[precise scoped next step](../superpowers/plans/2026-09-13-universal-qa-global-plan.md#71-дополнения-из-retest-включить-в-существующие-этапы).
 [Console66ac7db](browser-journeys-20260914.md) now implements intermediate
 same-session assertions with321/321 expanded controls, cold29/29 and independent
 Lead AQA review. It is now **manifest-selected and restored/verified in the canonical

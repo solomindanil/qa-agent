@@ -301,13 +301,25 @@ checkD→J и checkC→I; только treatment получает reviewed `J --
 через existing Kernel revision/preview/apply. Входной каталог и ожидаемое поведение
 не меняются, кроме обязательного пересчёта digest. Свежие consumers самостоятельно
 читают graph/catalog, выбирают проверки и исполняют штатный V0-runner; fixture
-не подставляет им готовый план. Control сохраняет I/C непроверенными для этой
-кампании, а не объявляет исчезнувшим их уже существующее automated coverage.
+не подставляет им готовый план. Если control не выбирает C, он сохраняет I/C
+непроверенными для этой кампании, а не объявляет исчезнувшим их существующее automated coverage.
 `prepareCampaignDraft` даёт inventory, но сам не выбирает по рёбрам; решение
 пока принимает агент. Полный QA-агент вправе самостоятельно обнаружить gap и
 проверить I даже без связи: такую полезную exploration нельзя запрещать ради
 красивого counterfactual и нельзя приписывать graph-driven selection. Проверка
 одной связи не закрывает Stage4 или универсальность всего планировщика.
+
+Фактический [первый consumer comparison](../../qualification/graph-consumer-20260914.md)
+выполнен14сентября: оба свежих агента выбралиD+C и исполнили одинаковые API assertions.
+Treatment использовал reviewed J→I; control самостоятельно вывел C из общего brief.
+Каждый receipt:1pass/1needs_review/1blocked, INCONCLUSIVE; первый выбор, исходные
+ошибки и отдельный диагностический GET сохранены. Это наблюдаемое использование
+графа, **не доказанный прирост покрытия/обнаружения ошибок**. Не повторять пару ради
+желаемого расхождения. Следующий сравнительный пример должен отражать реалистичное
+изменение с менее очевидной зависимостью; сохранить достаточные требования,
+свободу обоснованного выбора и измерять фактическую проверку/стоимость. Приёмка
+всего этапа4 остаётся открытой; независимый Lead AQA принял bounded outcome и
+отдельно переносимую поставку:97files/12inventory artifacts, свежие packaging59/59.
 
 - [ ] Прослеживать существенное требование/изменение → зависимость → сценарий/ожидание → выбранная проверка → результат либо gap. Наличие одного теста у requirement само по себе не доказывает проверку всех его условий.
 - [ ] Подтверждённую зависимость, пропущенное условие или баг превращать в reviewed graph/test update; гипотезы оставлять отдельно. Ранее проверенные тикеты не означают автоматически актуальную приёмку новой версии.
@@ -441,8 +453,10 @@ assertions; legacy plans не нормализуются, terminal oracle обя
 Позднее [actual mixed-ticket execution](../../qualification/mixed-handoff-execution-20260914.md)
 принят независимым Lead AQA: новый actor сохранил7/7, не запустил campaign на
 ложное «готово», затем выполнил только разблокированныйQA-701. Итог4supported/
-1issue/2gaps, три отдельных receipts; не весь Stage3. Далее actual graph consumer,
-не повтор source adoption или оплаты Freeland.
+1issue/2gaps, три отдельных receipts; не весь Stage3. Затем выполнен первый actual
+graph consumer pair: оба выбрали одинаковые проверки по разным основаниям; прирост
+покрытия не доказан. Далее квалификация полезности и точечное устранение уже
+наблюдавшихся затруднений, не повтор source adoption или оплаты Freeland.
 
 Вторая линия использует `evals/dialogue-quality/` и действующие source skill references;
 сначала сохранить фактический first response, включая правильный ответ, затем
@@ -459,11 +473,29 @@ Freeland effect/readback и graph изменения принадлежат
 - [ ] Перед переиспользованием данного summary-oracle обосновать язык/форму счётчика либо проверять семантическое соответствие без привязки к английским словам. Не править исходный receipt или считать этот minor новым багом продукта.
 - [x] Выполнить два двухэтапных mixed-handoff decision controls: [четыре первых ответа и Lead AQA review](../../../evals/dialogue-quality/20260914/README.md) сохранены, существенных ложных PASS нет. Minor: в M2 SQL-запрос не адресован явно до Stage2; это сохранить для дальнейшей проверки общения, не переписывать первый ответ.
 - [x] Принять первый контролируемый actual mixed-ticket execution/сохранение/частичный handoff: [оригинальные отчёты,3runs,26artifacts, Lead AQA ACCEPT](../../qualification/mixed-handoff-execution-20260914.md). Он дополняет reasoning sample, но не закрывает full Stage3, live tracker/SQL/payments или общую надёжность агента.
+- [x] Выполнить первый graph-consumer comparison через existing publication/runner/reader; [оригинальная пара](../../qualification/graph-consumer-20260914.md) сохраняет полезный самостоятельный выбор control. Оба D+C,2runs/12artifacts; прирост покрытия не доказан. Независимая приёмка среза отдельна от факта выполнения.
 - [ ] По [наблюдаемому исполнению](../../qualification/mixed-handoff-execution-20260914.md) исправить название/подсказку registration `views/current-plan.md`: оно не должно утверждать отсутствие существующего Console-плана. Не создавать второго владельца runtime-статуса; проверить absent/authored/CAS-revised варианты.
 - [ ] Перед следующей ревизией V0-плана сохранять его reviewed snapshot для исторического чтения; нынешний receipt хранит digest, а не полные bytes плана. Уже выполненный initial run не выдавать за автоматически заархивированный. Это уточнение handoff, не новый resume/verdict engine.
 - [ ] После graph-consumer proof оценить узкий typed helper поверх существующей сборки graph/catalog/coverage: убрать повторяющийся синхронизирующий код и зависимость caller от test-fixture imports, но оставить требования/ожидания/выбор агенту. Проверить API/browser/manual примеры и отрицательные dropped-blocker/binding случаи; не вводить общий новый CLI без необходимости.
 - [ ] По результатам этих контролей принять минимальные skill/readback/effect изменения и доказать один graph consumer update.
 - [ ] Квалифицировать применимый цикл на незнакомом домене/свежем host, затем отдельно согласовать cloud pilot.
+
+**Ближайший отдельный implementation-срез после поставки graph-consumer:**
+уточнить только registration-представление плана. Read-only проверка active
+Kernel185 подтверждает: `src/kernel/workspace-blueprint.ts`,
+`renderRegistrationCurrentPlan`, безусловно пишет `No CampaignPlan exists`,
+хотя Console66 владеет существующим `tests/qa-campaign.v0.json` через
+`readCampaignPlan`/`writeNewCampaignPlan`/CAS `writeCampaignPlan`.
+Оставить путь и registration topology/bindings; назвать представление
+`Registration planning snapshot`, отделить registration-счётчики от runtime,
+указать существующий Console reader/validator для актуального плана. Kernel не
+должен начинать читать или синхронизировать Console-план. Проверки: owning
+`tests/workspace/blueprint.test.ts` сохраняет счётчики и исключает ложную фразу;
+существующий Console vertical fixture проходит absent → authored → CAS-revised,
+view остаётся registration snapshot, а Console читает соответствующий digest.
+Это отдельная reviewed source revision, не уже реализованный фикс. Typed
+graph/catalog helper не является prerequisite и остаётся следующим независимым
+решением, без нового CLI или selector.
 
 ## 8. Что сознательно не делаем сейчас
 
