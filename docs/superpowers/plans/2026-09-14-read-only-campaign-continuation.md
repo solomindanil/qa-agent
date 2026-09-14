@@ -92,10 +92,12 @@ return outcome !== 'pass' && outcome !== 'harness_failure';
 - `acquireContinuationWriteAdmission({workspacePath, storeRoot, runId})` creates a real exclusive local write admission and returns identity-checked `assertCurrent()` / `release()` methods. This authorizes internal filesystem publication only, not product dispatch or takeover of an existing admission. Task4 adds worker lifecycle ownership; there is no allow-by-default death callback.
 - `prepareContinuationDirectory({storeRoot, relativePath, files})` builds bounded private staging, where files contain `{path, bytes, mode}`; returns a prepared directory with exact inventories. `publishPreparedContinuationDirectory({workspacePath, prepared, admission})` publishes to a missing contained target. `sealContinuationDirectory({workspacePath, runId, admission})` changes only verified known modes.
 - These are byte-level internal primitives. Task3 supplies record schemas; Task5 composes validated `publishRun`/`publishStart`/`publishAccepted`/`publishReceipt` operations from them. Tests here prove atomic bytes, not that arbitrary test JSON constitutes valid campaign evidence. Private paths never enter public record fields.
+- Sealer interface refinement: also require `relativePath` (the exact run or one exact accepted subtree) and ephemeral `expected:{directories:[{path,identity:{dev,ino}}],files:[{path,identity:{dev,ino},size,sha256}]}`. Paths are relative to that subtree, with the root directory represented by `""`. Copy and bound inputs before yielding; verify the whole exact inventory before any chmod, then seal only700→500 bottom-up with retained descriptors and readback. Files remain400 and unchanged. Task3 supplies this inventory only after semantic validation; it is not a second checkpoint, CLI authority or a `validated:true` callback. Failure after permission mutation/finalization retains uncertain ownership; the primitive never unlocks it. Fully sealed repeat is read-only.
+- Receipt publication seam: `publishPreparedContinuationReceipt({workspacePath,runId,admission,prepared,expectedRunIdentity:{dev,ino}})` reuses the same private preparation/publication lifecycle for one file, `receipt.json`, into the exact existing run. Preparation has `relativePath` equal to the run directory, only receipt.json400 and private directory700. Expected run identity comes from Task3 readback. Rename the complete private file, not a hardlink or direct public write; verify absence, retained descriptors,400 bytes, source/destination parent sync and readback. Shared unknown-outcome handling applies. This filesystem publication alone is not a terminal QA result.
 
-- [ ] Write filesystem tests using fresh owned temporary directories: run identity appears atomically; start+execution appear together; already-existing targets are never replaced; foreign root/symlink/hardlink fails; raw interrupted bytes remain private and unchanged.
-- [ ] Run `node --import tsx --test tests/unit/campaign-continuation-files.test.ts` and capture expected RED.
-- [ ] Implement contained private staging on the same filesystem, complete validation/readback before publication, fsync writes, then exclusive-owner atomic publication. Only known structural ancestors may pre-exist. A crash before publication leaves no identity-less public run/execution.
+- [x] Write filesystem tests using fresh owned temporary directories: run identity appears atomically; start+execution appear together; already-existing targets are never replaced; foreign root/symlink/hardlink fails; raw interrupted bytes remain private and unchanged.
+- [x] Run `node --import tsx --test tests/unit/campaign-continuation-files.test.ts` and capture expected RED.
+- [x] Implement contained private staging on the same filesystem, complete validation/readback before publication, fsync writes, then exclusive-owner atomic publication. Only known structural ancestors may pre-exist. A crash before publication leaves no identity-less public run/execution.
 
 ```ts
 await admission.assertCurrent();
@@ -106,9 +108,16 @@ await published.verifyExactBytes();
 
 `prepared`/`published` are private implementation objects inside this module: they hold opened directory/leaf identities, bounded files and the exact destination. Their methods must refuse replacements or unknown publication outcomes, not return a guessed success. Public store methods remain the interface above.
 
-- [ ] Publish accepted as a whole complete bundle0700/0400, then descriptor-bound seal/readback0500/0400 per the approved portability addendum. Keep run/start records0400, active ancestors0700. Scope sanitizer to new execution; previous commits are hash-verified and never repaired. Admission metadata lives outside run inventory.
-- [ ] Kill owned publisher processes at prepared/published boundaries and verify all-or-absent data. Add partial chmod/sealing_pending tests; do not treat a helper-thrown exception as the only crash proof.
-- [ ] Focused tests GREEN, independent review, Console commit `feat: publish immutable campaign continuation records`.
+- [x] Publish accepted as a whole complete bundle0700/0400, then descriptor-bound seal/readback0500/0400 per the approved portability addendum. Keep run/start records0400, active ancestors0700. Scope sanitizer to new execution; previous commits are hash-verified and never repaired. Admission metadata lives outside run inventory.
+- [x] Kill owned publisher processes at prepared/published boundaries and verify all-or-absent data. Add partial chmod/sealing_pending tests; do not treat a helper-thrown exception as the only crash proof.
+- [x] Focused tests GREEN, independent review, Console commit `feat: publish immutable campaign continuation records`.
+
+Task2 accepted as a byte-level filesystem layer at Console
+`01c4d294d081cd26a1320c06461cb7d863434c2b`:123/123 combined with Task1,
+strict scoped TS, worker syntax and diff checks; independent Lead AQA spec and
+quality APPROVED. Runtime qualification here is macOS/process kill, not Linux
+execution or power loss. The semantic `sealing_pending` reader, dispatch owner,
+registered CLI recovery and root adoption remain Tasks3–7.
 
 ### Task 3: Validate v1 partial and terminal evidence through real consumers
 
