@@ -10,6 +10,8 @@
 
 **Spec:** [Approved design](../specs/2026-09-14-read-only-campaign-continuation-design.md), document SHA256 `9e3485425d10e5300f58e14ebcbef31ea52256f8541949a7d4334de7241b0837`, approved by user after independent Lead AQA review.
 
+**Approved portability addendum:** [accepted-directory publication order](../specs/2026-09-14-continuation-publication-portability-amendment.md), approved 2026-09-14. Prepare/publish the complete accepted bundle0700/0400, then seal through its retained descriptor to0500/0400; exact valid bytes interrupted before chmod are nonterminal `bundle_sealing_pending`. The original spec digest is retained, not silently replaced.
+
 ## Global Constraints
 
 - Extend Console `881a93e43fd9b90f3dcf9812812f6cf8ad854789` / Kernel `657894dbd61561a634f36669a0874dccccbea59e` in independent candidate checkouts; root design commit `d0239eebe2e2d5cb39d0068cb63fa1aee6978da4`.
@@ -43,6 +45,7 @@ The user previously requested the coordinator to implement as well as delegate. 
 
 **Files:**
 - Create Console `src/lib/campaign-continuation-state.mjs`.
+- Create Console `src/lib/campaign-continuation-state.d.mts` for the TS runner and plain ESM reader, following the existing dependency-module pattern.
 - Create Console `tests/unit/campaign-continuation-state.test.ts`.
 - Existing runner retry decision is inspected here and consumed from the shared helper in Task5.
 
@@ -52,7 +55,7 @@ The user previously requested the coordinator to implement as well as delegate. 
 - An execution projection has exactly `checkId`, `attempt:1|2`, `executionId`, positive integer `ownerGeneration`, `previousExecutionId:string|null`, and `committedOutcome:kind|null`. This is an internal projection from verified records, not a substitute for Task3 hash/schema validation.
 - Return `{checks, blockedTargets, counts}`. Each check contains `checkId`, `state:'unstarted'|'uncertain'|'retry_pending'|'finalized'`, `nextAttempt:1|2|null`, ordered `acceptedExecutionIds`, and retained `uncertainExecutionIds`. Counts are `{total, finalized, uncertain, retryPending, unstarted}`. No verdict, timestamps, I/O or dispatch capability.
 
-- [ ] Write a failing behavior test for A completed/B uncertain/C unstarted. Use literal expected states/counts, not output-derived expectations:
+- [x] Write a failing behavior test for A completed/B uncertain/C unstarted. Use literal expected states/counts, not output-derived expectations:
 
 ```js
 assert.deepEqual(deriveCampaignContinuation({
@@ -66,17 +69,17 @@ assert.deepEqual(deriveCampaignContinuation({
 [['A', 'finalized', null], ['B', 'uncertain', 1], ['C', 'unstarted', 1]]);
 ```
 
-- [ ] Run `node --import tsx --test tests/unit/campaign-continuation-state.test.ts` from Console. Record the first behavior RED; a missing import alone is not behavioral evidence. A new module may initially expose a minimal empty projection solely to reach the assertion.
-- [ ] Implement pure grouping by check/logical attempt. For each nonempty attempt, require one linear predecessor chain, no missing predecessor/cycle/fork, increasing ownerGeneration on replay, and a sole committed tail. Reject duplicate IDs, foreign checks, unsupported outcomes, duplicate completions or replay after completion. Filesystem input order must not choose a winner.
-- [ ] Derive attempt2 only after a finalized first outcome that requires it; reject attempt2 after first pass/harness failure or before finalized attempt1. Keep earlier uncertain execution IDs as history after successful replay. Return fresh immutable data, preserving blockers without changing their semantics.
+- [x] Run `node --import tsx --test tests/unit/campaign-continuation-state.test.ts` from Console. Record the first behavior RED; a missing import alone is not behavioral evidence. A new module may initially expose a minimal empty projection solely to reach the assertion.
+- [x] Implement pure grouping by check/logical attempt. For each nonempty attempt, require one linear predecessor chain, no missing predecessor/cycle/fork, increasing ownerGeneration on replay, and a sole committed tail. Reject duplicate IDs, foreign checks, unsupported outcomes, duplicate completions or replay after completion. Filesystem input order must not choose a winner.
+- [x] Derive attempt2 only after a finalized first outcome that requires it; reject attempt2 after first pass/harness failure or before finalized attempt1. Keep earlier uncertain execution IDs as history after successful replay. Return fresh immutable data, preserving blockers without changing their semantics.
 
 ```js
 // Shared retry decision; outcome validation precedes this expression.
 return outcome !== 'pass' && outcome !== 'harness_failure';
 ```
 
-- [ ] Add and observe RED before each behavior family: retry_pending and second-attempt replay; out-of-order input; conflicting chains/completions; blocker/input immutability. Null is uncertain, not a passing outcome. No generic parser framework.
-- [ ] Run the focused file to GREEN; review module+tests independently. Commit only those two Console files: `feat: derive campaign continuation progress`.
+- [x] Add and observe RED before each behavior family: retry_pending and second-attempt replay; out-of-order input; conflicting chains/completions; blocker/input immutability. Null is uncertain, not a passing outcome. No generic parser framework.
+- [x] Run the focused file to GREEN and typecheck its declaration/consumer; review module+types+tests independently. Commit only those three Console files: `feat: derive campaign continuation progress`.
 
 ### Task 2: Publish immutable records without identity-less crash debris
 
@@ -103,7 +106,7 @@ await published.verifyExactBytes();
 
 `prepared`/`published` are private implementation objects inside this module: they hold opened directory/leaf identities, bounded files and the exact destination. Their methods must refuse replacements or unknown publication outcomes, not return a guessed success. Public store methods remain the interface above.
 
-- [ ] Publish accepted as a whole 0500/0400 directory including complete.json. Keep run/start records0400, active ancestors0700. Scope sanitizer to new execution; previous commits are hash-verified and never repaired. Admission metadata lives outside run inventory.
+- [ ] Publish accepted as a whole complete bundle0700/0400, then descriptor-bound seal/readback0500/0400 per the approved portability addendum. Keep run/start records0400, active ancestors0700. Scope sanitizer to new execution; previous commits are hash-verified and never repaired. Admission metadata lives outside run inventory.
 - [ ] Kill owned publisher processes at prepared/published boundaries and verify all-or-absent data. Add partial chmod/sealing_pending tests; do not treat a helper-thrown exception as the only crash proof.
 - [ ] Focused tests GREEN, independent review, Console commit `feat: publish immutable campaign continuation records`.
 
@@ -120,7 +123,7 @@ await published.verifyExactBytes();
 
 **Interfaces:**
 - `validateContinuationRecords({run, starts, completes, artifacts, receipt})` validates exact strict versions, IDs, digest bindings, declared inventory and legal lineage; produces Task1 projections only after validation.
-- `readCampaignContinuation({workspacePath, runId})` returns `{phase:'partial'|'sealing_pending'|'terminal', identity, progress, receipt}`; receipt is null unless fully sealed. No mutations, product requests or auto-selection by mtime.
+- `readCampaignContinuation({workspacePath, runId})` returns `{phase:'partial'|'bundle_sealing_pending'|'sealing_pending'|'terminal', identity, progress, receipt}`; receipt is null unless fully sealed. `bundle_sealing_pending` requires complete exact run/start/complete bindings and inventory; it grants neither PASS nor dispatch. No mutations, product requests or auto-selection by mtime.
 - Identity includes canonical original plan and original blockers, graph/catalog/binding, source pair, registration/publication/oracle/dependency bindings, origin and supported target identity. Hash run/start canonically; complete hashes result/trace/required screenshot but not itself; terminal inventory hashes complete.
 - Kernel `consoleCampaignV1EntryPolicy(relativePath, phase)` recognizes only spec grammar. Semantic parent admission comes from parsed run/plan and exact receipt when phase is sealing_pending, not just a regex or claimed phase string.
 
