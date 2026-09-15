@@ -48,9 +48,10 @@ preserve mistakes/corrections and the actual receipts. This is a controlled loca
 sample, not full Stage3, a live product/tracker run, automatic historical-plan
 archiving or cloud readiness. Runtime pins and installed skills did not change.
 After the developer's new answer, a separately authorized full Freeland campaign
-is running on frozen Freeland`3ee1cb3` and product`4c9289f`. That campaign
-authorization does not come from this source entry. Financial FREEL-435 remains
-waiting, and there is no product PASS yet. See the [portable retrospective](../retrospectives/2026-09-14-freeland-retest-lessons.md)
+completed on frozen Freeland `3ee1cb3` and product `4c9289f` with
+[`BLOCK_RELEASE` and independently triaged limits](freeland-preproduction-20260915.md).
+That campaign authorization does not come from this source entry. Financial
+FREEL-435 remains waiting, and there is no product PASS. See the [portable retrospective](../retrospectives/2026-09-14-freeland-retest-lessons.md)
 and [updated global next steps](../superpowers/plans/2026-09-13-universal-qa-global-plan.md#71-дополнения-из-retest-включить-в-существующие-этапы).
 Freeland`3ee1cb3` is now the [manifest-selected QA-H003 source](freeland-divergent-baseline-adoption-20260915.md):
 when production and candidate have diverged from one unique merge base, schema V3
