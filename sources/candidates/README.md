@@ -2,6 +2,21 @@
 
 These bundles preserve reviewed and unfinished development without depending on the author's local checkout. The [manifest](../manifest.v1.json) is the only source selector; see [current qualification](../../docs/qualification/current.md) for current pins. Dated selection labels below are historical and do not override that selector. The `candidates/` directory is a provenance location, not a runtime status. No archive grants product execution, campaign migration or skill-installation authority. Do not copy an archived skill over an accepted one.
 
+## Freeland divergent production baseline, 15 September 2026
+
+Source `3ee1cb3f6ac3676f4f0e066ef5cc9970b0baf5e0`, parent21c1c61,
+tree `52e0e23be1ad6413fd8bb549ce7f043b2b0fa07b`.
+Archive `freeland-divergent-baseline-3ee1cb3.bundle`, complete history and sole
+HEAD, SHA256 `3577569dc5be28497dfd4ac86d7f46d5b276533015d6bb664575f0c5735b0671`.
+**SOURCE REVIEWED / COLD-CHECKED / MANIFEST-SELECTED.** Schema V3 binds exact
+production, candidate and unique merge-base trees for a real divergence and
+requires explicit full planning; impacted mode fails closed before replacement.
+V1/V2 behavior and the prior M1/M5 repairs remain. Full owning `qa:verify:all`
+passed2786/2786 with no failures/skips. [Qualification, delivery and retained
+limits](../../docs/qualification/freeland-divergent-baseline-adoption-20260915.md).
+This archive does not establish a product PASS or authorize live/product/payment
+effects, campaign migration or installed-skill promotion.
+
 ## Console browser journey assertions, 14 September 2026
 
 Source `66ac7db55a25f56b199b2cb00ad83df3b8dad868`, parentb54b849,

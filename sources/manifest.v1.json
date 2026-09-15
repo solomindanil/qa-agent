@@ -24,12 +24,12 @@
     {
       "id": "freeland",
       "path": "components/freeland",
-      "commit": "21c1c617a2dbe5d1131215dc738dba2556851ae3",
-      "tree": "f691a01e33aabb8a72673326ec524d955c4794e8",
-      "bundle": "sources/candidates/freeland-graph-url-boundary-21c1c61.bundle",
-      "sha256": "2646e64b1a623530d0cab99f07a2d5d0a920245e75bb858001e9fc3c645ca066",
+      "commit": "3ee1cb3f6ac3676f4f0e066ef5cc9970b0baf5e0",
+      "tree": "52e0e23be1ad6413fd8bb549ce7f043b2b0fa07b",
+      "bundle": "sources/candidates/freeland-divergent-baseline-3ee1cb3.bundle",
+      "sha256": "3577569dc5be28497dfd4ac86d7f46d5b276533015d6bb664575f0c5735b0671",
       "runtimeAuthority": true,
-      "qualification": "reviewed M1 bounded SharedWorker admission repair and M5 format-stable source locator with URL query/fragment negative controls; full owning offline gate2759 executions and cold51 graph/provenance controls at21c1c61; existing graph gaps and paid-operation qualifications remain separate; no new live deployment, product test, graph coverage, campaign migration or installed skill claim; see docs/qualification/graph-locator-candidate-20260913.md and source-adoption-20260914.md"
+      "qualification": "reviewed QA-H003 divergent production-baseline authority successor to21c1c61: schema V3 binds the exact production, candidate and unique merge-base trees; only an explicitly requested full plan is admitted, while impacted mode fails closed before replacement. Existing V1/V2 behavior and prior M1/M5 repairs are retained. Full owning qa:verify:all passed2786/2786 with typecheck/build/provenance/private bindings; complete-history bundle, cold root restoration and independent review are recorded in docs/qualification/freeland-divergent-baseline-adoption-20260915.md. Harness/source adoption is not product PASS, live execution, payment authority, campaign migration or installed-skill promotion"
     },
     {
       "id": "kernel-reporting-reference",

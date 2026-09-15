@@ -2,7 +2,7 @@
 
 Updated 2026-09-15. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. This branch delivers the [reviewed continuation successor](campaign-continuation-20260914.md); cold delivery and whole-review gates passed. [Canonical adoption](continuation-adoption-20260914.md) is now complete with the user's approval and fresh packaging/source checks. [Earlier source adoption](source-adoption-20260914.md) retains its exact prior selection and gates. Older pages are dated evidence, not competing current manifests. Existing product runtimes and installed skills were not migrated.
 
-## Selected source — 14 September
+## Selected source — 15 September
 
 Operational priority after the user-requested Freeland retest: **qualify graph
 usefulness and simplify demonstrated authoring/continuation friction**. Bounded
@@ -47,10 +47,18 @@ bounded result; the [portable original reports](../../evals/mixed-handoff-agent-
 preserve mistakes/corrections and the actual receipts. This is a controlled local
 sample, not full Stage3, a live product/tracker run, automatic historical-plan
 archiving or cloud readiness. Runtime pins and installed skills did not change.
-The existing Freeland campaign waits
-for Nikita/Alexander; no new product run, payment or delivery follows from this
-source entry. See the [portable retrospective](../retrospectives/2026-09-14-freeland-retest-lessons.md)
+After the developer's new answer, a separately authorized full Freeland campaign
+is running on frozen Freeland`3ee1cb3` and product`4c9289f`. That campaign
+authorization does not come from this source entry. Financial FREEL-435 remains
+waiting, and there is no product PASS yet. See the [portable retrospective](../retrospectives/2026-09-14-freeland-retest-lessons.md)
 and [updated global next steps](../superpowers/plans/2026-09-13-universal-qa-global-plan.md#71-дополнения-из-retest-включить-в-существующие-этапы).
+Freeland`3ee1cb3` is now the [manifest-selected QA-H003 source](freeland-divergent-baseline-adoption-20260915.md):
+when production and candidate have diverged from one unique merge base, schema V3
+binds all three exact trees and admits only an explicitly requested full plan.
+Impacted mode fails closed before campaign replacement; V1 strict ancestry and V2
+merge-wrapper behavior are unchanged. Its2786/2786 owning harness gates and root
+delivery controls are source qualification, not a product PASS or permission to
+replay a live campaign.
 The adopted continuation and journey source are not awaiting integration.
 Neither change qualifies browser/payment
 replay, current installed hosts or cloud execution.
@@ -59,7 +67,7 @@ replay, current installed hosts or cloud execution.
 | --- | --- | --- |
 | Kernel | `185d3e72309a4362db57cf2e805d1c00a5035909` | Prior M4 plus strict continuation v1 workspace grammar |
 | Console | `66ac7db55a25f56b199b2cb00ad83df3b8dad868` | Intermediate same-session assertions and evidence reader; earlier immutable continuation retained; exact Kernel185 authority |
-| Freeland | `21c1c617a2dbe5d1131215dc738dba2556851ae3` | M1 bounded browser admission and M5 format/URL-safe source locators |
+| Freeland | `3ee1cb3f6ac3676f4f0e066ef5cc9970b0baf5e0` | QA-H003 exact-tree divergent baseline authority with explicit full-only planning; prior M1/M5 retained |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **not active** |
 
 These reviewed repairs are now the manifest-selected sources for new permitted
@@ -211,6 +219,6 @@ For an **existing** Freeland, Agentify or MagicCard campaign, first read the own
 
 Current adopted selection: [browser-journey adoption](browser-journey-adoption-20260914.md) on the source table above. Its predecessor [bounded continuation delivery](campaign-continuation-20260914.md) and [integration](continuation-adoption-20260914.md), plus the earlier [source adoption](source-adoption-20260914.md), retain their exact attribution. Existing controlled fixture evidence covers useful execution, bug sensitivity, knowledge/regression publication, preserved uncertainty, human-help continuation and review storage. Root packaging/integrity controls are separate. No product was purchased, deployed, migrated or written to a tracker during source consolidation.
 
-Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. The selected Freeland21c1c61 includes the reviewed M1 successor and M5 URL-boundary repair. This closes those bounded source findings, not product coverage or every browser boundary. Other [maintenance findings](maintenance-backlog-20260913.md) remain separately scoped. Historical campaigns using older helpers do not gain these repairs until their owners deliberately requalify a new runtime.
+Earlier rejected checkpoint: candidate `722bf1b` completed2739 aggregate executions, but independent review reproduced a SharedWorker admission escape. That old candidate remains NOT READY TO ADOPT. The selected Freeland3ee1cb3 retains the reviewed M1 successor and M5 URL-boundary repair from21c1c61 and adds only the reviewed QA-H003 divergent-baseline/full-plan contract. This closes those bounded source findings, not product coverage or every browser boundary. Other [maintenance findings](maintenance-backlog-20260913.md) remain separately scoped. Historical campaigns using older helpers do not gain these repairs until their owners deliberately requalify a new runtime.
 
 Then a new substantive authorized full/ticket product slice consumes the accepted source and current owner skills, and a fresh session resumes it. Convert only demonstrated reusable gaps into shared reviewed helpers. Actual current Claude execution and a bounded cloud pilot follow as separate exits; native/mobile, performance/load and provider internals are not silently covered. The [global plan](../superpowers/plans/2026-09-13-universal-qa-global-plan.md) preserves the previous seven substantive exits and deferred Freeland coverage work.
