@@ -2,7 +2,7 @@
 
 ## Status
 
-Delivery candidate; canonical adoption and final review pending. No active campaign or installed skill is migrated. This source update is not product acceptance or release GO.
+**Canonical source adopted** in local root commit `2e546fb73444c6d9d0e41f53abd8c00d13340c9e`. Its tree is identical to independently approved candidate `c17410ffcff1d2c5c38b25cc6eb37a9c01bc5457`. No push, active campaign or installed-skill migration occurred. This source update is not product acceptance or release GO.
 
 Selected Freeland successor in this candidate:
 
@@ -29,12 +29,14 @@ Source-only CI now explicitly runs **PAY01 composition only**, not the entire mi
 | Test preservation | 96 before = 36 extracted + 60 retained; same title multiplicities | [Conservation](evidence/freeland-source-adoption-20260920/freeland-ci-boundary-conservation.log) |
 | Independent d4754f7 clone without dependencies | PAY01 36/36, clean, no node_modules | [Cold component gate](evidence/freeland-source-adoption-20260920/freeland-ci-boundary-cold.log) |
 | Actual five source-only shell steps from candidate workflow in independent root clone | Restore/verify all four exact pins; root61/61; provenance VALID; PAY01 36/36; clean, no node_modules | [Cold workflow output](evidence/freeland-source-adoption-20260920/ci-cold-workflow.log) |
+| Canonical root after exact transfer | Root61/61; source verification all four pins; purePAY01 36/36 and provenance VALID | [Fresh root output](evidence/freeland-source-adoption-20260920/ci-main-final-tests.log) |
 | Retained readiness/DOM consumers, prior integration stage | 131/131; these files and dependencies are unchanged by d4754f7 | [Readiness output](evidence/freeland-source-adoption-20260920/freeland-integration-main-readiness-131.log) |
 
-The prior integration also passed TypeScript noEmit. Dependency-backed local tests used an existing ordinary dependency-directory copy, not a new dependency installation or clean dependency attestation. Bundle closure and isolated exact source verification passed. The actual five shell steps from `.github/workflows/qa-source.yml` passed locally in an independent cold clone at root `170bc02b091cb2195d1e768b985f21daa580c142`, using their declared reduced environment and working directories. Checkout/setup-node hosted actions were not executed: this is a local workflow-body check, not a hosted CI run or OS-level egress-isolation proof. Final review remains required.
+The prior integration also passed TypeScript noEmit. Dependency-backed local tests used an existing ordinary dependency-directory copy, not a new dependency installation or clean dependency attestation. Bundle closure and isolated exact source verification passed. The actual five shell steps from `.github/workflows/qa-source.yml` passed locally in an independent cold clone at root `170bc02b091cb2195d1e768b985f21daa580c142`, using their declared reduced environment and working directories. Checkout/setup-node hosted actions were not executed: this is a local workflow-body check, not a hosted CI run or OS-level egress-isolation proof. Later candidate commits changed only documentation/evidence; final review approved through c17410f.
 
 ## Reviews and limits
 
+- [Final whole-delivery review](evidence/freeland-source-adoption-20260920/ci-delivery-final-review.md): independent Lead AQA/source-delivery review approved through c17410f with no findings. Main transferred exactly the 21 reviewed path blobs and verified identical committed tree. Three entry files retained their unrelated working-copy changes through narrow edits and exact reviewed-blob staging; all 43 other pre-existing dirty paths retained their hashes. Old Freeland3ee source is preserved by a local ref and its previous committed bundle. Raw evidence whitespace is retained; source/config diff checks exclude raw copied evidence rather than normalize it.
 - [Integration review](evidence/freeland-source-adoption-20260920/freeland-integration-review.md): independent fresh-context Lead AQA approved exact aa1→064 five-file integration. It reviewed recorded tests rather than rerunning them.
 - [Component implementation and test details](evidence/freeland-source-adoption-20260920/freeland-ci-boundary-report.md): exact four-path boundary follow-up; independent fresh-context Lead AQA [review](evidence/freeland-source-adoption-20260920/freeland-ci-boundary-review.md) approved with no findings.
 - Historical full readiness and product runs are not reattributed to this new source. No fresh staging/product suite, payment, provider request, financial disposition, Flow/Buzz write, deploy, push, installed-skill update or cloud run occurred.
