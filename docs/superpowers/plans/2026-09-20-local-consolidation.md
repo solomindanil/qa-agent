@@ -22,26 +22,28 @@
 
 - [x] Read canonical entry/manifest and snapshot all49 dirty/untracked paths by SHA-256 before changes.
 - [x] Independently audit all46 non-bundle files and local source/worktree lineage.
-- [ ] Deliver the current Buzz contract and dialogue-control/index changes as atomic groups.
-- [ ] Preserve dated qualifications, reviews, retrospectives and drafts with an explicit historical boundary; keep the exact first-response and raw evidence bytes.
-- [ ] Include the13 explicitly selected ignored raw logs after a bounded credential/privacy check; do not unignore logs globally.
-- [ ] Record duplicate old-plan bytes against the already delivered f49e739 snapshot rather than reverting its newer wrapper.
-- [ ] Preserve the Android source as experimental, with no managed/hosted execution claim.
-- [ ] Retain useful unaccepted source candidates and maps to accepted successors without changing manifest authority.
+- [x] Deliver the current Buzz contract and dialogue-control/index changes as atomic groups.
+- [x] Preserve dated qualifications, reviews, retrospectives and drafts with an explicit historical boundary; keep the exact first-response and raw evidence bytes.
+- [x] Include the13 explicitly selected ignored raw logs after a bounded credential/privacy check; do not unignore logs globally.
+- [x] Record duplicate old-plan bytes against the already delivered f49e739 snapshot rather than reverting its newer wrapper.
+- [x] Preserve the Android source as experimental, with no managed/hosted execution claim.
+- [x] Retain useful unaccepted source candidates and maps to accepted successors without changing manifest authority.
 
 ## Task 2 — Verify the assembled state
 
-- [ ] Run `npm run sources:verify` and root `npm test`; require all four exact source pairs and61/61 root tests.
-- [ ] Run `node --test tools/android-pilot/driver.test.mjs tools/android-pilot/runner.test.mjs`; require13/13 local controls, not device/cloud acceptance.
-- [ ] Check every imported artifact against the original inventory, or record its exact accepted duplicate/archival transformation; keep historical private links classified as unavailable optional evidence.
-- [ ] Restore from a fresh local clone with no donor dependencies and rerun source verification/root tests.
-- [ ] Obtain independent Lead AQA review of the full delivery delta and address Important findings before canonical adoption.
+- [x] Run `npm run sources:verify` and root `npm test`; require all four exact source pairs and61/61 root tests.
+- [x] Run `node --test tools/android-pilot/driver.test.mjs tools/android-pilot/runner.test.mjs`; require13/13 local controls, not device/cloud acceptance.
+- [x] Check every imported artifact against the original inventory, or record its exact accepted duplicate/archival transformation; keep historical private links classified as unavailable optional evidence.
+- [x] Restore from a fresh local clone with no donor dependencies and rerun source verification/root tests.
+- [x] Obtain independent Lead AQA review of the full delivery delta and address Important findings before canonical adoption.
 
 ## Task 3 — One current continuation point
 
-- [ ] Adopt the reviewed delivery locally while preserving canonical independent changes and inactive candidate sources.
-- [ ] Verify canonical selected sources, tracked state and the final commit identity after adoption.
-- [ ] Update current entry with publication status and the next bounded global-plan action: original dry card-top-up UI consumer, not repetition of the accepted P2-A caption repair.
+- [x] Adopt the reviewed delivery locally while preserving canonical independent changes and inactive candidate sources.
+- [x] Verify canonical selected sources, tracked state and the final commit identity after adoption.
+- [x] Update current entry with publication status and the next bounded global-plan action: original dry card-top-up UI consumer, not repetition of the accepted P2-A caption repair.
 - [ ] After email verification, push the reviewed branch, create and attach the PR, and verify its exact head/base. Until then record publication as blocked, not successful.
 
 This checklist is a bounded consolidation plan. It does not close the global P2–P6 exits or establish universal product coverage.
+
+Local adoption evidence, exact backup/merge identities and independent review are in the [delivery index](../../qualification/local-consolidation-20260920.md). Publication is the sole remaining delivery step and is deferred solely by GitHub email verification; it is not recorded as complete.

@@ -2,7 +2,9 @@
 
 ## Status and entry
 
-Assembled in the reviewed P2 delivery branch; final delivery review and canonical adoption are pending. The owner authorized consolidating local QA-agent work and publishing a branch/PR, not remote merging or product changes. GitHub email verification is deferred by the owner, so publication is blocked independently of local verification.
+Adopted locally on `codex/p2-semantic-source-delivery` after [independent Lead AQA review](evidence/local-consolidation-20260920/delivery-review.md): Critical0 / Important0 / Minor0. The owner authorized consolidating local QA-agent work and publishing a branch/PR, not remote merging or product changes. GitHub email verification is deferred by the owner, so publication remains blocked independently of the completed local verification. No push or PR has occurred.
+
+The original62 inputs were preserved byte-for-byte in backup commit `00b3d9e4e4f4b2cdb44b3da1acaafca0c0c05018` on `codex/local-consolidation-backup-20260920`. Adoption merge `27a94c5827be013ee4303718828658f2c1c926ef` has that backup and reviewed `bdcf8a2c711eb27329b13f722afbc1b51e621b0a` as parents. Its tree `a76bc4f25418c494f0f481f8b80304201594a9f6` exactly equals the reviewed tree; all27 reconciled paths were inventoried historical-prefix, experimental-boundary, terminal-newline or old-plan-wrapper differences. Later review/log/status additions are a documentation-only supplement, not an undisclosed implementation change.
 
 The [current checkpoint](current.md), [manifest](../../sources/manifest.v1.json) and [global P0–P7 plan](../superpowers/plans/2026-09-16-cross-product-qa-global-plan.md) remain the entrypoints. No new engine, source selector or installed skill is introduced.
 
@@ -53,6 +55,16 @@ The lineage audit is explicitly bounded: broken historical `.git` pointers and t
 
 ## Verification and next step
 
-Fresh assembled-source verification passed for all four exact pins. Android local loopback/mock controls passed13/13; no device/provider execution occurred. Root gate, cold-clone qualification and independent final review are recorded here when complete; the prior full P2 `qa:verify:all` remains attributed to its exact component bytes and is not a new product QA run.
+| Gate | Exact result and evidence |
+| --- | --- |
+| Assembled source | All four manifest pins verified; [root61/61](evidence/local-consolidation-20260920/root-tests.log), zero failed/skipped; Android local controls13/13. |
+| Cold clone at bdcf8a2 | `git clone --no-local`, reduced-environment source restore/verify, root61/61 and Android13/13; zero failed/skipped, no dependency installation, clean root/four children. [Cold log](evidence/local-consolidation-20260920/cold-gate.log), SHA256 `f4831042ae5ab130318098df0e25f71a350d98e32c1e0c45cc3193a4aecd90ac`. |
+| Canonical adoption | Rechecked original49-path set and62 byte hashes before adoption; verified all62 original Git blobs in the backup and all62 retained hashes after resolution. Only clean Freeland source fast-forwarded d4754f7→0ea2df1; the other pins and campaign runtimes were unchanged. |
+| Fresh canonical gate at27a94c5 | All four exact sources verified; root61/61 and Android13/13, zero failed/skipped. [Canonical log](evidence/local-consolidation-20260920/canonical-gate.log), SHA256 `6059b2d4cd557a47589e0b4ae48901872bb0be40a8b54ec540ab80b6fe7a3e0b`. |
+| Independent review | Reviewed48e9fc9→bdcf8a2, all72 paths, preservation and non-activation boundaries: APPROVED. [Full review](evidence/local-consolidation-20260920/delivery-review.md), SHA256 `17f9c9e585fda24dffb2ba9ff2761cf636ae2146846cd7f20530a4465cb88d36`. |
+
+The additional bounded text scan of the auth candidate flagged synthetic JWT/PEM negative-control fixtures in `tests/freeland-main/provenance.test.mjs`; those fixture bytes already exist in its3ee1cb3 base and are not new credentials. This is a scoped privacy check, not a comprehensive historical-secret certification. The private repository retains historical team/merchant context. Preserved whitespace in immutable old evidence/patches is an explicitly reviewed `diff --check` exception; operational/documentation changes are checked separately, not rewritten to alter raw evidence.
+
+The backup readback first exceeded the command wrapper's default output buffer while reading a complete Git bundle; repeating that read-only verification with an adequate bounded buffer verified all62 blobs. No backup bytes, test assertions or runtime protections were changed. No device/provider execution occurred. The prior full P2 `qa:verify:all` remains attributed to the unchanged exact component bytes and is not a new product QA run.
 
 After local adoption, continue the **original dry card-top-up UI consumer**, grounding current product expectations before selected quote/caption/total/rail-switching assertions. The accepted P2-A helper repair is not repeated. Source publication, live-product acceptance and global P2–P6 completion are separate outcomes.

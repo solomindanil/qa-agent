@@ -2,7 +2,7 @@
 
 ## Delivery status
 
-This source-selection candidate contains reviewed P2-A implementation and the two approved test-fixture repairs. Final broad verification, independent cold source/root checks and [whole-delivery Lead AQA review](evidence/p2-semantic-repair-20260920/p2-delivery-review.md) passed. Review covers the package through root `314431d110cce323857fd5cd4f433507da5fb44b`; this final supplement only records the review/status. Canonical adoption, push, active campaign migration and installed-skill promotion have **not** occurred. This is harness qualification, not product acceptance or release GO.
+This package contains reviewed P2-A implementation and the two approved test-fixture repairs. Final broad verification, independent cold source/root checks and [whole-delivery Lead AQA review](evidence/p2-semantic-repair-20260920/p2-delivery-review.md) passed. That review covers the package through root `314431d110cce323857fd5cd4f433507da5fb44b`; its later supplement only recorded the review/status. Canonical source adoption subsequently completed at root `27a94c5827be013ee4303718828658f2c1c926ef` under the separately reviewed [local consolidation](local-consolidation-20260920.md); the clean Freeland child advanced by fast-forward from d4754f7 to0ea2df1. Push/PR, active campaign migration and installed-skill promotion have **not** occurred. This is harness qualification, not product acceptance or release GO.
 
 - Selected Freeland commit: `0ea2df10f1b6d613e01d50011c269ca0fa999877`; tree: `1f9913fc1118a2582dd62c4d5dfd63cd8aac0ffb`.
 - [Complete-history bundle](../../sources/candidates/freeland-p2-semantics-0ea2df1.bundle), SHA256 `f340ee8b630dfdd46d927008f2dd992a3e019780693741cbdb42c1dc6a447266`.
