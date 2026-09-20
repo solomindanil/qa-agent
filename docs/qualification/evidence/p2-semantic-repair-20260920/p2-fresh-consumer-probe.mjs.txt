@@ -1,0 +1,230 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { after, before, test } from 'node:test';
+
+const EXECUTION_ROOT = '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland';
+const HELPER_PATH = `${EXECUTION_ROOT}/tests/freeland/card-sbp.spec.ts`;
+const executionRequire = createRequire(`${EXECUTION_ROOT}/package.json`);
+const ts = executionRequire('typescript');
+const { chromium, expect } = executionRequire('@playwright/test');
+
+let browser;
+let evidenceDir;
+let helper;
+
+before(async () => {
+  evidenceDir = await mkdtemp(path.join(os.tmpdir(), 'p2-fresh-consumer-'));
+  const source = await readFile(HELPER_PATH, 'utf8');
+  const compiled = ts.transpileModule(`${source}\nexport { openAndVerifyCardSbpSheet };`, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+      esModuleInterop: true,
+    },
+  }).outputText;
+
+  const inertTest = () => {};
+  inertTest.describe = (_name, register) => register();
+  inertTest.use = inertTest.skip = inertTest.beforeEach = inertTest.setTimeout = () => {};
+  const mod = { exports: {} };
+  new Function('require', 'module', 'exports', compiled)((name) => {
+    if (name === '@playwright/test') {
+      return { expect: expect.configure({ timeout: 500 }), test: inertTest };
+    }
+    if (name === './helpers') {
+      return { gotoAppSection: (page) => page.goto('https://p2-fresh-consumer.invalid/fixture') };
+    }
+    if (name === 'node:path') {
+      return { ...path, resolve: () => evidenceDir };
+    }
+    return executionRequire(name);
+  }, mod, mod.exports);
+
+  helper = mod.exports.openAndVerifyCardSbpSheet;
+  assert.equal(typeof helper, 'function', 'actual card-sbp helper must load');
+  browser = await chromium.launch({ headless: true, args: ['--no-proxy-server'] });
+});
+
+after(async () => {
+  await browser?.close();
+  if (evidenceDir) await rm(evidenceDir, { recursive: true, force: true });
+});
+
+const breakdown = Object.freeze({
+  principalAmountMinor: '10000',
+  sourceFeeAmountMinor: '725',
+  sourceTotalAmountMinor: '10725',
+  sourceFeeRateBps: 725,
+  assetCode: 'USD',
+  assetScale: 2,
+});
+
+const optionsPayload = () => ({
+  quoteExpiresAt: '2099-01-01T00:00:00.000Z',
+  product: {
+    productType: 'esim',
+    productAction: 'purchase',
+    displayName: 'Fresh consumer synthetic fixture',
+  },
+  quote: {
+    displayAmount: '100.00',
+    amountMinor: '10000',
+    assetCode: 'USD',
+    assetScale: 2,
+  },
+  methods: ['card', 'sbp'].map((method) => ({
+    method,
+    group: 'primary',
+    available: true,
+    paymentAmountMinor: '1072500',
+    paymentCurrency: 'RUB',
+    paymentAssetScale: 2,
+    fxRate: '100',
+    fxExpiresAt: '2099-01-01T00:00:00.000Z',
+    requiresPayerPhone: false,
+    requiresPayerCardLast4: false,
+    breakdown: { ...breakdown },
+  })),
+});
+
+const summaryRows = [
+  '<div><span>Сумма</span><span>100,00 $</span></div>',
+  '<div><span>Комиссия оплаты</span><span>7,25 $</span></div>',
+  '<div><span>К оплате</span><span>107,25 $</span></div>',
+].join('');
+
+async function createFixture(t, caption) {
+  const context = await browser.newContext({ serviceWorkers: 'block' });
+  t.after(() => context.close());
+  const checkoutAttempts = [];
+  const unknownRequests = [];
+  const optionRequests = [];
+  const attachments = [];
+
+  const sheet = `<div data-testid="pay-sheet" role="dialog" aria-label="Выбрать способ оплаты">
+    <button aria-label="Закрыть" onclick="this.parentElement.remove()">Закрыть</button>
+    <button data-payment-method="ru_card" aria-label="Карта РФ" aria-pressed="false" onclick="select(this)">Карта РФ Комиссия ${caption}</button>
+    <button data-payment-method="sbp" aria-label="СБП" aria-pressed="false" onclick="select(this)">СБП Комиссия ${caption}</button>
+    <section>${summaryRows}</section>
+  </div>`;
+  const html = `<html lang="ru"><body>
+    <button id="open" onclick="openSheet()">Открыть оплату</button>
+    <script>
+      async function openSheet() {
+        const response = await fetch('/api/payment/options', {
+          method: 'POST',
+          headers: {'content-type': 'application/json'},
+          body: JSON.stringify({productType: 'esim', productAction: 'purchase'}),
+        });
+        if (response.ok) {
+          await response.json();
+          document.body.insertAdjacentHTML('beforeend', ${JSON.stringify(sheet)});
+        }
+      }
+      function select(button) {
+        for (const tile of document.querySelectorAll('[data-payment-method]')) {
+          tile.setAttribute('aria-pressed', String(tile === button));
+        }
+      }
+    </script>
+  </body></html>`;
+
+  await context.route('**/*', async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const signature = `${request.method()} ${url.origin}${url.pathname}`;
+    if (url.origin !== 'https://p2-fresh-consumer.invalid') {
+      unknownRequests.push(signature);
+      return route.abort('blockedbyclient');
+    }
+    if (request.method() === 'GET' && url.pathname === '/fixture') {
+      return route.fulfill({ contentType: 'text/html; charset=utf-8', body: html });
+    }
+    if (request.method() === 'POST' && url.pathname === '/api/payment/options') {
+      optionRequests.push(signature);
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(optionsPayload()),
+      });
+    }
+    if (request.method() === 'POST' && url.pathname === '/api/payment/checkouts') {
+      checkoutAttempts.push(signature);
+      return route.abort('blockedbyclient');
+    }
+    unknownRequests.push(signature);
+    return route.abort('blockedbyclient');
+  });
+
+  const page = await context.newPage();
+  page.setDefaultTimeout(1_500);
+  await page.goto('https://p2-fresh-consumer.invalid/fixture');
+  const testInfo = {
+    annotations: [],
+    attach: async (name, value) => attachments.push({ name, value }),
+  };
+  const invocation = {
+    page,
+    open: page.locator('#open'),
+    evidenceName: `p2-fresh-consumer-${caption.replace(/[^0-9]/g, '-')}`,
+    testInfo,
+    expectedProduct: { productType: 'esim', productAction: 'purchase' },
+  };
+  return {
+    invocation,
+    checkoutAttempts,
+    unknownRequests,
+    optionRequests,
+    attachments,
+  };
+}
+
+test('healthy selected 7.25% caption is accepted for the coherent 725 bps quote', async (t) => {
+  const fixture = await createFixture(t, '7.25%');
+  const outcome = await helper(fixture.invocation);
+  assert.deepEqual(outcome.methods.map((method) => method.breakdown), [breakdown, breakdown]);
+  assert.deepEqual(fixture.optionRequests, ['POST https://p2-fresh-consumer.invalid/api/payment/options']);
+  assert.deepEqual(fixture.checkoutAttempts, []);
+  assert.deepEqual(fixture.unknownRequests, []);
+  console.log(JSON.stringify({
+    outcome: 'healthy-accepted',
+    caption: '7.25%',
+    principal: '100.00',
+    fee: '7.25',
+    total: '107.25',
+    sourceFeeRateBps: 725,
+    helper: 'openAndVerifyCardSbpSheet',
+    checkoutAttempts: fixture.checkoutAttempts,
+    unknownRequests: fixture.unknownRequests,
+  }));
+});
+
+test('broken selected 7.26% caption is rejected with the same coherent amounts and 725 bps rate', async (t) => {
+  const fixture = await createFixture(t, '7.26%');
+  let rejection;
+  await assert.rejects(
+    helper(fixture.invocation),
+    (error) => {
+      rejection = error;
+      return /selected fee percentage must match its source rate/.test(error.message);
+    },
+  );
+  assert.deepEqual(fixture.optionRequests, ['POST https://p2-fresh-consumer.invalid/api/payment/options']);
+  assert.deepEqual(fixture.checkoutAttempts, []);
+  assert.deepEqual(fixture.unknownRequests, []);
+  console.log(JSON.stringify({
+    outcome: 'broken-rejected',
+    caption: '7.26%',
+    principal: '100.00',
+    fee: '7.25',
+    total: '107.25',
+    sourceFeeRateBps: 725,
+    helper: 'openAndVerifyCardSbpSheet',
+    rejection: rejection.message.split('\n')[0],
+    checkoutAttempts: fixture.checkoutAttempts,
+    unknownRequests: fixture.unknownRequests,
+  }));
+});
