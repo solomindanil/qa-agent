@@ -1,0 +1,28 @@
+TAP version 13
+# Subtest: original drawer covers distinct wallet, exact fiat quotes and crypto rails with explicit Freeland exclusion
+not ok 1 - original drawer covers distinct wallet, exact fiat quotes and crypto rails with explicit Freeland exclusion
+  ---
+  duration_ms: 1040.105083
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:108:1'
+  failureType: 'testCodeFailure'
+  error: 'owned-card opener must not navigate through the global Wallet header'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:112:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1580.298208

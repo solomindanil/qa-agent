@@ -1,0 +1,2 @@
+import { defineConfig } from '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/node_modules/@playwright/test/index.mjs';
+export default defineConfig({testDir: '.', testMatch: 'probe.spec.ts', outputDir: './output', workers: 1, retries: 0, reporter: [['./safe-reporter.cjs']], use: {screenshot: 'off', trace: 'off', video: 'off'}});

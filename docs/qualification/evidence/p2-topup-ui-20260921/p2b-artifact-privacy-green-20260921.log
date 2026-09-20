@@ -1,0 +1,110 @@
+TAP version 13
+# Subtest: actual named spec preserves unexpected FAIL without persisting surrounding PAN/email
+ok 1 - actual named spec preserves unexpected FAIL without persisting surrounding PAN/email
+  ---
+  duration_ms: 1862.810291
+  type: 'test'
+  ...
+# Subtest: snapshot suppression restores previous environment in the SAME worker (undefined)
+not ok 2 - snapshot suppression restores previous environment in the SAME worker (undefined)
+  ---
+  duration_ms: 1897.660458
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:123:54'
+  failureType: 'testCodeFailure'
+  error: |-
+    unrelated snapshot policy must remain exactly as configured before this spec
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:137:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: snapshot suppression restores previous environment in the SAME worker ("")
+not ok 3 - snapshot suppression restores previous environment in the SAME worker ("")
+  ---
+  duration_ms: 1393.151042
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:123:54'
+  failureType: 'testCodeFailure'
+  error: |-
+    unrelated snapshot policy must remain exactly as configured before this spec
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:137:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: snapshot suppression restores previous environment in the SAME worker ("prior-policy")
+ok 4 - snapshot suppression restores previous environment in the SAME worker ("prior-policy")
+  ---
+  duration_ms: 1460.852792
+  type: 'test'
+  ...
+# Subtest: failure before owned page setup still restores policy for the following SAME-worker test
+not ok 5 - failure before owned page setup still restores policy for the following SAME-worker test
+  ---
+  duration_ms: 1022.625084
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:141:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok((await readFile(unrelated.result.attachments.find(a => a.name === 'error-context').path, 'utf8')).includes(unrelatedSentinel))
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:149:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: context-close failure still runs final guard assertion before restoring snapshot policy
+not ok 6 - context-close failure still runs final guard assertion before restoring snapshot policy
+  ---
+  duration_ms: 2129.575875
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:152:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:161:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 2
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9823.296125

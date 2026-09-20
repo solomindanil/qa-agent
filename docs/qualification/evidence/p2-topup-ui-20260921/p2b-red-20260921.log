@@ -1,0 +1,654 @@
+TAP version 13
+# Subtest: exact response binding rejects wrong productRef without persisting identity
+not ok 1 - exact response binding rejects wrong productRef without persisting identity
+  ---
+  duration_ms: 438.969583
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:41:47'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + null
+    - 'OPTIONS_REQUEST_MISMATCH'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'OPTIONS_REQUEST_MISMATCH'
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:45:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: exact response binding rejects wrong cardId without persisting identity
+not ok 2 - exact response binding rejects wrong cardId without persisting identity
+  ---
+  duration_ms: 0.690042
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:41:47'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + null
+    - 'OPTIONS_REQUEST_MISMATCH'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'OPTIONS_REQUEST_MISMATCH'
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:45:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: original drawer covers distinct wallet, exact fiat quotes and crypto rails with explicit Freeland exclusion
+not ok 3 - original drawer covers distinct wallet, exact fiat quotes and crypto rails with explicit Freeland exclusion
+  ---
+  duration_ms: 259.560959
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:107:1'
+  failureType: 'testCodeFailure'
+  error: 'original top-up quote consumer must exist'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:108:45)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: no owned active card
+not ok 4 - non-PASS: no owned active card
+  ---
+  duration_ms: 46.199708
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /NO_ACTIVE_OWNED_CARD/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: ambiguous active cards
+not ok 5 - non-PASS: ambiguous active cards
+  ---
+  duration_ms: 42.687667
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /MULTIPLE_ACTIVE_OWNED_CARDS/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: missing target route
+not ok 6 - non-PASS: missing target route
+  ---
+  duration_ms: 42.73725
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /TARGET_TOPUP_ROUTE_UNAVAILABLE/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: wrong exact card ref
+not ok 7 - non-PASS: wrong exact card ref
+  ---
+  duration_ms: 47.422208
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /OPTIONS_NOT_OBSERVED/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: wrong payload card
+not ok 8 - non-PASS: wrong payload card
+  ---
+  duration_ms: 42.150167
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /OPTIONS_NOT_OBSERVED/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: wrong input amount
+not ok 9 - non-PASS: wrong input amount
+  ---
+  duration_ms: 40.045167
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /OPTIONS_NOT_OBSERVED/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: wrong product
+not ok 10 - non-PASS: wrong product
+  ---
+  duration_ms: 40.666708
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /OPTIONS_NOT_OBSERVED/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: unavailable fiat option
+not ok 11 - non-PASS: unavailable fiat option
+  ---
+  duration_ms: 42.94925
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /FIAT_OPTION_UNAVAILABLE/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: correct sums with wrong selected percentage
+not ok 12 - non-PASS: correct sums with wrong selected percentage
+  ---
+  duration_ms: 42.278583
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /selected fee percentage must match/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: wallet requested-credit leakage
+not ok 13 - non-PASS: wallet requested-credit leakage
+  ---
+  duration_ms: 41.548
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /toHaveText/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: stale selected source
+not ok 14 - non-PASS: stale selected source
+  ---
+  duration_ms: 41.209458
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /toHaveText/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: stale crypto total
+not ok 15 - non-PASS: stale crypto total
+  ---
+  duration_ms: 47.448917
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /toHaveText/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: stale fiat limit
+not ok 16 - non-PASS: stale fiat limit
+  ---
+  duration_ms: 41.0585
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /toHaveCount/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: stale disabled state above fiat limit
+not ok 17 - non-PASS: stale disabled state above fiat limit
+  ---
+  duration_ms: 41.278958
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /toBeEnabled/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: non-PASS: background text cannot satisfy missing outer row
+not ok 18 - non-PASS: background text cannot satisfy missing outer row
+  ---
+  duration_ms: 43.952375
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /toBeVisible/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:131:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: insufficient wallet is disclosed but does not prevent source checks
+not ok 19 - insufficient wallet is disclosed but does not prevent source checks
+  ---
+  duration_ms: 40.390708
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:132:1'
+  failureType: 'testCodeFailure'
+  error: 'original top-up quote consumer must exist'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:132:145)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: forbidden checkout on selection fails through final strong guard with no create transport
+not ok 20 - forbidden checkout on selection fails through final strong guard with no create transport
+  ---
+  duration_ms: 44.740834
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:133:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /unapproved mutation/. Input:
+    
+    'AssertionError [ERR_ASSERTION]: original top-up quote consumer must exist'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: 'original top-up quote consumer must exist'
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async waitForActual (node:assert:644:5)
+    async Function.rejects (node:assert:767:25)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:133:154)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:133:154)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: zero fiat fee keeps exact total and no fallback caption
+not ok 21 - zero fiat fee keeps exact total and no fallback caption
+  ---
+  duration_ms: 40.984666
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:134:1'
+  failureType: 'testCodeFailure'
+  error: 'original top-up quote consumer must exist'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    helper (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:28:10)
+    file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:22
+    Object.withDryBrowserPage (eval at load (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:16:3), <anonymous>:315:15)
+    async Object.run (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:137:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 0
+# fail 21
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2020.210541

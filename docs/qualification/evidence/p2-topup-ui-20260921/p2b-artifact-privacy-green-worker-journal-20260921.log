@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: actual named spec preserves unexpected FAIL without persisting surrounding PAN/email
+ok 1 - actual named spec preserves unexpected FAIL without persisting surrounding PAN/email
+  ---
+  duration_ms: 1891.274583
+  ...
+# Subtest: snapshot suppression restores previous environment in the SAME worker (undefined)
+ok 2 - snapshot suppression restores previous environment in the SAME worker (undefined)
+  ---
+  duration_ms: 1468.645625
+  ...
+# Subtest: snapshot suppression restores previous environment in the SAME worker ("")
+ok 3 - snapshot suppression restores previous environment in the SAME worker ("")
+  ---
+  duration_ms: 1633.442
+  ...
+# Subtest: snapshot suppression restores previous environment in the SAME worker ("prior-policy")
+ok 4 - snapshot suppression restores previous environment in the SAME worker ("prior-policy")
+  ---
+  duration_ms: 1406.825125
+  ...
+# Subtest: failure before owned page setup still restores policy for the following SAME-worker test
+ok 5 - failure before owned page setup still restores policy for the following SAME-worker test
+  ---
+  duration_ms: 1118.7555
+  ...
+# Subtest: context-close failure still runs final guard assertion before restoring snapshot policy
+ok 6 - context-close failure still runs final guard assertion before restoring snapshot policy
+  ---
+  duration_ms: 1984.195333
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 6
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9572.291

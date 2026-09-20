@@ -1,0 +1,65 @@
+{
+  "status": "failed",
+  "stepsWithRawError": 1,
+  "rows": [
+    {
+      "title": "synthetic assertion failure",
+      "status": "failed",
+      "errorCount": 1,
+      "diagnostic": "CHECK_FAILED",
+      "attachments": [
+        {
+          "name": "error-context",
+          "existsBeforeReporter": true,
+          "rawSentinelAlreadyOnDisk": true
+        }
+      ]
+    },
+    {
+      "title": "healthy control",
+      "status": "passed",
+      "errorCount": 0,
+      "diagnostic": null,
+      "attachments": []
+    },
+    {
+      "title": "guard failure control",
+      "status": "failed",
+      "errorCount": 1,
+      "diagnostic": "CHECK_FAILED",
+      "attachments": [
+        {
+          "name": "error-context",
+          "existsBeforeReporter": true,
+          "rawSentinelAlreadyOnDisk": false
+        }
+      ]
+    },
+    {
+      "title": "early projection summary mismatch",
+      "status": "failed",
+      "errorCount": 1,
+      "diagnostic": "CHECK_FAILED",
+      "attachments": [
+        {
+          "name": "error-context",
+          "existsBeforeReporter": true,
+          "rawSentinelAlreadyOnDisk": false
+        }
+      ]
+    },
+    {
+      "title": "early projection ambiguous locator",
+      "status": "failed",
+      "errorCount": 1,
+      "diagnostic": "CHECK_FAILED",
+      "attachments": [
+        {
+          "name": "error-context",
+          "existsBeforeReporter": true,
+          "rawSentinelAlreadyOnDisk": false
+        }
+      ]
+    }
+  ]
+}

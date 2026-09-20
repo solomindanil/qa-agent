@@ -1,0 +1,42 @@
+TAP version 13
+# Subtest: original drawer covers distinct wallet, exact fiat quotes and crypto rails with explicit Freeland exclusion
+not ok 1 - original drawer covers distinct wallet, exact fiat quotes and crypto rails with explicit Freeland exclusion
+  ---
+  duration_ms: 1260.285875
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:108:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    expect(locator).toHaveAttribute(expected) failed
+    
+    Locator:  getByTestId('pay-sheet').getByRole('button', { name: 'Карта РФ', exact: true })
+    Expected: "ru_card"
+    Received: "card"
+    Timeout:  180ms
+    
+    Call log:
+      - Expect "to.have.attribute.value" with timeout 180ms
+      - waiting for getByTestId('pay-sheet').getByRole('button', { name: 'Карта РФ', exact: true })
+        8 × locator resolved to <button aria-pressed="false" aria-label="Карта РФ" data-payment-method="card" onclick="selectInner(this,'card')">Карта РФ Комиссия оплаты: 1,29 $</button>
+          - unexpected value "card"
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    captureRawStack (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/node_modules/playwright-core/lib/coreBundle.js:3172:17)
+    callMatcherAsStep (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/node_modules/playwright/lib/matchers/expect.js:12877:57)
+    Object.toHaveAttribute (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/node_modules/playwright/lib/matchers/expect.js:12867:23)
+    Object.verifyOriginalCardTopupQuote (<anonymous>:140:45)
+    async load.withDryBrowserPage.throwOnForbidden (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:16)
+    async Object.withDryBrowserPage (<anonymous>:315:9)
+    async Object.run (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async TestContext.<anonymous> (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:111:18)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1792.516959

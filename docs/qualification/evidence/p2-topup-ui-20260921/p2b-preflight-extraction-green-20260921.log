@@ -1,0 +1,1285 @@
+TAP version 13
+# Subtest: extracted quote assertions preserve safety facts and are sealed into the corpus
+ok 1 - extracted quote assertions preserve safety facts and are sealed into the corpus
+  ---
+  duration_ms: 89.805125
+  type: 'test'
+  ...
+# Subtest: extracted quote assertions cannot introduce untrusted import or initialization authority
+    # Subtest: extra dependency
+    ok 1 - extra dependency
+      ---
+      duration_ms: 18.777792
+      type: 'test'
+      ...
+    # Subtest: test import
+    ok 2 - test import
+      ---
+      duration_ms: 15.679459
+      type: 'test'
+      ...
+    # Subtest: aliased expect
+    ok 3 - aliased expect
+      ---
+      duration_ms: 21.084292
+      type: 'test'
+      ...
+    # Subtest: top-level call
+    ok 4 - top-level call
+      ---
+      duration_ms: 18.102083
+      type: 'test'
+      ...
+    # Subtest: top-level assignment
+    ok 5 - top-level assignment
+      ---
+      duration_ms: 17.281583
+      type: 'test'
+      ...
+    # Subtest: IIFE initializer
+    ok 6 - IIFE initializer
+      ---
+      duration_ms: 18.574875
+      type: 'test'
+      ...
+    # Subtest: re-export
+    ok 7 - re-export
+      ---
+      duration_ms: 17.343583
+      type: 'test'
+      ...
+    # Subtest: dynamic authority
+    ok 8 - dynamic authority
+      ---
+      duration_ms: 17.692
+      type: 'test'
+      ...
+    # Subtest: expect escape
+    ok 9 - expect escape
+      ---
+      duration_ms: 22.716917
+      type: 'test'
+      ...
+    # Subtest: aliased consumer
+    ok 10 - aliased consumer
+      ---
+      duration_ms: 38.412916
+      type: 'test'
+      ...
+    # Subtest: additional consumer import
+    ok 11 - additional consumer import
+      ---
+      duration_ms: 16.815541
+      type: 'test'
+      ...
+    # Subtest: side-effect consumer import
+    ok 12 - side-effect consumer import
+      ---
+      duration_ms: 18.540083
+      type: 'test'
+      ...
+    # Subtest: type-only consumer import
+    ok 13 - type-only consumer import
+      ---
+      duration_ms: 16.578875
+      type: 'test'
+      ...
+    1..13
+ok 2 - extracted quote assertions cannot introduce untrusted import or initialization authority
+  ---
+  duration_ms: 259.482708
+  type: 'test'
+  ...
+# Subtest: extracted quote assertions require local regular-file corpus bytes
+    # Subtest: missing module
+    ok 1 - missing module
+      ---
+      duration_ms: 15.917166
+      type: 'test'
+      ...
+    # Subtest: symlink module
+    ok 2 - symlink module
+      ---
+      duration_ms: 11.914083
+      type: 'test'
+      ...
+    1..2
+ok 3 - extracted quote assertions require local regular-file corpus bytes
+  ---
+  duration_ms: 28.112125
+  type: 'test'
+  ...
+# Subtest: missing private corpus fails closed
+ok 4 - missing private corpus fails closed
+  ---
+  duration_ms: 1.818625
+  type: 'test'
+  ...
+# Subtest: a valid synthetic private corpus returns five exact credential-free facts
+ok 5 - a valid synthetic private corpus returns five exact credential-free facts
+  ---
+  duration_ms: 19.746875
+  type: 'test'
+  ...
+# Subtest: the replacement registry is part of the private corpus and its stored schema is enforced
+ok 6 - the replacement registry is part of the private corpus and its stored schema is enforced
+  ---
+  duration_ms: 34.203
+  type: 'test'
+  ...
+# Subtest: unrelated sibling churn under a QA-root ancestor preserves the intended AST verdict
+ok 7 - unrelated sibling churn under a QA-root ancestor preserves the intended AST verdict
+  ---
+  duration_ms: 61.469875
+  type: 'test'
+  ...
+# Subtest: a symlinked corpus root or private file and a non-regular selector path are unsafe
+    # Subtest: corpus root
+    ok 1 - corpus root
+      ---
+      duration_ms: 10.232042
+      type: 'test'
+      ...
+    # Subtest: private file
+    ok 2 - private file
+      ---
+      duration_ms: 6.428458
+      type: 'test'
+      ...
+    # Subtest: non-regular selector path
+    ok 3 - non-regular selector path
+      ---
+      duration_ms: 16.790958
+      type: 'test'
+      ...
+    1..3
+ok 8 - a symlinked corpus root or private file and a non-regular selector path are unsafe
+  ---
+  duration_ms: 33.915042
+  type: 'test'
+  ...
+# Subtest: symlink authority is rejected for the QA root manifest mappings and graph
+    # Subtest: QA root
+    ok 1 - QA root
+      ---
+      duration_ms: 8.28325
+      type: 'test'
+      ...
+    # Subtest: QA root ancestor
+    ok 2 - QA root ancestor
+      ---
+      duration_ms: 7.536125
+      type: 'test'
+      ...
+    # Subtest: manifest
+    ok 3 - manifest
+      ---
+      duration_ms: 12.988208
+      type: 'test'
+      ...
+    # Subtest: docs/local/freeland/product-graph/mappings.v1.json
+    ok 4 - docs/local/freeland/product-graph/mappings.v1.json
+      ---
+      duration_ms: 15.771125
+      type: 'test'
+      ...
+    # Subtest: docs/local/freeland/product-graph/current/graph.json
+    ok 5 - docs/local/freeland/product-graph/current/graph.json
+      ---
+      duration_ms: 20.006625
+      type: 'test'
+      ...
+    1..5
+ok 9 - symlink authority is rejected for the QA root manifest mappings and graph
+  ---
+  duration_ms: 65.306417
+  type: 'test'
+  ...
+# Subtest: a selector path replaced before inspection cannot retain trusted facts
+ok 10 - a selector path replaced before inspection cannot retain trusted facts
+  ---
+  duration_ms: 17.068125
+  type: 'test'
+  ...
+# Subtest: anonymous guard is checked in readJson, not an authenticated helper
+ok 11 - anonymous guard is checked in readJson, not an authenticated helper
+  ---
+  duration_ms: 16.106458
+  type: 'test'
+  ...
+# Subtest: an unrelated nested no-store callback cannot satisfy page.evaluate
+ok 12 - an unrelated nested no-store callback cannot satisfy page.evaluate
+  ---
+  duration_ms: 17.983916
+  type: 'test'
+  ...
+# Subtest: the guarded fetch must be the only fetch and feed the returned value
+    # Subtest: unguarded returned fetch
+    ok 1 - unguarded returned fetch
+      ---
+      duration_ms: 15.399416
+      type: 'test'
+      ...
+    # Subtest: unused guarded response
+    ok 2 - unused guarded response
+      ---
+      duration_ms: 15.096
+      type: 'test'
+      ...
+    # Subtest: invoked nested helper fetch
+    ok 3 - invoked nested helper fetch
+      ---
+      duration_ms: 20.508875
+      type: 'test'
+      ...
+    1..3
+ok 13 - the guarded fetch must be the only fetch and feed the returned value
+  ---
+  duration_ms: 51.474542
+  type: 'test'
+  ...
+# Subtest: the effective readJson binding must remain the inspected immutable initializer
+ok 14 - the effective readJson binding must remain the inspected immutable initializer
+  ---
+  duration_ms: 13.405125
+  type: 'test'
+  ...
+# Subtest: readJson must pass its own URL parameter into the inspected page.evaluate callback
+ok 15 - readJson must pass its own URL parameter into the inspected page.evaluate callback
+  ---
+  duration_ms: 15.821959
+  type: 'test'
+  ...
+# Subtest: the real expression-bodied readJson shape is accepted
+ok 16 - the real expression-bodied readJson shape is accepted
+  ---
+  duration_ms: 17.629
+  type: 'test'
+  ...
+# Subtest: the exact stagingOnly(test, baseURL) helper use is accepted
+ok 17 - the exact stagingOnly(test, baseURL) helper use is accepted
+  ---
+  duration_ms: 16.000458
+  type: 'test'
+  ...
+# Subtest: an unrelated storageState test.use does not weaken service-worker proof
+ok 18 - an unrelated storageState test.use does not weaken service-worker proof
+  ---
+  duration_ms: 24.080958
+  type: 'test'
+  ...
+# Subtest: an unrelated property named test is not mistaken for the Playwright binding
+ok 19 - an unrelated property named test is not mistaken for the Playwright binding
+  ---
+  duration_ms: 18.645625
+  type: 'test'
+  ...
+# Subtest: the standard baseURL guard and beforeEach hook do not disable a safety selector
+ok 20 - the standard baseURL guard and beforeEach hook do not disable a safety selector
+  ---
+  duration_ms: 17.512417
+  type: 'test'
+  ...
+# Subtest: an unrelated dynamic test title does not invalidate static safety selectors
+ok 21 - an unrelated dynamic test title does not invalidate static safety selectors
+  ---
+  duration_ms: 14.995917
+  type: 'test'
+  ...
+# Subtest: a selected Playwright callback may receive the standard testInfo parameter
+ok 22 - a selected Playwright callback may receive the standard testInfo parameter
+  ---
+  duration_ms: 16.962333
+  type: 'test'
+  ...
+# Subtest: top-level modifiers and hook skips cannot disable safety selectors
+    # Subtest: skip
+    ok 1 - skip
+      ---
+      duration_ms: 15.129334
+      type: 'test'
+      ...
+    # Subtest: fail
+    ok 2 - fail
+      ---
+      duration_ms: 13.641958
+      type: 'test'
+      ...
+    # Subtest: fixme
+    ok 3 - fixme
+      ---
+      duration_ms: 12.910291
+      type: 'test'
+      ...
+    # Subtest: beforeEach TestInfo skip
+    ok 4 - beforeEach TestInfo skip
+      ---
+      duration_ms: 15.559292
+      type: 'test'
+      ...
+    1..4
+ok 23 - top-level modifiers and hook skips cannot disable safety selectors
+  ---
+  duration_ms: 57.676625
+  type: 'test'
+  ...
+# Subtest: anonymous safety proof rejects effective storageState
+    # Subtest: anonymousTopLevelStorageState
+    ok 1 - anonymousTopLevelStorageState
+      ---
+      duration_ms: 13.65125
+      type: 'test'
+      ...
+    # Subtest: anonymousConditionalStorageState
+    ok 2 - anonymousConditionalStorageState
+      ---
+      duration_ms: 13.7805
+      type: 'test'
+      ...
+    # Subtest: anonymousDescribeStorageState
+    ok 3 - anonymousDescribeStorageState
+      ---
+      duration_ms: 15.450875
+      type: 'test'
+      ...
+    1..3
+ok 24 - anonymous safety proof rejects effective storageState
+  ---
+  duration_ms: 43.344417
+  type: 'test'
+  ...
+# Subtest: stagingOnly is bound to the exact safe helper implementation
+    # Subtest: unconditional-skip
+    ok 1 - unconditional-skip
+      ---
+      duration_ms: 14.853416
+      type: 'test'
+      ...
+    # Subtest: fail
+    ok 2 - fail
+      ---
+      duration_ms: 13.09025
+      type: 'test'
+      ...
+    # Subtest: side-effect-import
+    ok 3 - side-effect-import
+      ---
+      duration_ms: 12.024375
+      type: 'test'
+      ...
+    # Subtest: missing helper
+    ok 4 - missing helper
+      ---
+      duration_ms: 10.235584
+      type: 'test'
+      ...
+    # Subtest: baseURL is not a Playwright fixture
+    ok 5 - baseURL is not a Playwright fixture
+      ---
+      duration_ms: 13.247666
+      type: 'test'
+      ...
+    # Subtest: baseURL fixture is mutated
+    ok 6 - baseURL fixture is mutated
+      ---
+      duration_ms: 13.134708
+      type: 'test'
+      ...
+    # Subtest: helper process mutation global-this
+    ok 7 - helper process mutation global-this
+      ---
+      duration_ms: 10.728083
+      type: 'test'
+      ...
+    # Subtest: helper process mutation global-this-computed
+    ok 8 - helper process mutation global-this-computed
+      ---
+      duration_ms: 11.940917
+      type: 'test'
+      ...
+    # Subtest: helper process mutation env-alias
+    ok 9 - helper process mutation env-alias
+      ---
+      duration_ms: 14.299875
+      type: 'test'
+      ...
+    # Subtest: helper process mutation define-property
+    ok 10 - helper process mutation define-property
+      ---
+      duration_ms: 12.356583
+      type: 'test'
+      ...
+    # Subtest: helper export side effect
+    ok 11 - helper export side effect
+      ---
+      duration_ms: 11.502791
+      type: 'test'
+      ...
+    # Subtest: unreviewed helper export cannot be imported as authority
+    ok 12 - unreviewed helper export cannot be imported as authority
+      ---
+      duration_ms: 12.354291
+      type: 'test'
+      ...
+    # Subtest: helper expect alias
+    ok 13 - helper expect alias
+      ---
+      duration_ms: 15.867791
+      type: 'test'
+      ...
+    # Subtest: helper expect mutation
+    ok 14 - helper expect mutation
+      ---
+      duration_ms: 15.0755
+      type: 'test'
+      ...
+    # Subtest: top-level constructor execution
+    ok 15 - top-level constructor execution
+      ---
+      duration_ms: 13.386167
+      type: 'test'
+      ...
+    # Subtest: wrong purchase auth path
+    ok 16 - wrong purchase auth path
+      ---
+      duration_ms: 11.741375
+      type: 'test'
+      ...
+    # Subtest: non-arrow purchase credential resolver
+    ok 17 - non-arrow purchase credential resolver
+      ---
+      duration_ms: 12.540083
+      type: 'test'
+      ...
+    # Subtest: purchase credential resolver cannot read the ordinary account
+    ok 18 - purchase credential resolver cannot read the ordinary account
+      ---
+      duration_ms: 28.573041
+      type: 'test'
+      ...
+    # Subtest: purchase credential resolver cannot accept a partial pair
+    ok 19 - purchase credential resolver cannot accept a partial pair
+      ---
+      duration_ms: 13.193916
+      type: 'test'
+      ...
+    1..19
+ok 25 - stagingOnly is bound to the exact safe helper implementation
+  ---
+  duration_ms: 262.053083
+  type: 'test'
+  ...
+# Subtest: selected TestInfo cannot mark a safety selector expected or skipped
+    # Subtest: fail
+    ok 1 - fail
+      ---
+      duration_ms: 14.366958
+      type: 'test'
+      ...
+    # Subtest: fixme
+    ok 2 - fixme
+      ---
+      duration_ms: 14.821917
+      type: 'test'
+      ...
+    # Subtest: skip
+    ok 3 - skip
+      ---
+      duration_ms: 16.563292
+      type: 'test'
+      ...
+    # Subtest: escape
+    ok 4 - escape
+      ---
+      duration_ms: 16.937917
+      type: 'test'
+      ...
+    # Subtest: regular callback arguments escape
+    ok 5 - regular callback arguments escape
+      ---
+      duration_ms: 15.286792
+      type: 'test'
+      ...
+    # Subtest: regular callback arguments escape with arity 0
+    ok 6 - regular callback arguments escape with arity 0
+      ---
+      duration_ms: 17.887958
+      type: 'test'
+      ...
+    # Subtest: regular callback arguments escape with arity 1
+    ok 7 - regular callback arguments escape with arity 1
+      ---
+      duration_ms: 15.706458
+      type: 'test'
+      ...
+    # Subtest: rest parameter cannot alias TestInfo
+    ok 8 - rest parameter cannot alias TestInfo
+      ---
+      duration_ms: 21.086083
+      type: 'test'
+      ...
+    1..8
+ok 26 - selected TestInfo cannot mark a safety selector expected or skipped
+  ---
+  duration_ms: 133.549167
+  type: 'test'
+  ...
+# Subtest: a Playwright namespace cannot focus a decoy test
+ok 27 - a Playwright namespace cannot focus a decoy test
+  ---
+  duration_ms: 14.938792
+  type: 'test'
+  ...
+# Subtest: a Playwright namespace alias cannot focus a decoy test
+ok 28 - a Playwright namespace alias cannot focus a decoy test
+  ---
+  duration_ms: 13.865833
+  type: 'test'
+  ...
+# Subtest: selected hooks cannot mock the anonymous API proof
+ok 29 - selected hooks cannot mock the anonymous API proof
+  ---
+  duration_ms: 16.926959
+  type: 'test'
+  ...
+# Subtest: the accepted baseURL guard cannot use a shadowed process binding
+ok 30 - the accepted baseURL guard cannot use a shadowed process binding
+  ---
+  duration_ms: 20.330417
+  type: 'test'
+  ...
+# Subtest: the accepted baseURL guard rejects process environment interference
+    # Subtest: global-this
+    ok 1 - global-this
+      ---
+      duration_ms: 12.220333
+      type: 'test'
+      ...
+    # Subtest: global-this-computed
+    ok 2 - global-this-computed
+      ---
+      duration_ms: 14.621083
+      type: 'test'
+      ...
+    # Subtest: env-alias
+    ok 3 - env-alias
+      ---
+      duration_ms: 14.391042
+      type: 'test'
+      ...
+    # Subtest: define-property
+    ok 4 - define-property
+      ---
+      duration_ms: 30.019375
+      type: 'test'
+      ...
+    1..4
+ok 31 - the accepted baseURL guard rejects process environment interference
+  ---
+  duration_ms: 71.744167
+  type: 'test'
+  ...
+# Subtest: Playwright test members cannot escape their direct calls
+    # Subtest: detached-skip
+    ok 1 - detached-skip
+      ---
+      duration_ms: 16.986625
+      type: 'test'
+      ...
+    # Subtest: describe-alias
+    ok 2 - describe-alias
+      ---
+      duration_ms: 22.8835
+      type: 'test'
+      ...
+    # Subtest: extend-focus
+    ok 3 - extend-focus
+      ---
+      duration_ms: 18.042708
+      type: 'test'
+      ...
+    1..3
+ok 32 - Playwright test members cannot escape their direct calls
+  ---
+  duration_ms: 58.421458
+  type: 'test'
+  ...
+# Subtest: selector modules reject untrusted top-level execution and secondary authorities
+    # Subtest: callback-constructor
+    ok 1 - callback-constructor
+      ---
+      duration_ms: 12.573625
+      type: 'test'
+      ...
+    # Subtest: computed-constructor-env
+    ok 2 - computed-constructor-env
+      ---
+      duration_ms: 12.223875
+      type: 'test'
+      ...
+    # Subtest: constructor-env
+    ok 3 - constructor-env
+      ---
+      duration_ms: 13.600875
+      type: 'test'
+      ...
+    # Subtest: eval-env
+    ok 4 - eval-env
+      ---
+      duration_ms: 15.366042
+      type: 'test'
+      ...
+    # Subtest: node-process
+    ok 5 - node-process
+      ---
+      duration_ms: 14.118
+      type: 'test'
+      ...
+    # Subtest: reflect-constructor-env
+    ok 6 - reflect-constructor-env
+      ---
+      duration_ms: 17.141291
+      type: 'test'
+      ...
+    # Subtest: require-test
+    ok 7 - require-test
+      ---
+      duration_ms: 13.624875
+      type: 'test'
+      ...
+    # Subtest: side-effect-import
+    ok 8 - side-effect-import
+      ---
+      duration_ms: 13.912417
+      type: 'test'
+      ...
+    # Subtest: string-test-alias
+    ok 9 - string-test-alias
+      ---
+      duration_ms: 14.46625
+      type: 'test'
+      ...
+    1..9
+ok 33 - selector modules reject untrusted top-level execution and secondary authorities
+  ---
+  duration_ms: 128.00225
+  type: 'test'
+  ...
+# Subtest: an unrelated describe cannot export a disabler into the selected describe
+ok 34 - an unrelated describe cannot export a disabler into the selected describe
+  ---
+  duration_ms: 13.365542
+  type: 'test'
+  ...
+# Subtest: an unrelated describe cannot export authenticated storage into the selected describe
+ok 35 - an unrelated describe cannot export authenticated storage into the selected describe
+  ---
+  duration_ms: 13.208417
+  type: 'test'
+  ...
+# Subtest: a fetch binding shadow inside page.evaluate fails closed
+ok 36 - a fetch binding shadow inside page.evaluate fails closed
+  ---
+  duration_ms: 15.540917
+  type: 'test'
+  ...
+# Subtest: the selected anonymous test must directly use readJson
+ok 37 - the selected anonymous test must directly use readJson
+  ---
+  duration_ms: 12.522375
+  type: 'test'
+  ...
+# Subtest: an unreachable readJson call cannot satisfy the selected anonymous test
+    # Subtest: if-false
+    ok 1 - if-false
+      ---
+      duration_ms: 13.588875
+      type: 'test'
+      ...
+    # Subtest: if-unknown
+    ok 2 - if-unknown
+      ---
+      duration_ms: 14.152333
+      type: 'test'
+      ...
+    # Subtest: empty-loop
+    ok 3 - empty-loop
+      ---
+      duration_ms: 13.053458
+      type: 'test'
+      ...
+    # Subtest: emptied-array-loop
+    ok 4 - emptied-array-loop
+      ---
+      duration_ms: 13.2585
+      type: 'test'
+      ...
+    # Subtest: after-return
+    ok 5 - after-return
+      ---
+      duration_ms: 15.008
+      type: 'test'
+      ...
+    # Subtest: after-conditional-return
+    ok 6 - after-conditional-return
+      ---
+      duration_ms: 11.797416
+      type: 'test'
+      ...
+    1..6
+ok 38 - an unreachable readJson call cannot satisfy the selected anonymous test
+  ---
+  duration_ms: 81.409666
+  type: 'test'
+  ...
+# Subtest: selected and describe callbacks cannot disable an exact safety selector
+    # Subtest: selected skip
+    ok 1 - selected skip
+      ---
+      duration_ms: 12.909375
+      type: 'test'
+      ...
+    # Subtest: selected fixme
+    ok 2 - selected fixme
+      ---
+      duration_ms: 16.111459
+      type: 'test'
+      ...
+    # Subtest: selected fail
+    ok 3 - selected fail
+      ---
+      duration_ms: 12.53875
+      type: 'test'
+      ...
+    # Subtest: describe skip
+    ok 4 - describe skip
+      ---
+      duration_ms: 13.421667
+      type: 'test'
+      ...
+    # Subtest: selected helper skip
+    ok 5 - selected helper skip
+      ---
+      duration_ms: 16.770958
+      type: 'test'
+      ...
+    # Subtest: describe TestInfo hook skip
+    ok 6 - describe TestInfo hook skip
+      ---
+      duration_ms: 12.178958
+      type: 'test'
+      ...
+    1..6
+ok 39 - selected and describe callbacks cannot disable an exact safety selector
+  ---
+  duration_ms: 84.568417
+  type: 'test'
+  ...
+# Subtest: focused Playwright registrations cannot exclude the safety selectors
+    # Subtest: test
+    ok 1 - test
+      ---
+      duration_ms: 12.562791
+      type: 'test'
+      ...
+    # Subtest: describe
+    ok 2 - describe
+      ---
+      duration_ms: 12.765292
+      type: 'test'
+      ...
+    1..2
+ok 40 - focused Playwright registrations cannot exclude the safety selectors
+  ---
+  duration_ms: 25.611458
+  type: 'test'
+  ...
+# Subtest: imported Playwright APIs cannot be mutated after authentication
+    # Subtest: test-describe-as
+    ok 1 - test-describe-as
+      ---
+      duration_ms: 12.238375
+      type: 'test'
+      ...
+    # Subtest: test-describe-computed
+    ok 2 - test-describe-computed
+      ---
+      duration_ms: 11.860959
+      type: 'test'
+      ...
+    # Subtest: expect-soft-as
+    ok 3 - expect-soft-as
+      ---
+      duration_ms: 15.314917
+      type: 'test'
+      ...
+    1..3
+ok 41 - imported Playwright APIs cannot be mutated after authentication
+  ---
+  duration_ms: 39.778125
+  type: 'test'
+  ...
+# Subtest: a readJson name shadow inside the selected test fails closed
+ok 42 - a readJson name shadow inside the selected test fails closed
+  ---
+  duration_ms: 14.518
+  type: 'test'
+  ...
+# Subtest: Playwright test must be the direct unshadowed named import
+ok 43 - Playwright test must be the direct unshadowed named import
+  ---
+  duration_ms: 12.221
+  type: 'test'
+  ...
+# Subtest: an additional aliased Playwright test import fails closed
+ok 44 - an additional aliased Playwright test import fails closed
+  ---
+  duration_ms: 12.03075
+  type: 'test'
+  ...
+# Subtest: test.info cannot disable a selected safety test
+ok 45 - test.info cannot disable a selected safety test
+  ---
+  duration_ms: 11.390666
+  type: 'test'
+  ...
+# Subtest: type-only Playwright imports cannot authenticate runtime bindings
+    # Subtest: test
+    ok 1 - test
+      ---
+      duration_ms: 11.708833
+      type: 'test'
+      ...
+    # Subtest: expect
+    ok 2 - expect
+      ---
+      duration_ms: 12.745917
+      type: 'test'
+      ...
+    1..2
+ok 46 - type-only Playwright imports cannot authenticate runtime bindings
+  ---
+  duration_ms: 24.703
+  type: 'test'
+  ...
+# Subtest: readJson page.evaluate fetch options are exact and cannot use spread overrides
+ok 47 - readJson page.evaluate fetch options are exact and cannot use spread overrides
+  ---
+  duration_ms: 15.46175
+  type: 'test'
+  ...
+# Subtest: readJson must directly await the guarded fetch
+ok 48 - readJson must directly await the guarded fetch
+  ---
+  duration_ms: 14.14
+  type: 'test'
+  ...
+# Subtest: anonymous readJson without no-store fails closed
+ok 49 - anonymous readJson without no-store fails closed
+  ---
+  duration_ms: 12.769416
+  type: 'test'
+  ...
+# Subtest: missing service-worker blocking fails closed
+ok 50 - missing service-worker blocking fails closed
+  ---
+  duration_ms: 13.9165
+  type: 'test'
+  ...
+# Subtest: a nested service-worker decoy cannot satisfy the file-level boundary
+ok 51 - a nested service-worker decoy cannot satisfy the file-level boundary
+  ---
+  duration_ms: 12.517625
+  type: 'test'
+  ...
+# Subtest: a describe-level service-worker override invalidates the file boundary
+ok 52 - a describe-level service-worker override invalidates the file boundary
+  ---
+  duration_ms: 12.859667
+  type: 'test'
+  ...
+# Subtest: a computed service-worker override invalidates the file boundary
+ok 53 - a computed service-worker override invalidates the file boundary
+  ---
+  duration_ms: 14.574042
+  type: 'test'
+  ...
+# Subtest: an aliased Playwright test object cannot override the file boundary
+ok 54 - an aliased Playwright test object cannot override the file boundary
+  ---
+  duration_ms: 11.886875
+  type: 'test'
+  ...
+# Subtest: a namespace Playwright alias cannot override the file boundary
+ok 55 - a namespace Playwright alias cannot override the file boundary
+  ---
+  duration_ms: 13.469959
+  type: 'test'
+  ...
+# Subtest: the accepted service-worker boundary must use direct dot syntax
+ok 56 - the accepted service-worker boundary must use direct dot syntax
+  ---
+  duration_ms: 12.73225
+  type: 'test'
+  ...
+# Subtest: a second wallet navigation after reload fails closed
+ok 57 - a second wallet navigation after reload fails closed
+  ---
+  duration_ms: 13.599667
+  type: 'test'
+  ...
+# Subtest: a direct page navigation after reload also fails closed
+ok 58 - a direct page navigation after reload also fails closed
+  ---
+  duration_ms: 13.7145
+  type: 'test'
+  ...
+# Subtest: no helper call may intervene between reload and continuity assertions
+ok 59 - no helper call may intervene between reload and continuity assertions
+  ---
+  duration_ms: 15.246875
+  type: 'test'
+  ...
+# Subtest: bounded startup readiness is accepted without authorizing navigation after reload
+ok 60 - bounded startup readiness is accepted without authorizing navigation after reload
+  ---
+  duration_ms: 15.131208
+  type: 'test'
+  ...
+# Subtest: startup-aware session still rejects unsafe timeout, wrong-page wait, and hidden navigation
+    # Subtest: {"sessionTimeout":"0"}
+    ok 1 - {"sessionTimeout":"0"}
+      ---
+      duration_ms: 14.149208
+      type: 'test'
+      ...
+    # Subtest: {"sessionTimeout":"Infinity"}
+    ok 2 - {"sessionTimeout":"Infinity"}
+      ---
+      duration_ms: 12.374375
+      type: 'test'
+      ...
+    # Subtest: {"sessionTimeout":"999_999_999"}
+    ok 3 - {"sessionTimeout":"999_999_999"}
+      ---
+      duration_ms: 12.908875
+      type: 'test'
+      ...
+    # Subtest: {"sessionTimeout":"computeTimeout()"}
+    ok 4 - {"sessionTimeout":"computeTimeout()"}
+      ---
+      duration_ms: 16.525833
+      type: 'test'
+      ...
+    # Subtest: {"sessionReadinessCall":"waitForEnvironmentVerifier(page);"}
+    ok 5 - {"sessionReadinessCall":"waitForEnvironmentVerifier(page);"}
+      ---
+      duration_ms: 13.692
+      type: 'test'
+      ...
+    # Subtest: {"sessionReadinessCall":"await waitForEnvironmentVerifier(otherPage);"}
+    ok 6 - {"sessionReadinessCall":"await waitForEnvironmentVerifier(otherPage);"}
+      ---
+      duration_ms: 14.487292
+      type: 'test'
+      ...
+    # Subtest: {"sessionReadinessCall":"await waitForEnvironmentVerifier(page); await page.goto(\\"/app/wallet\\");"}
+    ok 7 - {"sessionReadinessCall":"await waitForEnvironmentVerifier(page); await page.goto(\\"/app/wallet\\");"}
+      ---
+      duration_ms: 13.171042
+      type: 'test'
+      ...
+    # Subtest: {"sessionReadinessCall":"await expect(page.locator('body')).toHaveAttribute('data-startup-status', 'ready', { timeout: 45_000 }); await expect(page.locator('html')).toHaveAttribute('data-environment-status', 'verified');"}
+    ok 8 - {"sessionReadinessCall":"await expect(page.locator('body')).toHaveAttribute('data-startup-status', 'ready', { timeout: 45_000 }); await expect(page.locator('html')).toHaveAttribute('data-environment-status', 'verified');"}
+      ---
+      duration_ms: 14.252541
+      type: 'test'
+      ...
+    # Subtest: {"sessionReadinessCall":"await expect(page.locator('html')).toHaveAttribute('data-startup-status', 'ready', { timeout: 0 }); await expect(page.locator('html')).toHaveAttribute('data-environment-status', 'verified');"}
+    ok 9 - {"sessionReadinessCall":"await expect(page.locator('html')).toHaveAttribute('data-startup-status', 'ready', { timeout: 0 }); await expect(page.locator('html')).toHaveAttribute('data-environment-status', 'verified');"}
+      ---
+      duration_ms: 12.950333
+      type: 'test'
+      ...
+    # Subtest: {"sessionReadinessCall":"await expect(page.locator('html')).toHaveAttribute('data-startup-status', 'ready', { timeout: 45_000 });"}
+    ok 10 - {"sessionReadinessCall":"await expect(page.locator('html')).toHaveAttribute('data-startup-status', 'ready', { timeout: 45_000 });"}
+      ---
+      duration_ms: 16.57
+      type: 'test'
+      ...
+    1..10
+ok 61 - startup-aware session still rejects unsafe timeout, wrong-page wait, and hidden navigation
+  ---
+  duration_ms: 142.042334
+  type: 'test'
+  ...
+# Subtest: post-reload helper cannot hide an intervening navigation
+ok 62 - post-reload helper cannot hide an intervening navigation
+  ---
+  duration_ms: 13.877333
+  type: 'test'
+  ...
+# Subtest: post-reload assertions must directly bind the page under test
+ok 63 - post-reload assertions must directly bind the page under test
+  ---
+  duration_ms: 14.557291
+  type: 'test'
+  ...
+# Subtest: post-reload assertions must be reachable and use imported Playwright expect
+    # Subtest: after return
+    ok 1 - after return
+      ---
+      duration_ms: 12.369958
+      type: 'test'
+      ...
+    # Subtest: shadowed expect
+    ok 2 - shadowed expect
+      ---
+      duration_ms: 13.824292
+      type: 'test'
+      ...
+    1..2
+ok 64 - post-reload assertions must be reachable and use imported Playwright expect
+  ---
+  duration_ms: 26.445208
+  type: 'test'
+  ...
+# Subtest: post-reload assertions require the exact wallet URL and text patterns
+    # Subtest: broader URL regex
+    ok 1 - broader URL regex
+      ---
+      duration_ms: 14.957417
+      type: 'test'
+      ...
+    # Subtest: broader wallet text regex
+    ok 2 - broader wallet text regex
+      ---
+      duration_ms: 16.21075
+      type: 'test'
+      ...
+    1..2
+ok 65 - post-reload assertions require the exact wallet URL and text patterns
+  ---
+  duration_ms: 31.459208
+  type: 'test'
+  ...
+# Subtest: post-reload assertions must be awaited direct ordered statements
+    # Subtest: nested assertions
+    ok 1 - nested assertions
+      ---
+      duration_ms: 13.349292
+      type: 'test'
+      ...
+    # Subtest: unawaited navigation and reload
+    ok 2 - unawaited navigation and reload
+      ---
+      duration_ms: 12.770875
+      type: 'test'
+      ...
+    # Subtest: wrong reload readiness
+    ok 3 - wrong reload readiness
+      ---
+      duration_ms: 14.533542
+      type: 'test'
+      ...
+    1..3
+ok 66 - post-reload assertions must be awaited direct ordered statements
+  ---
+  duration_ms: 41.010792
+  type: 'test'
+  ...
+# Subtest: one missing exact selector fails closed
+ok 67 - one missing exact selector fails closed
+  ---
+  duration_ms: 11.899459
+  type: 'test'
+  ...
+# Subtest: a dead nested selector cannot satisfy direct Playwright registration
+ok 68 - a dead nested selector cannot satisfy direct Playwright registration
+  ---
+  duration_ms: 11.562917
+  type: 'test'
+  ...
+# Subtest: a selector after unconditional return in its describe callback is dead
+ok 69 - a selector after unconditional return in its describe callback is dead
+  ---
+  duration_ms: 16.517083
+  type: 'test'
+  ...
+# Subtest: a selector after a statically terminating branch is dead
+ok 70 - a selector after a statically terminating branch is dead
+  ---
+  duration_ms: 14.014541
+  type: 'test'
+  ...
+# Subtest: a selector after a switch-return is dead
+ok 71 - a selector after a switch-return is dead
+  ---
+  duration_ms: 13.24325
+  type: 'test'
+  ...
+# Subtest: a selector after a try-return is dead
+ok 72 - a selector after a try-return is dead
+  ---
+  duration_ms: 12.003041
+  type: 'test'
+  ...
+# Subtest: a selector after a syntactically infinite loop is dead
+    # Subtest: while
+    ok 1 - while
+      ---
+      duration_ms: 12.969125
+      type: 'test'
+      ...
+    # Subtest: for
+    ok 2 - for
+      ---
+      duration_ms: 13.261084
+      type: 'test'
+      ...
+    # Subtest: do
+    ok 3 - do
+      ---
+      duration_ms: 16.290083
+      type: 'test'
+      ...
+    1..3
+ok 73 - a selector after a syntactically infinite loop is dead
+  ---
+  duration_ms: 42.876167
+  type: 'test'
+  ...
+# Subtest: required graph bindings fail closed on a missing mapping or edge
+    # Subtest: mapping
+    ok 1 - mapping
+      ---
+      duration_ms: 15.130125
+      type: 'test'
+      ...
+    # Subtest: edge
+    ok 2 - edge
+      ---
+      duration_ms: 14.956291
+      type: 'test'
+      ...
+    1..2
+ok 74 - required graph bindings fail closed on a missing mapping or edge
+  ---
+  duration_ms: 30.345833
+  type: 'test'
+  ...
+# Subtest: required graph bindings reject ambiguous duplicate identities
+    # Subtest: mapping
+    ok 1 - mapping
+      ---
+      duration_ms: 15.252417
+      type: 'test'
+      ...
+    # Subtest: node
+    ok 2 - node
+      ---
+      duration_ms: 15.273958
+      type: 'test'
+      ...
+    # Subtest: edge
+    ok 3 - edge
+      ---
+      duration_ms: 17.869334
+      type: 'test'
+      ...
+    1..3
+ok 75 - required graph bindings reject ambiguous duplicate identities
+  ---
+  duration_ms: 48.829875
+  type: 'test'
+  ...
+# Subtest: required graph bindings pass only with all five exact counterparts
+ok 76 - required graph bindings pass only with all five exact counterparts
+  ---
+  duration_ms: 17.748416
+  type: 'test'
+  ...
+# Subtest: required graph bindings seal graph safety policy identity
+    # Subtest: missing graph safety projection
+    ok 1 - missing graph safety projection
+      ---
+      duration_ms: 16.295625
+      type: 'test'
+      ...
+    # Subtest: forged generated identity
+    ok 2 - forged generated identity
+      ---
+      duration_ms: 14.850958
+      type: 'test'
+      ...
+    1..2
+ok 77 - required graph bindings seal graph safety policy identity
+  ---
+  duration_ms: 31.399542
+  type: 'test'
+  ...
+# Subtest: QA corpus identity is closed over all three roots and fixed files
+    # Subtest: missing package.json
+    ok 1 - missing package.json
+      ---
+      duration_ms: 11.784458
+      type: 'test'
+      ...
+    # Subtest: missing tests/freeland-public
+    ok 2 - missing tests/freeland-public
+      ---
+      duration_ms: 8.173958
+      type: 'test'
+      ...
+    # Subtest: missing tools/freeland-replacements
+    ok 3 - missing tools/freeland-replacements
+      ---
+      duration_ms: 8.359583
+      type: 'test'
+      ...
+    1..3
+ok 78 - QA corpus identity is closed over all three roots and fixed files
+  ---
+  duration_ms: 72.483625
+  type: 'test'
+  ...
+# Subtest: Playwright identity requires all three exact matching lockfile packages
+    # Subtest: missing package
+    ok 1 - missing package
+      ---
+      duration_ms: 10.422125
+      type: 'test'
+      ...
+    # Subtest: mismatched version
+    ok 2 - mismatched version
+      ---
+      duration_ms: 9.204291
+      type: 'test'
+      ...
+    1..2
+ok 79 - Playwright identity requires all three exact matching lockfile packages
+  ---
+  duration_ms: 19.88
+  type: 'test'
+  ...
+# Subtest: CLI emits only canonical JSON or one stable public error code
+ok 80 - CLI emits only canonical JSON or one stable public error code
+  ---
+  duration_ms: 1463.502708
+  type: 'test'
+  ...
+# Subtest: the implementation parses TypeScript structurally
+ok 81 - the implementation parses TypeScript structurally
+  ---
+  duration_ms: 0.35125
+  type: 'test'
+  ...
+1..81
+# tests 208
+# suites 0
+# pass 208
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4626.053208

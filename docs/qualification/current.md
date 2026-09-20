@@ -1,6 +1,6 @@
 # Current QA-agent source and execution entry
 
-Updated 20 September 2026. This page is the active entry, not a history of every former priority. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
+Updated 21 September 2026. This page is the active entry, not a history of every former priority. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
 
 ## Selected source
 
@@ -23,7 +23,9 @@ The owner resumed the [global P0–P7 improvement plan](../superpowers/plans/202
 
 The **P2-A semantic fee-caption repair** and compatibility fixtures are implemented and independently reviewed; [exact delivery status and gates](p2-semantic-repair-20260920.md) distinguish candidate source from canonical adoption. The previous [99% counterexample](global-plan-entry-audit-20260920.md#executed-nonzero-caption-counterexample) is rejected by the repaired helper; healthy decimal controls remain accepted. Do not reimplement that repair.
 
-Next bounded implementation after delivery: **the original dry card-top-up UI consumer**. Ground current expectations before checking the selected quote, rate/fee caption, total and switching between rails. TC-PAY-07's shadow/API arithmetic does not establish the current product contract or rendered UI. Preserve the no-checkout boundary and missing-fixture outcome; neither the P2-A fixture PASS nor packaging closes original-path, full product or graph coverage. Do not rebuild completed P0/P1 mechanisms.
+**P2-B is an unaccepted candidate, not the selected source.** The original dry card-top-up consumer reached a green source gate at `8aefe79`, but independent Lead AQA review reproduced sensitive assertion/locator content in failure artifacts. The separate `2ab052c` checkpoint preserves two failing regression controls; it is not a fix. Both source histories and evidence are [retained](p2-topup-ui-20260921.md). Keep Freeland `0ea2df1` selected until repair, independent review and delivery qualification. TC-PAY-07 remains shadow; no new product, payment or whole-flow acceptance is implied.
+
+**Primary next result: P3/P5 universal dialogue flow, alongside the bounded P2-B repair.** Reuse existing product-analysis, ticket/help/resume and evaluation mechanisms; do not wait for every Freeland-specific gap or build another runner. First record a current-source decision baseline before changing skills, then qualify actual full-known-scope and ticket execution, partial help and fresh-session continuation on an unfamiliar permitted web/API product. Open-context decision exercises are not execution or hidden-answer qualification. [Git preservation and next-step record](git-preservation-20260921.md) separates accepted bytes, archived candidates, outstanding privacy work and the existing baseline map. P4 graph/dependency learning, the complete known denominator, agent-native result semantics and remaining P2 obligations stay in the global plan.
 
 The assembled source passed clean-clone restore/verify, root61/61 and independent entry/delivery review; [local consolidation evidence](local-consolidation-20260920.md#verification-and-next-step) records the exact scope. This is not a new-product execution by a fresh agent. The next larger exits remain P3 full/ticket/help/resume, P4 useful graph/regression consumption, P5 cross-domain agent evaluation and P6 dialogue-ready delivery. Exact scope and evidence are in the plan, not inferred from unchecked-box counts.
 

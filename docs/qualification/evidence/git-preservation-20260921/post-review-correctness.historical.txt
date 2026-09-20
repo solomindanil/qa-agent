@@ -1,0 +1,55 @@
+# Post-review correctness checkpoint
+
+This checkpoint records execution of the [approved post-review plan](../superpowers/plans/2026-09-07-post-review-dialogue-qa-plan.md). It is not a product release verdict, a source-promotion record, or cloud qualification.
+
+## Source ownership
+
+- Accepted qa-agent root remains `48bccef6996496d795874ef47ea11d0ae089237a` until a separately verified integration changes it.
+- Main owns integration, source bundles/pins, the Freeland QA harness and aggregate gates. Freeland product source remains read-only.
+- Main now owns the remaining Console work with Codex subagents: the user explicitly paused Claude on 2026-09-08. Claude's reviewed commits and eight-file QA01 source snapshot are preserved; unfinished changes are not accepted solely from its report. QA Starter owns the active Kernel scanner slice and bounded product/effect inventory. The existing MagicCard task retains that product's live campaign ownership.
+- Historical qualification records remain attributed to their original sources. New code cannot make an old receipt fresh.
+
+## Reviewed implementation slices
+
+| Slice | Exact reviewed source | Evidence and boundary |
+| --- | --- | --- |
+| QA08: root source verifier | `7a0b8b546c007ff16508cf945af0559809b4ddaf` | Actual tracked bytes/type/owner-executable bit checked against Git objects; 52 root tests pass. Not a general filesystem-race guarantee. |
+| QA03: account observations | Freeland `f1f108c8c82c3d33ecb75da6a19a373d0dbf95c1` | Unknown remains null; each scenario requires its own readable resources. Full source gate passed 2369 checks at this revision; not live account evidence. |
+| QA04: PAY09 unchanged state | Freeland `67dde998130d96d8ecb32f5bf97af7627798da2e` | Null/null no longer proves unchanged. Independent readable changes are retained. PAY09 remains shadow. |
+| QA05: PAY07 currency | Freeland `2da33a3db01bc4e55e1c9fb788454d4a80a6235a` | Wrong/missing currency cannot pass by amount alone. API quote/catalogue proof is not rendered-price or settlement proof. Historical top-up policy mismatch remains open. |
+| QA02: semantic JSON | Console author `499f5fabf9caf240af3b2000f8fb6820c37e7a1e` | Object key order ignored; array order, values, null/missing and types retained. |
+| QA07: findings reader | Console author `33adbb4770a68401a96e05114634a448f702988c` | Existing contained reader reused. Static file/ancestor symlink escapes rejected; writer-side and untested race boundaries remain open. |
+| CAS mode compatibility | Console author `99eb2f2256bec902415aa171986e457b3bf8a0c8` | Canonical file/directory modes under umask077; descriptor identity repair rejects demonstrated post-lstat substitutions. Pre-lstat ownership race not claimed solved. |
+| QA06: quoted secret keys | Kernel `11d013cb75805f66b539960c044512ea52762e7e` | Scanner and real workspace-validation controls pass. This does not sanitize arbitrary image/binary evidence. |
+| Console/Kernel integration | Console `6dfef30406b884801d2060e2233c01b0d0b32a1c` | QA02, QA07, CAS and reviewed Kernel pin combined. Exact Kernel source/distribution accepted; old override rejected. Authority suite12/12 and managed-pack portability3/3 pass. |
+| Runtime pool binding + wrapper fixture | Freeland `6f4ae0642a1f32144f6a2853acf40f236439b57d` | Exact six-file integration independently approved; full source gate2432/2432 and fresh provenance valid. Runtime A1B selection no longer sticks to collection-time state; test-only process readiness and strict cleanup proof retained. PAY09 stays shadow. |
+| QA01: observation/diagnosis | Console `dd277140b2440fd9c8231a1932a3e87670fb3518` | Claude's eight-file slice preserved and repaired by Codex, independently approved. Late evidence cannot change a bounded observation; two oracle failures require investigation, not automatic bug confirmation. Focused128/128; Main deadline5/5. |
+| QA01 dependent consumers | Console `049e5165335bd720c7028700162911eb9e1b8b9b` | Exactly three test files; Lead AQA approved. Nuanu authored API, help/resume and Chromium vertical19/19; real old-auto-confirmation RED1/1 then GREEN1/1. Main integrated Chromium1/1. Failed observations, artifacts, unchanged expectations and independent work remain checked; no synthetic auto-confirmed bug. |
+| Public-auth finding-to-regression fixture | Console `784eda092c566fad0db0f1e4b25ff56b07bddd22` | Exactly two test-only files; independent Lead AQA GO after persisted-reference corruption RED→GREEN. Final fixture8/8 and Main dependent32/32 pass. Saved contained references, existing revision/publication, dedupe and unchanged buggy/fixed oracles checked. Not a new production learner or real-product Step5 qualification. |
+
+Each slice had a failing control, healthy controls and independent Lead AQA review. Those are harness checks, not a product-coverage denominator. Compiler source checks pass; a separate audit found three pre-existing standalone test-type diagnostics, with no new diagnostics introduced by the Kernel pin test.
+
+## Open integration gates
+
+1. Freeland runtime-binding and wrapper-test repairs are committed at `6f4ae06` after both independent spec/quality approval and the full2432-record source gate. Its complete-history bundle restores into an ordinary clean receiver with547/547 raw Git entries checked; bundle verify and fsck pass. The source has not been promoted into the accepted root. Original failed logs remain retained. This is not a live product run or promotion of PAY09.
+2. Console QA01 and all four downstream fixture consumers are reviewed and committed through `784eda092c566fad0db0f1e4b25ff56b07bddd22`. Earlier Nuanu authored API, help/resume and Chromium vertical19/19 passed; the fourth public-auth fixture passed8/8 after an independently reproduced saved-reference repair. Main's final serial integration gate passed adapter26 + authored authority1 + dependencyCLI2 + portability3 =32/32, zero failures/skips/cancellations; source typecheck also exits0. The final complete-history Console bundle restores with167/167 raw entries and clean status. This closes the bounded takeover source slice, not the entire Console suite, real-product learning or accepted-root promotion. Intermediate bundles and original REDs are preserved.
+3. Kernel's earlier 236 passing tests covered four selected files. The actual full gate finished with 1692 passing and 9 failing tests (1701 total); all failures are 10-second timeouts in unchanged workspace-regeneration tests. One isolated failing case passed in 875 ms. A later bounded comparison executed exactly two baseline and two instrumented callbacks:4/4 passed,432 others unrun per process. Its A trace is complete but B raw JSON was truncated/interleaved, so diagnostic evidence is PARTIAL. This supports load/deadline dependence but does not prove fsync as the cause or clear the original full gate. No runtime change, no-op sync, timeout increase or retry-to-green has been applied. Final combined-source verification is still required.
+4. Source-dependent shadow bindings may be refreshed, but existing qualified replacements and receipts are not promoted by adjacent tool fixes.
+
+After the bounded comparison, exactly one baseline-only C→A→B neighborhood also passed3/3 (431 cases filtered/unrun), with original10-second limits and no observer/retry. Main checked all15 delivery hashes in `/private/tmp/kernel-neighborhood-rtac7eam`. The original full gate's nine timeouts were not reproduced and remain unresolved. Clean own-PGID and visible temp-directory readback do not establish file-descriptor closure or the absence of detached descendants. Neither isolated result qualifies a full-gate reliability fix.
+
+## Effect scope before product execution
+
+A bounded static review of the default Freeland launcher now covers 37/37 spec files, 169/169 declaration sites, 271 logical cases and 276 project placements, plus one separate auth.setup declaration. Main verified all 268 delivered artifact hashes. PAY07/PAY09 replacement cases remain outside that default denominator. Runtime execution for this inventory is zero; this is not deployed-server proof.
+
+The default suite cannot currently be described as universally read-only: it includes session changes, deposit-address provisioning, mutation-capable negative probes and dry UI flows without a request fence. Verification-link GET requests may change state. Each selected campaign must name its permitted effects and existing account/resource prerequisites. PAY07/PAY09 have useful request guards but retain GET/server-effect and fixture-scope limits.
+
+## Remaining delivery
+
+The finding-to-learning design reuses the current findings ledger and knowledge-revision/publication path. A provenance content hash alone does not make the Kernel reread an arbitrary finding file. The local qualification must distinguish explicit agent/fixture readback before preview from the actual stale-workspace rejection after preview. Findings remain candidates in the ledger until separately investigated; notes cannot silently turn a sealed INCONCLUSIVE receipt into PASS or a confirmed bug. Exact contained file bytes, not the 500-character UI excerpt, are needed for evidence references. Findings also remain subject to the workspace secret/private-path scanner.
+
+The first takeover fixture replay passed8/8, but independent review reproduced a real saved-reference gap: it could accept a syntactically valid corrupt receipt hash while the caller checked its original in-memory references. That result is retained, not accepted as final qualification. The bounded repair verifies references parsed from the contained saved finding against the actual receipt/check/attempt artifacts; its corruption control is RED→GREEN. Final replay passed8/8 and independent Lead AQA approved exact two-file diff989c80029557be96a7461ea54e36b48af867e4c72f24891988472af5dc745fb9, with four receipts/27 artifacts/five saved finding references freshly checked. Main integrated exact bytes, passed the32-record dependent gate and committed784eda0. These remain synthetic fixture results, not real Step5 completion.
+
+Independent Lead AQA supported all eight original synthetic diagnoses and one additive diagnosis: zero wrong diagnoses, false PASS or false product-bug claims among these nine observations. The original full fixture hash manifest was missing; current-only integrity was checked for 34/34 entries, not retroactive freeze. This accepts exploratory decision evidence only: held-out cases, clean baseline/candidate comparison and full Step2 qualification remain open. The selected raw transcript includes separately authorized integration work; it is not a complete whole-session audit or product QA.
+
+After source integration: run the small independent agent-diagnosis evaluation, qualify admitted real business slices, verify full and QA-column workflows with explicit gaps, demonstrate agent-reviewed finding to regression/graph improvement, and qualify help/resume plus fresh Codex/Claude entry. Existing plans, tools and publication mechanisms are reused; no second runner or verdict engine is introduced. Cloud remains excluded.

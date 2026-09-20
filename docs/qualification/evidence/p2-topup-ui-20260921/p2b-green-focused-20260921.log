@@ -1,0 +1,580 @@
+TAP version 13
+# Subtest: finite whole-test budget precedes browser work: capabilities expose Card and SBP for every target-payment action
+ok 1 - finite whole-test budget precedes browser work: capabilities expose Card and SBP for every target-payment action
+  ---
+  duration_ms: 446.09325
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: eSIM purchase quotes Card and SBP without creating checkout
+ok 2 - finite whole-test budget precedes browser work: eSIM purchase quotes Card and SBP without creating checkout
+  ---
+  duration_ms: 0.213667
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: payer field labels are localized in the Card / SBP PaySheet
+ok 3 - finite whole-test budget precedes browser work: payer field labels are localized in the Card / SBP PaySheet
+  ---
+  duration_ms: 0.476792
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: Virtual Number purchase quotes Card and SBP without creating checkout
+ok 4 - finite whole-test budget precedes browser work: Virtual Number purchase quotes Card and SBP without creating checkout
+  ---
+  duration_ms: 0.161166
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: Card issue exposes Russian Card and SBP
+ok 5 - finite whole-test budget precedes browser work: Card issue exposes Russian Card and SBP
+  ---
+  duration_ms: 0.458167
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: VPN Card / SBP is inspectable or explicitly blocked by account state
+ok 6 - finite whole-test budget precedes browser work: VPN Card / SBP is inspectable or explicitly blocked by account state
+  ---
+  duration_ms: 0.228916
+  type: 'test'
+  ...
+# Subtest: zero-fee Card/SBP quotes need no tile fee but keep exact selected totals
+ok 7 - zero-fee Card/SBP quotes need no tile fee but keep exact selected totals
+  ---
+  duration_ms: 690.310792
+  type: 'test'
+  ...
+# Subtest: card issue waits for options and checks selected summary despite two differently named dialogs and repeated tile fees
+ok 8 - card issue waits for options and checks selected summary despite two differently named dialogs and repeated tile fees
+  ---
+  duration_ms: 620.425292
+  type: 'test'
+  ...
+# Subtest: selected 1290 bps caption accepts literal 12.9% with 25.00 principal, 3.23 fee and 28.23 total
+ok 9 - selected 1290 bps caption accepts literal 12.9% with 25.00 principal, 3.23 fee and 28.23 total
+  ---
+  duration_ms: 416.703125
+  type: 'test'
+  ...
+# Subtest: selected 1290 bps caption accepts decimal-comma 12,9%
+ok 10 - selected 1290 bps caption accepts decimal-comma 12,9%
+  ---
+  duration_ms: 447.346959
+  type: 'test'
+  ...
+# Subtest: selected 110 bps caption accepts literal 1.1% without floating-point drift
+ok 11 - selected 110 bps caption accepts literal 1.1% without floating-point drift
+  ---
+  duration_ms: 332.143833
+  type: 'test'
+  ...
+# Subtest: selected 230 bps caption accepts decimal-comma 2,3% without floating-point drift
+ok 12 - selected 230 bps caption accepts decimal-comma 2,3% without floating-point drift
+  ---
+  duration_ms: 308.135625
+  type: 'test'
+  ...
+# Subtest: identical 1290 bps quote rejects a selected 99% caption
+ok 13 - identical 1290 bps quote rejects a selected 99% caption
+  ---
+  duration_ms: 232.481542
+  type: 'test'
+  ...
+# Subtest: selected percentage rejects precision finer than one basis point
+ok 14 - selected percentage rejects precision finer than one basis point
+  ---
+  duration_ms: 231.5965
+  type: 'test'
+  ...
+# Subtest: each selected tile percentage follows that option source rate rather than a global policy rate
+ok 15 - each selected tile percentage follows that option source rate rather than a global policy rate
+  ---
+  duration_ms: 338.209375
+  type: 'test'
+  ...
+# Subtest: explicit percentage cannot pass when the selected source rate is unknown
+ok 16 - explicit percentage cannot pass when the selected source rate is unknown
+  ---
+  duration_ms: 235.558459
+  type: 'test'
+  ...
+# Subtest: fixed selected fee amount can stand without a source rate
+ok 17 - fixed selected fee amount can stand without a source rate
+  ---
+  duration_ms: 303.399875
+  type: 'test'
+  ...
+# Subtest: wrong selected fixed fee amount is rejected even when the summary is correct
+ok 18 - wrong selected fixed fee amount is rejected even when the summary is correct
+  ---
+  duration_ms: 239.711083
+  type: 'test'
+  ...
+# Subtest: positive source fee does not require a tile caption when the product promises none
+ok 19 - positive source fee does not require a tile caption when the product promises none
+  ---
+  duration_ms: 334.860875
+  type: 'test'
+  ...
+# Subtest: zero-fee quote rejects an inflated UI total even if its method tile mentions a fee
+ok 20 - zero-fee quote rejects an inflated UI total even if its method tile mentions a fee
+  ---
+  duration_ms: 328.726625
+  type: 'test'
+  ...
+# Subtest: selected UI amounts cannot be satisfied by the outer dialog or an unselected tile
+ok 21 - selected UI amounts cannot be satisfied by the outer dialog or an unselected tile
+  ---
+  duration_ms: 368.159125
+  type: 'test'
+  ...
+# Subtest: method tile must actually become selected
+ok 22 - method tile must actually become selected
+  ---
+  duration_ms: 316.600667
+  type: 'test'
+  ...
+# Subtest: malformed quote arithmetic is rejected rather than trusted as UI truth
+ok 23 - malformed quote arithmetic is rejected rather than trusted as UI truth
+  ---
+  duration_ms: 142.028208
+  type: 'test'
+  ...
+# Subtest: VIP selected source keeps principal 31, included fee 4, total 35 and zero opening balance
+ok 24 - VIP selected source keeps principal 31, included fee 4, total 35 and zero opening balance
+  ---
+  duration_ms: 326.516334
+  type: 'test'
+  ...
+# Subtest: VIP rejects 39.52 instead of the frozen 35 total
+ok 25 - VIP rejects 39.52 instead of the frozen 35 total
+  ---
+  duration_ms: 371.373417
+  type: 'test'
+  ...
+# Subtest: SBP selection must refresh the summary; a correct preceding Card summary is insufficient
+ok 26 - SBP selection must refresh the summary; a correct preceding Card summary is insufficient
+  ---
+  duration_ms: 344.406459
+  type: 'test'
+  ...
+# Subtest: VIP cannot lose its zero opening balance evidence while keeping valid principal and total
+ok 27 - VIP cannot lose its zero opening balance evidence while keeping valid principal and total
+  ---
+  duration_ms: 397.296958
+  type: 'test'
+  ...
+# Subtest: repeated positive fee tile captions do not count as the selected fee summary
+ok 28 - repeated positive fee tile captions do not count as the selected fee summary
+  ---
+  duration_ms: 379.794333
+  type: 'test'
+  ...
+# Subtest: zero-fee selection rejects a percentage fallback even when the total happens to stay correct
+ok 29 - zero-fee selection rejects a percentage fallback even when the total happens to stay correct
+  ---
+  duration_ms: 335.810708
+  type: 'test'
+  ...
+# Subtest: payment-options error cannot turn the visible loading dialog into readiness
+ok 30 - payment-options error cannot turn the visible loading dialog into readiness
+  ---
+  duration_ms: 173.38875
+  type: 'test'
+  ...
+# Subtest: response for another product cannot supply payment expectations
+ok 31 - response for another product cannot supply payment expectations
+  ---
+  duration_ms: 120.686667
+  type: 'test'
+  ...
+# Subtest: missing method breakdown cannot silently fall back to a policy percentage
+ok 32 - missing method breakdown cannot silently fall back to a policy percentage
+  ---
+  duration_ms: 126.708917
+  type: 'test'
+  ...
+# Subtest: card method selection cannot create checkout even when every amount is correct
+ok 33 - card method selection cannot create checkout even when every amount is correct
+  ---
+  duration_ms: 301.318833
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: non-RUB card payment
+ok 34 - preserves the existing financial guard: non-RUB card payment
+  ---
+  duration_ms: 114.569917
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: unequal Card and SBP amounts
+ok 35 - preserves the existing financial guard: unequal Card and SBP amounts
+  ---
+  duration_ms: 121.466375
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: expired Card FX quote
+ok 36 - preserves the existing financial guard: expired Card FX quote
+  ---
+  duration_ms: 129.956625
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: expired product quote
+ok 37 - preserves the existing financial guard: expired product quote
+  ---
+  duration_ms: 122.185125
+  type: 'test'
+  ...
+# Subtest: exact response binding rejects wrong productRef without persisting identity
+ok 38 - exact response binding rejects wrong productRef without persisting identity
+  ---
+  duration_ms: 625.656459
+  type: 'test'
+  ...
+# Subtest: exact response binding rejects wrong cardId without persisting identity
+ok 39 - exact response binding rejects wrong cardId without persisting identity
+  ---
+  duration_ms: 0.546625
+  type: 'test'
+  ...
+# Subtest: original drawer covers distinct wallet, exact fiat quotes and crypto rails with explicit Freeland exclusion
+ok 40 - original drawer covers distinct wallet, exact fiat quotes and crypto rails with explicit Freeland exclusion
+  ---
+  duration_ms: 1001.104459
+  type: 'test'
+  ...
+# Subtest: non-PASS: no owned active card
+ok 41 - non-PASS: no owned active card
+  ---
+  duration_ms: 71.695167
+  type: 'test'
+  ...
+# Subtest: non-PASS: ambiguous active cards
+ok 42 - non-PASS: ambiguous active cards
+  ---
+  duration_ms: 74.351375
+  type: 'test'
+  ...
+# Subtest: non-PASS: missing target route
+ok 43 - non-PASS: missing target route
+  ---
+  duration_ms: 83.79775
+  type: 'test'
+  ...
+# Subtest: non-PASS: unauthenticated shell is not owned content
+ok 44 - non-PASS: unauthenticated shell is not owned content
+  ---
+  duration_ms: 73.560333
+  type: 'test'
+  ...
+# Subtest: non-PASS: missing corresponding Top-up control
+ok 45 - non-PASS: missing corresponding Top-up control
+  ---
+  duration_ms: 745.684708
+  type: 'test'
+  ...
+# Subtest: non-PASS: ambiguous corresponding Top-up control
+ok 46 - non-PASS: ambiguous corresponding Top-up control
+  ---
+  duration_ms: 82.03325
+  type: 'test'
+  ...
+# Subtest: non-PASS: wrong exact card ref
+ok 47 - non-PASS: wrong exact card ref
+  ---
+  duration_ms: 1011.270333
+  type: 'test'
+  ...
+# Subtest: non-PASS: wrong payload card
+ok 48 - non-PASS: wrong payload card
+  ---
+  duration_ms: 1020.154625
+  type: 'test'
+  ...
+# Subtest: non-PASS: wrong input amount
+ok 49 - non-PASS: wrong input amount
+  ---
+  duration_ms: 1025.206417
+  type: 'test'
+  ...
+# Subtest: non-PASS: wrong product
+ok 50 - non-PASS: wrong product
+  ---
+  duration_ms: 1015.350834
+  type: 'test'
+  ...
+# Subtest: non-PASS: unavailable fiat option
+ok 51 - non-PASS: unavailable fiat option
+  ---
+  duration_ms: 369.791208
+  type: 'test'
+  ...
+# Subtest: non-PASS: correct sums with wrong selected percentage
+ok 52 - non-PASS: correct sums with wrong selected percentage
+  ---
+  duration_ms: 412.981917
+  type: 'test'
+  ...
+# Subtest: non-PASS: wallet requested-credit leakage
+ok 53 - non-PASS: wallet requested-credit leakage
+  ---
+  duration_ms: 354.017458
+  type: 'test'
+  ...
+# Subtest: non-PASS: stale selected source
+ok 54 - non-PASS: stale selected source
+  ---
+  duration_ms: 695.858167
+  type: 'test'
+  ...
+# Subtest: non-PASS: stale crypto total
+ok 55 - non-PASS: stale crypto total
+  ---
+  duration_ms: 672.145208
+  type: 'test'
+  ...
+# Subtest: non-PASS: stale fiat limit
+ok 56 - non-PASS: stale fiat limit
+  ---
+  duration_ms: 658.862292
+  type: 'test'
+  ...
+# Subtest: non-PASS: stale disabled state above fiat limit
+ok 57 - non-PASS: stale disabled state above fiat limit
+  ---
+  duration_ms: 740.498833
+  type: 'test'
+  ...
+# Subtest: non-PASS: background text cannot satisfy missing outer row
+ok 58 - non-PASS: background text cannot satisfy missing outer row
+  ---
+  duration_ms: 607.372417
+  type: 'test'
+  ...
+# Subtest: insufficient wallet is disclosed but does not prevent source checks
+ok 59 - insufficient wallet is disclosed but does not prevent source checks
+  ---
+  duration_ms: 675.709083
+  type: 'test'
+  ...
+# Subtest: forbidden checkout on selection fails through final strong guard with no create transport
+ok 60 - forbidden checkout on selection fails through final strong guard with no create transport
+  ---
+  duration_ms: 759.461875
+  type: 'test'
+  ...
+# Subtest: forbidden checkout after successful helper result still fails at owned context closure
+ok 61 - forbidden checkout after successful helper result still fails at owned context closure
+  ---
+  duration_ms: 687.595584
+  type: 'test'
+  ...
+# Subtest: zero fiat fee keeps exact total and no fallback caption
+ok 62 - zero fiat fee keeps exact total and no fallback caption
+  ---
+  duration_ms: 702.930292
+  type: 'test'
+  ...
+# Subtest: exact-card waiter excludes pre-observation requests and wrong identities, then cleans its listener
+ok 63 - exact-card waiter excludes pre-observation requests and wrong identities, then cleans its listener
+  ---
+  duration_ms: 86.146125
+  type: 'test'
+  ...
+# Subtest: legacy projection keeps its exact existing shape and no financial member
+ok 64 - legacy projection keeps its exact existing shape and no financial member
+  ---
+  duration_ms: 332.94175
+  type: 'test'
+  ...
+# Subtest: financial projection preserves every method and source-specific input semantics without secrets
+ok 65 - financial projection preserves every method and source-specific input semantics without secrets
+  ---
+  duration_ms: 0.866458
+  type: 'test'
+  ...
+# Subtest: minor units stay unobserved for malformed "-1"
+ok 66 - minor units stay unobserved for malformed "-1"
+  ---
+  duration_ms: 0.541542
+  type: 'test'
+  ...
+# Subtest: minor units stay unobserved for malformed "1.1"
+ok 67 - minor units stay unobserved for malformed "1.1"
+  ---
+  duration_ms: 0.39425
+  type: 'test'
+  ...
+# Subtest: minor units stay unobserved for malformed "1e3"
+ok 68 - minor units stay unobserved for malformed "1e3"
+  ---
+  duration_ms: 0.099916
+  type: 'test'
+  ...
+# Subtest: minor units stay unobserved for malformed " 500"
+ok 69 - minor units stay unobserved for malformed " 500"
+  ---
+  duration_ms: 0.132041
+  type: 'test'
+  ...
+# Subtest: minor units stay unobserved for malformed 500
+ok 70 - minor units stay unobserved for malformed 500
+  ---
+  duration_ms: 0.073959
+  type: 'test'
+  ...
+# Subtest: minor units stay unobserved for malformed null
+ok 71 - minor units stay unobserved for malformed null
+  ---
+  duration_ms: 0.275
+  type: 'test'
+  ...
+# Subtest: missing flags, unknown identifiers and currencies do not become valid facts or leak text
+ok 72 - missing flags, unknown identifiers and currencies do not become valid facts or leak text
+  ---
+  duration_ms: 0.3505
+  type: 'test'
+  ...
+# Subtest: wrong product response cannot bind financial facts to a different request
+ok 73 - wrong product response cannot bind financial facts to a different request
+  ---
+  duration_ms: 0.310917
+  type: 'test'
+  ...
+# Subtest: catalogue must match selected program and unknown policies stay unresolved
+ok 74 - catalogue must match selected program and unknown policies stay unresolved
+  ---
+  duration_ms: 0.114
+  type: 'test'
+  ...
+# Subtest: financial projection refuses wrong echoed card program
+ok 75 - financial projection refuses wrong echoed card program
+  ---
+  duration_ms: 0.075959
+  type: 'test'
+  ...
+# Subtest: crypto method and deposit-rail option stay distinct identities
+ok 76 - crypto method and deposit-rail option stay distinct identities
+  ---
+  duration_ms: 0.082167
+  type: 'test'
+  ...
+# Subtest: same product with incorrect echoed topup amount remains mismatched
+ok 77 - same product with incorrect echoed topup amount remains mismatched
+  ---
+  duration_ms: 0.180542
+  type: 'test'
+  ...
+# Subtest: exact unsupported renewal is retained without leaking error messages or IDs
+ok 78 - exact unsupported renewal is retained without leaking error messages or IDs
+  ---
+  duration_ms: 0.112291
+  type: 'test'
+  ...
+# Subtest: financial waiter ignores earlier and unrelated requests then binds exact same-origin product/action/program/input
+ok 79 - financial waiter ignores earlier and unrelated requests then binds exact same-origin product/action/program/input
+  ---
+  duration_ms: 417.824416
+  type: 'test'
+  ...
+# Subtest: opt-in waiter redacts unknown HTTP errors in both legacy envelope and financial member
+ok 80 - opt-in waiter redacts unknown HTTP errors in both legacy envelope and financial member
+  ---
+  duration_ms: 111.116875
+  type: 'test'
+  ...
+# Subtest: opt-in persisted envelope allowlists all success fields (mismatch=false)
+ok 81 - opt-in persisted envelope allowlists all success fields (mismatch=false)
+  ---
+  duration_ms: 121.017125
+  type: 'test'
+  ...
+# Subtest: opt-in persisted envelope allowlists all success fields (mismatch=true)
+ok 82 - opt-in persisted envelope allowlists all success fields (mismatch=true)
+  ---
+  duration_ms: 112.737333
+  type: 'test'
+  ...
+# Subtest: financial waiter rejects a matching old in-flight request and admits only the next fresh request
+ok 83 - financial waiter rejects a matching old in-flight request and admits only the next fresh request
+  ---
+  duration_ms: 69.837458
+  type: 'test'
+  ...
+# Subtest: financial waiter timeout is typed missing observation, while closed page is not swallowed
+ok 84 - financial waiter timeout is typed missing observation, while closed page is not swallowed
+  ---
+  duration_ms: 75.561
+  type: 'test'
+  ...
+# Subtest: known VPN reactivation refusal survives safe error projection
+ok 85 - known VPN reactivation refusal survives safe error projection
+  ---
+  duration_ms: 0.163417
+  type: 'test'
+  ...
+# Subtest: strict tile observation excludes hidden tiles and does not infer source identity from label
+ok 86 - strict tile observation excludes hidden tiles and does not infer source identity from label
+  ---
+  duration_ms: 104.411959
+  type: 'test'
+  ...
+# Subtest: strict tile projection preserves forbidden copy: Free
+ok 87 - strict tile projection preserves forbidden copy: Free
+  ---
+  duration_ms: 77.572458
+  type: 'test'
+  ...
+# Subtest: strict tile projection preserves forbidden copy: No fee
+ok 88 - strict tile projection preserves forbidden copy: No fee
+  ---
+  duration_ms: 84.162291
+  type: 'test'
+  ...
+# Subtest: strict tile projection preserves forbidden copy: без комиссии
+ok 89 - strict tile projection preserves forbidden copy: без комиссии
+  ---
+  duration_ms: 91.857792
+  type: 'test'
+  ...
+# Subtest: strict tile projection preserves forbidden copy: 0%
+ok 90 - strict tile projection preserves forbidden copy: 0%
+  ---
+  duration_ms: 92.814541
+  type: 'test'
+  ...
+# Subtest: strict tile projection preserves forbidden copy: 12.9%
+ok 91 - strict tile projection preserves forbidden copy: 12.9%
+  ---
+  duration_ms: 87.786209
+  type: 'test'
+  ...
+# Subtest: strict tile projection retains actual included-fee copy: Комиссия включена
+ok 92 - strict tile projection retains actual included-fee copy: Комиссия включена
+  ---
+  duration_ms: 110.473166
+  type: 'test'
+  ...
+# Subtest: strict tile projection retains actual included-fee copy: Fee included
+ok 93 - strict tile projection retains actual included-fee copy: Fee included
+  ---
+  duration_ms: 92.703833
+  type: 'test'
+  ...
+# Subtest: named card opener selects observed wallet program, not another program with the old price
+ok 94 - named card opener selects observed wallet program, not another program with the old price
+  ---
+  duration_ms: 332.904375
+  type: 'test'
+  ...
+# Subtest: named card opener does not bind an old in-flight catalog response
+ok 95 - named card opener does not bind an old in-flight catalog response
+  ---
+  duration_ms: 196.467959
+  type: 'test'
+  ...
+1..95
+# tests 95
+# suites 0
+# pass 95
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 14879.290375

@@ -1,0 +1,116 @@
+TAP version 13
+# Subtest: non-PASS: missing corresponding Top-up control
+not ok 1 - non-PASS: missing corresponding Top-up control
+  ---
+  duration_ms: 1441.093167
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:135:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /TOPUP_CONTROL_UNAVAILABLE/. Input:
+    
+    'Error: expect(locator).toBeVisible() failed\n' +
+      '\n' +
+      "Locator: getByRole('button', { name: 'Пополнить', exact: true }).and(locator('button:enabled'))\n" +
+      'Expected: visible\n' +
+      'Timeout: 650ms\n' +
+      'Error: element(s) not found\n' +
+      '\n' +
+      'Call log:\n' +
+      '  - Expect "to.be.visible" with timeout 650ms\n' +
+      "  - waiting for getByRole('button', { name: 'Пополнить', exact: true }).and(locator('button:enabled'))\n"
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: |-
+    expect(locator).toBeVisible() failed
+    
+    Locator: getByRole('button', { name: 'Пополнить', exact: true }).and(locator('button:enabled'))
+    Expected: visible
+    Timeout: 650ms
+    Error: element(s) not found
+    
+    Call log:
+      - Expect "to.be.visible" with timeout 650ms
+      - waiting for getByRole('button', { name: 'Пополнить', exact: true }).and(locator('button:enabled'))
+    
+  stack: |-
+    captureRawStack (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/node_modules/playwright-core/lib/coreBundle.js:3172:17)
+    callMatcherAsStep (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/node_modules/playwright/lib/matchers/expect.js:12877:57)
+    Object.toBeVisible (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/node_modules/playwright/lib/matchers/expect.js:12867:23)
+    Object.verifyOriginalCardTopupQuote (<anonymous>:63:36)
+    async load.withDryBrowserPage.throwOnForbidden (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:16)
+    async Object.withDryBrowserPage (<anonymous>:315:9)
+    async Object.run (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async TestContext.<anonymous> (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:135:78)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:135:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: non-PASS: ambiguous corresponding Top-up control
+not ok 2 - non-PASS: ambiguous corresponding Top-up control
+  ---
+  duration_ms: 122.424125
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:135:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /TOPUP_CONTROL_UNAVAILABLE/. Input:
+    
+    'Error: expect(locator).toBeVisible() failed\n' +
+      '\n' +
+      "Locator: getByRole('button', { name: 'Пополнить', exact: true }).and(locator('button:enabled'))\n" +
+      'Expected: visible\n' +
+      "Error: strict mode violation: getByRole('button', { name: 'Пополнить', exact: true }).and(locator('button:enabled')) resolved to 2 elements:\n" +
+      `    1) <button onclick="openOuter()">Пополнить</button> aka getByRole('button', { name: 'Пополнить' }).first()\n` +
+      `    2) <button onclick="openOuter()">Пополнить</button> aka getByRole('button', { name: 'Пополнить' }).nth(1)\n` +
+      '\n' +
+      'Call log:\n' +
+      '  - Expect "to.be.visible" with timeout 650ms\n' +
+      "  - waiting for getByRole('button', { name: 'Пополнить', exact: true }).and(locator('button:enabled'))\n"
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+  error: |-
+    expect(locator).toBeVisible() failed
+    
+    Locator: getByRole('button', { name: 'Пополнить', exact: true }).and(locator('button:enabled'))
+    Expected: visible
+    Error: strict mode violation: getByRole('button', { name: 'Пополнить', exact: true }).and(locator('button:enabled')) resolved to 2 elements:
+        1) <button onclick="openOuter()">Пополнить</button> aka getByRole('button', { name: 'Пополнить' }).first()
+        2) <button onclick="openOuter()">Пополнить</button> aka getByRole('button', { name: 'Пополнить' }).nth(1)
+    
+    Call log:
+      - Expect "to.be.visible" with timeout 650ms
+      - waiting for getByRole('button', { name: 'Пополнить', exact: true }).and(locator('button:enabled'))
+    
+  stack: |-
+    captureRawStack (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/node_modules/playwright-core/lib/coreBundle.js:3172:17)
+    callMatcherAsStep (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/node_modules/playwright/lib/matchers/expect.js:12877:57)
+    Object.toBeVisible (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/node_modules/playwright/lib/matchers/expect.js:12867:23)
+    Object.verifyOriginalCardTopupQuote (<anonymous>:63:36)
+    async load.withDryBrowserPage.throwOnForbidden (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:99:16)
+    async Object.withDryBrowserPage (<anonymous>:315:9)
+    async Object.run (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:97:5)
+    async TestContext.<anonymous> (/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:135:78)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-quote-contract.test.mjs:135:78)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2106.673292

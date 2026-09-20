@@ -1,0 +1,156 @@
+TAP version 13
+# Subtest: extracted quote assertions preserve safety facts and are sealed into the corpus
+not ok 1 - extracted quote assertions preserve safety facts and are sealed into the corpus
+  ---
+  duration_ms: 43.804583
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/product-graph/freeland-private-safety-spine-preflight.test.mjs:719:1'
+  failureType: 'testCodeFailure'
+  error: 'SAFETY_SPINE_INVALID'
+  code: 'SAFETY_SPINE_INVALID'
+  name: 'PrivateSafetySpinePreflightError'
+  stack: |-
+    fail (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tools/freeland-graph/private-safety-spine-preflight.mjs:41:9)
+    assertSelectorImportsTrusted (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tools/freeland-graph/private-safety-spine-preflight.mjs:782:7)
+    assertSelectorTopLevelSafe (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tools/freeland-graph/private-safety-spine-preflight.mjs:895:3)
+    collectStaticTests (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tools/freeland-graph/private-safety-spine-preflight.mjs:969:3)
+    selectorFacts (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tools/freeland-graph/private-safety-spine-preflight.mjs:2064:21)
+    inspectPrivateSafetySpine (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tools/freeland-graph/private-safety-spine-preflight.mjs:2190:68)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/product-graph/freeland-private-safety-spine-preflight.test.mjs:722:18)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: extracted quote assertions cannot introduce untrusted import or initialization authority
+    # Subtest: extra dependency
+    ok 1 - extra dependency
+      ---
+      duration_ms: 25.052333
+      type: 'test'
+      ...
+    # Subtest: test import
+    ok 2 - test import
+      ---
+      duration_ms: 19.981375
+      type: 'test'
+      ...
+    # Subtest: aliased expect
+    ok 3 - aliased expect
+      ---
+      duration_ms: 26.584875
+      type: 'test'
+      ...
+    # Subtest: top-level call
+    ok 4 - top-level call
+      ---
+      duration_ms: 18.653292
+      type: 'test'
+      ...
+    # Subtest: top-level assignment
+    ok 5 - top-level assignment
+      ---
+      duration_ms: 16.222208
+      type: 'test'
+      ...
+    # Subtest: IIFE initializer
+    ok 6 - IIFE initializer
+      ---
+      duration_ms: 17.474417
+      type: 'test'
+      ...
+    # Subtest: re-export
+    ok 7 - re-export
+      ---
+      duration_ms: 21.225208
+      type: 'test'
+      ...
+    # Subtest: dynamic authority
+    ok 8 - dynamic authority
+      ---
+      duration_ms: 19.571041
+      type: 'test'
+      ...
+    # Subtest: expect escape
+    ok 9 - expect escape
+      ---
+      duration_ms: 24.092708
+      type: 'test'
+      ...
+    # Subtest: aliased consumer
+    ok 10 - aliased consumer
+      ---
+      duration_ms: 15.435333
+      type: 'test'
+      ...
+    # Subtest: additional consumer import
+    ok 11 - additional consumer import
+      ---
+      duration_ms: 15.057792
+      type: 'test'
+      ...
+    # Subtest: side-effect consumer import
+    ok 12 - side-effect consumer import
+      ---
+      duration_ms: 20.063833
+      type: 'test'
+      ...
+    # Subtest: type-only consumer import
+    ok 13 - type-only consumer import
+      ---
+      duration_ms: 14.182917
+      type: 'test'
+      ...
+    1..13
+ok 2 - extracted quote assertions cannot introduce untrusted import or initialization authority
+  ---
+  duration_ms: 255.49775
+  type: 'test'
+  ...
+# Subtest: extracted quote assertions require local regular-file corpus bytes
+    # Subtest: missing module
+    not ok 1 - missing module
+      ---
+      duration_ms: 15.871209
+      type: 'test'
+      location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/product-graph/freeland-private-safety-spine-preflight.test.mjs:760:11'
+      failureType: 'testCodeFailure'
+      error: |-
+        The validation function is expected to return "true". Received false
+        
+        Caught error:
+        
+        PrivateSafetySpinePreflightError: SAFETY_SPINE_INVALID
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      stack: |-
+        async rejectsCode (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/product-graph/freeland-private-safety-spine-preflight.test.mjs:695:3)
+        async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/product-graph/freeland-private-safety-spine-preflight.test.mjs:763:5)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/product-graph/freeland-private-safety-spine-preflight.test.mjs:760:3)
+        async Test.run (node:internal/test_runner/test:1054:7)
+        async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+      ...
+    # Subtest: symlink module
+    ok 2 - symlink module
+      ---
+      duration_ms: 10.818333
+      type: 'test'
+      ...
+    1..2
+not ok 3 - extracted quote assertions require local regular-file corpus bytes
+  ---
+  duration_ms: 26.999291
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/product-graph/freeland-private-safety-spine-preflight.test.mjs:759:1'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..3
+# tests 18
+# suites 0
+# pass 15
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 669.009417

@@ -1,0 +1,32 @@
+{
+  "status": "failed",
+  "stepsWithRawError": 0,
+  "rows": [
+    {
+      "title": "early projection summary mismatch",
+      "status": "failed",
+      "errorCount": 1,
+      "diagnostic": "CHECK_FAILED",
+      "attachments": [
+        {
+          "name": "error-context",
+          "existsBeforeReporter": true,
+          "rawSentinelAlreadyOnDisk": true
+        }
+      ]
+    },
+    {
+      "title": "early projection ambiguous locator",
+      "status": "failed",
+      "errorCount": 1,
+      "diagnostic": "CHECK_FAILED",
+      "attachments": [
+        {
+          "name": "error-context",
+          "existsBeforeReporter": true,
+          "rawSentinelAlreadyOnDisk": true
+        }
+      ]
+    }
+  ]
+}

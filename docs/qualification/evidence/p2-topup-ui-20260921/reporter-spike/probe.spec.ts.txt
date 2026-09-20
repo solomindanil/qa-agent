@@ -1,0 +1,21 @@
+import { test, expect } from '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/node_modules/@playwright/test/index.mjs';
+test('synthetic assertion failure', async ({page}) => {
+  await page.route('**/*', route => route.abort());
+  await page.setContent(process.env.SPIKE_HTML!);
+  await expect(page.locator('p')).toHaveText('expected', {timeout: 100});
+});
+test('healthy control', async () => { expect(1).toBe(1); });
+test('guard failure control', async () => { throw new Error('DRY_GUARD_DENIED'); });
+test('early projection summary mismatch', async ({page}) => {
+  await page.route('**/*', route => route.abort());
+  await page.setContent(process.env.SPIKE_HTML!);
+  await expect.poll(async () => {
+    const values = await page.locator('p').allTextContents();
+    return values.length === 1 && values[0] === 'expected';
+  }, {timeout: 100, message: 'SUMMARY_VALUE_MISMATCH'}).toBe(true);
+});
+test('early projection ambiguous locator', async ({page}) => {
+  await page.route('**/*', route => route.abort());
+  await page.setContent(process.env.SPIKE_HTML!);
+  await expect.poll(() => page.locator('p').count(), {timeout: 100, message: 'SUMMARY_CARDINALITY_MISMATCH'}).toBe(2);
+});

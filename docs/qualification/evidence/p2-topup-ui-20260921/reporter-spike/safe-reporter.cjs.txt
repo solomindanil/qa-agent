@@ -1,0 +1,17 @@
+// Throwaway feasibility probe, not a delivery implementation.
+const fs = require('node:fs');
+const path = require('node:path');
+module.exports = class {
+  constructor() { this.rows = []; this.stepsWithRawError = 0; }
+  printsToStdio() { return true; }
+  onStepEnd(test, result, step) {
+    if (JSON.stringify(step.error ?? {}).includes('SPIKE_PRIVATE_SENTINEL')) this.stepsWithRawError++;
+  }
+  onTestEnd(test, result) {
+    const attachments = result.attachments.filter(a => a.path).map(a => ({name: a.name, existsBeforeReporter: fs.existsSync(a.path), rawSentinelAlreadyOnDisk: fs.readFileSync(a.path, 'utf8').includes('SPIKE_PRIVATE_SENTINEL')}));
+    this.rows.push({title: test.title, status: result.status, errorCount: result.errors.length, diagnostic: result.errors.length ? 'CHECK_FAILED' : null, attachments});
+  }
+  onEnd(result) {
+    fs.writeFileSync(path.join(__dirname, 'safe-report.json'), JSON.stringify({status: result.status, stepsWithRawError: this.stepsWithRawError, rows: this.rows}, null, 2));
+  }
+};

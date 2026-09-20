@@ -1,0 +1,48 @@
+TAP version 13
+# Subtest: asserted summary text cannot persist through errors, nested steps or attachments
+not ok 1 - asserted summary text cannot persist through errors, nested steps or attachments
+  ---
+  duration_ms: 2069.522167
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:154:1'
+  failureType: 'testCodeFailure'
+  error: 'automatic failure attachment leaked ambient PAN'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    probe (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:130:10)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:155:28)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: genuine strict locator failure cannot persist raw product node text in reporter steps
+not ok 2 - genuine strict locator failure cannot persist raw product node text in reporter steps
+  ---
+  duration_ms: 1427.566
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:160:1'
+  failureType: 'testCodeFailure'
+  error: 'persisted reporter/step/attachment leaked product PAN'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    probe (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:140:12)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/tests/freeland-main/card-topup-artifact-privacy.test.mjs:161:28)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3562.312125
