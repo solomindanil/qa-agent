@@ -2,7 +2,7 @@
 
 ## Delivery status
 
-This source-selection candidate contains reviewed P2-A implementation and the two approved test-fixture repairs. Final broad verification and independent cold source/root checks passed. Canonical adoption, push, active campaign migration and installed-skill promotion have **not** occurred; whole-delivery review remains pending. This is harness qualification, not product acceptance or release GO.
+This source-selection candidate contains reviewed P2-A implementation and the two approved test-fixture repairs. Final broad verification, independent cold source/root checks and [whole-delivery Lead AQA review](evidence/p2-semantic-repair-20260920/p2-delivery-review.md) passed. Review covers the package through root `314431d110cce323857fd5cd4f433507da5fb44b`; this final supplement only records the review/status. Canonical adoption, push, active campaign migration and installed-skill promotion have **not** occurred. This is harness qualification, not product acceptance or release GO.
 
 - Selected Freeland commit: `0ea2df10f1b6d613e01d50011c269ca0fa999877`; tree: `1f9913fc1118a2582dd62c4d5dfd63cd8aac0ffb`.
 - [Complete-history bundle](../../sources/candidates/freeland-p2-semantics-0ea2df1.bundle), SHA256 `f340ee8b630dfdd46d927008f2dd992a3e019780693741cbdb42c1dc6a447266`.
@@ -36,6 +36,8 @@ The browser controls call the actual TypeScript campaign helper in Chromium agai
 The first aggregate's two canary failures were command-environment errors: `env -i` removed `TMPDIR`, `os.tmpdir()` became `/tmp`, and on this host `/tmp` is a symlink to `/private/tmp`. The existing evidence writer correctly refused that parent. The unchanged [seven-test evidence-writer module](evidence/p2-semantic-repair-20260920/p2-canary-tempdir-control.log) passed with explicit real `/private/tmp`. The final aggregate used a separately created canonical temporary directory; no writer or symlink guard was weakened. This is configuration repair, not a product or canary-code fix. The final Freeland working tree stayed clean. Suite counts are not unique coverage totals: the aggregate intentionally repeats some transport controls.
 
 The embedded Console build still warns about its 500.44kB minified JavaScript chunk (143.65kB gzip). This warning is retained, not suppressed or claimed to be a product performance result. It does not affect this selected-caption/fixture source change; bundle-size work belongs to a separately scoped maintenance task.
+
+Root and Freeland expose no lint script; no lint PASS or code-coverage percentage is claimed. The aggregate's configured typechecks/build and the selected tests are the actual gate. A bounded obvious-secret-pattern scan found no matching credentials in34 changed delivery text files and five changed component files before the final review-record addition; this is not a comprehensive security audit.
 
 ## Dependency and reproducibility boundary
 
