@@ -2,7 +2,7 @@
 
 ## Delivery status
 
-This source-selection candidate contains reviewed P2-A implementation and the two approved test-fixture repairs. Canonical adoption, push, active campaign migration and installed-skill promotion have **not** occurred. Final broad verification and whole-delivery review are still pending in this draft. This is harness qualification, not product acceptance or release GO.
+This source-selection candidate contains reviewed P2-A implementation and the two approved test-fixture repairs. Final broad verification and independent cold source/root checks passed. Canonical adoption, push, active campaign migration and installed-skill promotion have **not** occurred; whole-delivery review remains pending. This is harness qualification, not product acceptance or release GO.
 
 - Selected Freeland commit: `0ea2df10f1b6d613e01d50011c269ca0fa999877`; tree: `1f9913fc1118a2582dd62c4d5dfd63cd8aac0ffb`.
 - [Complete-history bundle](../../sources/candidates/freeland-p2-semantics-0ea2df1.bundle), SHA256 `f340ee8b630dfdd46d927008f2dd992a3e019780693741cbdb42c1dc6a447266`.
@@ -29,9 +29,12 @@ The browser controls call the actual TypeScript campaign helper in Chromium agai
 | Existing incompatible graph fixtures | RED 193/213: one obsolete cohort expectation, nineteen missing support-import setup failures; first repair 213/213 | [Original fixture RED](evidence/p2-semantic-repair-20260920/p2-fixture-resume-red.log), [first GREEN](evidence/p2-semantic-repair-20260920/p2-fixture-repair-focused-final.log) |
 | Review-requested malformed-binding diagnostic | Null/missing selector becomes case-labelled assertion; final fixture pair 213/213, provenance controls 34/34 and manifest VALID | [Fixture report](evidence/p2-semantic-repair-20260920/p2-fixture-repair-report.md) |
 | First aggregate `qa:verify:all`, f1b2bd6 | Main736, release1583, replacements670, transport70, baseline23 passed; private binding preflight and typechecks passed. Canary113/115, then stop | [Exact failure excerpt and full-log digest](evidence/p2-semantic-repair-20260920/full-gate-first-canary-excerpt.log) |
-| Final aggregate, exact 0ea2df1 | Pending at document creation; do not infer PASS from preceding checks | Final log will be linked after completion |
+| Final aggregate, exact 0ea2df1 | `qa:verify:all` exit0: main736/736, release1583/1583, replacements670/670, transport70/70, baseline23/23, canaries115/115, embedded Console65/65; zero failures/skips. Provenance, required binding preflight, all typechecks and guarded Console build passed | [Complete raw output](evidence/p2-semantic-repair-20260920/p2-0ea2-full-verify.log), SHA256 `2919d17640658bf044549f244e529048a7aea3c3d14841e54cceffa442253369` |
+| Candidate root and independent `git clone --no-local` at9dc5650 | Restore/verify all four exact sources; root61/61 in each; cold root and restored children clean, no component dependencies in the cold clone | [Candidate root](evidence/p2-semantic-repair-20260920/p2-root-candidate-tests.log), [cold gate](evidence/p2-semantic-repair-20260920/p2-cold-root-gate.log) |
 
-The first aggregate's two canary failures were command-environment errors: `env -i` removed `TMPDIR`, `os.tmpdir()` became `/tmp`, and on this host `/tmp` is a symlink to `/private/tmp`. The existing evidence writer correctly refused that parent. The unchanged seven-test evidence-writer module passed with explicit real `/private/tmp`. The final aggregate uses a separately created canonical temporary directory; no writer or symlink guard is weakened. This is configuration repair, not a product or canary-code fix.
+The first aggregate's two canary failures were command-environment errors: `env -i` removed `TMPDIR`, `os.tmpdir()` became `/tmp`, and on this host `/tmp` is a symlink to `/private/tmp`. The existing evidence writer correctly refused that parent. The unchanged [seven-test evidence-writer module](evidence/p2-semantic-repair-20260920/p2-canary-tempdir-control.log) passed with explicit real `/private/tmp`. The final aggregate used a separately created canonical temporary directory; no writer or symlink guard was weakened. This is configuration repair, not a product or canary-code fix. The final Freeland working tree stayed clean. Suite counts are not unique coverage totals: the aggregate intentionally repeats some transport controls.
+
+The embedded Console build still warns about its 500.44kB minified JavaScript chunk (143.65kB gzip). This warning is retained, not suppressed or claimed to be a product performance result. It does not affect this selected-caption/fixture source change; bundle-size work belongs to a separately scoped maintenance task.
 
 ## Dependency and reproducibility boundary
 
