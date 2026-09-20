@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "pay01": {
+    "version": 2,
+    "state": "shadow",
+    "receiptReference": false
+  },
+  "counts": {
+    "shadow": 10,
+    "qualified": 7
+  },
+  "staleReceipts": [
+    "TC-PAY-02",
+    "TC-PAY-04",
+    "TC-PAY-19",
+    "TC-SEC-01",
+    "TC-ВХОД-01",
+    "TC-ВХОД-02",
+    "TC-ВХОД-03"
+  ],
+  "unchangedNonPayBindings": 16,
+  "unchangedReceiptFiles": 9,
+  "provenanceRowsRefreshed": [
+    "config/freeland/manual-replacements.v1.json",
+    "tests/product-graph/freeland-manual-replacements.test.mjs",
+    "tests/product-graph/freeland-smoke-u0-oracles.test.mjs",
+    "tools/freeland-replacements/tc-pay-01-oracle.mjs"
+  ]
+}

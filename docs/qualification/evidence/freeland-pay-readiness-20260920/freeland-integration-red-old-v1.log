@@ -1,0 +1,1296 @@
+TAP version 13
+# Subtest: TC_VHOD_01 oracle exports the registry contract surface
+ok 1 - TC_VHOD_01 oracle exports the registry contract surface
+  ---
+  duration_ms: 1.748958
+  type: 'test'
+  ...
+# Subtest: TC_VHOD_03 oracle exports the registry contract surface
+ok 2 - TC_VHOD_03 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.34375
+  type: 'test'
+  ...
+# Subtest: TC_PAY_01 oracle exports the registry contract surface
+not ok 3 - TC_PAY_01 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.493167
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:44:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    1 !== 2
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:47:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC_PAY_07 oracle exports the registry contract surface
+ok 4 - TC_PAY_07 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.282125
+  type: 'test'
+  ...
+# Subtest: TC_SERV_01 oracle exports the registry contract surface
+ok 5 - TC_SERV_01 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.193583
+  type: 'test'
+  ...
+# Subtest: money helpers: cents and matrix uplifts
+ok 6 - money helpers: cents and matrix uplifts
+  ---
+  duration_ms: 0.14
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-01 passes on a healthy anonymous landing
+ok 7 - TC-ВХОД-01 passes on a healthy anonymous landing
+  ---
+  duration_ms: 0.44325
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-01 fails on redirect, slow heading, overflow, bad CTA target and page errors
+ok 8 - TC-ВХОД-01 fails on redirect, slow heading, overflow, bad CTA target and page errors
+  ---
+  duration_ms: 0.22225
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-01 is BLOCKED when staging never answered, invalid on a malformed observation
+ok 9 - TC-ВХОД-01 is BLOCKED when staging never answered, invalid on a malformed observation
+  ---
+  duration_ms: 0.3715
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-03 passes and always records the mobile status-bar limitation as known
+ok 10 - TC-ВХОД-03 passes and always records the mobile status-bar limitation as known
+  ---
+  duration_ms: 0.724958
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-03 fails on slow login, landing shown, reload/second-tab session loss; same theme colour is known
+ok 11 - TC-ВХОД-03 fails on slow login, landing shown, reload/second-tab session loss; same theme colour is known
+  ---
+  duration_ms: 0.303833
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-03 is BLOCKED when the login never reached the store shell
+ok 12 - TC-ВХОД-03 is BLOCKED when the login never reached the store shell
+  ---
+  duration_ms: 0.1965
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 passes with the documented caption divergences in known[]
+ok 13 - TC-PAY-01 passes with the documented caption divergences in known[]
+  ---
+  duration_ms: 0.480375
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 accepts shuffled rows, either card alias and identity-preserving balance variants
+ok 14 - TC-PAY-01 accepts shuffled rows, either card alias and identity-preserving balance variants
+  ---
+  duration_ms: 0.386083
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 accepts either supported crypto rail and binds a generic tile only without ambiguity
+not ok 15 - TC-PAY-01 accepts either supported crypto rail and binds a generic tile only without ambiguity
+  ---
+  duration_ms: 0.9015
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:272:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CRYPTO_DOM_IDENTITY_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CRYPTO_DOM_IDENTITY_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:290:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 requires at least one available supported crypto rail
+not ok 16 - TC-PAY-01 requires at least one available supported crypto rail
+  ---
+  duration_ms: 0.291709
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:294:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CRYPTO_AVAILABLE_METHOD_MISSING'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CRYPTO_AVAILABLE_METHOD_MISSING'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:300:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 permits an unavailable optional crypto rail to be absent or identity-bound
+ok 17 - TC-PAY-01 permits an unavailable optional crypto rail to be absent or identity-bound
+  ---
+  duration_ms: 0.184292
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 reports the Stars insufficient caption only when the browser actually shows it
+ok 18 - TC-PAY-01 reports the Stars insufficient caption only when the browser actually shows it
+  ---
+  duration_ms: 0.363833
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects empty DOM composition
+not ok 19 - TC-PAY-01 rejects empty DOM composition
+  ---
+  duration_ms: 0.170958
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:358:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'BALANCE_DOM_IDENTITY_MISMATCH',
+    -   'BALANCE_SUMMARY_MISMATCH',
+    -   'CARD_DOM_IDENTITY_INVALID',
+    -   'CRYPTO_DOM_IDENTITY_INVALID',
+    -   'SBP_DOM_IDENTITY_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'BALANCE_DOM_IDENTITY_MISMATCH'
+    1: 'BALANCE_SUMMARY_MISMATCH'
+    2: 'CARD_DOM_IDENTITY_INVALID'
+    3: 'CRYPTO_DOM_IDENTITY_INVALID'
+    4: 'SBP_DOM_IDENTITY_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:361:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects balance-only DOM composition
+not ok 20 - TC-PAY-01 rejects balance-only DOM composition
+  ---
+  duration_ms: 0.183542
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:358:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CARD_DOM_IDENTITY_INVALID',
+    -   'CRYPTO_DOM_IDENTITY_INVALID',
+    -   'SBP_DOM_IDENTITY_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CARD_DOM_IDENTITY_INVALID'
+    1: 'CRYPTO_DOM_IDENTITY_INVALID'
+    2: 'SBP_DOM_IDENTITY_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:361:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects missing card DOM composition
+not ok 21 - TC-PAY-01 rejects missing card DOM composition
+  ---
+  duration_ms: 0.218375
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:358:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CARD_DOM_IDENTITY_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CARD_DOM_IDENTITY_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:361:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects missing sbp DOM composition
+not ok 22 - TC-PAY-01 rejects missing sbp DOM composition
+  ---
+  duration_ms: 0.106416
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:358:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'SBP_DOM_IDENTITY_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'SBP_DOM_IDENTITY_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:361:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects missing balance DOM composition
+not ok 23 - TC-PAY-01 rejects missing balance DOM composition
+  ---
+  duration_ms: 0.097916
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:358:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'BALANCE_DOM_IDENTITY_MISMATCH',
+    -   'BALANCE_SUMMARY_MISMATCH'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'BALANCE_DOM_IDENTITY_MISMATCH'
+    1: 'BALANCE_SUMMARY_MISMATCH'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:361:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects missing USDT DOM composition
+not ok 24 - TC-PAY-01 rejects missing USDT DOM composition
+  ---
+  duration_ms: 0.404375
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:358:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CRYPTO_DOM_IDENTITY_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CRYPTO_DOM_IDENTITY_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:361:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects missing USDC DOM composition
+not ok 25 - TC-PAY-01 rejects missing USDC DOM composition
+  ---
+  duration_ms: 0.124
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:358:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CRYPTO_DOM_IDENTITY_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CRYPTO_DOM_IDENTITY_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:361:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects duplicate card aliases in the DOM
+not ok 26 - TC-PAY-01 rejects duplicate card aliases in the DOM
+  ---
+  duration_ms: 0.224375
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:374:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CARD_DOM_IDENTITY_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CARD_DOM_IDENTITY_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:377:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects duplicate contradictory API card rows
+not ok 27 - TC-PAY-01 rejects duplicate contradictory API card rows
+  ---
+  duration_ms: 0.123041
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:374:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CARD_METHOD_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CARD_METHOD_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:377:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API crypto currencies
+not ok 28 - TC-PAY-01 rejects duplicate API crypto currencies
+  ---
+  duration_ms: 0.097917
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:374:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CRYPTO_METHOD_DUPLICATE'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CRYPTO_METHOD_DUPLICATE'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:377:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API balance identities
+not ok 29 - TC-PAY-01 rejects duplicate API balance identities
+  ---
+  duration_ms: 0.093875
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:374:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'BALANCE_METHOD_DUPLICATE'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'BALANCE_METHOD_DUPLICATE'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:377:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API SBP identities
+not ok 30 - TC-PAY-01 rejects duplicate API SBP identities
+  ---
+  duration_ms: 0.1395
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:374:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'SBP_METHOD_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'SBP_METHOD_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:377:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API Stars identities
+not ok 31 - TC-PAY-01 rejects duplicate API Stars identities
+  ---
+  duration_ms: 0.093792
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:374:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'STARS_METHOD_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'STARS_METHOD_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:377:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects an unrendered second balance identity
+not ok 32 - TC-PAY-01 rejects an unrendered second balance identity
+  ---
+  duration_ms: 0.091916
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:374:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'BALANCE_DOM_IDENTITY_MISMATCH'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'BALANCE_DOM_IDENTITY_MISMATCH'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:377:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects invalid card action
+not ok 33 - TC-PAY-01 rejects invalid card action
+  ---
+  duration_ms: 0.097792
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:391:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CARD_METHOD_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CARD_METHOD_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:394:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects invalid card currency
+ok 34 - TC-PAY-01 rejects invalid card currency
+  ---
+  duration_ms: 0.070042
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid sbp action
+not ok 35 - TC-PAY-01 rejects invalid sbp action
+  ---
+  duration_ms: 0.137458
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:391:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'SBP_METHOD_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'SBP_METHOD_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:394:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects invalid sbp currency
+ok 36 - TC-PAY-01 rejects invalid sbp currency
+  ---
+  duration_ms: 0.068334
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid crypto action
+ok 37 - TC-PAY-01 rejects invalid crypto action
+  ---
+  duration_ms: 0.062959
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid unsupported crypto currency
+not ok 38 - TC-PAY-01 rejects invalid unsupported crypto currency
+  ---
+  duration_ms: 0.09275
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:391:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CRYPTO_METHOD_UNSUPPORTED'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CRYPTO_METHOD_UNSUPPORTED'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:394:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects unknown API identities
+not ok 39 - TC-PAY-01 rejects unknown API identities
+  ---
+  duration_ms: 0.097208
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:410:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'METHOD_IDENTITY_UNKNOWN'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'METHOD_IDENTITY_UNKNOWN'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:413:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects unknown DOM identities
+not ok 40 - TC-PAY-01 rejects unknown DOM identities
+  ---
+  duration_ms: 0.090875
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:410:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'TILE_IDENTITY_UNKNOWN'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'TILE_IDENTITY_UNKNOWN'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:413:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects unbound DOM crypto rails
+not ok 41 - TC-PAY-01 rejects unbound DOM crypto rails
+  ---
+  duration_ms: 1.547583
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:410:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'CRYPTO_DOM_IDENTITY_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'CRYPTO_DOM_IDENTITY_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:413:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects unbound DOM Stars
+not ok 42 - TC-PAY-01 rejects unbound DOM Stars
+  ---
+  duration_ms: 0.225917
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:410:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'STARS_DOM_IDENTITY_INVALID'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'STARS_DOM_IDENTITY_INVALID'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:413:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects a contradictory balance tile summary
+not ok 43 - TC-PAY-01 rejects a contradictory balance tile summary
+  ---
+  duration_ms: 0.156625
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:427:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+    +   'BALANCE_TILE_MISSING'
+    -   'BALANCE_SUMMARY_MISMATCH'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'BALANCE_SUMMARY_MISMATCH'
+  actual:
+    0: 'BALANCE_TILE_MISSING'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:430:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 rejects a contradictory Stars tile summary
+not ok 44 - TC-PAY-01 rejects a contradictory Stars tile summary
+  ---
+  duration_ms: 0.111625
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:427:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'STARS_SUMMARY_MISMATCH'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'STARS_SUMMARY_MISMATCH'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:430:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 fails when balance is payable, stars are payable in the browser, crypto pays directly or a checkout was attempted
+ok 45 - TC-PAY-01 fails when balance is payable, stars are payable in the browser, crypto pays directly or a checkout was attempted
+  ---
+  duration_ms: 0.153333
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 is BLOCKED by pool/provider preconditions and by an unavailable quote
+ok 46 - TC-PAY-01 is BLOCKED by pool/provider preconditions and by an unavailable quote
+  ---
+  duration_ms: 0.188959
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 blocks on unverified balance null while retaining checkout/runtime violations
+not ok 47 - TC-PAY-01 blocks on unverified balance null while retaining checkout/runtime violations
+  ---
+  duration_ms: 0.117958
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:474:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'POOL_A1_BALANCE_UNVERIFIED'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'POOL_A1_BALANCE_UNVERIFIED'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:481:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-01 blocks on unverified balance -0.01 while retaining checkout/runtime violations
+not ok 48 - TC-PAY-01 blocks on unverified balance -0.01 while retaining checkout/runtime violations
+  ---
+  duration_ms: 0.11275
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:474:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   'POOL_A1_BALANCE_UNVERIFIED'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'POOL_A1_BALANCE_UNVERIFIED'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland/tests/product-graph/freeland-smoke-u0-oracles.test.mjs:481:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: TC-PAY-07 mixed sources validate independently and retain API-only gap
+ok 49 - TC-PAY-07 mixed sources validate independently and retain API-only gap
+  ---
+  duration_ms: 1.912042
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 gross wallet / requested credit boundary 500
+ok 50 - TC-PAY-07 gross wallet / requested credit boundary 500
+  ---
+  duration_ms: 1.424959
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 gross wallet / requested credit boundary 10000
+ok 51 - TC-PAY-07 gross wallet / requested credit boundary 10000
+  ---
+  duration_ms: 1.136375
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 gross wallet / requested credit boundary 525
+ok 52 - TC-PAY-07 gross wallet / requested credit boundary 525
+  ---
+  duration_ms: 0.909083
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects swapped semantic
+ok 53 - TC-PAY-07 rejects swapped semantic
+  ---
+  duration_ms: 0.361792
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects source identities swapped
+ok 54 - TC-PAY-07 rejects source identities swapped
+  ---
+  duration_ms: 0.28925
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wallet uses acquiring breakdown
+ok 55 - TC-PAY-07 rejects wallet uses acquiring breakdown
+  ---
+  duration_ms: 0.284041
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects freeland uses wallet breakdown
+ok 56 - TC-PAY-07 rejects freeland uses wallet breakdown
+  ---
+  duration_ms: 1.34675
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects fee on fee
+ok 57 - TC-PAY-07 rejects fee on fee
+  ---
+  duration_ms: 0.484542
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects legacy 8percent
+ok 58 - TC-PAY-07 rejects legacy 8percent
+  ---
+  duration_ms: 0.302875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects unknown source
+ok 59 - TC-PAY-07 rejects unknown source
+  ---
+  duration_ms: 0.337542
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects duplicate source
+ok 60 - TC-PAY-07 rejects duplicate source
+  ---
+  duration_ms: 0.266875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects missing source
+ok 61 - TC-PAY-07 rejects missing source
+  ---
+  duration_ms: 0.319916
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wrong currency
+ok 62 - TC-PAY-07 rejects wrong currency
+  ---
+  duration_ms: 0.28025
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wrong scale
+ok 63 - TC-PAY-07 rejects wrong scale
+  ---
+  duration_ms: 0.286042
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects malformed minor
+ok 64 - TC-PAY-07 rejects malformed minor
+  ---
+  duration_ms: 0.25725
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects unavailable mismatch still fails
+ok 65 - TC-PAY-07 rejects unavailable mismatch still fails
+  ---
+  duration_ms: 0.249459
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects untyped unavailability
+ok 66 - TC-PAY-07 rejects untyped unavailability
+  ---
+  duration_ms: 0.298333
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wrong payment currency
+ok 67 - TC-PAY-07 rejects wrong payment currency
+  ---
+  duration_ms: 0.269166
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wrong payment amount
+ok 68 - TC-PAY-07 rejects wrong payment amount
+  ---
+  duration_ms: 0.286458
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wrong effective rate
+ok 69 - TC-PAY-07 rejects wrong effective rate
+  ---
+  duration_ms: 0.269458
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 wallet100 is not102 and missing breakdown blocks
+ok 70 - TC-PAY-07 wallet100 is not102 and missing breakdown blocks
+  ---
+  duration_ms: 0.529125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 source issue variants are bound and wallet3100 fails
+ok 71 - TC-PAY-07 source issue variants are bound and wallet3100 fails
+  ---
+  duration_ms: 2.509125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal 500/VIRTUAL_NUMBER_RENEWAL_UNAVAILABLE is not supported-refusal evidence
+ok 72 - TC-PAY-07 renewal 500/VIRTUAL_NUMBER_RENEWAL_UNAVAILABLE is not supported-refusal evidence
+  ---
+  duration_ms: 0.348375
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal 409/OTHER is not supported-refusal evidence
+ok 73 - TC-PAY-07 renewal 409/OTHER is not supported-refusal evidence
+  ---
+  duration_ms: 0.218875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal 401/UNAUTHORIZED is not supported-refusal evidence
+ok 74 - TC-PAY-07 renewal 401/UNAUTHORIZED is not supported-refusal evidence
+  ---
+  duration_ms: 0.532333
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal 403/FORBIDDEN is not supported-refusal evidence
+ok 75 - TC-PAY-07 renewal 403/FORBIDDEN is not supported-refusal evidence
+  ---
+  duration_ms: 0.396084
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal 404/NUMBER_NOT_FOUND is not supported-refusal evidence
+ok 76 - TC-PAY-07 renewal 404/NUMBER_NOT_FOUND is not supported-refusal evidence
+  ---
+  duration_ms: 0.36825
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal cannot pass with wrong operationIntent=historical
+ok 77 - TC-PAY-07 renewal cannot pass with wrong operationIntent=historical
+  ---
+  duration_ms: 0.387917
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal cannot pass with wrong operationIntent=replay
+ok 78 - TC-PAY-07 renewal cannot pass with wrong operationIntent=replay
+  ---
+  duration_ms: 0.257666
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal cannot pass with wrong existingEntityPresent=false
+ok 79 - TC-PAY-07 renewal cannot pass with wrong existingEntityPresent=false
+  ---
+  duration_ms: 0.225917
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal cannot pass with wrong productAction=purchase
+ok 80 - TC-PAY-07 renewal cannot pass with wrong productAction=purchase
+  ---
+  duration_ms: 0.285834
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal cannot pass with wrong productType=card
+ok 81 - TC-PAY-07 renewal cannot pass with wrong productType=card
+  ---
+  duration_ms: 0.417958
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal missing request/owned entity remains blocked
+ok 82 - TC-PAY-07 renewal missing request/owned entity remains blocked
+  ---
+  duration_ms: 0.292292
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 real projection never erases priced facts from a refused renewal
+ok 83 - TC-PAY-07 real projection never erases priced facts from a refused renewal
+  ---
+  duration_ms: 0.479209
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 real projection never erases priced facts from a refused renewal
+ok 84 - TC-PAY-07 real projection never erases priced facts from a refused renewal
+  ---
+  duration_ms: 1.99325
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 priced fresh renewal contradicts unsupported contract
+ok 85 - TC-PAY-07 priced fresh renewal contradicts unsupported contract
+  ---
+  duration_ms: 0.278209
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 exact expected409 never masks checkout
+ok 86 - TC-PAY-07 exact expected409 never masks checkout
+  ---
+  duration_ms: 0.171125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 exact expected409 never masks money
+ok 87 - TC-PAY-07 exact expected409 never masks money
+  ---
+  duration_ms: 0.169416
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 duplicate/missing product row and direct-product price remain guarded
+ok 88 - TC-PAY-07 duplicate/missing product row and direct-product price remain guarded
+  ---
+  duration_ms: 1.083042
+  type: 'test'
+  ...
+# Subtest: TC-SERV-01 passes on four distinct cards, navigation, completed operations and one auto refresh
+ok 89 - TC-SERV-01 passes on four distinct cards, navigation, completed operations and one auto refresh
+  ---
+  duration_ms: 0.455791
+  type: 'test'
+  ...
+# Subtest: TC-SERV-01 fails on missing/duplicated cards, wrong navigation, pending operation and no auto refresh
+ok 90 - TC-SERV-01 fails on missing/duplicated cards, wrong navigation, pending operation and no auto refresh
+  ---
+  duration_ms: 0.157667
+  type: 'test'
+  ...
+# Subtest: TC-SERV-01 treats a VPN trial without a purchase operation as known and an inactive VPN as BLOCKED
+ok 91 - TC-SERV-01 treats a VPN trial without a purchase operation as known and an inactive VPN as BLOCKED
+  ---
+  duration_ms: 0.586833
+  type: 'test'
+  ...
+# Subtest: oracle contracts are distinct and a blocked precondition never hides a violation
+ok 92 - oracle contracts are distinct and a blocked precondition never hides a violation
+  ---
+  duration_ms: 0.180833
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 actual projection supports mixed-source and exact-refusal financial observations
+ok 93 - TC-PAY-07 actual projection supports mixed-source and exact-refusal financial observations
+  ---
+  duration_ms: 0.654208
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 issue catalogue display binds the same program total
+ok 94 - TC-PAY-07 issue catalogue display binds the same program total
+  ---
+  duration_ms: 0.239875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 unavailable projection amounts cannot disappear into a quoted PASS
+ok 95 - TC-PAY-07 unavailable projection amounts cannot disappear into a quoted PASS
+  ---
+  duration_ms: 0.248292
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 ordinary products retain major-unit precision and USDT-label-only exception
+ok 96 - TC-PAY-07 ordinary products retain major-unit precision and USDT-label-only exception
+  ---
+  duration_ms: 1.387625
+  type: 'test'
+  ...
+1..96
+# tests 96
+# suites 0
+# pass 68
+# fail 28
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 421.675

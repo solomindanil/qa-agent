@@ -1,0 +1,20 @@
+Fresh main cross-version pure comparison, not the implementer's original TDD run.
+Selected source3ee1cb3/oracle v1 vs candidate510e08a/oracle v2.
+Actual oracle imports; healthy fixture functions from candidate test source, no copied validator.
+Exit0. Observations follow.
+{"name":"healthy","before":"SHADOW_PASS","after":"SHADOW_PASS","violations":[],"blockers":[],"promotionEligible":false}
+{"name":"empty DOM","before":"SHADOW_PASS","after":"SHADOW_FAIL","violations":["BALANCE_DOM_IDENTITY_MISMATCH","BALANCE_SUMMARY_MISMATCH","CARD_DOM_IDENTITY_INVALID","CRYPTO_DOM_IDENTITY_INVALID","SBP_DOM_IDENTITY_INVALID"],"blockers":[],"promotionEligible":false}
+{"name":"balance-only DOM","before":"SHADOW_PASS","after":"SHADOW_FAIL","violations":["CARD_DOM_IDENTITY_INVALID","CRYPTO_DOM_IDENTITY_INVALID","SBP_DOM_IDENTITY_INVALID"],"blockers":[],"promotionEligible":false}
+{"name":"missing ru_card","before":"SHADOW_PASS","after":"SHADOW_FAIL","violations":["CARD_DOM_IDENTITY_INVALID"],"blockers":[],"promotionEligible":false}
+{"name":"missing sbp","before":"SHADOW_PASS","after":"SHADOW_FAIL","violations":["SBP_DOM_IDENTITY_INVALID"],"blockers":[],"promotionEligible":false}
+{"name":"missing freeland_balance","before":"SHADOW_PASS","after":"SHADOW_FAIL","violations":["BALANCE_DOM_IDENTITY_MISMATCH","BALANCE_SUMMARY_MISMATCH"],"blockers":[],"promotionEligible":false}
+{"name":"missing usdt_trc20","before":"SHADOW_PASS","after":"SHADOW_FAIL","violations":["CRYPTO_DOM_IDENTITY_INVALID"],"blockers":[],"promotionEligible":false}
+{"name":"missing usdc_erc20","before":"SHADOW_PASS","after":"SHADOW_FAIL","violations":["CRYPTO_DOM_IDENTITY_INVALID"],"blockers":[],"promotionEligible":false}
+{"name":"duplicate card aliases","before":"SHADOW_PASS","after":"SHADOW_FAIL","violations":["CARD_DOM_IDENTITY_INVALID"],"blockers":[],"promotionEligible":false}
+{"name":"duplicate API card","before":"SHADOW_PASS","after":"SHADOW_FAIL","violations":["CARD_METHOD_INVALID"],"blockers":[],"promotionEligible":false}
+{"name":"unknown DOM","before":"SHADOW_PASS","after":"SHADOW_FAIL","violations":["TILE_IDENTITY_UNKNOWN"],"blockers":[],"promotionEligible":false}
+{"name":"wrong card action","before":"SHADOW_PASS","after":"SHADOW_FAIL","violations":["CARD_METHOD_INVALID"],"blockers":[],"promotionEligible":false}
+{"name":"null A1 balance","before":"SHADOW_PASS","after":"BLOCKED","violations":[],"blockers":["POOL_A1_BALANCE_UNVERIFIED"],"promotionEligible":false}
+{"name":"negative A1 balance","before":"SHADOW_PASS","after":"BLOCKED","violations":[],"blockers":["POOL_A1_BALANCE_UNVERIFIED"],"promotionEligible":false}
+{"name":"healthy reordered","before":"SHADOW_PASS","after":"SHADOW_PASS","violations":[],"blockers":[],"promotionEligible":false}
+{"name":"healthy only USDT","before":"SHADOW_PASS","after":"SHADOW_PASS","violations":[],"blockers":[],"promotionEligible":false}

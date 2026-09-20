@@ -1,5 +1,15 @@
 # Development source archives
 
+## Local consolidation, 20 September 2026
+
+The [consolidation index](../../docs/qualification/local-consolidation-20260920.md)
+retains historical bb9b739/510e08a/0644108 archives and two explicitly
+**inactive/unqualified** candidates: failed→skip seven-file patch and committed
+auth diagnostic43b025c bundle. Exact bases, hashes, effects and acceptance gaps
+are recorded there. Neither archival retention nor passing root tests selects
+a candidate. The manifest continues to select Freeland0ea2df1, Consolec421160 and
+Kernelaa5d2d1; old dated selection labels below do not override it.
+
 ## Freeland readiness and PAY01 composition, 20 September 2026
 
 Source `d4754f7ddbcb8183f695f479ef21aa7728c1ace0`, tree

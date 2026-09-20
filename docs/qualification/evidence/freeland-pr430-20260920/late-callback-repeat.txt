@@ -1,0 +1,7 @@
+ ✓ late-repeat.test.ts (1 test) 623ms
+   ✓ payment checkout provisioning orchestrator > persists a late DELIVERED callback as a review exception after confirmed-unpaid resolution  622ms
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  17:31:30
+   Duration  1.10s (transform 451ms, setup 22ms, collect 45ms, tests 623ms, environment 0ms, prepare 69ms)

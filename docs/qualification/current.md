@@ -17,6 +17,8 @@ Those sources and their complete source skill bundles are delivered through loca
 
 ## Active plan and next action
 
+Local consolidation is in progress; see the [delivery index](local-consolidation-20260920.md) for retained source/evidence, inactive candidates and exact verification status. GitHub publication awaits email verification; this does not block local source work. Historical pause/next-action text in imported records is not the current queue.
+
 The owner resumed the [global P0–P7 improvement plan](../superpowers/plans/2026-09-16-cross-product-qa-global-plan.md), targeting the agreed pre-cloud work. Its [no-loss reconciliation](../reviews/2026-09-16-global-plan-reconciliation.md) preserves previous obligations. A deadline is not acceptance evidence. Cloud P7 remains separately authorized.
 
 The **P2-A semantic fee-caption repair** and compatibility fixtures are implemented and independently reviewed; [exact delivery status and gates](p2-semantic-repair-20260920.md) distinguish candidate source from canonical adoption. The previous [99% counterexample](global-plan-entry-audit-20260920.md#executed-nonzero-caption-counterexample) is rejected by the repaired helper; healthy decimal controls remain accepted. Do not reimplement that repair.
