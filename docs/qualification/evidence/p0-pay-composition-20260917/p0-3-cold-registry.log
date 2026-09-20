@@ -1,0 +1,41 @@
+Fresh cold-restored source check, 17 September 2026.
+Source: 510e08a38565e8f8074d36d5f8eaa62d9d93bd7b
+Runtime: Node v22.23.1
+Command: node --test --test-name-pattern='builds and validates the seventeen-binding|emits a computed projection|scoped stale-receipt tolerance|staticOracleVersion' tests/product-graph/freeland-manual-replacements.test.mjs
+Exit: 0
+Not the original implementation RED/GREEN transcript; not a live product run.
+
+TAP version 13
+# Subtest: builds and validates the seventeen-binding data-driven registry
+ok 1 - builds and validates the seventeen-binding data-driven registry
+  ---
+  duration_ms: 129.538667
+  type: 'test'
+  ...
+# Subtest: emits a computed projection where only qualified bindings decrement human work
+ok 2 - emits a computed projection where only qualified bindings decrement human work
+  ---
+  duration_ms: 127.361875
+  type: 'test'
+  ...
+# Subtest: scoped stale-receipt tolerance covers only the explicit qualified IDs, returns receipt:null with causes and preserves the stored bytes
+ok 3 - scoped stale-receipt tolerance covers only the explicit qualified IDs, returns receipt:null with causes and preserves the stored bytes
+  ---
+  duration_ms: 580.739292
+  type: 'test'
+  ...
+# Subtest: staticOracleVersion reads exactly one version literal without importing the oracle
+ok 4 - staticOracleVersion reads exactly one version literal without importing the oracle
+  ---
+  duration_ms: 45.107666
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1236.368875

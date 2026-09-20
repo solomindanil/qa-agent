@@ -16,6 +16,7 @@ This repository is the canonical source workspace for QA-agent. Start at the [cu
 - Preserve coverage denominators: list verified, failed, blocked and unassessed checks. Never make an unsupported/no-coverage requirement green. A green tool self-test is not product acceptance.
 - Human help blocks only dependent lanes. Record the case, attempted methods, missing input and resume checkpoint; continue independent safe work. On reply, recheck current origin/account/candidate before resuming. Do not ask for passwords, OTPs or payment secrets in reports.
 - Nuanu Flow is accessed through the available official host plugin. Read its current skill/catalog first; ticket reads are not changes. Before writes follow the selected product's confirmation, dedupe, exact target and persisted readback rules. Unknown outcomes must be reconciled before retry.
+- When preparing or sending QA coordination in Buzz, follow the user-approved [Buzz communication contract](docs/communication/buzz.md): versioned scope, per-item evidence/results, explicit limits and responsible next actions. The contract does not itself authorize delivery or product/tracker mutations.
 - Graphs improve from confirmed dependencies, outcomes and regression findings. Propose then validate/publish through the owning graph API; unresolved claims remain gaps. Never hand-edit a managed Starter graph or claim local observation is sealed evidence.
 
 ## Component and environment boundaries

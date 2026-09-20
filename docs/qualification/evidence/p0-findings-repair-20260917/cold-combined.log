@@ -1,0 +1,148 @@
+Fresh cold-restored source check; source d28d7743e9aac370a726df6c6288ad2ef0e52c78.
+Setup: existing lockfile npm ci --offline --ignore-scripts --no-audit --no-fund; task-local npm cache; PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1.
+Kernel donor: cold-restored repository bundle at selected185d3e72309a4362db57cf2e805d1c00a5035909; no private source donor required.
+Test: QA_STARTER_REPO=<cold-kernel> node --import tsx --test tests/unit/kernel-replace-authority.test.ts tests/unit/findings-write-containment.test.ts
+Runtime: Node v22.23.1; exit0.
+Known dependency provisioning warning retained below; no runtime/test warnings.
+
+npm warn deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+added 296 packages in 3s
+TAP version 13
+# Subtest: create refuses findings and open parent symlinks without changing outside bytes
+    # Subtest: findings
+    ok 1 - findings
+      ---
+      duration_ms: 17.789958
+      type: 'test'
+      ...
+    # Subtest: open
+    ok 2 - open
+      ---
+      duration_ms: 9.039292
+      type: 'test'
+      ...
+    1..2
+ok 1 - create refuses findings and open parent symlinks without changing outside bytes
+  ---
+  duration_ms: 27.399625
+  type: 'test'
+  ...
+# Subtest: resolve refuses a resolved parent symlink and preserves source and outside bytes
+ok 2 - resolve refuses a resolved parent symlink and preserves source and outside bytes
+  ---
+  duration_ms: 18.393959
+  type: 'test'
+  ...
+# Subtest: resolve never overwrites an existing regular destination or deletes its source
+ok 3 - resolve never overwrites an existing regular destination or deletes its source
+  ---
+  duration_ms: 18.814334
+  type: 'test'
+  ...
+# Subtest: resolve refuses existing destination symlinks, including dangling symlinks
+    # Subtest: regular-target
+    ok 1 - regular-target
+      ---
+      duration_ms: 20.423917
+      type: 'test'
+      ...
+    # Subtest: dangling-target
+    ok 2 - dangling-target
+      ---
+      duration_ms: 12.809667
+      type: 'test'
+      ...
+    1..2
+ok 4 - resolve refuses existing destination symlinks, including dangling symlinks
+  ---
+  duration_ms: 33.677459
+  type: 'test'
+  ...
+# Subtest: resolve does not copy or delete an unsafe source symlink
+ok 5 - resolve does not copy or delete an unsafe source symlink
+  ---
+  duration_ms: 7.792792
+  type: 'test'
+  ...
+# Subtest: healthy create, read, resolve, and read persists one finding through both states
+ok 6 - healthy create, read, resolve, and read persists one finding through both states
+  ---
+  duration_ms: 19.222417
+  type: 'test'
+  ...
+# Subtest: duplicate suppression remains default and force creates a new finding
+ok 7 - duplicate suppression remains default and force creates a new finding
+  ---
+  duration_ms: 24.429542
+  type: 'test'
+  ...
+# Subtest: a malformed finding filename still reserves its sequence number
+ok 8 - a malformed finding filename still reserves its sequence number
+  ---
+  duration_ms: 8.349667
+  type: 'test'
+  ...
+# Subtest: concurrent distinct creates in one bridge persist distinct IDs
+ok 9 - concurrent distinct creates in one bridge persist distinct IDs
+  ---
+  duration_ms: 7.887833
+  type: 'test'
+  ...
+# Subtest: an actual destination write failure preserves the original source bytes
+ok 10 - an actual destination write failure preserves the original source bytes
+  ---
+  duration_ms: 8.343125
+  type: 'test'
+  ...
+# Subtest: healthy exact Kernel source passes the pinned authority preflight
+ok 11 - healthy exact Kernel source passes the pinned authority preflight
+  ---
+  duration_ms: 3927.497375
+  type: 'test'
+  ...
+# Subtest: commit replacement cannot redefine the source accepted under the pinned HEAD
+ok 12 - commit replacement cannot redefine the source accepted under the pinned HEAD
+  ---
+  duration_ms: 2009.7245
+  type: 'test'
+  ...
+# Subtest: blob replacement cannot hide aligned index and working source bytes
+ok 13 - blob replacement cannot hide aligned index and working source bytes
+  ---
+  duration_ms: 2833.31975
+  type: 'test'
+  ...
+# Subtest: harmless replacement metadata does not dirty healthy authority bytes
+ok 14 - harmless replacement metadata does not dirty healthy authority bytes
+  ---
+  duration_ms: 4981.401584
+  type: 'test'
+  ...
+# Subtest: dirty and staged source bytes remain rejected
+ok 15 - dirty and staged source bytes remain rejected
+  ---
+  duration_ms: 4229.6925
+  type: 'test'
+  ...
+# Subtest: a symlink authority file remains rejected
+ok 16 - a symlink authority file remains rejected
+  ---
+  duration_ms: 2322.904083
+  type: 'test'
+  ...
+# Subtest: a configured SHA cannot override the embedded Kernel pin
+ok 17 - a configured SHA cannot override the embedded Kernel pin
+  ---
+  duration_ms: 183.246333
+  type: 'test'
+  ...
+1..17
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 21231.133584

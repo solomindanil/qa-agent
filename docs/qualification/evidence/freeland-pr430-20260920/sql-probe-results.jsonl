@@ -1,0 +1,15 @@
+{"scope":"exact resolver, minimal synthetic schema, no TCP, no production/Supabase auth or full migration claims","pg":"14.18 (Homebrew)","migrationSha256":"76c000bf989827f7842092beb3797bdb070922bf9bf39fe8d5f003a6763ee5a1","directory":"/private/tmp/freeland-pr430-pg-bWhO7h"}
+{"name":"valid_and_repeat","outcome":"PASS","auditRows":1,"identities":1}
+{"name":"conflicting_key","outcome":"PASS"}
+{"name":"wrong_present_amount","outcome":"PASS"}
+{"name":"missing_expectedAmountMinor","outcome":"DEFECT_ACCEPTED","status":"payment_failed","auditRows":"1"}
+{"name":"missing_expectedCurrency","outcome":"DEFECT_ACCEPTED","status":"payment_failed","auditRows":"1"}
+{"name":"missing_providerFeeMinor","outcome":"DEFECT_ACCEPTED","status":"payment_failed","auditRows":"1"}
+{"name":"missing_evidenceBodyHash","outcome":"DEFECT_ACCEPTED","status":"payment_failed","auditRows":"1"}
+{"name":"missing_providerFinalizedAt","outcome":"DEFECT_ACCEPTED","status":"payment_failed","auditRows":"1"}
+{"name":"missing_finalStatus","outcome":"DEFECT_ACCEPTED","status":"payment_failed","auditRows":"1"}
+{"name":"missing_mode","outcome":"DEFECT_ACCEPTED","status":"payment_failed","auditRows":"1"}
+{"name":"changed_evidence_reuses_old_digest","outcome":"DEFECT_ACCEPTED","status":"payment_failed"}
+{"name":"paid_local_evidence","outcome":"PASS"}
+{"name":"rpc_privileges","outcome":"PASS","values":"f|f|t"}
+{"databaseStopped":true,"directoryRetained":"/private/tmp/freeland-pr430-pg-bWhO7h"}

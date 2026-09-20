@@ -1,0 +1,77 @@
+// Diagnostic fixture only: exact reviewed resolver SQL against a minimal synthetic
+// schema. Not the stock migration harness or a production-schema qualification.
+import { execFileSync } from 'node:child_process';
+import { readFileSync, mkdtempSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+const root=fileURLToPath(new URL('./product/',import.meta.url));
+const db=mkdtempSync('/private/tmp/freeland-pr430-pg-');
+const env={PATH:'/opt/homebrew/bin:/usr/bin:/bin',LANG:'C',LC_ALL:'C'};
+const run=(cmd,args,input)=>execFileSync(cmd,args,{env,input,encoding:'utf8',maxBuffer:4e6,stdio:['pipe','pipe','pipe']});
+const sql=text=>run('/opt/homebrew/bin/psql',['-X','-qAt','-v','ON_ERROR_STOP=1','-h',db,'-p','55439','-U','qa_local','-d','postgres'],text).trim();
+const migration=readFileSync(root+'supabase/migrations/20260902110000_payment_checkout_confirmed_unpaid_resolution.sql','utf8');
+const foundation=readFileSync(root+'supabase/migrations/20260710120000_target_payment_checkout_foundation.sql','utf8');
+const start=foundation.indexOf('CREATE OR REPLACE FUNCTION public.register_payment_provider_identity(');
+const end=foundation.indexOf('ALTER TABLE public.payment_checkouts ENABLE ROW LEVEL SECURITY;',start);
+assert.ok(start>=0 && end>start);
+const schema=`
+CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN;
+CREATE TABLE payment_checkouts (
+ id uuid PRIMARY KEY, auth_user_id uuid, intent_hash text, product_scope_hash text,
+ metadata jsonb DEFAULT '{}', provider text, provider_ref text, status text,
+ payment_amount_minor bigint, payment_currency text, created_at timestamptz,
+ expires_at timestamptz, confirmed_payment_at timestamptz,
+ confirmed_payment_amount_minor bigint, confirmed_payment_currency text, paid_at timestamptz,
+ money_operation_id uuid, fee_operation_id uuid, refund_operation_id uuid,
+ refund_requested_at timestamptz, refunded_at timestamptz,
+ product_entity_id uuid, product_entity_table text, provider_status text,
+ provider_payment_url text, failure_code text, failure_message text, next_reconcile_at timestamptz
+);
+CREATE TABLE payment_provider_identities (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),provider text,provider_contract_id text,
+ owner_table text,owner_id uuid,auth_user_id uuid,UNIQUE(provider,provider_contract_id)
+);
+CREATE TABLE external_money_events(provider text,provider_contract_id text,checkout_id_hint uuid,payload jsonb,event_type text);
+CREATE TABLE money_operations(source_table text,source_id uuid);
+CREATE TABLE payment_checkout_provisioning_attempts(checkout_id uuid,status text,mutation_started_at timestamptz,operation_id uuid,fee_operation_id uuid,product_entity_id uuid,product_entity_table text);
+CREATE TABLE admin_audit_log (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),actor_type text,actor_user_id uuid,actor_subject text,
+ action_type text,target_entity_type text,target_entity_id text,before_snapshot jsonb,
+ after_snapshot jsonb,metadata jsonb,idempotency_key text,external_ref text
+);
+CREATE UNIQUE INDEX idx_admin_audit_idempotency_key ON admin_audit_log(idempotency_key) WHERE idempotency_key IS NOT NULL;
+`;
+const id='00000000-0000-4000-8000-000000000001';
+const ref='00000000-0000-4000-8000-000000000002';
+const quote=v=>"'"+String(v).replaceAll("'","''")+"'";
+const baseline={mode:'merchant_search_terminal_match',provider:'payassist',providerRef:ref,
+ finalStatus:'FAILED',evidenceRef:'synthetic-only',observedAt:'2026-09-20T06:00:00Z',
+ merchantFinalUnpaidConfirmed:true,noCaptureConfirmed:true,noRefundOrReversalConfirmed:true,
+ merchantRequestId:'pa_prod_'+id,merchantAccountRef:'synthetic-merchant',expectedAmountMinor:'39732',
+ expectedCurrency:'RUB',environment:'production',searchResultCount:1,providerFeeMinor:'0',
+ providerFinalizedAt:'2026-09-20T05:59:00Z',evidenceBodyHash:'b'.repeat(64)};
+const canonical=x=>Array.isArray(x)?'['+x.map(canonical).join(',')+']':x&&typeof x==='object'?'{'+Object.keys(x).sort().map(k=>JSON.stringify(k)+':'+canonical(x[k])).join(',')+'}':JSON.stringify(x);
+const digest=e=>createHash('sha256').update(canonical({checkoutId:id,providerEvidence:e})).digest('hex');
+const approval=e=>({decision:'resolve_confirmed_unpaid',approvalRef:'synthetic-approval',approverSubject:'synthetic-owner',approvedAt:'2026-09-20T06:01:00Z',checkoutId:id,providerRef:ref,evidenceDigest:digest(e)});
+const reset=()=>sql(`TRUNCATE admin_audit_log,payment_provider_identities,payment_checkouts,external_money_events,money_operations,payment_checkout_provisioning_attempts;
+INSERT INTO payment_checkouts(id,auth_user_id,provider,status,payment_amount_minor,payment_currency,created_at,expires_at)
+VALUES('${id}','00000000-0000-4000-8000-000000000003','payassist','manual_review',39732,'RUB','2026-08-01T00:00:00Z','2026-08-01T00:30:00Z');`);
+const call=(e,{key='synthetic-idempotency',approved=approval(e),hash=digest(e)}={})=>sql(`SELECT (public.resolve_payment_checkout_confirmed_unpaid('${id}',${quote(key)},'synthetic-admin',${quote(hash)},${quote(JSON.stringify(e))}::jsonb,${quote(JSON.stringify(approved))}::jsonb,'synthetic diagnostic')).status;`);
+const result=(name,fn)=>{try{console.log(JSON.stringify({name,...fn()}));}catch(e){console.log(JSON.stringify({name,outcome:'probe_error',message:String(e.message),stderr:String(e.stderr??'')}));throw e;}};
+let started=false;
+try{
+ run('/opt/homebrew/bin/initdb',['-D',db+'/data','-U','qa_local','-A','trust','--no-locale']);
+ run('/opt/homebrew/bin/pg_ctl',['-D',db+'/data','-l',db+'/postgres.log','-o',`-h '' -k ${db} -p 55439`,'-w','start']);started=true;
+ sql(schema);sql(foundation.slice(start,end));sql(migration);
+ console.log(JSON.stringify({scope:'exact resolver, minimal synthetic schema, no TCP, no production/Supabase auth or full migration claims',pg:sql('SHOW server_version;'),migrationSha256:createHash('sha256').update(migration).digest('hex'),directory:db}));
+ result('valid_and_repeat',()=>{reset();assert.equal(call(baseline),'payment_failed');assert.equal(call(baseline),'payment_failed');assert.equal(sql('SELECT count(*) FROM admin_audit_log;'),'1');assert.equal(sql('SELECT count(*) FROM payment_provider_identities;'),'1');return{outcome:'PASS',auditRows:1,identities:1};});
+ result('conflicting_key',()=>{let rejected=false;try{call(baseline,{key:'different-key'});}catch(e){rejected=String(e.stderr).includes('IDEMPOTENCY_CONFLICT');}assert.ok(rejected);return{outcome:'PASS'};});
+ result('wrong_present_amount',()=>{reset();let rejected=false;try{call({...baseline,expectedAmountMinor:'1'});}catch(e){rejected=String(e.stderr).includes('TERMINAL_MATCH_INVALID');}assert.ok(rejected);assert.equal(sql('SELECT status FROM payment_checkouts;'),'manual_review');return{outcome:'PASS'};});
+ for(const field of ['expectedAmountMinor','expectedCurrency','providerFeeMinor','evidenceBodyHash','providerFinalizedAt','finalStatus','mode']){
+  result('missing_'+field,()=>{reset();const e={...baseline};delete e[field];try{const status=call(e);return{outcome:'DEFECT_ACCEPTED',status,auditRows:sql('SELECT count(*) FROM admin_audit_log;')};}catch(err){return{outcome:'REJECTED',error:String(err.stderr).split('\n')[0]};}});
+ }
+ result('changed_evidence_reuses_old_digest',()=>{reset();const e={...baseline,evidenceRef:'changed-after-approval'};try{return{outcome:'DEFECT_ACCEPTED',status:call(e,{approved:approval(baseline),hash:digest(baseline)})};}catch(err){return{outcome:'REJECTED',error:String(err.stderr).split('\n')[0]};}});
+ result('paid_local_evidence',()=>{reset();sql("UPDATE payment_checkouts SET paid_at=now();");let rejected=false;try{call(baseline);}catch(e){rejected=String(e.stderr).includes('PAID_EVIDENCE_PRESENT');}assert.ok(rejected);return{outcome:'PASS'};});
+ result('rpc_privileges',()=>{const values=sql("SELECT has_function_privilege('anon','public.resolve_payment_checkout_confirmed_unpaid(uuid,text,text,text,jsonb,jsonb,text)','EXECUTE'),has_function_privilege('authenticated','public.resolve_payment_checkout_confirmed_unpaid(uuid,text,text,text,jsonb,jsonb,text)','EXECUTE'),has_function_privilege('service_role','public.resolve_payment_checkout_confirmed_unpaid(uuid,text,text,text,jsonb,jsonb,text)','EXECUTE');");assert.equal(values,'f|f|t');return{outcome:'PASS',values};});
+}finally{if(started){run('/opt/homebrew/bin/pg_ctl',['-D',db+'/data','-m','fast','-w','stop']);console.log(JSON.stringify({databaseStopped:true,directoryRetained:db}));}}

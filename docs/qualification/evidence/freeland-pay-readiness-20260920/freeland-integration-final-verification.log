@@ -1,0 +1,972 @@
+TAP version 13
+# Subtest: imports one exact Safety blob from every authorized Safety tree
+ok 1 - imports one exact Safety blob from every authorized Safety tree
+  ---
+  duration_ms: 19.728958
+  type: 'test'
+  ...
+# Subtest: pins the exact current Safety source and closes its assembled source allowlist
+ok 2 - pins the exact current Safety source and closes its assembled source allowlist
+  ---
+  duration_ms: 2.118541
+  type: 'test'
+  ...
+# Subtest: owned dry-page and locator provenance rejects each missing, substituted, or misattributed regression asset
+ok 3 - owned dry-page and locator provenance rejects each missing, substituted, or misattributed regression asset
+  ---
+  duration_ms: 11.536625
+  type: 'test'
+  ...
+# Subtest: acceptance-repair provenance seals its exact local assets and the original TC05 policy lineage
+ok 4 - acceptance-repair provenance seals its exact local assets and the original TC05 policy lineage
+  ---
+  duration_ms: 6.789
+  type: 'test'
+  ...
+# Subtest: acceptance-repair private inventory rejects omitted, substituted, misattributed, and rehashed assets
+ok 5 - acceptance-repair private inventory rejects omitted, substituted, misattributed, and rehashed assets
+  ---
+  duration_ms: 90.849375
+  type: 'test'
+  ...
+# Subtest: preflight policy provenance rejects missing or substituted ownership, donor lineage, and assembled-byte seals
+ok 6 - preflight policy provenance rejects missing or substituted ownership, donor lineage, and assembled-byte seals
+  ---
+  duration_ms: 14.5345
+  type: 'test'
+  ...
+# Subtest: imports exactly the 26 reviewed post-frozen Safety blobs and keeps planning history excluded
+ok 7 - imports exactly the 26 reviewed post-frozen Safety blobs and keeps planning history excluded
+  ---
+  duration_ms: 9.63925
+  type: 'test'
+  ...
+# Subtest: imports the exact 22-path current Safety overlay and retains all twelve Mail ancestries
+ok 8 - imports the exact 22-path current Safety overlay and retains all twelve Mail ancestries
+  ---
+  duration_ms: 7.12625
+  type: 'test'
+  ...
+# Subtest: preserves all 283 pre-overlay manifest destinations outside the exact 22-path closure
+ok 9 - preserves all 283 pre-overlay manifest destinations outside the exact 22-path closure
+  ---
+  duration_ms: 111.135042
+  type: 'test'
+  ...
+# Subtest: current Safety closure rejects omission, extras, wrong blobs, lost Mail ancestry, and post-head substitution
+ok 10 - current Safety closure rejects omission, extras, wrong blobs, lost Mail ancestry, and post-head substitution
+  ---
+  duration_ms: 5.13025
+  type: 'test'
+  ...
+# Subtest: preserves package, Playwright, transport, TC02, TC05, TC09, Console, baseline, and canary surfaces
+ok 11 - preserves package, Playwright, transport, TC02, TC05, TC09, Console, baseline, and canary surfaces
+  ---
+  duration_ms: 2.391333
+  type: 'test'
+  ...
+# Subtest: records the exact Mail imports, controlled-runner evolution, and every assembled Safety-Mail reconciliation
+ok 12 - records the exact Mail imports, controlled-runner evolution, and every assembled Safety-Mail reconciliation
+  ---
+  duration_ms: 8.252084
+  type: 'test'
+  ...
+# Subtest: cancellation evolutions reject changed ownership, frozen donor identity, ancestry, and assembled hashes
+ok 13 - cancellation evolutions reject changed ownership, frozen donor identity, ancestry, and assembled hashes
+  ---
+  duration_ms: 10.887
+  type: 'test'
+  ...
+# Subtest: imports the frozen baseline package with its exact 29-file and 164-case inventory
+ok 14 - imports the frozen baseline package with its exact 29-file and 164-case inventory
+  ---
+  duration_ms: 1.745167
+  type: 'test'
+  ...
+# Subtest: imports only the closed virtual-number/card canary scenario, helper, and offline-test closure
+ok 15 - imports only the closed virtual-number/card canary scenario, helper, and offline-test closure
+  ---
+  duration_ms: 13.551833
+  type: 'test'
+  ...
+# Subtest: imports the exact isolated QA Console tree with eight hermetic tests and one quarantined Kernel-authority test
+ok 16 - imports the exact isolated QA Console tree with eight hermetic tests and one quarantined Kernel-authority test
+  ---
+  duration_ms: 38.80325
+  type: 'test'
+  ...
+# Subtest: rejects non-Freeland root environment and Playwright projects
+ok 17 - rejects non-Freeland root environment and Playwright projects
+  ---
+  duration_ms: 1.080458
+  type: 'test'
+  ...
+# Subtest: preserves local-state and MagicPay denies while allowing only intended Freeland paths
+ok 18 - preserves local-state and MagicPay denies while allowing only intended Freeland paths
+  ---
+  duration_ms: 179.433
+  type: 'test'
+  ...
+# Subtest: schema is closed and captures the eight frozen source snapshots
+ok 19 - schema is closed and captures the eight frozen source snapshots
+  ---
+  duration_ms: 1.381083
+  type: 'test'
+  ...
+# Subtest: validates provenance records and rejects unknown keys, duplicate paths, and escaping destinations
+ok 20 - validates provenance records and rejects unknown keys, duplicate paths, and escaping destinations
+  ---
+  duration_ms: 1.00375
+  type: 'test'
+  ...
+# Subtest: verifies git framing, private digests, changed bytes, missing files, symlinks, and unmanifested controlled files
+ok 21 - verifies git framing, private digests, changed bytes, missing files, symlinks, and unmanifested controlled files
+  ---
+  duration_ms: 8.463458
+  type: 'test'
+  ...
+# Subtest: allows the exact real baseline node_modules runtime directory
+ok 22 - allows the exact real baseline node_modules runtime directory
+  ---
+  duration_ms: 2.917542
+  type: 'test'
+  ...
+# Subtest: rejects a symlink at the exact baseline node_modules runtime path
+ok 23 - rejects a symlink at the exact baseline node_modules runtime path
+  ---
+  duration_ms: 2.996791
+  type: 'test'
+  ...
+# Subtest: rejects a file at the exact baseline node_modules runtime path
+ok 24 - rejects a file at the exact baseline node_modules runtime path
+  ---
+  duration_ms: 2.084791
+  type: 'test'
+  ...
+# Subtest: rejects node_modules under another controlled root as an unmanifested extra
+ok 25 - rejects node_modules under another controlled root as an unmanifested extra
+  ---
+  duration_ms: 2.336
+  type: 'test'
+  ...
+# Subtest: rejects a nested node_modules lookalike inside the baseline package
+ok 26 - rejects a nested node_modules lookalike inside the baseline package
+  ---
+  duration_ms: 3.404042
+  type: 'test'
+  ...
+# Subtest: allows only the exact QA Console dependency and production-build runtime directories
+ok 27 - allows only the exact QA Console dependency and production-build runtime directories
+  ---
+  duration_ms: 3.818167
+  type: 'test'
+  ...
+# Subtest: rejects non-directory QA Console runtime paths without following them
+ok 28 - rejects non-directory QA Console runtime paths without following them
+  ---
+  duration_ms: 5.67825
+  type: 'test'
+  ...
+# Subtest: rejects symlinks at the exact QA Console runtime paths
+ok 29 - rejects symlinks at the exact QA Console runtime paths
+  ---
+  duration_ms: 5.3185
+  type: 'test'
+  ...
+# Subtest: rejects nested QA Console runtime-directory lookalikes as unmanifested files
+ok 30 - rejects nested QA Console runtime-directory lookalikes as unmanifested files
+  ---
+  duration_ms: 3.808416
+  type: 'test'
+  ...
+# Subtest: requires assembled source blobs and final bytes, and records the required exclusions
+ok 31 - requires assembled source blobs and final bytes, and records the required exclusions
+  ---
+  duration_ms: 3.207209
+  type: 'test'
+  ...
+# Subtest: bundles the sealed private corpus plus exact acceptance-repair assets, human-acceptance package, two exact transformations, an unpinned graph seed, no forbidden local paths
+ok 32 - bundles the sealed private corpus plus exact acceptance-repair assets, human-acceptance package, two exact transformations, an unpinned graph seed, no forbidden local paths
+  ---
+  duration_ms: 9.794542
+  type: 'test'
+  ...
+# Subtest: campaign run-state and spec evidence directories are ignored by git and skipped by controlled-root collection
+ok 33 - campaign run-state and spec evidence directories are ignored by git and skipped by controlled-root collection
+  ---
+  duration_ms: 6.018708
+  type: 'test'
+  ...
+# Subtest: private files are secret-scanned: JWT, PEM, bot-token, bearer and Luhn-valid card shapes fail closed
+ok 34 - private files are secret-scanned: JWT, PEM, bot-token, bearer and Luhn-valid card shapes fail closed
+  ---
+  duration_ms: 8.119542
+  type: 'test'
+  ...
+# Subtest: the disposable V2 fixture never mutates or grants acceptance to the real stale TC-SEC-01 binding
+ok 35 - the disposable V2 fixture never mutates or grants acceptance to the real stale TC-SEC-01 binding
+  ---
+  duration_ms: 17.229791
+  type: 'test'
+  ...
+# Subtest: controlled receipt freshness is synthetic only in the disposable fixture
+ok 36 - controlled receipt freshness is synthetic only in the disposable fixture
+  ---
+  duration_ms: 22.181625
+  type: 'test'
+  ...
+# Subtest: builds and validates the seventeen-binding data-driven registry
+ok 37 - builds and validates the seventeen-binding data-driven registry
+  ---
+  duration_ms: 137.569167
+  type: 'test'
+  ...
+# Subtest: uses the exact replacement byte frame and canonical digest domains
+ok 38 - uses the exact replacement byte frame and canonical digest domains
+  ---
+  duration_ms: 62.973042
+  type: 'test'
+  ...
+# Subtest: rejects missing and unknown keys at every closed-schema nesting level
+ok 39 - rejects missing and unknown keys at every closed-schema nesting level
+  ---
+  duration_ms: 3.934084
+  type: 'test'
+  ...
+# Subtest: rejects wrong binding cardinality, order, duplicates and reordered or duplicate test rows
+ok 40 - rejects wrong binding cardinality, order, duplicates and reordered or duplicate test rows
+  ---
+  duration_ms: 3.618083
+  type: 'test'
+  ...
+# Subtest: rejects unknown case and touchpoint identities plus stale authoritative digests
+ok 41 - rejects unknown case and touchpoint identities plus stale authoritative digests
+  ---
+  duration_ms: 192.642209
+  type: 'test'
+  ...
+# Subtest: rejects a rehashed qualified representation of a binding without a promotion receipt
+ok 42 - rejects a rehashed qualified representation of a binding without a promotion receipt
+  ---
+  duration_ms: 2.277792
+  type: 'test'
+  ...
+# Subtest: qualified bindings need a receipt whose digests match the current bytes
+ok 43 - qualified bindings need a receipt whose digests match the current bytes
+  ---
+  duration_ms: 396.658041
+  type: 'test'
+  ...
+# Subtest: receipt contract fails closed on schema, digest, residual and provenance violations
+ok 44 - receipt contract fails closed on schema, digest, residual and provenance violations
+  ---
+  duration_ms: 762.586583
+  type: 'test'
+  ...
+# Subtest: agent_case_execution binds the case contract digest instead of a touchpoint
+ok 45 - agent_case_execution binds the case contract digest instead of a touchpoint
+  ---
+  duration_ms: 252.604959
+  type: 'test'
+  ...
+# Subtest: infers lanes from the frozen spec-prefix table and rejects setup dependencies outside authenticated lanes
+ok 46 - infers lanes from the frozen spec-prefix table and rejects setup dependencies outside authenticated lanes
+  ---
+  duration_ms: 4.938958
+  type: 'test'
+  ...
+# Subtest: binds exact spec bytes and oracle contract while executable-only drift changes QA corpus
+ok 47 - binds exact spec bytes and oracle contract while executable-only drift changes QA corpus
+  ---
+  duration_ms: 531.093541
+  type: 'test'
+  ...
+# Subtest: rejects semantic tampering even when every outer digest is recomputed
+ok 48 - rejects semantic tampering even when every outer digest is recomputed
+  ---
+  duration_ms: 198.635125
+  type: 'test'
+  ...
+# Subtest: emits a computed projection where only qualified bindings decrement human work
+ok 49 - emits a computed projection where only qualified bindings decrement human work
+  ---
+  duration_ms: 117.992125
+  type: 'test'
+  ...
+# Subtest: fails closed on selector zero/two-match ambiguity and catalog/test identity drift
+ok 50 - fails closed on selector zero/two-match ambiguity and catalog/test identity drift
+  ---
+  duration_ms: 607.815959
+  type: 'test'
+  ...
+# Subtest: QA corpus identity always includes the frozen public spec and executable oracle
+ok 51 - QA corpus identity always includes the frozen public spec and executable oracle
+  ---
+  duration_ms: 5.233584
+  type: 'test'
+  ...
+# Subtest: stored-schema validation is pure and the authoritative path list is closed
+ok 52 - stored-schema validation is pure and the authoritative path list is closed
+  ---
+  duration_ms: 1.59775
+  type: 'test'
+  ...
+# Subtest: the TC05 oracle exposes a registry-usable versioned contract digest
+ok 53 - the TC05 oracle exposes a registry-usable versioned contract digest
+  ---
+  duration_ms: 0.815083
+  type: 'test'
+  ...
+# Subtest: promotion receipts are computed from a pinned run root and never fabricated
+ok 54 - promotion receipts are computed from a pinned run root and never fabricated
+  ---
+  duration_ms: 472.187208
+  type: 'test'
+  ...
+# Subtest: build CLI regenerates the canonical manifest without touching the repository
+ok 55 - build CLI regenerates the canonical manifest without touching the repository
+  ---
+  duration_ms: 177.477667
+  type: 'test'
+  ...
+# Subtest: fresh verification invokes Playwright directly with list reporter and version
+ok 56 - fresh verification invokes Playwright directly with list reporter and version
+  ---
+  duration_ms: 175.160875
+  type: 'test'
+  ...
+# Subtest: raw Playwright total exposes a fourth test hidden behind a title newline
+ok 57 - raw Playwright total exposes a fourth test hidden behind a title newline
+  ---
+  duration_ms: 57.477875
+  type: 'test'
+  ...
+# Subtest: fresh collector summary is mandatory, unique, well-formed and consistent
+ok 58 - fresh collector summary is mandatory, unique, well-formed and consistent
+  ---
+  duration_ms: 226.385958
+  type: 'test'
+  ...
+# Subtest: returns typed environment blockers but never relabels structural failures
+ok 59 - returns typed environment blockers but never relabels structural failures
+  ---
+  duration_ms: 171.828916
+  type: 'test'
+  ...
+# Subtest: CLI uses only fresh discovery and does not mutate shared staging evidence
+ok 60 - CLI uses only fresh discovery and does not mutate shared staging evidence
+  ---
+  duration_ms: 618.373083
+  type: 'test'
+  ...
+# Subtest: CLI reports missing environment and unusable Playwright as BLOCKED_ENVIRONMENT
+ok 61 - CLI reports missing environment and unusable Playwright as BLOCKED_ENVIRONMENT
+  ---
+  duration_ms: 268.48325
+  type: 'test'
+  ...
+# Subtest: scoped stale-receipt tolerance covers only the explicit qualified IDs, returns receipt:null with causes and preserves the stored bytes
+ok 62 - scoped stale-receipt tolerance covers only the explicit qualified IDs, returns receipt:null with causes and preserves the stored bytes
+  ---
+  duration_ms: 564.704417
+  type: 'test'
+  ...
+# Subtest: stale-receipt tolerance refuses a declaration whose receipt digest does not point at its stored receipt
+ok 63 - stale-receipt tolerance refuses a declaration whose receipt digest does not point at its stored receipt
+  ---
+  duration_ms: 281.438166
+  type: 'test'
+  ...
+# Subtest: staticOracleVersion reads exactly one version literal without importing the oracle
+ok 64 - staticOracleVersion reads exactly one version literal without importing the oracle
+  ---
+  duration_ms: 46.061958
+  type: 'test'
+  ...
+# Subtest: TC_VHOD_01 oracle exports the registry contract surface
+ok 65 - TC_VHOD_01 oracle exports the registry contract surface
+  ---
+  duration_ms: 1.365041
+  type: 'test'
+  ...
+# Subtest: TC_VHOD_03 oracle exports the registry contract surface
+ok 66 - TC_VHOD_03 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.291166
+  type: 'test'
+  ...
+# Subtest: TC_PAY_01 oracle exports the registry contract surface
+ok 67 - TC_PAY_01 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.166542
+  type: 'test'
+  ...
+# Subtest: TC_PAY_07 oracle exports the registry contract surface
+ok 68 - TC_PAY_07 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.154625
+  type: 'test'
+  ...
+# Subtest: TC_SERV_01 oracle exports the registry contract surface
+ok 69 - TC_SERV_01 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.179125
+  type: 'test'
+  ...
+# Subtest: money helpers: cents and matrix uplifts
+ok 70 - money helpers: cents and matrix uplifts
+  ---
+  duration_ms: 0.115583
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-01 passes on a healthy anonymous landing
+ok 71 - TC-ВХОД-01 passes on a healthy anonymous landing
+  ---
+  duration_ms: 0.412583
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-01 fails on redirect, slow heading, overflow, bad CTA target and page errors
+ok 72 - TC-ВХОД-01 fails on redirect, slow heading, overflow, bad CTA target and page errors
+  ---
+  duration_ms: 0.162875
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-01 is BLOCKED when staging never answered, invalid on a malformed observation
+ok 73 - TC-ВХОД-01 is BLOCKED when staging never answered, invalid on a malformed observation
+  ---
+  duration_ms: 1.225291
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-03 passes and always records the mobile status-bar limitation as known
+ok 74 - TC-ВХОД-03 passes and always records the mobile status-bar limitation as known
+  ---
+  duration_ms: 0.825083
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-03 fails on slow login, landing shown, reload/second-tab session loss; same theme colour is known
+ok 75 - TC-ВХОД-03 fails on slow login, landing shown, reload/second-tab session loss; same theme colour is known
+  ---
+  duration_ms: 0.230167
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-03 is BLOCKED when the login never reached the store shell
+ok 76 - TC-ВХОД-03 is BLOCKED when the login never reached the store shell
+  ---
+  duration_ms: 0.16425
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 passes with the documented caption divergences in known[]
+ok 77 - TC-PAY-01 passes with the documented caption divergences in known[]
+  ---
+  duration_ms: 0.757083
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 accepts shuffled rows, either card alias and identity-preserving balance variants
+ok 78 - TC-PAY-01 accepts shuffled rows, either card alias and identity-preserving balance variants
+  ---
+  duration_ms: 0.474084
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 accepts either supported crypto rail and binds a generic tile only without ambiguity
+ok 79 - TC-PAY-01 accepts either supported crypto rail and binds a generic tile only without ambiguity
+  ---
+  duration_ms: 0.926583
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 requires at least one available supported crypto rail
+ok 80 - TC-PAY-01 requires at least one available supported crypto rail
+  ---
+  duration_ms: 0.207291
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 permits an unavailable optional crypto rail to be absent or identity-bound
+ok 81 - TC-PAY-01 permits an unavailable optional crypto rail to be absent or identity-bound
+  ---
+  duration_ms: 0.206709
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 reports the Stars insufficient caption only when the browser actually shows it
+ok 82 - TC-PAY-01 reports the Stars insufficient caption only when the browser actually shows it
+  ---
+  duration_ms: 0.442875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects empty DOM composition
+ok 83 - TC-PAY-01 rejects empty DOM composition
+  ---
+  duration_ms: 0.095125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects balance-only DOM composition
+ok 84 - TC-PAY-01 rejects balance-only DOM composition
+  ---
+  duration_ms: 0.088875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing card DOM composition
+ok 85 - TC-PAY-01 rejects missing card DOM composition
+  ---
+  duration_ms: 0.075916
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing sbp DOM composition
+ok 86 - TC-PAY-01 rejects missing sbp DOM composition
+  ---
+  duration_ms: 0.163708
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing balance DOM composition
+ok 87 - TC-PAY-01 rejects missing balance DOM composition
+  ---
+  duration_ms: 0.075583
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing USDT DOM composition
+ok 88 - TC-PAY-01 rejects missing USDT DOM composition
+  ---
+  duration_ms: 0.073875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing USDC DOM composition
+ok 89 - TC-PAY-01 rejects missing USDC DOM composition
+  ---
+  duration_ms: 0.068375
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate card aliases in the DOM
+ok 90 - TC-PAY-01 rejects duplicate card aliases in the DOM
+  ---
+  duration_ms: 0.098375
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate contradictory API card rows
+ok 91 - TC-PAY-01 rejects duplicate contradictory API card rows
+  ---
+  duration_ms: 0.169875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API crypto currencies
+ok 92 - TC-PAY-01 rejects duplicate API crypto currencies
+  ---
+  duration_ms: 0.117083
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API balance identities
+ok 93 - TC-PAY-01 rejects duplicate API balance identities
+  ---
+  duration_ms: 0.10725
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API SBP identities
+ok 94 - TC-PAY-01 rejects duplicate API SBP identities
+  ---
+  duration_ms: 0.095125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API Stars identities
+ok 95 - TC-PAY-01 rejects duplicate API Stars identities
+  ---
+  duration_ms: 0.091334
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects an unrendered second balance identity
+ok 96 - TC-PAY-01 rejects an unrendered second balance identity
+  ---
+  duration_ms: 0.090333
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid card action
+ok 97 - TC-PAY-01 rejects invalid card action
+  ---
+  duration_ms: 0.136417
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid card currency
+ok 98 - TC-PAY-01 rejects invalid card currency
+  ---
+  duration_ms: 0.081209
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid sbp action
+ok 99 - TC-PAY-01 rejects invalid sbp action
+  ---
+  duration_ms: 0.08275
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid sbp currency
+ok 100 - TC-PAY-01 rejects invalid sbp currency
+  ---
+  duration_ms: 0.080667
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid crypto action
+ok 101 - TC-PAY-01 rejects invalid crypto action
+  ---
+  duration_ms: 0.078542
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid unsupported crypto currency
+ok 102 - TC-PAY-01 rejects invalid unsupported crypto currency
+  ---
+  duration_ms: 0.082708
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unknown API identities
+ok 103 - TC-PAY-01 rejects unknown API identities
+  ---
+  duration_ms: 3.002709
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unknown DOM identities
+ok 104 - TC-PAY-01 rejects unknown DOM identities
+  ---
+  duration_ms: 0.212083
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unbound DOM crypto rails
+ok 105 - TC-PAY-01 rejects unbound DOM crypto rails
+  ---
+  duration_ms: 0.096417
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unbound DOM Stars
+ok 106 - TC-PAY-01 rejects unbound DOM Stars
+  ---
+  duration_ms: 0.092667
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects a contradictory balance tile summary
+ok 107 - TC-PAY-01 rejects a contradictory balance tile summary
+  ---
+  duration_ms: 0.0935
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects a contradictory Stars tile summary
+ok 108 - TC-PAY-01 rejects a contradictory Stars tile summary
+  ---
+  duration_ms: 0.069084
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 fails when balance is payable, stars are payable in the browser, crypto pays directly or a checkout was attempted
+ok 109 - TC-PAY-01 fails when balance is payable, stars are payable in the browser, crypto pays directly or a checkout was attempted
+  ---
+  duration_ms: 0.174333
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 is BLOCKED by pool/provider preconditions and by an unavailable quote
+ok 110 - TC-PAY-01 is BLOCKED by pool/provider preconditions and by an unavailable quote
+  ---
+  duration_ms: 0.178083
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 blocks on unverified balance null while retaining checkout/runtime violations
+ok 111 - TC-PAY-01 blocks on unverified balance null while retaining checkout/runtime violations
+  ---
+  duration_ms: 0.078375
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 blocks on unverified balance -0.01 while retaining checkout/runtime violations
+ok 112 - TC-PAY-01 blocks on unverified balance -0.01 while retaining checkout/runtime violations
+  ---
+  duration_ms: 0.053833
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 mixed sources validate independently and retain API-only gap
+ok 113 - TC-PAY-07 mixed sources validate independently and retain API-only gap
+  ---
+  duration_ms: 1.733541
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 gross wallet / requested credit boundary 500
+ok 114 - TC-PAY-07 gross wallet / requested credit boundary 500
+  ---
+  duration_ms: 1.479125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 gross wallet / requested credit boundary 10000
+ok 115 - TC-PAY-07 gross wallet / requested credit boundary 10000
+  ---
+  duration_ms: 1.174917
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 gross wallet / requested credit boundary 525
+ok 116 - TC-PAY-07 gross wallet / requested credit boundary 525
+  ---
+  duration_ms: 1.058333
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects swapped semantic
+ok 117 - TC-PAY-07 rejects swapped semantic
+  ---
+  duration_ms: 0.373667
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects source identities swapped
+ok 118 - TC-PAY-07 rejects source identities swapped
+  ---
+  duration_ms: 0.421208
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wallet uses acquiring breakdown
+ok 119 - TC-PAY-07 rejects wallet uses acquiring breakdown
+  ---
+  duration_ms: 0.993791
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects freeland uses wallet breakdown
+ok 120 - TC-PAY-07 rejects freeland uses wallet breakdown
+  ---
+  duration_ms: 0.942
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects fee on fee
+ok 121 - TC-PAY-07 rejects fee on fee
+  ---
+  duration_ms: 0.564958
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects legacy 8percent
+ok 122 - TC-PAY-07 rejects legacy 8percent
+  ---
+  duration_ms: 0.329041
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects unknown source
+ok 123 - TC-PAY-07 rejects unknown source
+  ---
+  duration_ms: 0.294792
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects duplicate source
+ok 124 - TC-PAY-07 rejects duplicate source
+  ---
+  duration_ms: 0.273834
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects missing source
+ok 125 - TC-PAY-07 rejects missing source
+  ---
+  duration_ms: 0.297667
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wrong currency
+ok 126 - TC-PAY-07 rejects wrong currency
+  ---
+  duration_ms: 0.270916
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wrong scale
+ok 127 - TC-PAY-07 rejects wrong scale
+  ---
+  duration_ms: 0.257916
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects malformed minor
+ok 128 - TC-PAY-07 rejects malformed minor
+  ---
+  duration_ms: 0.293667
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects unavailable mismatch still fails
+ok 129 - TC-PAY-07 rejects unavailable mismatch still fails
+  ---
+  duration_ms: 0.275875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects untyped unavailability
+ok 130 - TC-PAY-07 rejects untyped unavailability
+  ---
+  duration_ms: 0.303334
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wrong payment currency
+ok 131 - TC-PAY-07 rejects wrong payment currency
+  ---
+  duration_ms: 0.31575
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wrong payment amount
+ok 132 - TC-PAY-07 rejects wrong payment amount
+  ---
+  duration_ms: 0.290792
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects wrong effective rate
+ok 133 - TC-PAY-07 rejects wrong effective rate
+  ---
+  duration_ms: 0.307
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 wallet100 is not102 and missing breakdown blocks
+ok 134 - TC-PAY-07 wallet100 is not102 and missing breakdown blocks
+  ---
+  duration_ms: 0.514667
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 source issue variants are bound and wallet3100 fails
+ok 135 - TC-PAY-07 source issue variants are bound and wallet3100 fails
+  ---
+  duration_ms: 2.560958
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal 500/VIRTUAL_NUMBER_RENEWAL_UNAVAILABLE is not supported-refusal evidence
+ok 136 - TC-PAY-07 renewal 500/VIRTUAL_NUMBER_RENEWAL_UNAVAILABLE is not supported-refusal evidence
+  ---
+  duration_ms: 0.427209
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal 409/OTHER is not supported-refusal evidence
+ok 137 - TC-PAY-07 renewal 409/OTHER is not supported-refusal evidence
+  ---
+  duration_ms: 0.207083
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal 401/UNAUTHORIZED is not supported-refusal evidence
+ok 138 - TC-PAY-07 renewal 401/UNAUTHORIZED is not supported-refusal evidence
+  ---
+  duration_ms: 0.391708
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal 403/FORBIDDEN is not supported-refusal evidence
+ok 139 - TC-PAY-07 renewal 403/FORBIDDEN is not supported-refusal evidence
+  ---
+  duration_ms: 0.333
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal 404/NUMBER_NOT_FOUND is not supported-refusal evidence
+ok 140 - TC-PAY-07 renewal 404/NUMBER_NOT_FOUND is not supported-refusal evidence
+  ---
+  duration_ms: 0.298791
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal cannot pass with wrong operationIntent=historical
+ok 141 - TC-PAY-07 renewal cannot pass with wrong operationIntent=historical
+  ---
+  duration_ms: 0.225167
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal cannot pass with wrong operationIntent=replay
+ok 142 - TC-PAY-07 renewal cannot pass with wrong operationIntent=replay
+  ---
+  duration_ms: 0.267666
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal cannot pass with wrong existingEntityPresent=false
+ok 143 - TC-PAY-07 renewal cannot pass with wrong existingEntityPresent=false
+  ---
+  duration_ms: 0.234542
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal cannot pass with wrong productAction=purchase
+ok 144 - TC-PAY-07 renewal cannot pass with wrong productAction=purchase
+  ---
+  duration_ms: 0.250959
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal cannot pass with wrong productType=card
+ok 145 - TC-PAY-07 renewal cannot pass with wrong productType=card
+  ---
+  duration_ms: 0.263084
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 renewal missing request/owned entity remains blocked
+ok 146 - TC-PAY-07 renewal missing request/owned entity remains blocked
+  ---
+  duration_ms: 0.212
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 real projection never erases priced facts from a refused renewal
+ok 147 - TC-PAY-07 real projection never erases priced facts from a refused renewal
+  ---
+  duration_ms: 0.601208
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 real projection never erases priced facts from a refused renewal
+ok 148 - TC-PAY-07 real projection never erases priced facts from a refused renewal
+  ---
+  duration_ms: 0.240292
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 priced fresh renewal contradicts unsupported contract
+ok 149 - TC-PAY-07 priced fresh renewal contradicts unsupported contract
+  ---
+  duration_ms: 0.257208
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 exact expected409 never masks checkout
+ok 150 - TC-PAY-07 exact expected409 never masks checkout
+  ---
+  duration_ms: 0.245083
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 exact expected409 never masks money
+ok 151 - TC-PAY-07 exact expected409 never masks money
+  ---
+  duration_ms: 0.251
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 duplicate/missing product row and direct-product price remain guarded
+ok 152 - TC-PAY-07 duplicate/missing product row and direct-product price remain guarded
+  ---
+  duration_ms: 3.879292
+  type: 'test'
+  ...
+# Subtest: TC-SERV-01 passes on four distinct cards, navigation, completed operations and one auto refresh
+ok 153 - TC-SERV-01 passes on four distinct cards, navigation, completed operations and one auto refresh
+  ---
+  duration_ms: 0.53
+  type: 'test'
+  ...
+# Subtest: TC-SERV-01 fails on missing/duplicated cards, wrong navigation, pending operation and no auto refresh
+ok 154 - TC-SERV-01 fails on missing/duplicated cards, wrong navigation, pending operation and no auto refresh
+  ---
+  duration_ms: 0.149666
+  type: 'test'
+  ...
+# Subtest: TC-SERV-01 treats a VPN trial without a purchase operation as known and an inactive VPN as BLOCKED
+ok 155 - TC-SERV-01 treats a VPN trial without a purchase operation as known and an inactive VPN as BLOCKED
+  ---
+  duration_ms: 0.573125
+  type: 'test'
+  ...
+# Subtest: oracle contracts are distinct and a blocked precondition never hides a violation
+ok 156 - oracle contracts are distinct and a blocked precondition never hides a violation
+  ---
+  duration_ms: 0.2085
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 actual projection supports mixed-source and exact-refusal financial observations
+ok 157 - TC-PAY-07 actual projection supports mixed-source and exact-refusal financial observations
+  ---
+  duration_ms: 0.696
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 issue catalogue display binds the same program total
+ok 158 - TC-PAY-07 issue catalogue display binds the same program total
+  ---
+  duration_ms: 0.2615
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 unavailable projection amounts cannot disappear into a quoted PASS
+ok 159 - TC-PAY-07 unavailable projection amounts cannot disappear into a quoted PASS
+  ---
+  duration_ms: 0.260291
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 ordinary products retain major-unit precision and USDT-label-only exception
+ok 160 - TC-PAY-07 ordinary products retain major-unit precision and USDT-label-only exception
+  ---
+  duration_ms: 1.387583
+  type: 'test'
+  ...
+1..160
+# tests 160
+# suites 0
+# pass 160
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6795.011917
+{"schemaVersion":1,"sourceCount":8,"gitFileCount":274,"assembledFileCount":128,"privateFileCount":80,"status":"VALID"}
+{"status":"FINAL_VERIFICATION_PASS","pureTests":160,"strictRegistry":"MANUAL_REPLACEMENTS_RECEIPT_STALE","explicitStaleTolerance":["TC-PAY-02","TC-PAY-04","TC-PAY-19","TC-SEC-01","TC-ВХОД-01","TC-ВХОД-02","TC-ВХОД-03"],"unchangedNonPayBindings":16,"changedFiles":5}

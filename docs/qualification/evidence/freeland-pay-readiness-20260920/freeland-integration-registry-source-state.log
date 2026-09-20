@@ -1,0 +1,48 @@
+{
+  "status": "VALID_WITH_EXPLICIT_STALE_RECEIPT_TOLERANCE",
+  "strictDefault": "MANUAL_REPLACEMENTS_RECEIPT_STALE",
+  "staleReceipts": [
+    "TC-PAY-02",
+    "TC-PAY-04",
+    "TC-PAY-19",
+    "TC-SEC-01",
+    "TC-ВХОД-01",
+    "TC-ВХОД-02",
+    "TC-ВХОД-03"
+  ],
+  "pay01": {
+    "bindingDigest": "sha256:efaa079be2bb3c734fa2da84a1144d4ed60bd45edf6e247518f7fcf9ddee5bc6",
+    "bindingKind": "agent_case_execution",
+    "caseContractDigest": "sha256:052cbc35bd03c396ce502184e6b76355cb7bd98eae150d4ce14529eaee13914a",
+    "caseId": "TC-PAY-01",
+    "lane": "freeland-staging-replacements",
+    "oracleDigest": "sha256:62c639b190f5a8f19d99f23cc06a43b7f0b7e181d3c6675d53601ce3923b692c",
+    "oraclePath": "tools/freeland-replacements/tc-pay-01-oracle.mjs",
+    "oracleVersion": 2,
+    "replacementTestDigest": "sha256:1674e1428e6bdb658af2f267b45ec19d9f23dd31c4d0af7d1e3753eedfe7a9ee",
+    "schemaVersion": 1,
+    "setupDependencies": [
+      {
+        "file": "tests/freeland-staging-replacements/pool.setup.ts",
+        "project": "freeland-staging-replacements-setup",
+        "titlePath": [
+          "authenticate pool roles"
+        ]
+      }
+    ],
+    "state": "shadow",
+    "tests": [
+      {
+        "selector": {
+          "expectedCount": 1,
+          "file": "tests/freeland-staging-replacements/tc-pay-01.spec.ts",
+          "titlePath": [
+            "TC-PAY-01 staging smoke",
+            "VPN PaySheet on the empty account exposes card/SBP, a blocked balance tile and deposit-only crypto"
+          ]
+        },
+        "testId": "auto:tests/freeland-staging-replacements/tc-pay-01.spec.ts#TC-PAY-01 staging smoke > VPN PaySheet on the empty account exposes card/SBP, a blocked balance tile and deposit-only crypto"
+      }
+    ]
+  }
+}

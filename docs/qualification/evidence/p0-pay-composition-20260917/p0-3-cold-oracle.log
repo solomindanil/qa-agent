@@ -1,0 +1,425 @@
+Fresh cold-restored source check, 17 September 2026.
+Source: 510e08a38565e8f8074d36d5f8eaa62d9d93bd7b
+Runtime: Node v22.23.1
+Command: node --test tests/product-graph/freeland-smoke-u0-oracles.test.mjs
+Exit: 0
+Not the original implementation RED/GREEN transcript; not a live product run.
+
+TAP version 13
+# Subtest: TC_VHOD_01 oracle exports the registry contract surface
+ok 1 - TC_VHOD_01 oracle exports the registry contract surface
+  ---
+  duration_ms: 1.927167
+  type: 'test'
+  ...
+# Subtest: TC_VHOD_03 oracle exports the registry contract surface
+ok 2 - TC_VHOD_03 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.429833
+  type: 'test'
+  ...
+# Subtest: TC_PAY_01 oracle exports the registry contract surface
+ok 3 - TC_PAY_01 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.159959
+  type: 'test'
+  ...
+# Subtest: TC_PAY_07 oracle exports the registry contract surface
+ok 4 - TC_PAY_07 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.1165
+  type: 'test'
+  ...
+# Subtest: TC_SERV_01 oracle exports the registry contract surface
+ok 5 - TC_SERV_01 oracle exports the registry contract surface
+  ---
+  duration_ms: 0.193333
+  type: 'test'
+  ...
+# Subtest: money helpers: cents and matrix uplifts
+ok 6 - money helpers: cents and matrix uplifts
+  ---
+  duration_ms: 0.187792
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-01 passes on a healthy anonymous landing
+ok 7 - TC-ВХОД-01 passes on a healthy anonymous landing
+  ---
+  duration_ms: 0.438042
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-01 fails on redirect, slow heading, overflow, bad CTA target and page errors
+ok 8 - TC-ВХОД-01 fails on redirect, slow heading, overflow, bad CTA target and page errors
+  ---
+  duration_ms: 0.161916
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-01 is BLOCKED when staging never answered, invalid on a malformed observation
+ok 9 - TC-ВХОД-01 is BLOCKED when staging never answered, invalid on a malformed observation
+  ---
+  duration_ms: 0.538708
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-03 passes and always records the mobile status-bar limitation as known
+ok 10 - TC-ВХОД-03 passes and always records the mobile status-bar limitation as known
+  ---
+  duration_ms: 0.661458
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-03 fails on slow login, landing shown, reload/second-tab session loss; same theme colour is known
+ok 11 - TC-ВХОД-03 fails on slow login, landing shown, reload/second-tab session loss; same theme colour is known
+  ---
+  duration_ms: 0.224417
+  type: 'test'
+  ...
+# Subtest: TC-ВХОД-03 is BLOCKED when the login never reached the store shell
+ok 12 - TC-ВХОД-03 is BLOCKED when the login never reached the store shell
+  ---
+  duration_ms: 0.145458
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 passes with the documented caption divergences in known[]
+ok 13 - TC-PAY-01 passes with the documented caption divergences in known[]
+  ---
+  duration_ms: 0.733792
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 accepts shuffled rows, either card alias and identity-preserving balance variants
+ok 14 - TC-PAY-01 accepts shuffled rows, either card alias and identity-preserving balance variants
+  ---
+  duration_ms: 0.447959
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 accepts either supported crypto rail and binds a generic tile only without ambiguity
+ok 15 - TC-PAY-01 accepts either supported crypto rail and binds a generic tile only without ambiguity
+  ---
+  duration_ms: 0.968667
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 requires at least one available supported crypto rail
+ok 16 - TC-PAY-01 requires at least one available supported crypto rail
+  ---
+  duration_ms: 0.252333
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 permits an unavailable optional crypto rail to be absent or identity-bound
+ok 17 - TC-PAY-01 permits an unavailable optional crypto rail to be absent or identity-bound
+  ---
+  duration_ms: 0.776833
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 reports the Stars insufficient caption only when the browser actually shows it
+ok 18 - TC-PAY-01 reports the Stars insufficient caption only when the browser actually shows it
+  ---
+  duration_ms: 0.766333
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects empty DOM composition
+ok 19 - TC-PAY-01 rejects empty DOM composition
+  ---
+  duration_ms: 0.114583
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects balance-only DOM composition
+ok 20 - TC-PAY-01 rejects balance-only DOM composition
+  ---
+  duration_ms: 0.087833
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing card DOM composition
+ok 21 - TC-PAY-01 rejects missing card DOM composition
+  ---
+  duration_ms: 0.065583
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing sbp DOM composition
+ok 22 - TC-PAY-01 rejects missing sbp DOM composition
+  ---
+  duration_ms: 0.159541
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing balance DOM composition
+ok 23 - TC-PAY-01 rejects missing balance DOM composition
+  ---
+  duration_ms: 0.065708
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing USDT DOM composition
+ok 24 - TC-PAY-01 rejects missing USDT DOM composition
+  ---
+  duration_ms: 0.06225
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing USDC DOM composition
+ok 25 - TC-PAY-01 rejects missing USDC DOM composition
+  ---
+  duration_ms: 0.07
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate card aliases in the DOM
+ok 26 - TC-PAY-01 rejects duplicate card aliases in the DOM
+  ---
+  duration_ms: 0.088875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate contradictory API card rows
+ok 27 - TC-PAY-01 rejects duplicate contradictory API card rows
+  ---
+  duration_ms: 0.084167
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API crypto currencies
+ok 28 - TC-PAY-01 rejects duplicate API crypto currencies
+  ---
+  duration_ms: 0.077959
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API balance identities
+ok 29 - TC-PAY-01 rejects duplicate API balance identities
+  ---
+  duration_ms: 0.083291
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API SBP identities
+ok 30 - TC-PAY-01 rejects duplicate API SBP identities
+  ---
+  duration_ms: 0.081834
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API Stars identities
+ok 31 - TC-PAY-01 rejects duplicate API Stars identities
+  ---
+  duration_ms: 0.078916
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects an unrendered second balance identity
+ok 32 - TC-PAY-01 rejects an unrendered second balance identity
+  ---
+  duration_ms: 0.081
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid card action
+ok 33 - TC-PAY-01 rejects invalid card action
+  ---
+  duration_ms: 0.081834
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid card currency
+ok 34 - TC-PAY-01 rejects invalid card currency
+  ---
+  duration_ms: 0.072584
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid sbp action
+ok 35 - TC-PAY-01 rejects invalid sbp action
+  ---
+  duration_ms: 0.703042
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid sbp currency
+ok 36 - TC-PAY-01 rejects invalid sbp currency
+  ---
+  duration_ms: 0.186792
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid crypto action
+ok 37 - TC-PAY-01 rejects invalid crypto action
+  ---
+  duration_ms: 0.0925
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid unsupported crypto currency
+ok 38 - TC-PAY-01 rejects invalid unsupported crypto currency
+  ---
+  duration_ms: 0.09575
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unknown API identities
+ok 39 - TC-PAY-01 rejects unknown API identities
+  ---
+  duration_ms: 0.105584
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unknown DOM identities
+ok 40 - TC-PAY-01 rejects unknown DOM identities
+  ---
+  duration_ms: 0.093083
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unbound DOM crypto rails
+ok 41 - TC-PAY-01 rejects unbound DOM crypto rails
+  ---
+  duration_ms: 0.126792
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unbound DOM Stars
+ok 42 - TC-PAY-01 rejects unbound DOM Stars
+  ---
+  duration_ms: 0.144542
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects a contradictory balance tile summary
+ok 43 - TC-PAY-01 rejects a contradictory balance tile summary
+  ---
+  duration_ms: 0.141625
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects a contradictory Stars tile summary
+ok 44 - TC-PAY-01 rejects a contradictory Stars tile summary
+  ---
+  duration_ms: 0.120125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 fails when balance is payable, stars are payable in the browser, crypto pays directly or a checkout was attempted
+ok 45 - TC-PAY-01 fails when balance is payable, stars are payable in the browser, crypto pays directly or a checkout was attempted
+  ---
+  duration_ms: 0.236583
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 is BLOCKED by pool/provider preconditions and by an unavailable quote
+ok 46 - TC-PAY-01 is BLOCKED by pool/provider preconditions and by an unavailable quote
+  ---
+  duration_ms: 0.281792
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 blocks on unverified balance null while retaining checkout/runtime violations
+ok 47 - TC-PAY-01 blocks on unverified balance null while retaining checkout/runtime violations
+  ---
+  duration_ms: 0.09275
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 blocks on unverified balance -0.01 while retaining checkout/runtime violations
+ok 48 - TC-PAY-01 blocks on unverified balance -0.01 while retaining checkout/runtime violations
+  ---
+  duration_ms: 0.059292
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 passes when every row matches its matrix rule
+ok 49 - TC-PAY-07 passes when every row matches its matrix rule
+  ---
+  duration_ms: 0.44775
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects matching amounts with quote currency "EUR" on every row
+ok 50 - TC-PAY-07 rejects matching amounts with quote currency "EUR" on every row
+  ---
+  duration_ms: 0.775625
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects matching amounts with quote currency "RUB" on every row
+ok 51 - TC-PAY-07 rejects matching amounts with quote currency "RUB" on every row
+  ---
+  duration_ms: 0.5075
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects matching amounts with quote currency "USDC" on every row
+ok 52 - TC-PAY-07 rejects matching amounts with quote currency "USDC" on every row
+  ---
+  duration_ms: 0.329625
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects matching amounts with quote currency "usd" on every row
+ok 53 - TC-PAY-07 rejects matching amounts with quote currency "usd" on every row
+  ---
+  duration_ms: 0.418958
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects matching amounts with quote currency " USD " on every row
+ok 54 - TC-PAY-07 rejects matching amounts with quote currency " USD " on every row
+  ---
+  duration_ms: 0.606458
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects matching amounts with quote currency "" on every row
+ok 55 - TC-PAY-07 rejects matching amounts with quote currency "" on every row
+  ---
+  duration_ms: 0.331541
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects matching amounts with quote currency null on every row
+ok 56 - TC-PAY-07 rejects matching amounts with quote currency null on every row
+  ---
+  duration_ms: 0.270833
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 keeps the USDT known-label exception narrow and still checks its amount
+ok 57 - TC-PAY-07 keeps the USDT known-label exception narrow and still checks its amount
+  ---
+  duration_ms: 0.757625
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 compares major-unit decimal amounts, never treating cents as whole dollars
+ok 58 - TC-PAY-07 compares major-unit decimal amounts, never treating cents as whole dollars
+  ---
+  duration_ms: 0.22625
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects non-cent precision instead of normalizing the observation into a match
+ok 59 - TC-PAY-07 rejects non-cent precision instead of normalizing the observation into a match
+  ---
+  duration_ms: 0.405583
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 card-issue uplift uses cent half-up boundaries, not floor or half-even
+ok 60 - TC-PAY-07 card-issue uplift uses cent half-up boundaries, not floor or half-even
+  ---
+  duration_ms: 0.339959
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 records FREEL-222 and the legacy VPN subscription as known, not failures
+ok 61 - TC-PAY-07 records FREEL-222 and the legacy VPN subscription as known, not failures
+  ---
+  duration_ms: 0.133084
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 rejects the retired 8 % card-issue total: 25.00 → 27.00 is a row mismatch
+ok 62 - TC-PAY-07 rejects the retired 8 % card-issue total: 25.00 → 27.00 is a row mismatch
+  ---
+  duration_ms: 0.12275
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 fails on a number mismatch (equal rows, +12.9 % card issue, card top-up balance rail)
+ok 63 - TC-PAY-07 fails on a number mismatch (equal rows, +12.9 % card issue, card top-up balance rail)
+  ---
+  duration_ms: 0.082209
+  type: 'test'
+  ...
+# Subtest: TC-PAY-07 is BLOCKED by an active VPN on A3A, by unresolved rows and by a missing row set
+ok 64 - TC-PAY-07 is BLOCKED by an active VPN on A3A, by unresolved rows and by a missing row set
+  ---
+  duration_ms: 0.525375
+  type: 'test'
+  ...
+# Subtest: TC-SERV-01 passes on four distinct cards, navigation, completed operations and one auto refresh
+ok 65 - TC-SERV-01 passes on four distinct cards, navigation, completed operations and one auto refresh
+  ---
+  duration_ms: 0.630333
+  type: 'test'
+  ...
+# Subtest: TC-SERV-01 fails on missing/duplicated cards, wrong navigation, pending operation and no auto refresh
+ok 66 - TC-SERV-01 fails on missing/duplicated cards, wrong navigation, pending operation and no auto refresh
+  ---
+  duration_ms: 0.162333
+  type: 'test'
+  ...
+# Subtest: TC-SERV-01 treats a VPN trial without a purchase operation as known and an inactive VPN as BLOCKED
+ok 67 - TC-SERV-01 treats a VPN trial without a purchase operation as known and an inactive VPN as BLOCKED
+  ---
+  duration_ms: 0.659667
+  type: 'test'
+  ...
+# Subtest: oracle contracts are distinct and a blocked precondition never hides a violation
+ok 68 - oracle contracts are distinct and a blocked precondition never hides a violation
+  ---
+  duration_ms: 0.12525
+  type: 'test'
+  ...
+1..68
+# tests 68
+# suites 0
+# pass 68
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 90.280375

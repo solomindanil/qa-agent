@@ -1,0 +1,52 @@
+{
+  "name": "Nuanu guest Wallet: entrance visit picker and Back",
+  "scope": "Guest only; opens and dismisses chooser; no ticket selection, credentials or checkout submission",
+  "steps": [
+    {
+      "id": "location-onboarding",
+      "op": "tapIfPresent",
+      "selector": "Not now",
+      "readySelector": "Wallet"
+    },
+    {
+      "id": "wallet",
+      "op": "tap",
+      "selector": "Wallet"
+    },
+    {
+      "id": "guest-wallet",
+      "op": "assert",
+      "selector": "//android.widget.TextView[@text=\"Your tickets will live here\"]",
+      "attribute": "displayed",
+      "equals": true
+    },
+    {
+      "id": "choose-date",
+      "op": "tap",
+      "selector": "//android.widget.Button[starts-with(@content-desc,\"Choose a date, Entrance to Nuanu,\")]"
+    },
+    {
+      "id": "visit-heading",
+      "op": "assert",
+      "selector": "//android.widget.TextView[@text=\"Choose your visit\"]",
+      "attribute": "text",
+      "equals": "Choose your visit"
+    },
+    {
+      "id": "back",
+      "op": "back"
+    },
+    {
+      "id": "chooser-closed",
+      "op": "absent",
+      "selector": "//android.widget.TextView[@text=\"Choose your visit\"]"
+    },
+    {
+      "id": "wallet-return",
+      "op": "assert",
+      "selector": "//android.widget.TextView[@text=\"Your tickets will live here\"]",
+      "attribute": "displayed",
+      "equals": true
+    }
+  ]
+}

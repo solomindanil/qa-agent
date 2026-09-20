@@ -1,0 +1,367 @@
+// Independent QA probe derived from reviewed test helpers; DB/event claims remain mocked.
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mocks = vi.hoisted(() => ({
+  provisionPaymentProduct: vi.fn(),
+  inspectPaymentProductCheckout: vi.fn(),
+  inspectProviderCheckout: vi.fn(),
+  findPaymentProviderIdentity: vi.fn(),
+  registerPaymentProviderIdentity: vi.fn(),
+  claimExternalMoneyEvent: vi.fn(),
+  completeExternalMoneyEvent: vi.fn(),
+  failExternalMoneyEvent: vi.fn(),
+  createMoneyOperation: vi.fn(),
+  prepareFailedStagingVpnActivationRecovery: vi.fn(),
+  capturePaymentCheckoutTransition: vi.fn(async () => undefined),
+  rpc: vi.fn(),
+  tableUpdates: [] as Array<{
+    table: string;
+    patch: Record<string, unknown>;
+    filters: Record<string, unknown>;
+  }>,
+  currentRow: null as Record<string, unknown> | null,
+  reversalIncident: null as Record<string, unknown> | null,
+}));
+
+vi.mock('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/db/supabase', () => ({
+  supabase: {
+      from: vi.fn((table: string) => {
+      const builder: Record<string, unknown> = {};
+      let patch: Record<string, unknown> = {};
+      let operation: 'read' | 'update' = 'read';
+      const filters: Record<string, unknown> = {};
+      Object.assign(builder, {
+        update: vi.fn((value: Record<string, unknown>) => {
+          operation = 'update';
+          patch = value;
+          return builder;
+        }),
+        eq: vi.fn((column: string, value: unknown) => {
+          filters[column] = value;
+          return builder;
+        }),
+        is: vi.fn((column: string, value: unknown) => {
+          filters[column] = value;
+          return builder;
+        }),
+        select: vi.fn(() => builder),
+        maybeSingle: vi.fn(async () => {
+          if (operation === 'update') {
+            mocks.tableUpdates.push({
+              table,
+              patch: { ...patch },
+              filters: { ...filters },
+            });
+          }
+          if (table === 'payment_checkout_reversal_incidents') {
+            const next = mocks.reversalIncident ? { ...mocks.reversalIncident, ...patch } : null;
+            if (next) mocks.reversalIncident = next;
+            return { data: next, error: null };
+          }
+          if (operation === 'update' && mocks.currentRow) {
+            for (const [column, expected] of Object.entries(filters)) {
+              if (column in mocks.currentRow && mocks.currentRow[column] !== expected) {
+                return { data: null, error: null };
+              }
+            }
+          }
+          const next = mocks.currentRow ? { ...mocks.currentRow, ...patch } : null;
+          if (next) mocks.currentRow = next;
+          return { data: next, error: null };
+        }),
+      });
+      return builder;
+    }),
+    rpc: mocks.rpc,
+  },
+}));
+
+vi.mock('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/payment-product-adapters', () => ({
+  getPaymentProductRefundContext: vi.fn(),
+  inspectPaymentProduct: vi.fn(),
+  inspectPaymentProductCheckout: mocks.inspectPaymentProductCheckout,
+  isPaymentProductAdapterEnabled: vi.fn(() => true),
+  provisionPaymentProduct: mocks.provisionPaymentProduct,
+  quotePaymentProduct: vi.fn(),
+}));
+
+vi.mock('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/payment-checkout-observability', () => ({
+  capturePaymentCheckoutTransition: mocks.capturePaymentCheckoutTransition,
+}));
+
+vi.mock('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/payment-checkout-provider', async () => {
+  const actual = await vi.importActual<typeof import('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/payment-checkout-provider')>(
+    '/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/payment-checkout-provider',
+  );
+  return {
+    ...actual,
+    inspectProviderCheckout: mocks.inspectProviderCheckout,
+  };
+});
+
+vi.mock('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/payment-provider-identities', () => {
+  class PaymentProviderIdentityConflictError extends Error {}
+  return {
+    PaymentProviderIdentityConflictError,
+    findPaymentProviderIdentity: mocks.findPaymentProviderIdentity,
+    registerPaymentProviderIdentity: mocks.registerPaymentProviderIdentity,
+  };
+});
+
+vi.mock('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/payment-provider-availability', () => ({
+  isExternalPaymentMethodAvailable: vi.fn(() => true),
+}));
+
+vi.mock('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/external-money-events', () => ({
+  claimExternalMoneyEvent: mocks.claimExternalMoneyEvent,
+  completeExternalMoneyEvent: mocks.completeExternalMoneyEvent,
+  failExternalMoneyEvent: mocks.failExternalMoneyEvent,
+}));
+
+vi.mock('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/product-referral-recovery', () => ({
+  ensurePostedProductReferral: vi.fn(async () => undefined),
+}));
+
+vi.mock('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/money-operation-writes', () => ({
+  createMoneyOperation: mocks.createMoneyOperation,
+}));
+
+vi.mock('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/vpn-activation-recovery', () => ({
+  prepareFailedStagingVpnActivationRecovery: mocks.prepareFailedStagingVpnActivationRecovery,
+  VpnActivationRecoveryRejectedError: class VpnActivationRecoveryRejectedError extends Error {
+    readonly code = 'VPN_ACTIVATION_RECOVERY_REJECTED';
+  },
+}));
+
+function checkoutRow() {
+  return {
+    id: '00000000-0000-0000-0000-0000000000aa',
+    auth_user_id: '00000000-0000-0000-0000-000000000001',
+    purpose: 'product_purchase',
+    product_type: 'vpn',
+    product_action: 'activate',
+    product_ref: null,
+    product_payload: { planKey: 'monthly' },
+    pricing_snapshot: {
+      version: 1,
+      principalAmountMinor: '500',
+      feeAmountMinor: '0',
+      totalAmountMinor: '500',
+      assetCode: 'USD',
+      assetScale: 2,
+    },
+    payment_method: 'card',
+    payment_mode: 'one_time',
+    amount_minor: '500',
+    asset_code: 'USD',
+    asset_scale: 2,
+    payment_amount_minor: '500',
+    payment_currency: 'USD',
+    payment_asset_scale: 2,
+    fx_rate: null,
+    fx_source: null,
+    fx_spread_bps: null,
+    fx_quoted_at: null,
+    fx_expires_at: null,
+    quote_fingerprint: 'quote',
+    quote_expires_at: '2030-01-01T00:05:00.000Z',
+    provider: 'smoke',
+    provider_ref: 'smoke-contract-1',
+    provider_payment_url: null,
+    buyer_email: 'buyer@example.com',
+    idempotency_key: 'checkout-1',
+    request_hash: 'a'.repeat(64),
+    intent_hash: 'b'.repeat(64),
+    intent_slot: 'primary',
+    blocks_replacement: true,
+    status: 'provisioning',
+    provider_status: 'completed',
+    failure_code: null,
+    failure_message: null,
+    money_operation_id: null,
+    fee_operation_id: null,
+    refund_operation_id: null,
+    product_entity_table: null,
+    product_entity_id: null,
+    rollout_cohort: 'allowlist',
+    surface: 'smoke',
+    metadata: {},
+    provider_metadata: {},
+    expires_at: '2030-01-01T00:05:00.000Z',
+    paid_at: '2030-01-01T00:01:00.000Z',
+    confirmed_payment_amount_minor: '500',
+    confirmed_payment_currency: 'USD',
+    confirmed_payment_at: '2030-01-01T00:01:00.000Z',
+    provisioned_at: null,
+    refund_requested_at: null,
+    refunded_at: null,
+    created_at: '2030-01-01T00:00:00.000Z',
+    updated_at: '2030-01-01T00:01:00.000Z',
+  };
+}
+
+const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as never;
+
+describe('payment checkout provisioning orchestrator', () => {
+  beforeEach(() => {
+    mocks.provisionPaymentProduct.mockReset();
+    mocks.inspectPaymentProductCheckout.mockReset();
+    mocks.inspectPaymentProductCheckout.mockResolvedValue({
+      settlementState: 'absent',
+      operationId: null,
+      feeOperationId: null,
+      entityTable: null,
+      entityId: null,
+    });
+    mocks.inspectProviderCheckout.mockReset();
+    mocks.inspectProviderCheckout.mockResolvedValue({
+      state: 'pending',
+      providerStatus: 'WAITING',
+      paymentAmountMinor: null,
+      paymentCurrency: null,
+    });
+    mocks.findPaymentProviderIdentity.mockReset();
+    mocks.registerPaymentProviderIdentity.mockReset();
+    mocks.claimExternalMoneyEvent.mockReset();
+    mocks.completeExternalMoneyEvent.mockReset();
+    mocks.failExternalMoneyEvent.mockReset();
+    mocks.createMoneyOperation.mockReset();
+    mocks.prepareFailedStagingVpnActivationRecovery.mockReset();
+    mocks.prepareFailedStagingVpnActivationRecovery.mockResolvedValue({ state: 'not_applicable' });
+    mocks.capturePaymentCheckoutTransition.mockReset();
+    mocks.capturePaymentCheckoutTransition.mockResolvedValue(undefined);
+    mocks.tableUpdates.length = 0;
+    mocks.rpc.mockReset();
+    mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+      if (name === 'record_payment_checkout_confirmation') {
+        mocks.currentRow = {
+          ...mocks.currentRow,
+          provider_ref: args.p_provider_contract_id,
+          provider_status: args.p_provider_status,
+          confirmed_payment_amount_minor: args.p_payment_amount_minor ?? mocks.currentRow?.confirmed_payment_amount_minor ?? null,
+          confirmed_payment_currency: args.p_payment_currency ?? mocks.currentRow?.confirmed_payment_currency ?? null,
+          confirmed_payment_at: args.p_payment_amount_minor && args.p_payment_currency
+            ? (mocks.currentRow?.confirmed_payment_at ?? args.p_confirmed_at)
+            : (mocks.currentRow?.confirmed_payment_at ?? null),
+          paid_at: mocks.currentRow?.paid_at ?? args.p_confirmed_at,
+        };
+        return { data: mocks.currentRow, error: null };
+      }
+      if (name === 'attach_payment_checkout_reversal_loss') {
+        return { data: mocks.reversalIncident, error: null };
+      }
+      if (name === 'apply_payment_checkout_reversal') {
+        mocks.currentRow = {
+          ...mocks.currentRow,
+          status: 'reversed',
+          failure_code: 'PAYMENT_REVERSED',
+          failure_message: 'Provider reported a payment reversal',
+        };
+        return { data: mocks.currentRow, error: null };
+      }
+      if (name === 'apply_payment_checkout_provider_refund_signal') {
+        mocks.currentRow = {
+          ...mocks.currentRow,
+          status: 'manual_review',
+          failure_code: 'PAYMENT_PROVIDER_REFUND_OBSERVED',
+          failure_message: 'Provider reported a voluntary refund; operator reconciliation is required',
+        };
+        return { data: mocks.currentRow, error: null };
+      }
+      if (name === 'start_payment_checkout_provisioning_attempt') {
+        return { data: true, error: null };
+      }
+      if (name === 'complete_payment_checkout_provisioning_attempt') {
+        return { data: mocks.currentRow, error: null };
+      }
+      return { data: null, error: null };
+    });
+    mocks.currentRow = checkoutRow();
+    mocks.reversalIncident = null;
+  });
+
+  it('persists a late DELIVERED callback as a review exception after confirmed-unpaid resolution', async () => {
+    const resolvedRow = {
+      ...checkoutRow(),
+      status: 'payment_failed',
+      provider: 'payassist',
+      provider_ref: 'ce7d0ae4-7011-4085-aa7b-7cbf9ce8e39c',
+      provider_status: 'FAILED',
+      payment_amount_minor: '39732',
+      payment_currency: 'RUB',
+      paid_at: null,
+      confirmed_payment_amount_minor: null,
+      confirmed_payment_currency: null,
+      confirmed_payment_at: null,
+      metadata: {
+        financial_resolution: {
+          kind: 'confirmed_unpaid',
+          evidence_digest: 'b'.repeat(64),
+        },
+      },
+    };
+    mocks.currentRow = resolvedRow;
+    mocks.findPaymentProviderIdentity.mockResolvedValue({
+      provider: 'payassist',
+      providerContractId: resolvedRow.provider_ref,
+      ownerTable: 'payment_checkouts',
+      ownerId: resolvedRow.id,
+      authUserId: resolvedRow.auth_user_id,
+    });
+    mocks.claimExternalMoneyEvent.mockResolvedValue({
+      id: 'event-late-delivered', duplicate: false, replay: false, inFlight: false, claimToken: 'late-claim',
+    });
+
+    const { processPaymentProviderSignal } = await import('/Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr430-review-20260920.LOurYb/product/apps/api/src/services/payment-checkouts');
+    const result = await processPaymentProviderSignal({
+      provider: 'payassist',
+      providerContractId: resolvedRow.provider_ref,
+      eventType: 'payment.success',
+      status: 'DELIVERED',
+      paymentAmountMinor: 39732n,
+      paymentCurrency: 'RUB',
+      source: 'webhook',
+      log,
+    });
+
+    expect(result.checkout).toMatchObject({
+      status: 'manual_review',
+      failureCode: 'PAYMENT_PAID_AFTER_CONFIRMED_UNPAID_RESOLUTION',
+    });
+    expect(mocks.currentRow).toMatchObject({
+      metadata: {
+        financial_resolution_exception: {
+          kind: 'late_valid_payment',
+          provider_event_id: 'event-late-delivered',
+        },
+      },
+    });
+    expect(mocks.provisionPaymentProduct).not.toHaveBeenCalled();
+    expect(mocks.completeExternalMoneyEvent).toHaveBeenCalledWith(
+      'event-late-delivered',
+      null,
+      'late-claim',
+    );
+
+    const beforeRepeat=JSON.stringify(mocks.currentRow);
+    const rpcCount=mocks.rpc.mock.calls.length;
+    const completeCount=mocks.completeExternalMoneyEvent.mock.calls.length;
+    mocks.claimExternalMoneyEvent.mockResolvedValue({
+      id:'event-late-delivered',duplicate:true,replay:false,inFlight:false,
+    });
+    const repeated=await processPaymentProviderSignal({
+      provider:'payassist',providerContractId:resolvedRow.provider_ref,
+      eventId:'event-late-delivered',eventType:'payment.success',status:'DELIVERED',
+      paymentAmountMinor:39732n,paymentCurrency:'RUB',source:'webhook',log,
+    });
+    expect(repeated.duplicate).toBe(true);
+    expect(repeated.checkout?.status).toBe('manual_review');
+    expect(JSON.stringify(mocks.currentRow)).toBe(beforeRepeat);
+    expect(mocks.rpc.mock.calls.length).toBe(rpcCount);
+    expect(mocks.completeExternalMoneyEvent.mock.calls.length).toBe(completeCount);
+    expect(mocks.provisionPaymentProduct).not.toHaveBeenCalled();
+    expect(mocks.createMoneyOperation).not.toHaveBeenCalled();
+
+  });
+
+});
