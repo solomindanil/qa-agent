@@ -48,3 +48,40 @@ Root packaging, source-manifest adoption, canonical source selection, installed-
 **Ready for bounded source delivery: YES.**
 
 The exact pair implements the intended P1 observation slice with the required owner/store/graph/check-target-oracle authority, bounded zero-attachment payload, explicit unattested provenance, retained history/contradictions/incomplete states, nonempty unsafe-channel failure, real default Console consumption, exact target/check projection, and unchanged managed coverage/verdict denominator. Delivery must retain the exact pair and the exclusions above; it must not be described as canonical adoption, live product acceptance, or a managed PASS/GO capability.
+
+---
+
+## Scoped root-delivery metadata readback
+This is a delivery-metadata and recoverability readback only, not another component code review.
+
+Reviewed candidate root: `0ad711064ea69840f50ba5d5e9797d2282f22f0d..a593dfefe21baeb2c9e8dc9f37107cb6fc2e4456` in the isolated normal clone. The range contains exactly 20 paths: 19 ordinary candidate delivery paths plus the separately handled `docs/qualification/current.md`.
+
+### Consistency and recoverability
+
+- `sources/manifest.v1.json` selects Kernel `aa5d2d188606cbcf7e3111c130347a36970ec786` / tree `26c649acb36dae2739e00af0c8baee142ecfd569` and Console `48e4628f91569c4cf96d0e616cbe6e29ec31baee` / tree `c206065e990329e52293801e3da10c2d5226cbd8`. Those IDs match the reviewed clean component checkouts. Freeland `3ee1cb3` and inactive reporting reference `10d398d` remain unchanged.
+- The delivered Kernel bundle hashes to `195841c00d83fed459635c418d15b8c584ae8c15a14e0a53a158aa20250ecf17`; the Console bundle hashes to `0098a517eaa20960772deec601cd9ff84eab0cc9267dc4b5767f76d74bd247c8`. Both match the manifest and qualification record, pass `git bundle verify`, record complete history, and expose only their exact candidate as `HEAD`.
+- The qualification record, top current checkpoint, archive index, and manifest agree on the exact pair and trust boundary. `current.md` explicitly marks everything below the new top checkpoint as dated history, so the older pin table in its retained body is not a competing selector. The archive index likewise makes the manifest the sole selector and retains prior bundles rather than overwriting them.
+- Delivery commit `c6722935e4076461d329c35921e8ca59e662f613` is an ancestor of the reviewed root head. Later changes are limited to the qualification record and the tracked cold-root stdout log; no later source pin, bundle, manifest, restore code, or component tree changed.
+- The supplied source-verify/root-61 and cold normal-clone results are described with their correct limits: source restoration/packaging, not dependency installation, product execution, live-consumer acceptance, or cloud qualification. I did not rerun them for this metadata readback.
+- The named sanitized stdout logs are actually tracked, while `.gitignore` is unchanged. The record openly explains their retained whitespace and the exact evidence-log exclusion used for code/document `diff --check`; this is a bounded evidence exception, not a global suppression.
+
+### Canonical dirty-state safety
+
+- The canonical root index is empty. Its detached Kernel `185d3e7` and Console `d28d774` component refs are clean, so preserving the old refs before replacement is straightforward and recoverable.
+- Of the 20 candidate paths, every new path is currently absent in canonical; the only existing paths are the three expected tracked files: `sources/manifest.v1.json`, `sources/candidates/README.md`, and `docs/qualification/current.md`. No candidate path collides with an unrelated untracked file despite the wider dirty documentation tree.
+- Canonical `current.md` has pre-existing unstaged work (`55` inserted / `5` deleted lines). The proposed procedure is sound: add only the new top checkpoint to the working file, then stage the exact candidate blob for `current.md`. That makes the staged source checkpoint deterministic while leaving the pre-existing working-file delta unstaged after adoption. Before committing, verify the staged blob equals the candidate blob and the remaining worktree diff still contains the pre-existing edits; stop rather than resolve by overwrite if either check fails.
+- Copying/staging only the other 19 named paths, fetching the two exact local bundles, and detached-checking out the manifest commits without force does not require touching unrelated dirty files, installing dependencies, migrating campaigns/registrations/skills, or contacting a product. Retaining the old bundles and component identities preserves rollback/source recovery.
+
+### Root-delivery issues
+
+**Critical:** none.
+
+**Important:** none.
+
+**Minor:** the all-path range is intentionally not whitespace-pristine because stored stdout logs retain their captured formatting. This remains non-blocking only while the exception stays restricted to the exact named evidence-log subtree and code/document diffs continue to pass without a broader exclusion.
+
+### Root-delivery verdict
+
+**Metadata/recoverability ready for the proposed normal canonical adoption: YES.**
+
+This verdict approves the exact 20-path delivery ledger and the stated non-force, dirty-worktree-preserving adoption procedure. It does not re-review component code, promote a live-consumer claim, qualify cold dependencies, or authorize product/campaign/skill effects. Fresh canonical `sources:verify`, root packaging, focused pair/projection/pin controls, exact staged-path review, and post-checkout component identity/cleanliness remain execution-time readback gates as proposed.

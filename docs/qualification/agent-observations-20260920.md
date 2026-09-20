@@ -1,6 +1,6 @@
-# P1 agent-authored observations — candidate qualification
+# P1 agent-authored observations — source adoption
 
-Date:20September2026. This record qualifies a bounded local candidate, not a product release or full P1 adoption. Canonical source selection is unchanged until separate delivery acceptance. No active campaign, managed registration, installed skill, product, tracker, payment or cloud state was changed.
+Date:20September2026. The reviewed bounded source pair is now adopted in the canonical root by local commit `d4d8b29`. This is source adoption, not a product release or full P1 completion. No active campaign, managed registration, installed skill, product, tracker, payment or cloud state was changed. The candidate-phase evidence below retains its original attribution.
 
 ## What works in this slice
 
@@ -53,5 +53,21 @@ A separate normal `git clone --no-local` of delivery commit `c6722935e4076461d32
 ## Remaining acceptance
 
 1. Whole-pair code review is now approved, Critical0/Important0 and the documented nonblocking bundle warning. It is a separate internal Lead AQA context, not an external human audit; it does not itself approve root packaging/adoption.
-2. Canonical paired selection/readback; component source restoration, cold root-entrypoint restore and isolated root checks above already passed. Root delivery metadata still requires its own readback before changing canonical sources.
+2. Canonical paired selection/readback is complete: see the execution record below. Root delivery metadata received separate independent approval before the source switch.
 3. A separately authorized non-fixture consumer before claiming ordinary product-work acceptance. No migration of existing campaign owners follows source selection automatically.
+
+## Canonical adoption execution record
+
+The separate delivery metadata review approved the exact20-path source package with no Critical/Important findings. Both previous component identities remain in named local preservation refs; old bundles remain available. Kernel and Console switched without force to the exact reviewed pair; Freeland and the reporting reference did not move.
+
+Fresh canonical gates after the switch:
+
+- `npm run sources:verify`: all four exact source identities verified, repeated immediately before commit.
+- Root `npm test`:61/61,0failed/cancelled/skipped,35530.91625ms.
+- Console with explicit `QA_STARTER_REPO` pointing to the selected sibling, `node --import tsx --test --test-concurrency=1` on agent-observation-view, agent-observation-bridge, kernel-replace-authority and kernel-fixture-authority:30/30,0failed/cancelled/skipped,48306.350584ms.
+- Before commit: exact staged20-path/blob match to reviewed candidate root `a593dfefe21baeb2c9e8dc9f37107cb6fc2e4456`; all37 pre-existing dirty files preserved by SHA256, with only the intended new current-checkpoint prefix excluded from that comparison. Existing changes in current.md remain unstaged.
+- Code/document diff-check passed with only the previously disclosed exact stdout-log subtree excluded.
+
+Two controller mistakes were caught before commit: the first transfer omitted13 evidence files and one later tool-output copy truncated a review; exact byte comparisons refused both, and final staged/working evidence matches the reviewed originals. An initial Console invocation omitted the TypeScript loader and explicit Kernel path, so10 entries failed at startup/preflight; the corrected documented invocation passed30/30. Neither incident required test/code weakening; the failed commands are not product failures or passing evidence.
+
+The source switch preserves existing lockfile-matching dependencies; it does not qualify a cold dependency installation. Root packaging and fixture controls do not replace the pending real-product consumer. No push, live requests, new purchases, tracker messages, installation or deployment occurred.
