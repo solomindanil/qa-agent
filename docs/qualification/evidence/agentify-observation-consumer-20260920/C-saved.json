@@ -1,0 +1,81 @@
+{
+  "artifact": {
+    "byteLength": 3891,
+    "contentDigest": "sha256:0d1a6c28f966ae35d86c68474d44d8f3cf90bc4aefd580275db240c39262f825"
+  },
+  "currentBinding": "current",
+  "manifest": {
+    "entries": [
+      {
+        "adapterId": "agent/tool",
+        "byteSize": 3891,
+        "candidateDigest": "sha256:13224843d04a9c77a30609d251f5cb8aa17a041b8ba9fc70360190d34ac0bfd7",
+        "captureTime": "2026-09-20T11:42:32Z",
+        "checkId": "urn:qa:automated-check:54030ee30f1b26f18a25a5a1",
+        "contentDigest": "sha256:0d1a6c28f966ae35d86c68474d44d8f3cf90bc4aefd580275db240c39262f825",
+        "environmentDigest": "sha256:2fe80d8be5002531912e24994079178f03aedaa4955e0e3617071a7f11b10645",
+        "evidenceId": "urn:qa:evidence:0e1fea821c7e54867da8f563",
+        "kind": "agent_tool_observation",
+        "metadata": {
+          "candidateIdentity": {
+            "reason": "No deployed SHA exposed or independently verified in this public-page check",
+            "state": "unknown"
+          },
+          "environmentIdentity": {
+            "state": "known",
+            "value": {
+              "baseUrl": "https://agentify.ad/",
+              "kind": "production",
+              "observedUrl": "https://agentify.ad/methodology#states"
+            }
+          },
+          "identityProvenance": "caller_declared",
+          "observationProvenance": "agent_authored_unattested",
+          "oracleDigest": "sha256:4256dcd18b2bf8e14d490e58d383a1c07e6afe10664ba0daaa648f6e167f0718",
+          "provenanceLimitation": "Digests prove stored-byte integrity only; they do not attest tool invocation or live deployment identity.",
+          "publicationAuthorityDigest": "sha256:dbb4df2eaaf3168412f47a0028b4dbdf457ae74c26dc2a4d987ef248582505b3",
+          "requirementId": "urn:qa:discovery-target:71086607c4848c2513ae46dc"
+        },
+        "rawPrivatePath": ".qa-private/evidence/agent-tool-observations/0e1fea821c7e54867da8f563/artifact.json",
+        "redactionStatus": "passed",
+        "retentionClass": "private_observation",
+        "stepId": "C"
+      }
+    ],
+    "planDigest": "sha256:47048301be783455355ee1b6a4053eec2dc6d70e1f7b2577c31e281435c2ce47",
+    "redactionPolicyVersion": "kernel-secret-policy.v1",
+    "schemaVersion": "evidence-manifest.v1",
+    "semanticDigest": "sha256:e9f8ddce84b5c2a6c3682ecf73f3c9e053f0d43fb75508b3c6ee71de9ae02ee5"
+  },
+  "manifestFile": {
+    "byteLength": 2099,
+    "contentDigest": "sha256:a1640835a1c0fa11ed18ad81c523f67b83fcd4b9181d357fac4912778570cb70"
+  },
+  "paths": {
+    "artifact": ".qa-private/evidence/agent-tool-observations/0e1fea821c7e54867da8f563/artifact.json",
+    "manifest": ".qa-private/evidence/agent-tool-observations/0e1fea821c7e54867da8f563/manifest.json"
+  },
+  "payload": {
+    "actual": "After the fresh reader recovered A without browser navigation, followed the Methodology header link. The first immediate snapshot was still the old data-request content; a subsequent state read showed the actual Methodology page, so the transitional frame was not treated as a failure. Section#what lists all 18 expected labels, numbered #1 through #18: robots, ai policy, content signal, sitemap, json ld presence, vertical json ld, markdown negotiation, llms txt, mcp server card, ucp profile, oauth discovery, raw html ssr, agent ua accessibility, page weight latency, store feed signals, platform fingerprint, a2a agent card, hreflang locales. Clicked the actual 'The five result states' contents link; URL became https://agentify.ad/methodology#states. Section#states had nonzero rendered dimensions and all five complete expected definitions. No screenshot/viewport landing review performed. The complete compound oracle therefore remains partial, not fully passed. A was not revisited.",
+    "attachments": [],
+    "author": {
+      "agent": "qa-agent coordinator",
+      "authoredAt": "2026-09-20T11:42:42.191Z",
+      "host": "codex"
+    },
+    "expectationBasis": "Existing reviewed Agentify catalog oracle and its source provenance; no expectation edited for this check.",
+    "expectedBehavior": "On the public /methodology page, the canonical-check list contains exactly 18 rendered-visible entries with the complete label set (ordering is not asserted): robots, ai policy, content signal, sitemap, json ld presence, vertical json ld, markdown negotiation, llms txt, mcp server card, ucp profile, oauth discovery, raw html ssr, agent ua accessibility, page weight latency, store feed signals, platform fingerprint, a2a agent card, hreflang locales. The displayed result-state section associates each of the five states with its complete rendered-visible definition: Pass — the expected public signal was verified. Partial — a signal is present but incomplete. Fail — an accessible surface confirmed a negative fact. Unavailable — we could not reach a verdict; this is not a failure. Not applicable — the check does not apply to this site or segment. Activating the actual discovered 'The five result states' contents link by click, rather than navigating directly to its fragment, changes the URL to https://agentify.ad/methodology#states and leaves the result-state definitions rendered-visible. Managed automation covers the label count/set, all five complete definitions, actual contents-link activation, the resulting fragment, and rendered visibility only. Rendered visibility does not establish in-viewport landing, settled scroll position, absence of occlusion, readability or accessibility; correct viewport landing requires separate agent screenshot review and remains UNASSESSED by the managed adapter. This is a scoped informational check, not evidence of human comprehension, diagnostic execution/classification, score or coverage computation, backend correctness, another product journey, or whole-product readiness. The compound navigation outcome is not fully accepted without its separate viewport evidence.",
+    "limitations": [
+      "Agent-authored observation; byte validation is not capture or reasoning attestation.",
+      "Deployment SHA unknown; existing browser profile, not fresh anonymous context.",
+      "The oracle explicitly requires separate viewport evidence for full compound acceptance; screenshot/occlusion/viewport review remains UNASSESSED.",
+      "No actual diagnostic scan, backend score computation, form, consent change, payment, or private lifecycle tested; attachments intentionally empty."
+    ],
+    "provenance": "agent_authored_unattested",
+    "result": "partial",
+    "schemaVersion": "agent-tool-observation.v1",
+    "scope": "Methodology informational content and actual contents-link navigation; viewport portion unassessed",
+    "tool": "Codex in-app browser via cua_repl; actual link click and read-only DOM inspection"
+  },
+  "provenance": "agent_authored_unattested"
+}

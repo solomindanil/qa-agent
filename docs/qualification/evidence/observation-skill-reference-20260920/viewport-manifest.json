@@ -1,0 +1,43 @@
+{
+  "entries": [
+    {
+      "adapterId": "agent/tool",
+      "byteSize": 4148,
+      "candidateDigest": "sha256:54f4e61954809cf5fddc7ebadf6c0847af702330f7b55095b4b500fede57041c",
+      "captureTime": "2026-09-20T11:53:36Z",
+      "checkId": "urn:qa:automated-check:54030ee30f1b26f18a25a5a1",
+      "contentDigest": "sha256:2e6f059b3e85527ee6c8a48fe984d5ab38b93a2ff4693d1e8f9b850b6a292d2f",
+      "environmentDigest": "sha256:2fe80d8be5002531912e24994079178f03aedaa4955e0e3617071a7f11b10645",
+      "evidenceId": "urn:qa:evidence:6031081e2336dc6a90558ebd",
+      "kind": "agent_tool_observation",
+      "metadata": {
+        "candidateIdentity": {
+          "reason": "No deployment SHA or exact live rubric attestation was available in this scoped public viewport observation",
+          "state": "unknown"
+        },
+        "environmentIdentity": {
+          "state": "known",
+          "value": {
+            "baseUrl": "https://agentify.ad/",
+            "kind": "production",
+            "observedUrl": "https://agentify.ad/methodology#states"
+          }
+        },
+        "identityProvenance": "caller_declared",
+        "observationProvenance": "agent_authored_unattested",
+        "oracleDigest": "sha256:4256dcd18b2bf8e14d490e58d383a1c07e6afe10664ba0daaa648f6e167f0718",
+        "provenanceLimitation": "Digests prove stored-byte integrity only; they do not attest tool invocation or live deployment identity.",
+        "publicationAuthorityDigest": "sha256:dbb4df2eaaf3168412f47a0028b4dbdf457ae74c26dc2a4d987ef248582505b3",
+        "requirementId": "urn:qa:discovery-target:71086607c4848c2513ae46dc"
+      },
+      "rawPrivatePath": ".qa-private/evidence/agent-tool-observations/6031081e2336dc6a90558ebd/artifact.json",
+      "redactionStatus": "passed",
+      "retentionClass": "private_observation",
+      "stepId": "fresh-consumer-viewport"
+    }
+  ],
+  "planDigest": "sha256:47048301be783455355ee1b6a4053eec2dc6d70e1f7b2577c31e281435c2ce47",
+  "redactionPolicyVersion": "kernel-secret-policy.v1",
+  "schemaVersion": "evidence-manifest.v1",
+  "semanticDigest": "sha256:a2357a04d7e27310e7ad72f4674092f065d7392447c561b28bb85e2cb22c00f7"
+}

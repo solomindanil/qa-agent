@@ -1,0 +1,81 @@
+{
+  "artifact": {
+    "byteLength": 4179,
+    "contentDigest": "sha256:9cdbfbcd24fb42461cd966cec6cb37bf66521a316684cb65837d904bb0feb0bb"
+  },
+  "currentBinding": "current",
+  "manifest": {
+    "entries": [
+      {
+        "adapterId": "agent/tool",
+        "byteSize": 4179,
+        "candidateDigest": "sha256:13224843d04a9c77a30609d251f5cb8aa17a041b8ba9fc70360190d34ac0bfd7",
+        "captureTime": "2026-09-20T11:38:26Z",
+        "checkId": "urn:qa:automated-check:56ad12e1a8694e02aa40c1f6",
+        "contentDigest": "sha256:9cdbfbcd24fb42461cd966cec6cb37bf66521a316684cb65837d904bb0feb0bb",
+        "environmentDigest": "sha256:56a85efff851ddb3f639d74cea34af8807775bca63b437f3a545142511ee5b11",
+        "evidenceId": "urn:qa:evidence:8ae78e11e54cace606180e0b",
+        "kind": "agent_tool_observation",
+        "metadata": {
+          "candidateIdentity": {
+            "reason": "No deployed SHA exposed or independently verified in this public-page check",
+            "state": "unknown"
+          },
+          "environmentIdentity": {
+            "state": "known",
+            "value": {
+              "baseUrl": "https://agentify.ad/",
+              "kind": "production",
+              "observedUrl": "https://agentify.ad/data-request"
+            }
+          },
+          "identityProvenance": "caller_declared",
+          "observationProvenance": "agent_authored_unattested",
+          "oracleDigest": "sha256:46582e36a8aa7f4aa1ebbf359835dd81fcf9b7cf7f35b35c491da50d157a7804",
+          "provenanceLimitation": "Digests prove stored-byte integrity only; they do not attest tool invocation or live deployment identity.",
+          "publicationAuthorityDigest": "sha256:dbb4df2eaaf3168412f47a0028b4dbdf457ae74c26dc2a4d987ef248582505b3",
+          "requirementId": "urn:qa:discovery-target:ed1bd0fe117f20b59ff66043"
+        },
+        "rawPrivatePath": ".qa-private/evidence/agent-tool-observations/8ae78e11e54cace606180e0b/artifact.json",
+        "redactionStatus": "passed",
+        "retentionClass": "private_observation",
+        "stepId": "A"
+      }
+    ],
+    "planDigest": "sha256:47048301be783455355ee1b6a4053eec2dc6d70e1f7b2577c31e281435c2ce47",
+    "redactionPolicyVersion": "kernel-secret-policy.v1",
+    "schemaVersion": "evidence-manifest.v1",
+    "semanticDigest": "sha256:46f1aed30e13d1c4a8b55fdcd60a08a3be28b429e3bf9b172ec12bccecc4294d"
+  },
+  "manifestFile": {
+    "byteLength": 2093,
+    "contentDigest": "sha256:65f89c23bc1e1e9774c4262971b63f69c03d193975c982e4faaa0cbfb9a45413"
+  },
+  "paths": {
+    "artifact": ".qa-private/evidence/agent-tool-observations/8ae78e11e54cace606180e0b/artifact.json",
+    "manifest": ".qa-private/evidence/agent-tool-observations/8ae78e11e54cace606180e0b/manifest.json"
+  },
+  "payload": {
+    "actual": "Opened https://agentify.ad/privacy. Current accessibility tree placed the unique exact 'data-request route' link inside rights, under 'Access, deletion, and correction'. Clicked that link, not the footer. Result URL https://agentify.ad/data-request; heading 'Request access or deletion'. Read-only DOM inspection found visible nonzero-size section#request containing the complete Email privacy@agentify.ad instruction, request type/public domain, and prohibition on scan/report tokens, Stripe details, passwords and private URL. Section#types includes 'Access or correct lead information.' and 'Complete verified deletion with an explicit final confirmation.' Section#verify contains both complete expected verification statements. No request, deletion, email, consent or account action was performed. Timestamp is a caller-declared checkpoint immediately after observation, not browser-signed capture time.",
+    "attachments": [],
+    "author": {
+      "agent": "qa-agent coordinator",
+      "authoredAt": "2026-09-20T11:40:17.864Z",
+      "host": "codex"
+    },
+    "expectationBasis": "Existing reviewed Agentify catalog oracle and its source provenance; no expectation edited for this check.",
+    "expectedBehavior": "Starting at https://agentify.ad/privacy, activate by actual click the 'data-request route' link inside the rights section headed 'Access, deletion, and correction' (section#rights), not the duplicate footer link or direct destination navigation. The resulting URL is https://agentify.ad/data-request and the page displays the rendered-visible heading 'Request access or deletion'. Within the destination request section (section#request), the complete rendered-visible instructions state: Email privacy@agentify.ad from the address connected to the report when possible. State the request type and public domain. Do not include scan/report tokens, Stripe details, passwords, or a private URL. Within the destination supported-request section (section#types), rendered-visible items state: Access or correct lead information. Complete verified deletion with an explicit final confirmation. Within the destination safety section (section#verify), the complete rendered-visible statements are: We may ask for a verification step before disclosing or changing a private record. We do not use a public website domain alone as proof that someone controls an email, report session, share, or payment signal. Assertions bind these complete sentences to their intended sections; arbitrary hidden/body text matches do not satisfy the check. This is a declared, source-grounded informational entry invariant only; no execution result is recorded by authoring it. The reviewed journey-requires-invariant relation expresses a necessary public entry condition, not sufficient private lifecycle coverage or proof of a dependency engine. No email, request/access/delete button, submission, private-record inspection, identity challenge, consent change, card operation, session/share revocation, or deletion is authorized or tested. The broad private lifecycle remains UNASSESSED with its original unresolved check and coverage gap. Rendered visibility does not establish viewport position, absence of occlusion, accessibility, human comprehension, legal compliance, implementation of the documented promises, or global absence of contradictory/unsafe requests. These remain UNASSESSED. Retained first-party HTML observations have unknown deployment identity and are not a current product PASS.",
+    "limitations": [
+      "Agent-authored account of actual browser observations, not tool-attested evidence.",
+      "Deployed SHA unknown; currentBinding describes local publication only.",
+      "No screenshot attachment, visual/viewport/accessibility acceptance or private data-request lifecycle acceptance.",
+      "Read-only navigation in the existing browser profile is not a clean anonymous-session test; no claim of zero background analytics requests."
+    ],
+    "provenance": "agent_authored_unattested",
+    "result": "passed",
+    "schemaVersion": "agent-tool-observation.v1",
+    "scope": "Public privacy rights link to data-request instructions; informational entry only",
+    "tool": "Codex in-app browser via cua_repl; actual link click and read-only DOM inspection"
+  },
+  "provenance": "agent_authored_unattested"
+}

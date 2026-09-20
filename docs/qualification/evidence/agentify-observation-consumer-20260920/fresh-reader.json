@@ -1,0 +1,1180 @@
+{
+  "result": {
+    "artifact": {
+      "byteLength": 4179,
+      "contentDigest": "sha256:9cdbfbcd24fb42461cd966cec6cb37bf66521a316684cb65837d904bb0feb0bb"
+    },
+    "currentBinding": "current",
+    "manifest": {
+      "entries": [
+        {
+          "adapterId": "agent/tool",
+          "byteSize": 4179,
+          "candidateDigest": "sha256:13224843d04a9c77a30609d251f5cb8aa17a041b8ba9fc70360190d34ac0bfd7",
+          "captureTime": "2026-09-20T11:38:26Z",
+          "checkId": "urn:qa:automated-check:56ad12e1a8694e02aa40c1f6",
+          "contentDigest": "sha256:9cdbfbcd24fb42461cd966cec6cb37bf66521a316684cb65837d904bb0feb0bb",
+          "environmentDigest": "sha256:56a85efff851ddb3f639d74cea34af8807775bca63b437f3a545142511ee5b11",
+          "evidenceId": "urn:qa:evidence:8ae78e11e54cace606180e0b",
+          "kind": "agent_tool_observation",
+          "metadata": {
+            "candidateIdentity": {
+              "reason": "No deployed SHA exposed or independently verified in this public-page check",
+              "state": "unknown"
+            },
+            "environmentIdentity": {
+              "state": "known",
+              "value": {
+                "baseUrl": "https://agentify.ad/",
+                "kind": "production",
+                "observedUrl": "https://agentify.ad/data-request"
+              }
+            },
+            "identityProvenance": "caller_declared",
+            "observationProvenance": "agent_authored_unattested",
+            "oracleDigest": "sha256:46582e36a8aa7f4aa1ebbf359835dd81fcf9b7cf7f35b35c491da50d157a7804",
+            "provenanceLimitation": "Digests prove stored-byte integrity only; they do not attest tool invocation or live deployment identity.",
+            "publicationAuthorityDigest": "sha256:dbb4df2eaaf3168412f47a0028b4dbdf457ae74c26dc2a4d987ef248582505b3",
+            "requirementId": "urn:qa:discovery-target:ed1bd0fe117f20b59ff66043"
+          },
+          "rawPrivatePath": ".qa-private/evidence/agent-tool-observations/8ae78e11e54cace606180e0b/artifact.json",
+          "redactionStatus": "passed",
+          "retentionClass": "private_observation",
+          "stepId": "A"
+        }
+      ],
+      "planDigest": "sha256:47048301be783455355ee1b6a4053eec2dc6d70e1f7b2577c31e281435c2ce47",
+      "redactionPolicyVersion": "kernel-secret-policy.v1",
+      "schemaVersion": "evidence-manifest.v1",
+      "semanticDigest": "sha256:46f1aed30e13d1c4a8b55fdcd60a08a3be28b429e3bf9b172ec12bccecc4294d"
+    },
+    "manifestFile": {
+      "byteLength": 2093,
+      "contentDigest": "sha256:65f89c23bc1e1e9774c4262971b63f69c03d193975c982e4faaa0cbfb9a45413"
+    },
+    "paths": {
+      "artifact": ".qa-private/evidence/agent-tool-observations/8ae78e11e54cace606180e0b/artifact.json",
+      "manifest": ".qa-private/evidence/agent-tool-observations/8ae78e11e54cace606180e0b/manifest.json"
+    },
+    "payload": {
+      "actual": "Opened https://agentify.ad/privacy. Current accessibility tree placed the unique exact 'data-request route' link inside rights, under 'Access, deletion, and correction'. Clicked that link, not the footer. Result URL https://agentify.ad/data-request; heading 'Request access or deletion'. Read-only DOM inspection found visible nonzero-size section#request containing the complete Email privacy@agentify.ad instruction, request type/public domain, and prohibition on scan/report tokens, Stripe details, passwords and private URL. Section#types includes 'Access or correct lead information.' and 'Complete verified deletion with an explicit final confirmation.' Section#verify contains both complete expected verification statements. No request, deletion, email, consent or account action was performed. Timestamp is a caller-declared checkpoint immediately after observation, not browser-signed capture time.",
+      "attachments": [],
+      "author": {
+        "agent": "qa-agent coordinator",
+        "authoredAt": "2026-09-20T11:40:17.864Z",
+        "host": "codex"
+      },
+      "expectationBasis": "Existing reviewed Agentify catalog oracle and its source provenance; no expectation edited for this check.",
+      "expectedBehavior": "Starting at https://agentify.ad/privacy, activate by actual click the 'data-request route' link inside the rights section headed 'Access, deletion, and correction' (section#rights), not the duplicate footer link or direct destination navigation. The resulting URL is https://agentify.ad/data-request and the page displays the rendered-visible heading 'Request access or deletion'. Within the destination request section (section#request), the complete rendered-visible instructions state: Email privacy@agentify.ad from the address connected to the report when possible. State the request type and public domain. Do not include scan/report tokens, Stripe details, passwords, or a private URL. Within the destination supported-request section (section#types), rendered-visible items state: Access or correct lead information. Complete verified deletion with an explicit final confirmation. Within the destination safety section (section#verify), the complete rendered-visible statements are: We may ask for a verification step before disclosing or changing a private record. We do not use a public website domain alone as proof that someone controls an email, report session, share, or payment signal. Assertions bind these complete sentences to their intended sections; arbitrary hidden/body text matches do not satisfy the check. This is a declared, source-grounded informational entry invariant only; no execution result is recorded by authoring it. The reviewed journey-requires-invariant relation expresses a necessary public entry condition, not sufficient private lifecycle coverage or proof of a dependency engine. No email, request/access/delete button, submission, private-record inspection, identity challenge, consent change, card operation, session/share revocation, or deletion is authorized or tested. The broad private lifecycle remains UNASSESSED with its original unresolved check and coverage gap. Rendered visibility does not establish viewport position, absence of occlusion, accessibility, human comprehension, legal compliance, implementation of the documented promises, or global absence of contradictory/unsafe requests. These remain UNASSESSED. Retained first-party HTML observations have unknown deployment identity and are not a current product PASS.",
+      "limitations": [
+        "Agent-authored account of actual browser observations, not tool-attested evidence.",
+        "Deployed SHA unknown; currentBinding describes local publication only.",
+        "No screenshot attachment, visual/viewport/accessibility acceptance or private data-request lifecycle acceptance.",
+        "Read-only navigation in the existing browser profile is not a clean anonymous-session test; no claim of zero background analytics requests."
+      ],
+      "provenance": "agent_authored_unattested",
+      "result": "passed",
+      "schemaVersion": "agent-tool-observation.v1",
+      "scope": "Public privacy rights link to data-request instructions; informational entry only",
+      "tool": "Codex in-app browser via cua_repl; actual link click and read-only DOM inspection"
+    },
+    "provenance": "agent_authored_unattested"
+  },
+  "report": {
+    "diagnostics": [],
+    "globalBlockers": [
+      {
+        "blockerId": "urn:qa:draft-blocker:0c98dc9f6bf0fb7222be0620",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:27080eb21f5d0b8c78cac3ca",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:2cc4e9f1f175a5552059ba30",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:5f8eae74a5d86775b090481b",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:6295d2eee902232ce5a33cd7",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:69440e48f87a60a6d4aaca50",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:70f5eb2d942cd397e6f7d281",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:8465f2d6ab8df71e22d3eb91",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:af0952a5d20c04e0a9831086",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:bd0189fdfab70ca9a81b0189",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:bf7f071cc3645cf4fd9540c7",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:eb4086dd12e9247aa0974e5f",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:eef90083e0aa6b866a7e09ba",
+        "code": "COVERAGE_GAP",
+        "reason": "The generated automated candidate has no approved oracle",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:discovery-blocker:70a6c7f62d0b666b93cc0bfc",
+        "code": "SOURCE_UNAVAILABLE",
+        "reason": "The declared source is unavailable through the read-only capability",
+        "recovery": [
+          "Restore source access and retry discovery"
+        ]
+      },
+      {
+        "blockerId": "urn:qa:draft-blocker:e0ff6e00dc710fe62ce7401e",
+        "code": "SOURCE_UNAVAILABLE",
+        "reason": "The declared source is unavailable through the read-only capability",
+        "recovery": [
+          "Resolve the discovery item and recompile registration"
+        ]
+      }
+    ],
+    "provenance": "agent_authored_unattested",
+    "publicationAuthorityDigest": "sha256:dbb4df2eaaf3168412f47a0028b4dbdf457ae74c26dc2a4d987ef248582505b3",
+    "scope": "agent_authored_unattested_observations_only",
+    "sidecarHandling": "not_consumed",
+    "strategyDigest": "sha256:47048301be783455355ee1b6a4053eec2dc6d70e1f7b2577c31e281435c2ce47",
+    "targets": [
+      {
+        "coverageStatus": "manual",
+        "definitions": [
+          {
+            "candidatePath": "tests/manual/generated/registration.candidates.md",
+            "checkId": "urn:qa:manual-check:1bff173a4dcca901800bffc9",
+            "entryId": "urn:qa:test-catalog-entry:ef0e3c493fb21b772f851639",
+            "executionKind": "manual",
+            "expectedEvidenceTypes": [
+              "manual_observation"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "human",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:0db66b05dd6ce08ec7be9581"
+            ]
+          }
+        ],
+        "kind": "safety_gate",
+        "name": "Public privacy and scanner pages state that operator identity, jurisdiction-specific lawful basis, and processor terms are unconfirmed and that paid traffic must wait for approval; current launch and traffic status are unknown, so this is not a legal-noncompliance claim.",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:0db66b05dd6ce08ec7be9581"
+      },
+      {
+        "coverageStatus": "manual",
+        "definitions": [
+          {
+            "candidatePath": "tests/manual/generated/registration.candidates.md",
+            "checkId": "urn:qa:manual-check:018382d8e00ad942508eeb8c",
+            "entryId": "urn:qa:test-catalog-entry:cef81174c438ef93902985bd",
+            "executionKind": "manual",
+            "expectedEvidenceTypes": [
+              "manual_observation"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "human",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:1c5c249aba4b906518e8bb40"
+            ]
+          }
+        ],
+        "kind": "safety_gate",
+        "name": "Authorization-negative and lifecycle behavior for scan capabilities, verified report sessions, public-share publication and revocation, contact data, and data-request verification remain untested and may expose authorization or data-lifecycle defects.",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:1c5c249aba4b906518e8bb40"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:407fc75936052e03fdbec8b6",
+            "entryId": "urn:qa:test-catalog-entry:d2b624ee29e126a570ca5135",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:385079ea9385491bf6239431"
+            ]
+          }
+        ],
+        "kind": "journey",
+        "name": "Review a completed public teaser",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:385079ea9385491bf6239431"
+      },
+      {
+        "coverageStatus": "manual",
+        "definitions": [
+          {
+            "candidatePath": "tests/manual/generated/registration.candidates.md",
+            "checkId": "urn:qa:manual-check:38132fdd68792beaa6fe5be7",
+            "entryId": "urn:qa:test-catalog-entry:2bb97b8687c8abcc520978a2",
+            "executionKind": "manual",
+            "expectedEvidenceTypes": [
+              "manual_observation"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "human",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:4457774ffed6e1cf1fc71a85"
+            ]
+          }
+        ],
+        "kind": "safety_gate",
+        "name": "Diagnostic rationale may not match the target response observed by the scanner: one example.com scan described JavaScript-dependent core content while two independent public GETs returned HTML with an h1, two paragraphs, one link, and no script element; the scanner's own fetched body and root cause remain unknown.",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:4457774ffed6e1cf1fc71a85"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:1e052fd0b6d71326ccd244d6",
+            "entryId": "urn:qa:test-catalog-entry:a61bcd5372f01cd5084cc305",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:48398e42019c1e463024f922"
+            ]
+          }
+        ],
+        "kind": "journey",
+        "name": "Use optional analytics, ads, dataset reuse, marketing, card-signal, and passive-browser integrations",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:48398e42019c1e463024f922"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:45130e783deb2116ea706192",
+            "entryId": "urn:qa:test-catalog-entry:13fe01799ecfe2e4d459dc55",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:4962cddea7c7c7040a4c0e95"
+            ]
+          }
+        ],
+        "kind": "journey",
+        "name": "Submit a public website for a bounded scan and view progress",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:4962cddea7c7c7040a4c0e95"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:d1aec31f283433d3cd0a0a63",
+            "entryId": "urn:qa:test-catalog-entry:17f87195cf243940d5db7c56",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:5f275301bfc77dfd1edf309c"
+            ]
+          }
+        ],
+        "kind": "surface",
+        "name": "Agentify public landing pages",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:5f275301bfc77dfd1edf309c"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:4bacbf2a12fcbcd8f3d9fdfb",
+            "entryId": "urn:qa:test-catalog-entry:4dba4c920fab59e73387144d",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:65c0639d4c581e027ba131ee"
+            ]
+          }
+        ],
+        "kind": "journey",
+        "name": "Access a private full report",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:65c0639d4c581e027ba131ee"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:abe1c9dd7e83fffb0f198482",
+            "entryId": "urn:qa:test-catalog-entry:7d730f62dfc3b869f9e1fc74",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:6e7eba6334ae680594695148"
+            ]
+          }
+        ],
+        "kind": "surface",
+        "name": "Agentify web diagnostic",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:6e7eba6334ae680594695148"
+      },
+      {
+        "coverageStatus": "automated",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:54030ee30f1b26f18a25a5a1",
+            "entryId": "urn:qa:test-catalog-entry:86ae06aa7b9e3a26b3ce1e86",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "description": "On the public /methodology page, the canonical-check list contains exactly 18 rendered-visible entries with the complete label set (ordering is not asserted): robots, ai policy, content signal, sitemap, json ld presence, vertical json ld, markdown negotiation, llms txt, mcp server card, ucp profile, oauth discovery, raw html ssr, agent ua accessibility, page weight latency, store feed signals, platform fingerprint, a2a agent card, hreflang locales. The displayed result-state section associates each of the five states with its complete rendered-visible definition: Pass — the expected public signal was verified. Partial — a signal is present but incomplete. Fail — an accessible surface confirmed a negative fact. Unavailable — we could not reach a verdict; this is not a failure. Not applicable — the check does not apply to this site or segment. Activating the actual discovered 'The five result states' contents link by click, rather than navigating directly to its fragment, changes the URL to https://agentify.ad/methodology#states and leaves the result-state definitions rendered-visible. Managed automation covers the label count/set, all five complete definitions, actual contents-link activation, the resulting fragment, and rendered visibility only. Rendered visibility does not establish in-viewport landing, settled scroll position, absence of occlusion, readability or accessibility; correct viewport landing requires separate agent screenshot review and remains UNASSESSED by the managed adapter. This is a scoped informational check, not evidence of human comprehension, diagnostic execution/classification, score or coverage computation, backend correctness, another product journey, or whole-product readiness. The compound navigation outcome is not fully accepted without its separate viewport evidence.",
+              "state": "resolved"
+            },
+            "provenance": [
+              {
+                "confidence": "observed",
+                "priority": 4,
+                "reviewStatus": "reviewed",
+                "source": {
+                  "authority": "runtime_observation",
+                  "contentDigest": "sha256:75000f48c5d1f147b461462df39b4dc97a995527c416d7d8432b7f4aca5cf541",
+                  "sourceId": "urn:qa:source:d02ca1ba496d5d322cbce03e"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:71086607c4848c2513ae46dc"
+            ]
+          }
+        ],
+        "kind": "journey",
+        "name": "Understand methodology and result states",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:71086607c4848c2513ae46dc"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:8f61beadfb9371334483786b",
+            "entryId": "urn:qa:test-catalog-entry:203583d889daacd1450fc61d",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:98a331285b417ffac428e322"
+            ]
+          }
+        ],
+        "kind": "journey",
+        "name": "Choose an audience segment",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:98a331285b417ffac428e322"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:1c939ad828cf6fec97c952d4",
+            "entryId": "urn:qa:test-catalog-entry:c6d0c0bb300ec6b65c6d8276",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:a3ac41ffc7fe3c6edf73a01e"
+            ]
+          }
+        ],
+        "kind": "journey",
+        "name": "Publish and revoke a public report snapshot",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:a3ac41ffc7fe3c6edf73a01e"
+      },
+      {
+        "coverageStatus": "manual",
+        "definitions": [
+          {
+            "candidatePath": "tests/manual/generated/registration.candidates.md",
+            "checkId": "urn:qa:manual-check:bd566463590424dbf6ef76af",
+            "entryId": "urn:qa:test-catalog-entry:eb1c1e235110b5f30eae17b7",
+            "executionKind": "manual",
+            "expectedEvidenceTypes": [
+              "manual_observation"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "human",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:b0c53a366a857bb18f0a85a7"
+            ]
+          }
+        ],
+        "kind": "safety_gate",
+        "name": "The public architecture names optional providers, but configuration and production enablement are unknown; a supported adapter must not be assumed operational.",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:b0c53a366a857bb18f0a85a7"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:a699f37f75a27597ff1fada1",
+            "entryId": "urn:qa:test-catalog-entry:34598516b5d9a436a04f2693",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:b96a9b25123a542e38b8b15b"
+            ]
+          }
+        ],
+        "kind": "journey",
+        "name": "Request access, correction, deletion, unsubscribe, share revocation, or card detachment",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:b96a9b25123a542e38b8b15b"
+      },
+      {
+        "coverageStatus": "manual",
+        "definitions": [
+          {
+            "candidatePath": "tests/manual/generated/registration.candidates.md",
+            "checkId": "urn:qa:manual-check:b1f5c8266907e4bb65785430",
+            "entryId": "urn:qa:test-catalog-entry:4aecab31587a875142ff70a3",
+            "executionKind": "manual",
+            "expectedEvidenceTypes": [
+              "manual_observation"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "human",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:be82a714a09cf983c0c90047"
+            ]
+          }
+        ],
+        "kind": "safety_gate",
+        "name": "The live Agentify deployment SHA and exact deployed rubric identity are unknown; source or documentation labels do not attest the running deployment.",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:be82a714a09cf983c0c90047"
+      },
+      {
+        "coverageStatus": "automated",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:56ad12e1a8694e02aa40c1f6",
+            "entryId": "urn:qa:test-catalog-entry:4f7f5fcba1671d144adc1346",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "description": "Starting at https://agentify.ad/privacy, activate by actual click the 'data-request route' link inside the rights section headed 'Access, deletion, and correction' (section#rights), not the duplicate footer link or direct destination navigation. The resulting URL is https://agentify.ad/data-request and the page displays the rendered-visible heading 'Request access or deletion'. Within the destination request section (section#request), the complete rendered-visible instructions state: Email privacy@agentify.ad from the address connected to the report when possible. State the request type and public domain. Do not include scan/report tokens, Stripe details, passwords, or a private URL. Within the destination supported-request section (section#types), rendered-visible items state: Access or correct lead information. Complete verified deletion with an explicit final confirmation. Within the destination safety section (section#verify), the complete rendered-visible statements are: We may ask for a verification step before disclosing or changing a private record. We do not use a public website domain alone as proof that someone controls an email, report session, share, or payment signal. Assertions bind these complete sentences to their intended sections; arbitrary hidden/body text matches do not satisfy the check. This is a declared, source-grounded informational entry invariant only; no execution result is recorded by authoring it. The reviewed journey-requires-invariant relation expresses a necessary public entry condition, not sufficient private lifecycle coverage or proof of a dependency engine. No email, request/access/delete button, submission, private-record inspection, identity challenge, consent change, card operation, session/share revocation, or deletion is authorized or tested. The broad private lifecycle remains UNASSESSED with its original unresolved check and coverage gap. Rendered visibility does not establish viewport position, absence of occlusion, accessibility, human comprehension, legal compliance, implementation of the documented promises, or global absence of contradictory/unsafe requests. These remain UNASSESSED. Retained first-party HTML observations have unknown deployment identity and are not a current product PASS.",
+              "state": "resolved"
+            },
+            "provenance": [
+              {
+                "confidence": "observed",
+                "priority": 4,
+                "reviewStatus": "reviewed",
+                "source": {
+                  "authority": "runtime_observation",
+                  "contentDigest": "sha256:61cdc670bfa5bff3a9d6facad13e48204e0f8dfe9fc16b7cff58a531e876778b",
+                  "sourceId": "urn:qa:source:965771fe9fc6585c719d49fd"
+                }
+              },
+              {
+                "confidence": "observed",
+                "priority": 4,
+                "reviewStatus": "reviewed",
+                "source": {
+                  "authority": "runtime_observation",
+                  "contentDigest": "sha256:715789d497db08386a89a29b4cafa8a902a04bad030bf6f49c8de1871e0df820",
+                  "sourceId": "urn:qa:source:0a821f5076d73ddf8b8d2e0e"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:ed1bd0fe117f20b59ff66043"
+            ]
+          }
+        ],
+        "kind": "invariant",
+        "name": "Privacy rights entry reaches data-request instructions that say what to provide and warn not to email private tokens or credentials",
+        "observationState": "recorded",
+        "observations": [
+          {
+            "artifactContentDigest": "sha256:9cdbfbcd24fb42461cd966cec6cb37bf66521a316684cb65837d904bb0feb0bb",
+            "candidateDigest": "sha256:13224843d04a9c77a30609d251f5cb8aa17a041b8ba9fc70360190d34ac0bfd7",
+            "captureTime": "2026-09-20T11:38:26Z",
+            "checkId": "urn:qa:automated-check:56ad12e1a8694e02aa40c1f6",
+            "currentBinding": "current",
+            "environmentDigest": "sha256:56a85efff851ddb3f639d74cea34af8807775bca63b437f3a545142511ee5b11",
+            "evidenceId": "urn:qa:evidence:8ae78e11e54cace606180e0b",
+            "identity": {
+              "candidate": {
+                "reason": "No deployed SHA exposed or independently verified in this public-page check",
+                "state": "unknown"
+              },
+              "environment": {
+                "state": "known",
+                "value": {
+                  "baseUrl": "https://agentify.ad/",
+                  "kind": "production",
+                  "observedUrl": "https://agentify.ad/data-request"
+                }
+              }
+            },
+            "manifestContentDigest": "sha256:65f89c23bc1e1e9774c4262971b63f69c03d193975c982e4faaa0cbfb9a45413",
+            "payload": {
+              "actual": "Opened https://agentify.ad/privacy. Current accessibility tree placed the unique exact 'data-request route' link inside rights, under 'Access, deletion, and correction'. Clicked that link, not the footer. Result URL https://agentify.ad/data-request; heading 'Request access or deletion'. Read-only DOM inspection found visible nonzero-size section#request containing the complete Email privacy@agentify.ad instruction, request type/public domain, and prohibition on scan/report tokens, Stripe details, passwords and private URL. Section#types includes 'Access or correct lead information.' and 'Complete verified deletion with an explicit final confirmation.' Section#verify contains both complete expected verification statements. No request, deletion, email, consent or account action was performed. Timestamp is a caller-declared checkpoint immediately after observation, not browser-signed capture time.",
+              "attachments": [],
+              "author": {
+                "agent": "qa-agent coordinator",
+                "authoredAt": "2026-09-20T11:40:17.864Z",
+                "host": "codex"
+              },
+              "expectationBasis": "Existing reviewed Agentify catalog oracle and its source provenance; no expectation edited for this check.",
+              "expectedBehavior": "Starting at https://agentify.ad/privacy, activate by actual click the 'data-request route' link inside the rights section headed 'Access, deletion, and correction' (section#rights), not the duplicate footer link or direct destination navigation. The resulting URL is https://agentify.ad/data-request and the page displays the rendered-visible heading 'Request access or deletion'. Within the destination request section (section#request), the complete rendered-visible instructions state: Email privacy@agentify.ad from the address connected to the report when possible. State the request type and public domain. Do not include scan/report tokens, Stripe details, passwords, or a private URL. Within the destination supported-request section (section#types), rendered-visible items state: Access or correct lead information. Complete verified deletion with an explicit final confirmation. Within the destination safety section (section#verify), the complete rendered-visible statements are: We may ask for a verification step before disclosing or changing a private record. We do not use a public website domain alone as proof that someone controls an email, report session, share, or payment signal. Assertions bind these complete sentences to their intended sections; arbitrary hidden/body text matches do not satisfy the check. This is a declared, source-grounded informational entry invariant only; no execution result is recorded by authoring it. The reviewed journey-requires-invariant relation expresses a necessary public entry condition, not sufficient private lifecycle coverage or proof of a dependency engine. No email, request/access/delete button, submission, private-record inspection, identity challenge, consent change, card operation, session/share revocation, or deletion is authorized or tested. The broad private lifecycle remains UNASSESSED with its original unresolved check and coverage gap. Rendered visibility does not establish viewport position, absence of occlusion, accessibility, human comprehension, legal compliance, implementation of the documented promises, or global absence of contradictory/unsafe requests. These remain UNASSESSED. Retained first-party HTML observations have unknown deployment identity and are not a current product PASS.",
+              "limitations": [
+                "Agent-authored account of actual browser observations, not tool-attested evidence.",
+                "Deployed SHA unknown; currentBinding describes local publication only.",
+                "No screenshot attachment, visual/viewport/accessibility acceptance or private data-request lifecycle acceptance.",
+                "Read-only navigation in the existing browser profile is not a clean anonymous-session test; no claim of zero background analytics requests."
+              ],
+              "provenance": "agent_authored_unattested",
+              "result": "passed",
+              "schemaVersion": "agent-tool-observation.v1",
+              "scope": "Public privacy rights link to data-request instructions; informational entry only",
+              "tool": "Codex in-app browser via cua_repl; actual link click and read-only DOM inspection"
+            },
+            "provenance": "agent_authored_unattested"
+          }
+        ],
+        "targetId": "urn:qa:discovery-target:ed1bd0fe117f20b59ff66043"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:3f61a477508ca906eae6bc78",
+            "entryId": "urn:qa:test-catalog-entry:c21133862d935a5a023ed9b5",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:edc6e8ba3f4e1c0c4fb81843"
+            ]
+          }
+        ],
+        "kind": "journey",
+        "name": "Choose privacy preferences",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:edc6e8ba3f4e1c0c4fb81843"
+      },
+      {
+        "coverageStatus": "manual",
+        "definitions": [
+          {
+            "candidatePath": "tests/manual/generated/registration.candidates.md",
+            "checkId": "urn:qa:manual-check:0cf3dd83b5722c84698f5043",
+            "entryId": "urn:qa:test-catalog-entry:9ef0f1bb1c31f00f46e7a099",
+            "executionKind": "manual",
+            "expectedEvidenceTypes": [
+              "manual_observation"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "human",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:efb845bb4020dcbd736449da"
+            ]
+          }
+        ],
+        "kind": "safety_gate",
+        "name": "Consent semantics are unresolved: after Essential only, a landing_view event request was observed while optional analytics and ads remained off in the UI; the event's essential or optional classification and downstream storage or delivery are unknown.",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:efb845bb4020dcbd736449da"
+      },
+      {
+        "coverageStatus": "manual",
+        "definitions": [
+          {
+            "candidatePath": "tests/manual/generated/registration.candidates.md",
+            "checkId": "urn:qa:manual-check:7248b4912a123fe4142a0e8c",
+            "entryId": "urn:qa:test-catalog-entry:98c1145ce7c76f33d6298575",
+            "executionKind": "manual",
+            "expectedEvidenceTypes": [
+              "manual_observation"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "human",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:discovery-target:ff2fd039fe7b0f68b4fb73ff"
+            ]
+          }
+        ],
+        "kind": "safety_gate",
+        "name": "Only one authorized successful scan was observed; invalid input submission, partial, blocked, failed, unavailable, retry, and recovery behavior remain unassessed.",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:discovery-target:ff2fd039fe7b0f68b4fb73ff"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:513638450d82a2e444cfa021",
+            "entryId": "urn:qa:test-catalog-entry:8c3b084716157c499a3f62c3",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:surface:9819668c986927e43893ae97"
+            ]
+          }
+        ],
+        "kind": "surface",
+        "name": "Landing",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:surface:9819668c986927e43893ae97"
+      },
+      {
+        "coverageStatus": "coverage_gap",
+        "definitions": [
+          {
+            "candidatePath": "tests/web/generated/registration.candidates.spec.ts",
+            "checkId": "urn:qa:automated-check:0ce835c97ad4f824e5df6d3a",
+            "entryId": "urn:qa:test-catalog-entry:69e962fe3c051eb11529aedc",
+            "executionKind": "automated",
+            "expectedEvidenceTypes": [
+              "screenshot"
+            ],
+            "oracle": {
+              "question": "What approved expected outcome should this candidate verify?",
+              "state": "unresolved"
+            },
+            "provenance": [
+              {
+                "confidence": "declared",
+                "priority": 5,
+                "reviewStatus": "unreviewed",
+                "source": {
+                  "authority": "unreviewed_user_input",
+                  "contentDigest": "sha256:30c02e3e80632e2de979ba8f712861ffce848c10fde2e38cf3535ece8bc21319",
+                  "sourceId": "urn:qa:source:6762e6064f326c24145cddb0"
+                }
+              }
+            ],
+            "requiredSecretRefs": [],
+            "runnerId": "playwright",
+            "sideEffectClasses": [
+              "read_only"
+            ],
+            "targetIds": [
+              "urn:qa:surface:adf9dce4f52d14e814c60194"
+            ]
+          }
+        ],
+        "kind": "surface",
+        "name": "Web",
+        "observationState": "not_observed",
+        "observations": [],
+        "targetId": "urn:qa:surface:adf9dce4f52d14e814c60194"
+      }
+    ],
+    "workspaceDigest": "sha256:23c112e71c50c74d2237ae1ff49e8c6102b0c25ba1b217c48f166b74d59551ac"
+  },
+  "retryIdentical": true,
+  "productRequestsInThisProcess": 0,
+  "nextAction": "Do not repeat A. Private data-request lifecycle stays not_observed; continue independent public methodology C."
+}

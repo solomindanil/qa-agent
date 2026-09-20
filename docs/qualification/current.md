@@ -1,5 +1,9 @@
 # Current QA-agent source and execution entry
 
+## Latest selected reference source — 20 September 2026
+
+Console `c421160` corrects only the two complete Codex/Claude observation references; Kernel `aa5d2d1`, Freeland `d4754f7` and inactive reporting `10d398d` are unchanged. [Reference qualification and adoption status](observation-skill-reference-20260920.md) governs this successor. Prior runtime gates remain attributed to48e4628. [Agentify real-product storage trial](agentify-observation-consumer-20260920.md) is a fresh-process trial, not fresh-agent acceptance; follow the reference qualification for the separate fresh-agent result. Source selection does not install skills or migrate campaigns. Dated selectors below are historical.
+
 ## Latest selected source — 20 September 2026, Freeland consolidation
 
 The manifest selects Freeland `d4754f7` (readiness lineage plus PAY01 composition and the dependency-free CI test split), with Kernel `aa5d2d1`, Console `48e4628` and inactive reference `10d398d` unchanged. [Exact qualification and adoption status](freeland-source-adoption-20260920.md) distinguishes source delivery from canonical adoption and product acceptance. Cold local workflow-body checks passed; hosted CI was not run. PAY01 remains shadow, historical stale receipts are not renewed, and frozen campaign runtimes/installed skills are unchanged. P1 real-consumer acceptance and later global-plan slices remain open. Dated source checkpoints below retain their original identities and do not override this selector.
