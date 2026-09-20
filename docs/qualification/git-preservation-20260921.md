@@ -21,4 +21,10 @@ Full source qualification belongs to the actual future fix bytes. Cloud, push, h
 
 ## Verification record
 
-Independent preservation review and final root packaging results are recorded with the adoption checkpoint. Historical full component results remain attributed to their original commits; the new RED checkpoint must not inherit the `8aefe79` green aggregate.
+Independent [Lead AQA review](evidence/git-preservation-20260921/git-preservation-lead-aqa-20260921.md) approved the preservation-only 49-path tree `b6b720f030117e0d19f6b9c92e8b655a76975e2a`, with no corrective findings. It was committed as `f1444759c80143bced40ad84a9f19e1b2163f82a` and fast-forwarded into canonical `codex/p2-semantic-source-delivery`; canonical tree equality and clean status were read back. No merge conflict, reset or history rewrite occurred.
+
+Fresh root packaging: isolated delivery `npm test` passed 61/61 with zero failures/skips, followed after canonical adoption by `sources:verify` passing all four selected sources and canonical `npm test` passing 61/61 with zero failures/skips. Raw outputs are retained in `evidence/git-preservation-20260921/git-preservation-root-tests-20260921.log` and `git-preservation-canonical-tests-20260921.log`. Canonical `git fsck --full --no-dangling` also exited zero. These are source/packaging checks; historical full component results retain their own commits and the new RED checkpoint does not inherit the `8aefe79` aggregate.
+
+The independent review applies to the exact frozen preservation tree, not this later factual adoption note. Original raw logs and generated evidence retain whitespace, so the broad all-file whitespace check emits warnings; active hand-authored document checks passed. No evidence was reformatted to hide those differences.
+
+A separate read-only `git ls-remote --heads origin` succeeded on 21 September: the remote exposes `codex/precloud-source-integration` at `787d3df963fe1ff71c80457a49753653e44505e7` and `codex/workspace-assembly` at `fab87d6a318db57dd27dceb90264a04e4ad53549`. The current canonical branch is not published there. No push or authentication/email action was attempted; local preservation is not remote backup. The original historical worktree remains dirty only with its two now-archived documents.

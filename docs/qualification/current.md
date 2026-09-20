@@ -29,6 +29,8 @@ The **P2-A semantic fee-caption repair** and compatibility fixtures are implemen
 
 The assembled source passed clean-clone restore/verify, root61/61 and independent entry/delivery review; [local consolidation evidence](local-consolidation-20260920.md#verification-and-next-step) records the exact scope. This is not a new-product execution by a fresh agent. The next larger exits remain P3 full/ticket/help/resume, P4 useful graph/regression consumption, P5 cross-domain agent evaluation and P6 dialogue-ready delivery. Exact scope and evidence are in the plan, not inferred from unchecked-box counts.
 
+The first [current-source decision baseline](../../evals/dialogue-quality/20260921/README.md) is retained with unedited first answers and a separate Lead AQA review: C6/C4/C1/M1 Stage 1 and fresh-actor Stage 2 are adequate within synthetic supplied facts. No skill change was needed from this sample. This is not actual execution, managed durable resume, hidden-key qualification or host parity. Next use the existing executable public-input/mixed-handoff/continuation path with explicit isolated prerequisites; keep the real unfamiliar-product and remaining gates open.
+
 Freeland merchant/migration questions are a separate waiting product lane. Global QA-source work does not authorize merchant disposition, production SQL, deployment, payments or tracker/Buzz writes. Read that product owner's checkpoint only when resuming its separately requested work.
 
 ## Accepted work and limits
