@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "qa-public-agent-resume-checkpoint.v1",
+  "savedAt": "2026-09-20T19:08:26.000Z",
+  "status": "deferred_public_observation_completed_partial",
+  "identity": {
+    "productSlug": "public-household-catalog",
+    "baseUrl": "http://127.0.0.1:60419/",
+    "targetUrl": "http://127.0.0.1:60419/catalog",
+    "deploymentIdentity": "unknown",
+    "sourceRootSha": "24013d1356e3fe2644060f4acdca58c361b52119",
+    "consoleSha": "c421160a71c0679a357f29828029ec3550791d16",
+    "kernelSha": "aa5d2d188606cbcf7e3111c130347a36970ec786"
+  },
+  "campaignReadback": {
+    "reader": "readLatestCampaignEvidence",
+    "runId": "run-4f7eec9291372097-468b7a0a-77b3-40a4-bea1-2cb1fd04ea3b",
+    "planDigest": "sha256:58381cd5579a404de2f4f07dd3ac5fde5326010841eacf0698ee2f5f9a65a31f",
+    "graphDigest": "sha256:a965a147223fb795e803f217a1bf67c79e12cd876f641329d88be19a4cdb1633",
+    "catalogDigest": "sha256:1ba56f5b7182c6096408e1f8e6a739843050bf30a6b79bfcde56d58dada59924",
+    "bindingDigest": "sha256:4f7eec92913720972bc047940fc2f7f2aa78baaf729719d882044bb482774b7f",
+    "receiptDigest": "sha256:8f15f9455228dd2bbe42321d2473ca254fb7513621f356a7ca2203b5ddcc6989",
+    "receiptBytes": 6946,
+    "receiptArtifactsVerified": 15,
+    "verdict": "INCONCLUSIVE"
+  },
+  "observation": {
+    "evidenceId": "urn:qa:evidence:39fe78cec1dbdd526868e1e6",
+    "reader": "qa-campaign read-observation",
+    "scopeReader": "qa-campaign observations",
+    "provenance": "agent_authored_unattested",
+    "currentBinding": "current",
+    "result": "partial",
+    "observed": {
+      "searchValue": "",
+      "categoryValue": "tools",
+      "categoryLabel": "Tools",
+      "visibleItems": ["Hammer"],
+      "summaryText": "1 results"
+    },
+    "sourceBackedAssessment": "The category restriction and numeric summary agreement behaved as declared. Exact singular wording was not supplied as a requirement, so the observed '1 results' is retained as a wording limitation, not classified as a product defect.",
+    "artifactContentDigest": "sha256:a8d3fa7a21dc8f9f45f8ae7f4704f23a4d07a9f5be6811179d47c942dbea35c9",
+    "manifestContentDigest": "sha256:8e571b2fc615ada27bc708d6111cb28ce5258efd092ea9334d271371f263e01e"
+  },
+  "preservedScope": {
+    "stillNeedsReview": [
+      "empty-result behavior after a nonmatching search",
+      "case-insensitive search narrowing",
+      "search and category composition",
+      "clearing search while retaining the selected category"
+    ],
+    "blocked": [
+      "authenticated staff inventory behavior: no staff surface/account or mutation authority supplied"
+    ],
+    "unassessed": [
+      "sorting because no order is promised",
+      "broader responsive, accessibility, performance, security, and cross-browser coverage",
+      "inventory mutations and external integrations"
+    ]
+  },
+  "nextAction": {
+    "kind": "no_further_authorized_execution",
+    "description": "Retain the original INCONCLUSIVE campaign and current observation. A later search-fix retest requires current deployment identity plus explicit authority for a new bounded campaign or observation; staff coverage additionally requires a separately authorized staff surface/account."
+  },
+  "writesExcluded": [
+    "new campaign",
+    "registration or knowledge revision",
+    "source or product changes",
+    "tracker publication",
+    "credentials",
+    "external origins",
+    "installations"
+  ]
+}

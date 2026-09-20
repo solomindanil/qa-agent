@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "qa-public-agent-checkpoint.v1",
+  "savedAt": "2026-09-20T19:03:17.000Z",
+  "status": "initial_campaign_diagnosed_partial",
+  "identity": {
+    "productSlug": "public-household-catalog",
+    "baseUrl": "http://127.0.0.1:60419/",
+    "targetUrl": "http://127.0.0.1:60419/catalog",
+    "deploymentIdentity": "unknown",
+    "sourceRootSha": "24013d1356e3fe2644060f4acdca58c361b52119",
+    "consoleSha": "c421160a71c0679a357f29828029ec3550791d16",
+    "kernelSha": "aa5d2d188606cbcf7e3111c130347a36970ec786"
+  },
+  "knowledge": {
+    "publicationAuthorityDigest": "sha256:a2ade82593d254a0405c8cd003452d9a40f67866b0fdcc5f3e49a66927b1b245",
+    "publicationTransactionDigest": "sha256:c9f7cdc398f54cc4cce876521a987da4f69270951d66d6799d2ceeb0d5416d70",
+    "workspaceDigest": "sha256:255f2f037fa564b4d16fca88eb8fabd33e0d3b19f8acc4c017a6d1f7ed8fe4e3",
+    "graphDigest": "sha256:a965a147223fb795e803f217a1bf67c79e12cd876f641329d88be19a4cdb1633",
+    "catalogDigest": "sha256:1ba56f5b7182c6096408e1f8e6a739843050bf30a6b79bfcde56d58dada59924"
+  },
+  "campaign": {
+    "planPath": "nuanu-readonly-qa/tests/qa-campaign.v0.json",
+    "planDigest": "sha256:58381cd5579a404de2f4f07dd3ac5fde5326010841eacf0698ee2f5f9a65a31f",
+    "runId": "run-4f7eec9291372097-468b7a0a-77b3-40a4-bea1-2cb1fd04ea3b",
+    "runDirectory": "nuanu-readonly-qa/tests/campaign-runs/run-4f7eec9291372097-468b7a0a-77b3-40a4-bea1-2cb1fd04ea3b",
+    "receiptDigest": "sha256:8f15f9455228dd2bbe42321d2473ca254fb7513621f356a7ca2203b5ddcc6989",
+    "bindingDigest": "sha256:4f7eec92913720972bc047940fc2f7f2aa78baaf729719d882044bb482774b7f",
+    "verdict": "INCONCLUSIVE",
+    "counts": {
+      "executable": 3,
+      "pass": 1,
+      "needsReview": 2,
+      "blockedTargets": 1,
+      "dossiers": 0
+    }
+  },
+  "reviews": [
+    {
+      "checkId": "urn:qa:automated-check:61bf0b7efd50f8d797ac3e93",
+      "reviewDigest": "sha256:f624e00108f9c7092f8fc41abce3ece7d58bf24644071f28aebb9b42091ab5ad",
+      "assessment": "product_issue",
+      "currentBinding": "current"
+    },
+    {
+      "checkId": "urn:qa:automated-check:c39dd2ff2b5acf9caafdfcc6",
+      "reviewDigest": "sha256:001c7009b7dd6e3a354b4b18c9e27656666aaf9fcbf35e01a8f2cb03f48686a3",
+      "assessment": "product_issue",
+      "currentBinding": "current"
+    }
+  ],
+  "persistedEvidenceReadback": {
+    "path": "persisted-review-readback.json",
+    "reader": "qa-campaign read-review",
+    "currentBindings": 2,
+    "receiptArtifactsVerified": 15
+  },
+  "diagnosis": {
+    "finding": "Search accepts text but does not update displayed items or summary; category selection does update the catalog.",
+    "unassessedTail": [
+      "search and category composition after successful search filtering",
+      "clearing search while retaining the selected category"
+    ],
+    "blocked": [
+      "authenticated staff inventory behavior: no staff surface/account supplied"
+    ]
+  },
+  "nextAction": {
+    "kind": "fresh_session_controlled_handoff",
+    "description": "Do not rerun the initial campaign. Using the existing workspace and current evidence, execute only the deferred independent public observation: from a clear catalog select Tools and verify exactly Hammer with summary 1 result. Preserve the current receipt/reviews and report this as a separate agent-led observation or newly authorized campaign only if the owner explicitly expands scope.",
+    "deferredByDesign": true,
+    "capabilityBlocked": false
+  },
+  "assistance": [],
+  "writesExcluded": [
+    "product mutations",
+    "tracker publication",
+    "source changes",
+    "credentials",
+    "external origins",
+    "installations"
+  ]
+}
