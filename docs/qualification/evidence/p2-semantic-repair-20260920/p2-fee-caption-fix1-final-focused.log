@@ -1,0 +1,232 @@
+TAP version 13
+# Subtest: finite whole-test budget precedes browser work: capabilities expose Card and SBP for every target-payment action
+ok 1 - finite whole-test budget precedes browser work: capabilities expose Card and SBP for every target-payment action
+  ---
+  duration_ms: 364.366208
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: eSIM purchase quotes Card and SBP without creating checkout
+ok 2 - finite whole-test budget precedes browser work: eSIM purchase quotes Card and SBP without creating checkout
+  ---
+  duration_ms: 0.236375
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: payer field labels are localized in the Card / SBP PaySheet
+ok 3 - finite whole-test budget precedes browser work: payer field labels are localized in the Card / SBP PaySheet
+  ---
+  duration_ms: 0.179792
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: Virtual Number purchase quotes Card and SBP without creating checkout
+ok 4 - finite whole-test budget precedes browser work: Virtual Number purchase quotes Card and SBP without creating checkout
+  ---
+  duration_ms: 0.106417
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: Card issue exposes Russian Card and SBP
+ok 5 - finite whole-test budget precedes browser work: Card issue exposes Russian Card and SBP
+  ---
+  duration_ms: 0.194959
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: VPN Card / SBP is inspectable or explicitly blocked by account state
+ok 6 - finite whole-test budget precedes browser work: VPN Card / SBP is inspectable or explicitly blocked by account state
+  ---
+  duration_ms: 0.125667
+  type: 'test'
+  ...
+# Subtest: zero-fee Card/SBP quotes need no tile fee but keep exact selected totals
+ok 7 - zero-fee Card/SBP quotes need no tile fee but keep exact selected totals
+  ---
+  duration_ms: 615.1515
+  type: 'test'
+  ...
+# Subtest: card issue waits for options and checks selected summary despite two differently named dialogs and repeated tile fees
+ok 8 - card issue waits for options and checks selected summary despite two differently named dialogs and repeated tile fees
+  ---
+  duration_ms: 574.361166
+  type: 'test'
+  ...
+# Subtest: selected 1290 bps caption accepts literal 12.9% with 25.00 principal, 3.23 fee and 28.23 total
+ok 9 - selected 1290 bps caption accepts literal 12.9% with 25.00 principal, 3.23 fee and 28.23 total
+  ---
+  duration_ms: 304.66275
+  type: 'test'
+  ...
+# Subtest: selected 1290 bps caption accepts decimal-comma 12,9%
+ok 10 - selected 1290 bps caption accepts decimal-comma 12,9%
+  ---
+  duration_ms: 291.227958
+  type: 'test'
+  ...
+# Subtest: selected 110 bps caption accepts literal 1.1% without floating-point drift
+ok 11 - selected 110 bps caption accepts literal 1.1% without floating-point drift
+  ---
+  duration_ms: 291.404167
+  type: 'test'
+  ...
+# Subtest: selected 230 bps caption accepts decimal-comma 2,3% without floating-point drift
+ok 12 - selected 230 bps caption accepts decimal-comma 2,3% without floating-point drift
+  ---
+  duration_ms: 293.370667
+  type: 'test'
+  ...
+# Subtest: identical 1290 bps quote rejects a selected 99% caption
+ok 13 - identical 1290 bps quote rejects a selected 99% caption
+  ---
+  duration_ms: 217.973
+  type: 'test'
+  ...
+# Subtest: selected percentage rejects precision finer than one basis point
+ok 14 - selected percentage rejects precision finer than one basis point
+  ---
+  duration_ms: 207.409125
+  type: 'test'
+  ...
+# Subtest: each selected tile percentage follows that option source rate rather than a global policy rate
+ok 15 - each selected tile percentage follows that option source rate rather than a global policy rate
+  ---
+  duration_ms: 291.435584
+  type: 'test'
+  ...
+# Subtest: explicit percentage cannot pass when the selected source rate is unknown
+ok 16 - explicit percentage cannot pass when the selected source rate is unknown
+  ---
+  duration_ms: 205.207625
+  type: 'test'
+  ...
+# Subtest: fixed selected fee amount can stand without a source rate
+ok 17 - fixed selected fee amount can stand without a source rate
+  ---
+  duration_ms: 294.311
+  type: 'test'
+  ...
+# Subtest: wrong selected fixed fee amount is rejected even when the summary is correct
+ok 18 - wrong selected fixed fee amount is rejected even when the summary is correct
+  ---
+  duration_ms: 207.053625
+  type: 'test'
+  ...
+# Subtest: positive source fee does not require a tile caption when the product promises none
+ok 19 - positive source fee does not require a tile caption when the product promises none
+  ---
+  duration_ms: 292.635666
+  type: 'test'
+  ...
+# Subtest: zero-fee quote rejects an inflated UI total even if its method tile mentions a fee
+ok 20 - zero-fee quote rejects an inflated UI total even if its method tile mentions a fee
+  ---
+  duration_ms: 298.402208
+  type: 'test'
+  ...
+# Subtest: selected UI amounts cannot be satisfied by the outer dialog or an unselected tile
+ok 21 - selected UI amounts cannot be satisfied by the outer dialog or an unselected tile
+  ---
+  duration_ms: 298.659333
+  type: 'test'
+  ...
+# Subtest: method tile must actually become selected
+ok 22 - method tile must actually become selected
+  ---
+  duration_ms: 281.383542
+  type: 'test'
+  ...
+# Subtest: malformed quote arithmetic is rejected rather than trusted as UI truth
+ok 23 - malformed quote arithmetic is rejected rather than trusted as UI truth
+  ---
+  duration_ms: 119.76975
+  type: 'test'
+  ...
+# Subtest: VIP selected source keeps principal 31, included fee 4, total 35 and zero opening balance
+ok 24 - VIP selected source keeps principal 31, included fee 4, total 35 and zero opening balance
+  ---
+  duration_ms: 293.047167
+  type: 'test'
+  ...
+# Subtest: VIP rejects 39.52 instead of the frozen 35 total
+ok 25 - VIP rejects 39.52 instead of the frozen 35 total
+  ---
+  duration_ms: 370.288833
+  type: 'test'
+  ...
+# Subtest: SBP selection must refresh the summary; a correct preceding Card summary is insufficient
+ok 26 - SBP selection must refresh the summary; a correct preceding Card summary is insufficient
+  ---
+  duration_ms: 334.1035
+  type: 'test'
+  ...
+# Subtest: VIP cannot lose its zero opening balance evidence while keeping valid principal and total
+ok 27 - VIP cannot lose its zero opening balance evidence while keeping valid principal and total
+  ---
+  duration_ms: 361.14975
+  type: 'test'
+  ...
+# Subtest: repeated positive fee tile captions do not count as the selected fee summary
+ok 28 - repeated positive fee tile captions do not count as the selected fee summary
+  ---
+  duration_ms: 360.777209
+  type: 'test'
+  ...
+# Subtest: zero-fee selection rejects a percentage fallback even when the total happens to stay correct
+ok 29 - zero-fee selection rejects a percentage fallback even when the total happens to stay correct
+  ---
+  duration_ms: 310.938333
+  type: 'test'
+  ...
+# Subtest: payment-options error cannot turn the visible loading dialog into readiness
+ok 30 - payment-options error cannot turn the visible loading dialog into readiness
+  ---
+  duration_ms: 159.5365
+  type: 'test'
+  ...
+# Subtest: response for another product cannot supply payment expectations
+ok 31 - response for another product cannot supply payment expectations
+  ---
+  duration_ms: 118.121125
+  type: 'test'
+  ...
+# Subtest: missing method breakdown cannot silently fall back to a policy percentage
+ok 32 - missing method breakdown cannot silently fall back to a policy percentage
+  ---
+  duration_ms: 128.035375
+  type: 'test'
+  ...
+# Subtest: card method selection cannot create checkout even when every amount is correct
+ok 33 - card method selection cannot create checkout even when every amount is correct
+  ---
+  duration_ms: 289.004042
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: non-RUB card payment
+ok 34 - preserves the existing financial guard: non-RUB card payment
+  ---
+  duration_ms: 105.411458
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: unequal Card and SBP amounts
+ok 35 - preserves the existing financial guard: unequal Card and SBP amounts
+  ---
+  duration_ms: 111.60025
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: expired Card FX quote
+ok 36 - preserves the existing financial guard: expired Card FX quote
+  ---
+  duration_ms: 108.305542
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: expired product quote
+ok 37 - preserves the existing financial guard: expired product quote
+  ---
+  duration_ms: 107.275
+  type: 'test'
+  ...
+1..37
+# tests 37
+# suites 0
+# pass 37
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9306.508584

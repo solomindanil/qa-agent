@@ -1,0 +1,214 @@
+TAP version 13
+# Subtest: imports one exact Safety blob from every authorized Safety tree
+ok 1 - imports one exact Safety blob from every authorized Safety tree
+  ---
+  duration_ms: 11.33325
+  type: 'test'
+  ...
+# Subtest: pins the exact current Safety source and closes its assembled source allowlist
+ok 2 - pins the exact current Safety source and closes its assembled source allowlist
+  ---
+  duration_ms: 1.564125
+  type: 'test'
+  ...
+# Subtest: owned dry-page and locator provenance rejects each missing, substituted, or misattributed regression asset
+ok 3 - owned dry-page and locator provenance rejects each missing, substituted, or misattributed regression asset
+  ---
+  duration_ms: 11.047792
+  type: 'test'
+  ...
+# Subtest: acceptance-repair provenance seals its exact local assets and the original TC05 policy lineage
+ok 4 - acceptance-repair provenance seals its exact local assets and the original TC05 policy lineage
+  ---
+  duration_ms: 6.326625
+  type: 'test'
+  ...
+# Subtest: acceptance-repair private inventory rejects omitted, substituted, misattributed, and rehashed assets
+ok 5 - acceptance-repair private inventory rejects omitted, substituted, misattributed, and rehashed assets
+  ---
+  duration_ms: 85.826334
+  type: 'test'
+  ...
+# Subtest: preflight policy provenance rejects missing or substituted ownership, donor lineage, and assembled-byte seals
+ok 6 - preflight policy provenance rejects missing or substituted ownership, donor lineage, and assembled-byte seals
+  ---
+  duration_ms: 12.687458
+  type: 'test'
+  ...
+# Subtest: imports exactly the 26 reviewed post-frozen Safety blobs and keeps planning history excluded
+ok 7 - imports exactly the 26 reviewed post-frozen Safety blobs and keeps planning history excluded
+  ---
+  duration_ms: 12.472958
+  type: 'test'
+  ...
+# Subtest: imports the exact 22-path current Safety overlay and retains all twelve Mail ancestries
+ok 8 - imports the exact 22-path current Safety overlay and retains all twelve Mail ancestries
+  ---
+  duration_ms: 5.761333
+  type: 'test'
+  ...
+# Subtest: preserves all 283 pre-overlay manifest destinations outside the exact 22-path closure
+ok 9 - preserves all 283 pre-overlay manifest destinations outside the exact 22-path closure
+  ---
+  duration_ms: 70.068458
+  type: 'test'
+  ...
+# Subtest: current Safety closure rejects omission, extras, wrong blobs, lost Mail ancestry, and post-head substitution
+ok 10 - current Safety closure rejects omission, extras, wrong blobs, lost Mail ancestry, and post-head substitution
+  ---
+  duration_ms: 4.205375
+  type: 'test'
+  ...
+# Subtest: preserves package, Playwright, transport, TC02, TC05, TC09, Console, baseline, and canary surfaces
+ok 11 - preserves package, Playwright, transport, TC02, TC05, TC09, Console, baseline, and canary surfaces
+  ---
+  duration_ms: 2.726083
+  type: 'test'
+  ...
+# Subtest: records the exact Mail imports, controlled-runner evolution, and every assembled Safety-Mail reconciliation
+ok 12 - records the exact Mail imports, controlled-runner evolution, and every assembled Safety-Mail reconciliation
+  ---
+  duration_ms: 6.813208
+  type: 'test'
+  ...
+# Subtest: cancellation evolutions reject changed ownership, frozen donor identity, ancestry, and assembled hashes
+ok 13 - cancellation evolutions reject changed ownership, frozen donor identity, ancestry, and assembled hashes
+  ---
+  duration_ms: 8.349458
+  type: 'test'
+  ...
+# Subtest: imports the frozen baseline package with its exact 29-file and 164-case inventory
+ok 14 - imports the frozen baseline package with its exact 29-file and 164-case inventory
+  ---
+  duration_ms: 1.324958
+  type: 'test'
+  ...
+# Subtest: imports only the closed virtual-number/card canary scenario, helper, and offline-test closure
+ok 15 - imports only the closed virtual-number/card canary scenario, helper, and offline-test closure
+  ---
+  duration_ms: 13.420916
+  type: 'test'
+  ...
+# Subtest: imports the exact isolated QA Console tree with eight hermetic tests and one quarantined Kernel-authority test
+ok 16 - imports the exact isolated QA Console tree with eight hermetic tests and one quarantined Kernel-authority test
+  ---
+  duration_ms: 21.30425
+  type: 'test'
+  ...
+# Subtest: rejects non-Freeland root environment and Playwright projects
+ok 17 - rejects non-Freeland root environment and Playwright projects
+  ---
+  duration_ms: 0.752209
+  type: 'test'
+  ...
+# Subtest: preserves local-state and MagicPay denies while allowing only intended Freeland paths
+ok 18 - preserves local-state and MagicPay denies while allowing only intended Freeland paths
+  ---
+  duration_ms: 165.14575
+  type: 'test'
+  ...
+# Subtest: schema is closed and captures the eight frozen source snapshots
+ok 19 - schema is closed and captures the eight frozen source snapshots
+  ---
+  duration_ms: 1.488292
+  type: 'test'
+  ...
+# Subtest: validates provenance records and rejects unknown keys, duplicate paths, and escaping destinations
+ok 20 - validates provenance records and rejects unknown keys, duplicate paths, and escaping destinations
+  ---
+  duration_ms: 0.785833
+  type: 'test'
+  ...
+# Subtest: verifies git framing, private digests, changed bytes, missing files, symlinks, and unmanifested controlled files
+ok 21 - verifies git framing, private digests, changed bytes, missing files, symlinks, and unmanifested controlled files
+  ---
+  duration_ms: 7.043
+  type: 'test'
+  ...
+# Subtest: allows the exact real baseline node_modules runtime directory
+ok 22 - allows the exact real baseline node_modules runtime directory
+  ---
+  duration_ms: 2.10525
+  type: 'test'
+  ...
+# Subtest: rejects a symlink at the exact baseline node_modules runtime path
+ok 23 - rejects a symlink at the exact baseline node_modules runtime path
+  ---
+  duration_ms: 2.719792
+  type: 'test'
+  ...
+# Subtest: rejects a file at the exact baseline node_modules runtime path
+ok 24 - rejects a file at the exact baseline node_modules runtime path
+  ---
+  duration_ms: 2.034292
+  type: 'test'
+  ...
+# Subtest: rejects node_modules under another controlled root as an unmanifested extra
+ok 25 - rejects node_modules under another controlled root as an unmanifested extra
+  ---
+  duration_ms: 2.621042
+  type: 'test'
+  ...
+# Subtest: rejects a nested node_modules lookalike inside the baseline package
+ok 26 - rejects a nested node_modules lookalike inside the baseline package
+  ---
+  duration_ms: 3.2885
+  type: 'test'
+  ...
+# Subtest: allows only the exact QA Console dependency and production-build runtime directories
+ok 27 - allows only the exact QA Console dependency and production-build runtime directories
+  ---
+  duration_ms: 2.978083
+  type: 'test'
+  ...
+# Subtest: rejects non-directory QA Console runtime paths without following them
+ok 28 - rejects non-directory QA Console runtime paths without following them
+  ---
+  duration_ms: 4.70225
+  type: 'test'
+  ...
+# Subtest: rejects symlinks at the exact QA Console runtime paths
+ok 29 - rejects symlinks at the exact QA Console runtime paths
+  ---
+  duration_ms: 4.250791
+  type: 'test'
+  ...
+# Subtest: rejects nested QA Console runtime-directory lookalikes as unmanifested files
+ok 30 - rejects nested QA Console runtime-directory lookalikes as unmanifested files
+  ---
+  duration_ms: 2.742375
+  type: 'test'
+  ...
+# Subtest: requires assembled source blobs and final bytes, and records the required exclusions
+ok 31 - requires assembled source blobs and final bytes, and records the required exclusions
+  ---
+  duration_ms: 2.736458
+  type: 'test'
+  ...
+# Subtest: bundles the sealed private corpus plus exact acceptance-repair assets, human-acceptance package, two exact transformations, an unpinned graph seed, no forbidden local paths
+ok 32 - bundles the sealed private corpus plus exact acceptance-repair assets, human-acceptance package, two exact transformations, an unpinned graph seed, no forbidden local paths
+  ---
+  duration_ms: 7.788667
+  type: 'test'
+  ...
+# Subtest: campaign run-state and spec evidence directories are ignored by git and skipped by controlled-root collection
+ok 33 - campaign run-state and spec evidence directories are ignored by git and skipped by controlled-root collection
+  ---
+  duration_ms: 4.836375
+  type: 'test'
+  ...
+# Subtest: private files are secret-scanned: JWT, PEM, bot-token, bearer and Luhn-valid card shapes fail closed
+ok 34 - private files are secret-scanned: JWT, PEM, bot-token, bearer and Luhn-valid card shapes fail closed
+  ---
+  duration_ms: 6.475959
+  type: 'test'
+  ...
+1..34
+# tests 34
+# suites 0
+# pass 34
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 586.012625

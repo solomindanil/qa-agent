@@ -1,0 +1,5 @@
+
+> nuanuflowqa@1.0.0 provenance:verify
+> node tools/freeland-main/provenance.mjs --verify .
+
+{"schemaVersion":1,"sourceCount":8,"gitFileCount":274,"assembledFileCount":129,"privateFileCount":80,"status":"VALID"}
