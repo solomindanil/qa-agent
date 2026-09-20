@@ -2,6 +2,18 @@
 
 These bundles preserve reviewed and unfinished development without depending on the author's local checkout. The [manifest](../manifest.v1.json) is the only source selector; see [current qualification](../../docs/qualification/current.md) for current pins. Dated selection labels below are historical and do not override that selector. The `candidates/` directory is a provenance location, not a runtime status. No archive grants product execution, campaign migration or skill-installation authority. Do not copy an archived skill over an accepted one.
 
+## Console authority and findings repairs, 20 September 2026
+
+Source `d28d7743e9aac370a726df6c6288ad2ef0e52c78`, tree
+`09adfece9000a4d5d79fa63877b46c00febf180b`, successor to66ac7db via bb9b739.
+Archive `console-p0-findings-d28d774.bundle`, complete history,
+SHA256 `446fd21decd97fba6f2c7fa8f35f36b89cf9f83e2a84091bb91585069f93ab44`.
+**MANIFEST-SELECTED / CANONICAL SOURCE VERIFIED.** Kernel185 and lockfile unchanged.
+Fresh canonical21/21, nonincremental TypeScript and root61/61 passed; independent
+cold delivery verified restoration, pair2/2 and authority7/7. Existing source
+repairs reused, no product/campaign/installed-skill migration or hosted CI.
+[Exact adoption, previous identities and limits](../../docs/qualification/console-p0-adoption-20260920.md).
+
 ## Freeland divergent production baseline, 15 September 2026
 
 Source `3ee1cb3f6ac3676f4f0e066ef5cc9970b0baf5e0`, parent21c1c61,

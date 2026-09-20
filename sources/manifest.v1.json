@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "66ac7db55a25f56b199b2cb00ad83df3b8dad868",
-      "tree": "8c0a426b3133e326eb120f09a2e0c9408eb68eb5",
-      "bundle": "sources/candidates/console-browser-journeys-66ac7db.bundle",
-      "sha256": "9f9046afdf7f222a37f87ffca6a35badf1763fbf09c170b29ba0bbfdba366f8c",
+      "commit": "d28d7743e9aac370a726df6c6288ad2ef0e52c78",
+      "tree": "09adfece9000a4d5d79fa63877b46c00febf180b",
+      "bundle": "sources/candidates/console-p0-findings-d28d774.bundle",
+      "sha256": "446fd21decd97fba6f2c7fa8f35f36b89cf9f83e2a84091bb91585069f93ab44",
       "runtimeAuthority": true,
-      "qualification": "reviewed browser-journey successor to b54b849; optional afterOperationIndex in existing browser evaluator and persisted reader, legacy plans unchanged, exact Kernel185d3e7 authority retained. Expanded321/321, exact cold29/29, typecheck/build0 and independent Lead AQA source/delivery review in docs/qualification/browser-journeys-20260914.md. Source reference and Claude mirror updated, installed skills not migrated. Earlier continuation evidence retains its original b54 attribution. No full-suite, product, browser/payment replay, actual dual-host or cloud qualification; canonical adoption recorded separately."
+      "qualification": "reviewed P0 findings/authority successor to66ac7db; replacement-ref authority and contained findings writes are adopted without reimplementation, with exact Kernel185d3e7 authority and Console lockfile retained. Source selection and standalone adoption are recorded in docs/qualification/console-p0-adoption-20260920.md. Historical 2026-09-17 combined21/21 and tsc0 evidence remains attributed to the candidate checkout; earlier full suites retain their original Console source attribution. Fresh adoption verifies source restore/selection, root61/61 and standalone authority7/7; canonical dependency-backed findings/authority21/21, nonincremental TypeScript and root61/61 passed with final exact source verification, using retained lockfile-matching dependencies rather than a fresh dependency installation. No product execution, active campaign or registration migration, installed-skill changes, hosted CI, browser/payment replay or cloud qualification."
     },
     {
       "id": "freeland",
