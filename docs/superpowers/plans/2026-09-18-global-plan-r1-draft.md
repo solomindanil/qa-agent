@@ -1,3 +1,7 @@
+<!-- QA_LOCAL_HISTORY_20260920 -->
+> Historical proposal retained during local consolidation on 20 September 2026. Status, approvals, pauses, source paths and next actions below belong to the original dated scope; they are not current instructions, new test results or execution authority. Use the [current checkpoint](../../qualification/current.md) and [consolidation index](../../qualification/local-consolidation-20260920.md). Private/absolute historical evidence links are optional locators, not clone prerequisites. Original body bytes are preserved below.
+<!-- /QA_LOCAL_HISTORY_20260920 -->
+
 # Глобальный план qa-agent: ревизия R1 к плану P0–P7 — ЧЕРНОВИК v2
 
 > **Сверка 20 сентября 2026:** предложения ниже сохранены как история, не действующая очередь. Пользователь согласовал критическую выборочную интеграцию в [основной план, §10](2026-09-16-cross-product-qa-global-plan.md), а не весь R1 и не D1–D12. Текущие полномочия/следующий шаг — в [current](../../qualification/current.md). В частности, «вердикт только по новым дефектам», blanket ручные покупки, предложенные лимиты и удаление трасс не приняты; чтение этого документа их не активирует.

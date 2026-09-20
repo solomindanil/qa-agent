@@ -1,0 +1,52 @@
+TAP version 13
+# Subtest: creates sortable run ids without embedding secrets
+ok 1 - creates sortable run ids without embedding secrets
+  ---
+  duration_ms: 1.0855
+  type: 'test'
+  ...
+# Subtest: writes redacted JSONL evidence into the run directory
+ok 2 - writes redacted JSONL evidence into the run directory
+  ---
+  duration_ms: 5.783
+  type: 'test'
+  ...
+# Subtest: accepts the exact capability event emitted before the VPN checkout UI
+ok 3 - accepts the exact capability event emitted before the VPN checkout UI
+  ---
+  duration_ms: 1.494584
+  type: 'test'
+  ...
+# Subtest: resolves only safe run directories below the artifact root
+ok 4 - resolves only safe run directories below the artifact root
+  ---
+  duration_ms: 0.375333
+  type: 'test'
+  ...
+# Subtest: refuses to append evidence through an existing symlink
+ok 5 - refuses to append evidence through an existing symlink
+  ---
+  duration_ms: 1.462292
+  type: 'test'
+  ...
+# Subtest: rejects forbidden evidence shapes and caller-provided timestamps
+ok 6 - rejects forbidden evidence shapes and caller-provided timestamps
+  ---
+  duration_ms: 0.743458
+  type: 'test'
+  ...
+# Subtest: tightens pre-existing modes and rejects a symlinked artifact root
+ok 7 - tightens pre-existing modes and rejects a symlinked artifact root
+  ---
+  duration_ms: 2.237125
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 68.4585

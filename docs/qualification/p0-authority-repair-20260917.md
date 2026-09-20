@@ -1,3 +1,7 @@
+<!-- QA_LOCAL_HISTORY_20260920 -->
+> Historical record retained during local consolidation on 20 September 2026. Status, approvals, pauses, source paths and next actions below belong to the original dated scope; they are not current instructions, new test results or execution authority. Use the [current checkpoint](current.md) and [consolidation index](local-consolidation-20260920.md). Private/absolute historical evidence links are optional locators, not clone prerequisites. Original body bytes are preserved below.
+<!-- /QA_LOCAL_HISTORY_20260920 -->
+
 # P0.1: pinned-source authority repair —17September2026
 
 Status: independently reviewed source candidate, cold-restored and focused-tested. Not manifest-selected, not a new product verdict, not cloud qualification. The root delivery files described below are still working-tree changes, not a pushed release.

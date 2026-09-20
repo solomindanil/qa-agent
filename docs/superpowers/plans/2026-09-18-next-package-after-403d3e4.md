@@ -1,3 +1,7 @@
+<!-- QA_LOCAL_HISTORY_20260920 -->
+> Historical proposal retained during local consolidation on 20 September 2026. Status, approvals, pauses, source paths and next actions below belong to the original dated scope; they are not current instructions, new test results or execution authority. Use the [current checkpoint](../../qualification/current.md) and [consolidation index](../../qualification/local-consolidation-20260920.md). Private/absolute historical evidence links are optional locators, not clone prerequisites. Original body bytes are preserved below.
+<!-- /QA_LOCAL_HISTORY_20260920 -->
+
 # Объединённый пакет исполнения после прогона Freeland 403d3e4 — 18 сентября 2026
 
 **ПРИОСТАНОВЛЕНО 18.09.2026 владельцем до решения по [ревизии R1](2026-09-18-global-plan-r1-draft.md).** Раздел «Порядок на сегодня» не действует: поток A (контакт со стендом) только при явном решении D3, остальные потоки — только по решениям R1.

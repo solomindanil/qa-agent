@@ -1,5 +1,7 @@
 # Android Appium pilot
 
+**Experimental source, not an active managed QA capability.** This import preserves the existing pilot. Thirteen local loopback/mock controls cover `Driver` and `runSteps`; they do not qualify `run.mjs` session lifecycle, actual Appium/BrowserStack execution, or its output privacy. Raw XML, screenshots, configuration and session payloads can contain private data, especially with `noReset:true`: keep all generated output outside tracked delivery. The SDK paths and private lockfile below describe the author's original setup, not dependencies shipped by this repository. Execution, provider access, costs and any future integration require their own current capability/authority checks.
+
 Runs one explicit guest Nuanu flow: optional first-launch location dismissal → Wallet → entrance date chooser → Back → chooser absent → guest Wallet. This qualifies a small reusable execution seam; it is not a full mobile suite, a managed Kernel adapter, or release acceptance. Date availability, pricing, purchases, login, layout geometry and screen-reader speech are outside this flow.
 
 ## Files

@@ -1,3 +1,7 @@
+<!-- QA_LOCAL_HISTORY_20260920 -->
+> Historical record retained during local consolidation on 20 September 2026. Status, approvals, pauses, source paths and next actions below belong to the original dated scope; they are not current instructions, new test results or execution authority. Use the [current checkpoint](current.md) and [consolidation index](local-consolidation-20260920.md). Private/absolute historical evidence links are optional locators, not clone prerequisites. Original body bytes are preserved below.
+<!-- /QA_LOCAL_HISTORY_20260920 -->
+
 # Freeland PAY01 / readiness integration — 20 September 2026
 
 ## Status

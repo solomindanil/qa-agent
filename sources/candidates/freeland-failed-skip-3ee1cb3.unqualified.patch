@@ -1,0 +1,343 @@
+diff --git a/provenance/source-manifest.v1.json b/provenance/source-manifest.v1.json
+index 2c31890..4c309aa 100644
+--- a/provenance/source-manifest.v1.json
++++ b/provenance/source-manifest.v1.json
+@@ -2319,7 +2319,7 @@
+       "destination": "tests/freeland-verdict/freeland-verdict.test.mjs",
+       "sourceId": "safety",
+       "commit": "79567d30ec7b2e77345d3d2567bba89775dde3e7",
+-      "blob": "96374d99084ec756203c2b08079e7af04d025f53",
++      "blob": "999811646421c2d5fc7eddb0e27ba24a0d27c72e",
+       "owner": "assembled",
+       "sourceBlobs": [
+         {
+@@ -2331,7 +2331,7 @@
+           "blob": "a7181dda03389ec2c90b2d8191b48d271122990e"
+         }
+       ],
+-      "sha256": "3e3f0598446c907c1ae4f94330b471d1cc009e5b5528f1f5a7a3a711c70fd51d"
++      "sha256": "1fdb5fdbb30bbc9e1cce3acc5ec760790c6b777bd669b0144abd90a7841c1313"
+     },
+     {
+       "destination": "tests/product-graph/fixtures/lean/aliases.json",
+@@ -2421,7 +2421,7 @@
+       "destination": "tests/product-graph/freeland-desktop-retries.test.mjs",
+       "sourceId": "safety",
+       "commit": "79567d30ec7b2e77345d3d2567bba89775dde3e7",
+-      "blob": "4475f1fb5468053428048bddeb0cccbc4006a059",
++      "blob": "221cbadc2d568fb38e5da8913ec1d7c1bcc2e0fb",
+       "owner": "assembled",
+       "sourceBlobs": [
+         {
+@@ -2429,7 +2429,7 @@
+           "blob": "75d1096ac0f9db59b5fec007d0616a82efd0faaf"
+         }
+       ],
+-      "sha256": "082f7ace9ebf3e57e47601e4ec036517dadb8b2a4239fa91efd51adf092ebd5a"
++      "sha256": "2868dd1e3127b651276fb07c38f96a301c7cdb6b8fc9a4f7682e486f21305106"
+     },
+     {
+       "destination": "tests/product-graph/freeland-graph-replacement-catalog.test.mjs",
+@@ -2449,7 +2449,7 @@
+       "destination": "tests/product-graph/freeland-graph.test.mjs",
+       "sourceId": "safety",
+       "commit": "79567d30ec7b2e77345d3d2567bba89775dde3e7",
+-      "blob": "7be693ca7bfcc32aa9788eee5e549a7644133dd7",
++      "blob": "582c8e6b71ebc5ecfe7fd9774a183609806f4e64",
+       "owner": "assembled",
+       "sourceBlobs": [
+         {
+@@ -2461,7 +2461,7 @@
+           "blob": "12c59e7739e7a20e8a5ed313cbaac294a3a12156"
+         }
+       ],
+-      "sha256": "a0c11c9397bca08b346fde5f2a6dd706441faf51f653f7a7034e0103016acbdf"
++      "sha256": "5d598a9de77cf0342e36bfb3b8741fc736e0e08e9d6e0bcec574eef088de8e13"
+     },
+     {
+       "destination": "tests/product-graph/freeland-manual-contracts.test.mjs",
+@@ -2766,7 +2766,7 @@
+       "destination": "tools/freeland-graph/automated-results.mjs",
+       "sourceId": "safety",
+       "commit": "79567d30ec7b2e77345d3d2567bba89775dde3e7",
+-      "blob": "249b3d0c2e031e859aa58c5108f90adb2bc54515",
++      "blob": "25cb6027cae666966be971748b91327cbf4e3814",
+       "owner": "assembled",
+       "sourceBlobs": [
+         {
+@@ -2778,7 +2778,7 @@
+           "blob": "217bb95bfd1ad849cc873f2e7ec14091cdf71f3d"
+         }
+       ],
+-      "sha256": "536e373e287ea5521df5ceae35d467cb533ffd25c982eb9394142e92e52a3cb9"
++      "sha256": "419d6f305821c50910fa8e4dbce6f8b44f477d1b401765df2b0545e445df9063"
+     },
+     {
+       "destination": "tools/freeland-graph/cli.mjs",
+@@ -3586,7 +3586,7 @@
+       "destination": "tools/freeland-verdict/model.mjs",
+       "sourceId": "safety",
+       "commit": "79567d30ec7b2e77345d3d2567bba89775dde3e7",
+-      "blob": "1259fcf91363af342b9f9001037d604b4fee850a",
++      "blob": "06595043e9205fff0dde27f3b28161c6466950bd",
+       "owner": "assembled",
+       "sourceBlobs": [
+         {
+@@ -3598,7 +3598,7 @@
+           "blob": "7d0a07436162331379ba0c81bb3fdab8ee450aa9"
+         }
+       ],
+-      "sha256": "e354ad95324676612975123024ade6746102d28e49eded1861f21533bd18bc14"
++      "sha256": "1029cbd2443968ec78422bf4b015204e678a819e240720c55e61a0b61ab27659"
+     },
+     {
+       "destination": "tools/freeland-verdict/preflight-cli.mjs",
+diff --git a/tests/freeland-main/provenance.test.mjs b/tests/freeland-main/provenance.test.mjs
+index 056d328..a7a5671 100644
+--- a/tests/freeland-main/provenance.test.mjs
++++ b/tests/freeland-main/provenance.test.mjs
+@@ -153,6 +153,9 @@ const LOCAL_COLLISION_EDITED_ROWS = [
+   'tools/freeland-graph/cli.mjs',
+   'tools/freeland-graph/obsidian.mjs',
+   'tools/freeland-graph/planner.mjs',
++  // Failed -> dynamic skip repair: locally assembled behavior, not an unchanged
++  // Safety import. Both original Safety/Mail donor blobs remain in the manifest.
++  'tools/freeland-graph/automated-results.mjs',
+   'tools/freeland-verdict/cli.mjs',
+   'tools/freeland-verdict/model.mjs',
+   // S3: the data-driven registry, its manifest and its test lane keep both lineages
+diff --git a/tests/freeland-verdict/freeland-verdict.test.mjs b/tests/freeland-verdict/freeland-verdict.test.mjs
+index 96374d9..9998116 100644
+--- a/tests/freeland-verdict/freeland-verdict.test.mjs
++++ b/tests/freeland-verdict/freeland-verdict.test.mjs
+@@ -4702,6 +4702,65 @@ test("S2b a dispositioned skip becomes a SKIP_DISPOSITION note and satisfies the
+   );
+ });
+ 
++test("a failed then skipped observation keeps missing acceptance despite any skip exemption", () => {
++  for (const exemption of ["none", "mutation_gated", "known_bug", "disabled_config"]) {
++    const input = withKnownJoinIssues(greenCampaign());
++    const row = nonSafetyDesktopRow(input);
++    Object.assign(row, {
++      status: "skipped", expectedStatus: "skipped", sourceOutcome: "flaky", observedCount: 1,
++      attempts: [{ retry: 0, status: "failed" }, { retry: 1, status: "skipped" }],
++    });
++    input.automatedRun.counts = recomputeCounts(input.automatedRun.rows);
++    if (exemption === "mutation_gated") input.policy.skipDispositions = [mutationGatedDisposition(row.id)];
++    if (exemption === "known_bug") input.policy.skipDispositions = [{
++      testId: row.id, class: "known_bug", ticket: "FREEL-248", expiresAt: SKIP_DISPOSITION_EXPIRY,
++      reason: "the terminal step is normally outside this campaign",
++    }];
++    if (exemption === "disabled_config") {
++      input.policy.configSkips = [{ testId: row.id, integrationKey: "lava", reason: "Lava disabled" }];
++      rebindCampaignRuntime(input, {
++        integrationModes: [{ name: "supabase", mode: "dedicated" }, { name: "lava", mode: "disabled" }],
++      });
++    }
++    const receipt = evaluateCampaign(input).receipt;
++    assert.equal(receipt.verdict, "NEEDS_REVIEW", exemption);
++    assert.deepEqual(receipt.reasonCodes, ["FLAKY_RESULT", "SAFETY_SPINE_INCOMPLETE", "SKIPPED"], exemption);
++    assert.deepEqual(receipt.reviewIds, [row.id], exemption);
++    assert.equal(receipt.coverageNotes.some(note => ["SKIP_DISPOSITION", "CONFIG_SKIP_NOT_APPLICABLE"].includes(note.code)), false, exemption);
++  }
++});
++
++test("a failed then skipped safety observation never satisfies the clean safety spine", () => {
++  const input = withKnownJoinIssues(greenCampaign());
++  const row = input.automatedRun.rows.find(candidate => candidate.id === input.plan.safetySpine.selectedTestIds[0]);
++  Object.assign(row, {
++    status: "skipped", expectedStatus: "skipped", sourceOutcome: "flaky", observedCount: 1,
++    attempts: [{ retry: 0, status: "failed" }, { retry: 1, status: "skipped" }],
++  });
++  input.automatedRun.counts = recomputeCounts(input.automatedRun.rows);
++  input.automatedRun.automatedStatus = "incomplete";
++  const receipt = evaluateCampaign(input).receipt;
++  assert.equal(receipt.verdict, "NEEDS_REVIEW");
++  assert.deepEqual(receipt.reasonCodes, ["FLAKY_RESULT", "SAFETY_SPINE_INCOMPLETE", "SKIPPED"]);
++  assert.equal(receipt.reviewIds.includes(row.id), true);
++});
++
++test("a flaky mobile skip retains SKIPPED instead of gaining a policy exemption", () => {
++  const input = withKnownJoinIssues(greenCampaign());
++  const row = input.automatedRun.rows.find(candidate => candidate.project === "freeland-pixel-5" && candidate.expectedStatus === "passed");
++  Object.assign(row, {
++    status: "skipped", sourceExpectedStatus: "skipped", sourceOutcome: "flaky", observedCount: 1,
++    attempts: [{ retry: 0, status: "failed" }, { retry: 1, status: "skipped" }],
++  });
++  input.automatedRun.counts = recomputeCounts(input.automatedRun.rows);
++  input.policy.skipDispositions = [mutationGatedDisposition(row.id)];
++  const receipt = evaluateCampaign(input).receipt;
++  assert.equal(receipt.verdict, "NEEDS_REVIEW");
++  assert.equal(receipt.reasonCodes.includes("FLAKY_RESULT"), true);
++  assert.equal(receipt.reasonCodes.includes("SKIPPED"), true);
++  assert.equal(receipt.coverageNotes.some(note => note.code === "SKIP_DISPOSITION"), false);
++});
++
+ test("S2b SET-D2 remains an undispositioned safety gap when its profile mutation is statically skipped", () => {
+   const setD2 = {
+     id: "auto:tests/freeland/settings-deep.spec.ts#Freeland settings (authenticated) > SET-D2 language screen offers both locales and applies the choice",
+diff --git a/tests/product-graph/freeland-desktop-retries.test.mjs b/tests/product-graph/freeland-desktop-retries.test.mjs
+index 4475f1f..221cbad 100644
+--- a/tests/product-graph/freeland-desktop-retries.test.mjs
++++ b/tests/product-graph/freeland-desktop-retries.test.mjs
+@@ -2,14 +2,76 @@ import assert from "node:assert/strict";
+ import { readFileSync } from "node:fs";
+ import test from "node:test";
+ 
+-import { PLAYWRIGHT_FAIL_ON_FLAKY_TESTS, reconcileAutomatedRun } from "../../tools/freeland-graph/automated-results.mjs";
++import { PLAYWRIGHT_FAIL_ON_FLAKY_TESTS, classifyAutomatedObservation, reconcileAutomatedRun } from "../../tools/freeland-graph/automated-results.mjs";
+ import { DESKTOP_PLAYWRIGHT_RETRIES, buildStagingCommand } from "../../tools/freeland-graph/cli.mjs";
+ import { evaluateCampaign } from "../../tools/freeland-verdict/model.mjs";
+-import { greenCampaign, recomputeCounts } from "../freeland-verdict/fixtures/builders.mjs";
++import { greenCampaign, playwrightReportForTests, recomputeCounts } from "../freeland-verdict/fixtures/builders.mjs";
+ 
+ const ROOT = new URL("../../", import.meta.url);
+ const PLAN = { catalogProject: "freeland-staging", executionProject: "freeland-staging", mode: "full", fallback: false };
+ 
++// Sanitized JSON-reporter shape observed in FREEL-248 on 2026-09-15. Timing,
++// screenshots and error text are deliberately not needed by the normalizer.
++const DYNAMIC_SKIP_REPORT_TEST = {
++  projectName: "freeland-staging",
++  expectedStatus: "skipped",
++  status: "flaky",
++  annotations: [{ type: "skip", description: "The CJM storefront no longer displays prices on product cards; product-detail tests own the price contract." }],
++  results: [{ retry: 0, status: "failed" }, { retry: 1, status: "skipped" }],
++};
++
++test("a dynamic skip after failure normalizes without losing either attempt or granting acceptance", () => {
++  const input = greenCampaign();
++  const safety = new Set(input.plan.safetySpine.selectedTestIds);
++  const index = input.plan.automatedTests.findIndex(row => !safety.has(row.id));
++  assert.ok(index >= 0);
++  const selected = input.plan.automatedTests[index];
++  const report = playwrightReportForTests(input.plan.automatedTests);
++  // The existing fixture emits one setup suite, then one suite per selected test.
++  let suite = report.suites[index + 1];
++  while (!suite.specs?.length) suite = suite.suites[0];
++  suite.specs[0].tests = [structuredClone(DYNAMIC_SKIP_REPORT_TEST)];
++  const originalReport = structuredClone(report);
++
++  const reconciled = reconcileAutomatedRun({
++    plan: input.plan, playwrightReport: report,
++    campaignIdentity: input.automatedRun.campaignIdentity,
++    observedAt: input.automatedRun.observedAt,
++    subprocess: { status: "completed", exitCode: 0, signal: null, reportAvailable: true },
++  });
++  const observed = reconciled.rows.find(row => row.id === selected.id);
++  assert.equal(observed.status, "skipped");
++  assert.equal(observed.expectedStatus, "skipped");
++  assert.equal(observed.sourceOutcome, "flaky");
++  assert.deepEqual(observed.attempts, [{ retry: 0, status: "failed" }, { retry: 1, status: "skipped" }]);
++  assert.equal(observed.observedCount, 1);
++  assert.equal(reconciled.counts.skipped, 1);
++  assert.equal(reconciled.counts.passed, input.plan.automatedTests.length - 1);
++  assert.deepEqual(report, originalReport, "normalization must not rewrite source evidence");
++
++  Object.assign(input.automatedRun.rows.find(row => row.id === selected.id), observed);
++  input.automatedRun.counts = recomputeCounts(input.automatedRun.rows);
++  const receipt = evaluateCampaign(input).receipt;
++  assert.equal(receipt.verdict, "NEEDS_REVIEW");
++  for (const code of ["FLAKY_RESULT", "SKIPPED", "SAFETY_SPINE_INCOMPLETE"]) {
++    assert.equal(receipt.reasonCodes.includes(code), true, code);
++  }
++  assert.equal(receipt.reasonCodes.includes("UNEXPECTED_OBSERVATION"), false);
++  assert.equal(receipt.reviewIds.includes(selected.id), true);
++});
++
++test("dynamic-skip support still rejects contradictory source claims and malformed attempts", () => {
++  for (const observation of [
++    { expectedStatus: "skipped", sourceOutcome: "skipped", attempts: [{ retry: 0, status: "failed" }, { retry: 1, status: "skipped" }] },
++    { expectedStatus: "passed", sourceOutcome: "unexpected", attempts: [{ retry: 0, status: "failed" }, { retry: 1, status: "skipped" }] },
++    { expectedStatus: "failed", sourceOutcome: "unexpected", attempts: [{ retry: 0, status: "passed" }, { retry: 1, status: "skipped" }] },
++    { expectedStatus: "passed", sourceOutcome: "unexpected", attempts: [{ retry: 0, status: "failed" }, { retry: 1, status: "interrupted" }] },
++    { expectedStatus: "skipped", sourceOutcome: "flaky", attempts: [{ retry: 0, status: "failed" }, { retry: 0, status: "skipped" }] },
++  ]) {
++    assert.throws(() => classifyAutomatedObservation(observation), error => error.message === "AUTOMATED_OBSERVATION_INCONSISTENT");
++  }
++});
++
+ test("the desktop lane runs Playwright with exactly one retry; the mobile lane and the flaky pin are untouched", () => {
+   assert.equal(DESKTOP_PLAYWRIGHT_RETRIES, 1);
+   assert.deepEqual(buildStagingCommand({ plan: PLAN }), ["npx", "playwright", "test", "--project=freeland-staging", "--retries=1"]);
+diff --git a/tests/product-graph/freeland-graph.test.mjs b/tests/product-graph/freeland-graph.test.mjs
+index 7be693c..582c8e6 100644
+--- a/tests/product-graph/freeland-graph.test.mjs
++++ b/tests/product-graph/freeland-graph.test.mjs
+@@ -6422,6 +6422,7 @@ test("Playwright 1.61 outcome derivation exhaustively matches attempts up to len
+   const expectedClassification = (expectedStatus, statuses, sourceOutcome) => {
+     if (sourceOutcome === "skipped") return "skipped";
+     const terminal = statuses.at(-1);
++    if (terminal === "skipped" && expectedStatus === "skipped" && sourceOutcome === "flaky") return "skipped";
+     if (terminal === "passed") return expectedStatus === "passed" ? "passed" : "unexpected_pass";
+     if (["failed", "timedOut"].includes(terminal)) {
+       return terminal === expectedStatus ? "expected_failure" : "failed";
+diff --git a/tools/freeland-graph/automated-results.mjs b/tools/freeland-graph/automated-results.mjs
+index 249b3d0..25cb602 100644
+--- a/tools/freeland-graph/automated-results.mjs
++++ b/tools/freeland-graph/automated-results.mjs
+@@ -81,6 +81,9 @@ export function classifyAutomatedObservation({ expectedStatus, sourceOutcome, at
+   if (derivedOutcome === "skipped") return "skipped";
+ 
+   const terminal = validatedAttempts.at(-1)?.status;
++  // A retry may change expectedStatus through test.skip(). Keep the terminal skip
++  // while retaining the flaky source outcome and all earlier failed attempts.
++  if (terminal === "skipped" && expectedStatus === "skipped" && derivedOutcome === "flaky") return "skipped";
+   if (terminal === "passed") return expectedStatus === "passed" ? "passed" : "unexpected_pass";
+   if (["failed", "timedOut"].includes(terminal)) {
+     return terminal === expectedStatus ? "expected_failure" : "failed";
+diff --git a/tools/freeland-verdict/model.mjs b/tools/freeland-verdict/model.mjs
+index 1259fcf..0659504 100644
+--- a/tools/freeland-verdict/model.mjs
++++ b/tools/freeland-verdict/model.mjs
+@@ -408,7 +408,8 @@ function isAccountedAutomatedObservation(row, executionProject, scope, trustedId
+       && Array.isArray(row.attempts) && row.attempts.length === 1
+       && row.attempts[0]?.retry === 0 && row.attempts[0]?.status === row.expectedStatus;
+   }
+-  return row.status === "skipped" && skipDispositionFor(scope, trustedId) !== null;
++  return row.status === "skipped" && row.sourceOutcome !== "flaky"
++    && skipDispositionFor(scope, trustedId) !== null;
+ }
+ 
+ function configSkipFor(scope, trustedId) {
+@@ -1978,14 +1979,14 @@ function collectMobileRowDisposition(row, state, trustedId, scope) {
+       ? (row.expectedStatus === terminal ? "expected_failure" : "failed")
+       : terminal === "skipped" ? "skipped" : "failed";
+   if (policyStatus !== row.status) throw campaignError("UNEXPECTED_OBSERVATION");
+-  collectAutomatedStatusDisposition(row.status, state, trustedId, scope);
++  collectAutomatedStatusDisposition(row.status, state, trustedId, scope, sourceDerived);
+   return sourceDerived;
+ }
+ 
+ // Shared terminal disposition for desktop and mobile automated rows. A known issue turns an
+ // expected failure into a ticketed note; a config skip on an observed-disabled integration turns
+ // a skip into a not-applicable note. Failures block and unexpected passes always need review.
+-function collectAutomatedStatusDisposition(status, state, trustedId, scope) {
++function collectAutomatedStatusDisposition(status, state, trustedId, scope, sourceOutcome) {
+   if (status === "failed") {
+     state.blocking.add("AUTOMATED_TEST_FAILED");
+     addTrustedResultId(state.blockingIds, trustedId);
+@@ -2007,12 +2008,13 @@ function collectAutomatedStatusDisposition(status, state, trustedId, scope) {
+     return;
+   }
+   if (status === "skipped") {
+-    const skip = configSkipFor(scope, trustedId);
++    // A skip exemption cannot account for earlier failed attempts.
++    const skip = sourceOutcome === "flaky" ? null : configSkipFor(scope, trustedId);
+     if (skip) {
+       addCoverageNote(state, "CONFIG_SKIP_NOT_APPLICABLE", skip.integrationKey);
+       return;
+     }
+-    const disposition = skipDispositionFor(scope, trustedId);
++    const disposition = sourceOutcome === "flaky" ? null : skipDispositionFor(scope, trustedId);
+     if (disposition) {
+       addCoverageNote(state, "SKIP_DISPOSITION", skipDispositionDetail(disposition));
+       return;
+@@ -2065,7 +2067,7 @@ function collectAutomatedRowDisposition(row, state, trustedId, scope) {
+     throw campaignError("UNEXPECTED_OBSERVATION");
+   }
+   if (derived !== row.status) throw campaignError("UNEXPECTED_OBSERVATION");
+-  collectAutomatedStatusDisposition(row.status, state, trustedId, scope);
++  collectAutomatedStatusDisposition(row.status, state, trustedId, scope, derivedSourceOutcome);
+   return derivedSourceOutcome;
+ }
+ 

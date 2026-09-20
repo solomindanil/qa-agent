@@ -1,0 +1,568 @@
+{
+  "schemaVersion": 1,
+  "purpose": "lossless local-source preservation inventory, not execution authority",
+  "canonicalInputHead": "c65a8f540b31857033a6cb12e2bf4687755ebac4",
+  "reviewedDeliveryBase": "48e9fc91177c4866e1e10e958fbfb6e93ac2d327",
+  "originalStatusPaths": 49,
+  "additionalIgnoredLogs": 13,
+  "entries": [
+    {
+      "originalPath": "AGENTS.md",
+      "originalSha256": "a3099c323390f6bb91db2b628a7614803843a662ebb1f871e1587d7b6df3da86",
+      "originalBytes": 6256,
+      "classification": "C",
+      "retainedPath": "docs/qualification/evidence/local-consolidation-20260920/original-AGENTS.md.txt",
+      "retainedSha256": "a3099c323390f6bb91db2b628a7614803843a662ebb1f871e1587d7b6df3da86",
+      "retention": "exact original retained; Buzz addition merged into current entry"
+    },
+    {
+      "originalPath": "docs/superpowers/plans/2026-09-10-universal-qa-next-plan.md",
+      "originalSha256": "f49e7397774763d6c6062a64705fa83be4b9cb6a7ea43aad59e18672738a3ed9",
+      "originalBytes": 56283,
+      "classification": "H",
+      "retainedPath": "docs/superpowers/plans/2026-09-10-universal-qa-next-plan.f49e739.snapshot.md",
+      "retainedSha256": "f49e7397774763d6c6062a64705fa83be4b9cb6a7ea43aad59e18672738a3ed9",
+      "retention": "exact accepted duplicate; newer active-path wrapper retained"
+    },
+    {
+      "originalPath": "evals/README.md",
+      "originalSha256": "477914436b6d27fb0b87e4fc6b2ec0a88ac0aee7eeac2d4d3c0888987d711235",
+      "originalBytes": 2015,
+      "classification": "C",
+      "retainedPath": "evals/README.md",
+      "retainedSha256": "477914436b6d27fb0b87e4fc6b2ec0a88ac0aee7eeac2d4d3c0888987d711235",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/communication/buzz.md",
+      "originalSha256": "d2cf5cbd9d4e0da38f4babd8de3e42f58a4f3445d3cd4f568daa59ec0f5ca3a1",
+      "originalBytes": 5971,
+      "classification": "C",
+      "retainedPath": "docs/communication/buzz.md",
+      "retainedSha256": "d2cf5cbd9d4e0da38f4babd8de3e42f58a4f3445d3cd4f568daa59ec0f5ca3a1",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/dialogue-maintenance-20260912.md",
+      "originalSha256": "5aa5fb8dffee4b2853515be0d53162b69062fafc3f5ad25d80fde28efcc11a27",
+      "originalBytes": 23790,
+      "classification": "H",
+      "retainedPath": "docs/qualification/dialogue-maintenance-20260912.md",
+      "retainedSha256": "9bfdcf1903340d57494160570049b4b7f01a7efcf19513178e01736bf9cf93a7",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/review.md",
+      "originalSha256": "96d3c01c37e3e9642655ab4663766b7c90c025ede9847663d82c802556888b87",
+      "originalBytes": 3755,
+      "classification": "H",
+      "retainedPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/review.md",
+      "retainedSha256": "96d3c01c37e3e9642655ab4663766b7c90c025ede9847663d82c802556888b87",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/freeland-pr430-20260920/late-callback-repeat.txt",
+      "originalSha256": "8885c7234f4bc03ee5411075fa97c785a278829da4fb09f42a4ae88f58cfcaf7",
+      "originalBytes": 372,
+      "classification": "H",
+      "retainedPath": "docs/qualification/evidence/freeland-pr430-20260920/late-callback-repeat.txt",
+      "retainedSha256": "8885c7234f4bc03ee5411075fa97c785a278829da4fb09f42a4ae88f58cfcaf7",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/freeland-pr430-20260920/late-repeat-source.ts.txt",
+      "originalSha256": "fca9d6cb73897cf65cc0f9fffb69024131ba9f841e49c607af238173c9aff37f",
+      "originalBytes": 14838,
+      "classification": "H",
+      "retainedPath": "docs/qualification/evidence/freeland-pr430-20260920/late-repeat-source.ts.txt",
+      "retainedSha256": "fca9d6cb73897cf65cc0f9fffb69024131ba9f841e49c607af238173c9aff37f",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/freeland-pr430-20260920/sql-probe-results.jsonl",
+      "originalSha256": "cfbb136d4cdc647ce5c362a995e4227e3cb3805bb4a8d1b0e704bcf90237fa6d",
+      "originalBytes": 1467,
+      "classification": "H",
+      "retainedPath": "docs/qualification/evidence/freeland-pr430-20260920/sql-probe-results.jsonl",
+      "retainedSha256": "cfbb136d4cdc647ce5c362a995e4227e3cb3805bb4a8d1b0e704bcf90237fa6d",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/freeland-pr430-20260920/sql-probe-source.mjs.txt",
+      "originalSha256": "c2a746f71138e49d727d9241cff39d3663ccc24b535bc521057e92fd72d6595f",
+      "originalBytes": 8509,
+      "classification": "H",
+      "retainedPath": "docs/qualification/evidence/freeland-pr430-20260920/sql-probe-source.mjs.txt",
+      "retainedSha256": "c2a746f71138e49d727d9241cff39d3663ccc24b535bc521057e92fd72d6595f",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/p0-findings-repair-20260917/p0-2-report.md",
+      "originalSha256": "7b9466cfd3e5a9ec01ee7f66ce7816f265bce645ac05b65fcade096cf7bd5c05",
+      "originalBytes": 9112,
+      "classification": "H",
+      "retainedPath": "docs/qualification/evidence/p0-findings-repair-20260917/p0-2-report.md",
+      "retainedSha256": "7b9466cfd3e5a9ec01ee7f66ce7816f265bce645ac05b65fcade096cf7bd5c05",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/p0-findings-repair-20260917/p0-2-review.md",
+      "originalSha256": "b0b4a5815ec6468c002311205c57640bf0c15ad2e0d3e373f652f4eb94a4fb95",
+      "originalBytes": 7199,
+      "classification": "H",
+      "retainedPath": "docs/qualification/evidence/p0-findings-repair-20260917/p0-2-review.md",
+      "retainedSha256": "b0b4a5815ec6468c002311205c57640bf0c15ad2e0d3e373f652f4eb94a4fb95",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-acceptance-repair-fd50-20260916.md",
+      "originalSha256": "dc8db28c87e425a8d4a2759bf2887a12c1db15c4985ac19be94a4be4886667d6",
+      "originalBytes": 28396,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-acceptance-repair-fd50-20260916.md",
+      "retainedSha256": "6365ccbe3cc2a8449a3a7a38a1fd5f4c93d1fa7b7f4219172105557c697cb05e",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-freel440-c469-20260916.md",
+      "originalSha256": "7ba25dba4f164d6592672c333bb7cf3b3a96e0b0903d55a1102655c9f42c6ce9",
+      "originalBytes": 2942,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-freel440-c469-20260916.md",
+      "retainedSha256": "1188779f8c473be400e70ff3cc0562847caabfc83dae6fd22826b333712c8fa5",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-harness-readiness-repair-20260917.md",
+      "originalSha256": "713079021f26d7de2eb9fbf38756d2e0bbedb85678641b7d79f2b533d658c8ba",
+      "originalBytes": 10152,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-harness-readiness-repair-20260917.md",
+      "retainedSha256": "acde3c210485eb42a20adcf108274644c71a0b39a8219cc3eabdca43c2f6028a",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-migration-blockers-20260920.md",
+      "originalSha256": "19b6844a97e6b91a427a6f72d0877fa54d0c6da0098874caa041a61ae97be3ea",
+      "originalBytes": 7061,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-migration-blockers-20260920.md",
+      "retainedSha256": "7413840263e088e56512c34b0c142aa362632cd3c40d56a06f23e5e82055ed4f",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-pay-readiness-integration-20260920.md",
+      "originalSha256": "b4128ca16a9aef6fabb7e29c8264fa542b15c60ba3a5a78d6d06742380c76637",
+      "originalBytes": 4617,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-pay-readiness-integration-20260920.md",
+      "retainedSha256": "0ee0a47e8ea761d7195e125d2ca6e3703f3094739b466d75a8b8a700ba2c86c4",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-pr430-technical-review-20260920.md",
+      "originalSha256": "61fcf6d1287725247814853c990ad46f2e51ec896dfa84574d1cd9ae9988fb4e",
+      "originalBytes": 14153,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-pr430-technical-review-20260920.md",
+      "retainedSha256": "6d7a232e5237370cb20fbc26b4a025bbf60e18bcd70b175f7b23d78c61828faa",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-preproduction-c469-20260916.md",
+      "originalSha256": "3d1c0a8df7ada969929dc1b3eea95e1fbca12e152a86265d41a0163db364e9b3",
+      "originalBytes": 15025,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-preproduction-c469-20260916.md",
+      "retainedSha256": "fbd97827362800d557c242aba7aaa3277b9a97d73ee507416cce7c009f907355",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-preproduction-fd50-20260915.md",
+      "originalSha256": "f8a5e1497a81ce4f4b0b4f4bb54cdda913581c5d0d570c1e6d1402af513f093d",
+      "originalBytes": 5426,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-preproduction-fd50-20260915.md",
+      "retainedSha256": "bff890d89b36be505d28693ebeab0a7daacfdfc6586728a32031cc23753671f0",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-preproduction-fd50-20260916.md",
+      "originalSha256": "7c4514306ee2a8054357e6300f59caaa852504461083a3e09a74fb8cc45f56ba",
+      "originalBytes": 18770,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-preproduction-fd50-20260916.md",
+      "retainedSha256": "4412dd7ac85f0580fb47270ec4402e983214499f9e746fea5c89dbd743326c9a",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-velvet-legacy-handoff-20260917.md",
+      "originalSha256": "7c3b03bf2615be6ac1270a2a24074d3b5c68c342dafaf420d75ba51b873e55b5",
+      "originalBytes": 18309,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-velvet-legacy-handoff-20260917.md",
+      "retainedSha256": "0945c982275af8c843ba84bc9c41c66f8e29fc31d516858f058bc24f71b36655",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-velvet-onboarding-20260917.md",
+      "originalSha256": "b49ac314cbd739afabe080be01fd1222f50e5c45130c90115447e05e56f25607",
+      "originalBytes": 9042,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-velvet-onboarding-20260917.md",
+      "retainedSha256": "83eb6cebcd8f247c791f7027245fba7b2d3259e98a32155e1273a5b730a9032d",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/freeland-velvet-recheck-403d3e4-20260918.md",
+      "originalSha256": "dab86aa75b84965629cc3459f6f1fd27eaf4336a95d24f65ab7f8ba7ecfa5c6a",
+      "originalBytes": 75882,
+      "classification": "H",
+      "retainedPath": "docs/qualification/freeland-velvet-recheck-403d3e4-20260918.md",
+      "retainedSha256": "6b6ad6e1379d2594667d1b7123f6d4fffc871909edbd2e695583268320d40984",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/global-plan-resume-20260917.md",
+      "originalSha256": "a0afe78f38122477b3816d2b44f14bfe4dcbb0232c718e173c8d3ac1d835e581",
+      "originalBytes": 13614,
+      "classification": "H",
+      "retainedPath": "docs/qualification/global-plan-resume-20260917.md",
+      "retainedSha256": "42d45ca4e32cab2e5f4b0ec7c175452474fa03ea0189ee223e9fb7e0aa8aaa49",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/p0-authority-repair-20260917.md",
+      "originalSha256": "ac460c5795c470e35b271bb09bd3dbc5cd3b7bc7dfdbbf99261c4108547436d0",
+      "originalBytes": 3041,
+      "classification": "H",
+      "retainedPath": "docs/qualification/p0-authority-repair-20260917.md",
+      "retainedSha256": "314c92da19293e2e1b2e19674caeb20021ced7291aeef44ebfc9d319427aa64c",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/p0-findings-repair-20260917.md",
+      "originalSha256": "7ba7a64abed22e70fc56e7a1596e1ed3563eacc4419c090fae3d3edc3c9cd561",
+      "originalBytes": 5100,
+      "classification": "H",
+      "retainedPath": "docs/qualification/p0-findings-repair-20260917.md",
+      "retainedSha256": "a609603b9066c674c17c07ea343f21bc547c5f0bd1382ec1ef29f83c6f77b175",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/p0-payment-composition-repair-20260917.md",
+      "originalSha256": "22b38ae13260a33b8c749987d47bc3cf2c0c460e49e332f1c1f22190da698fb8",
+      "originalBytes": 5418,
+      "classification": "H",
+      "retainedPath": "docs/qualification/p0-payment-composition-repair-20260917.md",
+      "retainedSha256": "869654817a7a80912c081ed4f91d2deba3129960d8d5096498ff57d03928f28c",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/qualification/p0-safe-ci-20260920.md",
+      "originalSha256": "10ba1a31df158e117cb16803bccc7b2818f121105500d604427817d3e4f639bd",
+      "originalBytes": 3229,
+      "classification": "H",
+      "retainedPath": "docs/qualification/p0-safe-ci-20260920.md",
+      "retainedSha256": "0da0c72c99cb99e34f09ccf175a6de82861a445a8c4bd588d86818638bf89cb5",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/retrospectives/2026-09-12-freeland-dialogue-audit.md",
+      "originalSha256": "818ce00aea8153cd7fe6724a09be998efeed243d5b18b645fdf09ec52295356e",
+      "originalBytes": 43738,
+      "classification": "H",
+      "retainedPath": "docs/retrospectives/2026-09-12-freeland-dialogue-audit.md",
+      "retainedSha256": "d48fa1ef21d0c3a23c2b9893f710e12c7ca2691dd1ed7692647ab2ae4f23c293",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/retrospectives/2026-09-18-freeland-403d3e4-qa-agent-retrospective.md",
+      "originalSha256": "e8af024a67ef9c106dac11198b79d774ee16ca2cb4a4e83f346371e97a13daab",
+      "originalBytes": 24776,
+      "classification": "H",
+      "retainedPath": "docs/retrospectives/2026-09-18-freeland-403d3e4-qa-agent-retrospective.md",
+      "retainedSha256": "7074246acfd38e96e58bb9dd8cde9f39eb075560b36e32b1f489bfbdc43632bf",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/reviews/2026-09-20-plan-clarifications-review.md",
+      "originalSha256": "aafb4707e5b4eb389f6ffd4a235b89a242cc8f3b9cca5655fc33292ee722f807",
+      "originalBytes": 2290,
+      "classification": "H",
+      "retainedPath": "docs/reviews/2026-09-20-plan-clarifications-review.md",
+      "retainedSha256": "d4150776ff8c6447abb5f9802209e0c1f5035eba490a65e27c50208e642cf5fc",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/superpowers/plans/2026-09-18-global-plan-r1-draft.md",
+      "originalSha256": "7f8bea7abe1b120294962474b57096bfbe03d871171c8ceb677fe34df464b4b0",
+      "originalBytes": 33259,
+      "classification": "D",
+      "retainedPath": "docs/superpowers/plans/2026-09-18-global-plan-r1-draft.md",
+      "retainedSha256": "a00ab6f3dd0c4b4d21f52123bef60153d21ed3dc867ece470302f1f95c6f0529",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "docs/superpowers/plans/2026-09-18-next-package-after-403d3e4.md",
+      "originalSha256": "5f469f63256303fb29df8d4b39f1e558e6940a4a8d62371492dfd86330f61ed7",
+      "originalBytes": 8805,
+      "classification": "D",
+      "retainedPath": "docs/superpowers/plans/2026-09-18-next-package-after-403d3e4.md",
+      "retainedSha256": "96b72fdf269c04531a0766ba63c09f01500ccb57864b9905c7c23e70e8752f96",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "evals/dialogue-quality/README.md",
+      "originalSha256": "e2ccaca12611c71f38de42c5e4086b8dd842b84cf21bd0e3946e1e5d5e7d8eb5",
+      "originalBytes": 2303,
+      "classification": "C",
+      "retainedPath": "evals/dialogue-quality/README.md",
+      "retainedSha256": "e2ccaca12611c71f38de42c5e4086b8dd842b84cf21bd0e3946e1e5d5e7d8eb5",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "evals/dialogue-quality/cases.md",
+      "originalSha256": "2e225a981a7d332eb25616775d52c11d12781ab4404ffa243ef8f24f0b7b18f0",
+      "originalBytes": 3769,
+      "classification": "C",
+      "retainedPath": "evals/dialogue-quality/cases.md",
+      "retainedSha256": "2e225a981a7d332eb25616775d52c11d12781ab4404ffa243ef8f24f0b7b18f0",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "evals/dialogue-quality/reviewer-rubric.md",
+      "originalSha256": "c0c311b6f224e6c390568c091ff06b271ec151d131786359c948aa1a3318c01f",
+      "originalBytes": 3040,
+      "classification": "C",
+      "retainedPath": "evals/dialogue-quality/reviewer-rubric.md",
+      "retainedSha256": "c0c311b6f224e6c390568c091ff06b271ec151d131786359c948aa1a3318c01f",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "evals/source-entry/20260917/README.md",
+      "originalSha256": "4bc7d9585b2ca052e3a746ca416ea6cbb3a51527c2d2441ba36b05cb2f8d172f",
+      "originalBytes": 2368,
+      "classification": "H",
+      "retainedPath": "evals/source-entry/20260917/README.md",
+      "retainedSha256": "377c0ff2e2009cb3443ff2fedd271beef25e581818814b1efaf475a3aeaaed9f",
+      "retention": "exact original body with historical prefix"
+    },
+    {
+      "originalPath": "evals/source-entry/20260917/first-response.md",
+      "originalSha256": "88242444a30722b565d344090a5c15a4b4cb742df0d60116a2874ca00914f8a0",
+      "originalBytes": 9396,
+      "classification": "H",
+      "retainedPath": "evals/source-entry/20260917/first-response.md",
+      "retainedSha256": "88242444a30722b565d344090a5c15a4b4cb742df0d60116a2874ca00914f8a0",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "sources/candidates/console-p0-authority-bb9b739.bundle",
+      "originalSha256": "b17d3b2dfaaa4b2af1a765e26e2b4e9cd81bbbf218c95e07f54590248b6379bb",
+      "originalBytes": 4354115,
+      "classification": "historical source archive",
+      "retainedPath": "sources/candidates/console-p0-authority-bb9b739.bundle",
+      "retainedSha256": "b17d3b2dfaaa4b2af1a765e26e2b4e9cd81bbbf218c95e07f54590248b6379bb",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "sources/candidates/freeland-p0-pay-composition-510e08a.bundle",
+      "originalSha256": "0fcde7d97b90d2a559c91fa48d49b290cc19723239fe4da8ac3c55b6f84e12da",
+      "originalBytes": 3665919,
+      "classification": "historical source archive",
+      "retainedPath": "sources/candidates/freeland-p0-pay-composition-510e08a.bundle",
+      "retainedSha256": "0fcde7d97b90d2a559c91fa48d49b290cc19723239fe4da8ac3c55b6f84e12da",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "sources/candidates/freeland-pay-readiness-0644108.bundle",
+      "originalSha256": "47e3ad82eb9266623f386eb7b8ed4f952b02b82d2ddcf20804d31bfddd57054a",
+      "originalBytes": 3807139,
+      "classification": "historical source archive",
+      "retainedPath": "sources/candidates/freeland-pay-readiness-0644108.bundle",
+      "retainedSha256": "47e3ad82eb9266623f386eb7b8ed4f952b02b82d2ddcf20804d31bfddd57054a",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "tools/android-pilot/README.md",
+      "originalSha256": "b2d60ec4622d2873fa7295b8904570488fd87badcd7fcf6f39ddd041ceea94f3",
+      "originalBytes": 4569,
+      "classification": "D",
+      "retainedPath": "tools/android-pilot/README.md",
+      "retainedSha256": "6ee866f742c7c3e9311fcfd2e39abcce6ab919dec9d68dac50f3ade1bbe8ec63",
+      "retention": "exact original body with experimental privacy boundary"
+    },
+    {
+      "originalPath": "tools/android-pilot/driver.mjs",
+      "originalSha256": "575dc2847ad15292ef28c4cdfd6fbae3225d2533fb6108b210e20f873a9a3202",
+      "originalBytes": 3010,
+      "classification": "D",
+      "retainedPath": "tools/android-pilot/driver.mjs",
+      "retainedSha256": "575dc2847ad15292ef28c4cdfd6fbae3225d2533fb6108b210e20f873a9a3202",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "tools/android-pilot/driver.test.mjs",
+      "originalSha256": "ef0350449b210fc263e67072aac80d8e8c15c2049623895f95f532463c78090b",
+      "originalBytes": 2923,
+      "classification": "D",
+      "retainedPath": "tools/android-pilot/driver.test.mjs",
+      "retainedSha256": "ef0350449b210fc263e67072aac80d8e8c15c2049623895f95f532463c78090b",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "tools/android-pilot/run.mjs",
+      "originalSha256": "1ce6f18cd0324fddf8ece3b691f9220d9f0cca0b6ccf5be84c4d50fe82aeb970",
+      "originalBytes": 3459,
+      "classification": "D",
+      "retainedPath": "tools/android-pilot/run.mjs",
+      "retainedSha256": "1ce6f18cd0324fddf8ece3b691f9220d9f0cca0b6ccf5be84c4d50fe82aeb970",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "tools/android-pilot/runner.mjs",
+      "originalSha256": "6101270195a49b0affdfbcc43a14b382a20dc28da6e0aac4d148b68b4f7af442",
+      "originalBytes": 2064,
+      "classification": "D",
+      "retainedPath": "tools/android-pilot/runner.mjs",
+      "retainedSha256": "6101270195a49b0affdfbcc43a14b382a20dc28da6e0aac4d148b68b4f7af442",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "tools/android-pilot/runner.test.mjs",
+      "originalSha256": "5c680976885c5447447012845eb96850f07cc82eb6ca73a9314478b24109764e",
+      "originalBytes": 2764,
+      "classification": "D",
+      "retainedPath": "tools/android-pilot/runner.test.mjs",
+      "retainedSha256": "5c680976885c5447447012845eb96850f07cc82eb6ca73a9314478b24109764e",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "tools/android-pilot/wallet-visit.json",
+      "originalSha256": "1685b7fd6ba7cd5383a886d6fbd25f5370ae440fab7eb72dd64e6b0b13add292",
+      "originalBytes": 1381,
+      "classification": "D",
+      "retainedPath": "tools/android-pilot/wallet-visit.json",
+      "retainedSha256": "06e778146a77f602c96b4f02610aac95c0e3b6aef03fb35aef34f6d61bcebeba",
+      "retention": "original bytes plus terminal newline only"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-integration-red-old-v1.log",
+      "originalSha256": "12af4799129eed2c2704d18e374c141d2591b2f98795eccdfaafc3f47709cbf8",
+      "originalBytes": 48608,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-integration-red-old-v1.log",
+      "retainedSha256": "12af4799129eed2c2704d18e374c141d2591b2f98795eccdfaafc3f47709cbf8",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-integration-final-verification.log",
+      "originalSha256": "b307f3e09df80e84114b87b7da86e3073a44bd5d4e5f715563ddc10664657756",
+      "originalBytes": 34187,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-integration-final-verification.log",
+      "retainedSha256": "b307f3e09df80e84114b87b7da86e3073a44bd5d4e5f715563ddc10664657756",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-integration-main-readiness-131.log",
+      "originalSha256": "14ab74e7a617ac64147611d97b8ce437a30358573c95872a4f394d3d864af163",
+      "originalBytes": 27456,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-integration-main-readiness-131.log",
+      "retainedSha256": "14ab74e7a617ac64147611d97b8ce437a30358573c95872a4f394d3d864af163",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-integration-invariants.log",
+      "originalSha256": "bdd986e220024e3f8431b9630fb1653d4614cd441808114432b78048a0daacdd",
+      "originalBytes": 659,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-integration-invariants.log",
+      "retainedSha256": "bdd986e220024e3f8431b9630fb1653d4614cd441808114432b78048a0daacdd",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-integration-registry-source-state.log",
+      "originalSha256": "8014b80af4cfee337c8f44a3d1dc45bd93dd835e43c5910101ac326fd81e1d0f",
+      "originalBytes": 1761,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-integration-registry-source-state.log",
+      "retainedSha256": "8014b80af4cfee337c8f44a3d1dc45bd93dd835e43c5910101ac326fd81e1d0f",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-source-ci-red.log",
+      "originalSha256": "ae2990c7513c5c1604e72b5a44348cb17450f1c1ab16b7fcab11935b03293811",
+      "originalBytes": 1589,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/freeland-pay-readiness-20260920/freeland-source-ci-red.log",
+      "retainedSha256": "ae2990c7513c5c1604e72b5a44348cb17450f1c1ab16b7fcab11935b03293811",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/p0-findings-repair-20260917/p0-2-red.log",
+      "originalSha256": "96052da6061de5dba67415ed7d6e4101c2e09d46f2a141658f56b9a925bda7cc",
+      "originalBytes": 8605,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/p0-findings-repair-20260917/p0-2-red.log",
+      "retainedSha256": "96052da6061de5dba67415ed7d6e4101c2e09d46f2a141658f56b9a925bda7cc",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/p0-findings-repair-20260917/p0-2-green.log",
+      "originalSha256": "bd7e50ce5321b3356b843e84273350d2a2366c475f507bdbf063cb65e83de3ca",
+      "originalBytes": 2756,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/p0-findings-repair-20260917/p0-2-green.log",
+      "retainedSha256": "bd7e50ce5321b3356b843e84273350d2a2366c475f507bdbf063cb65e83de3ca",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/p0-findings-repair-20260917/main-combined.log",
+      "originalSha256": "353fd9b04d9b43cb74e4c43dffb270b3f42cf3f15dfbe6bd5c3f2914f071193d",
+      "originalBytes": 4530,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/p0-findings-repair-20260917/main-combined.log",
+      "retainedSha256": "353fd9b04d9b43cb74e4c43dffb270b3f42cf3f15dfbe6bd5c3f2914f071193d",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/p0-findings-repair-20260917/cold-combined.log",
+      "originalSha256": "9a285270ce908e1dbca142dc49488bbb8016792e1348221f51d633e7fbec7d43",
+      "originalBytes": 4884,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/p0-findings-repair-20260917/cold-combined.log",
+      "retainedSha256": "9a285270ce908e1dbca142dc49488bbb8016792e1348221f51d633e7fbec7d43",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/p0-pay-composition-20260917/main-comparison.log",
+      "originalSha256": "bdf11bb9969924bffb6fd8b08acb0916da3770ad1624986a100c33b6fcb19bcb",
+      "originalBytes": 2870,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/p0-pay-composition-20260917/main-comparison.log",
+      "retainedSha256": "bdf11bb9969924bffb6fd8b08acb0916da3770ad1624986a100c33b6fcb19bcb",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/p0-pay-composition-20260917/p0-3-cold-oracle.log",
+      "originalSha256": "bde675798792df706a084b1f84266aa34ce9cb0e02df49e18ce53ad311b2d3ee",
+      "originalBytes": 14206,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/p0-pay-composition-20260917/p0-3-cold-oracle.log",
+      "retainedSha256": "bde675798792df706a084b1f84266aa34ce9cb0e02df49e18ce53ad311b2d3ee",
+      "retention": "exact"
+    },
+    {
+      "originalPath": "docs/qualification/evidence/p0-pay-composition-20260917/p0-3-cold-registry.log",
+      "originalSha256": "ccdd93fe8569b0a7fd76fe1f57d493d6ca036cee36984f56bde4a477d063062d",
+      "originalBytes": 1560,
+      "classification": "historical raw evidence",
+      "retainedPath": "docs/qualification/evidence/p0-pay-composition-20260917/p0-3-cold-registry.log",
+      "retainedSha256": "ccdd93fe8569b0a7fd76fe1f57d493d6ca036cee36984f56bde4a477d063062d",
+      "retention": "exact"
+    }
+  ]
+}

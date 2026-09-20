@@ -1,0 +1,32 @@
+Command:
+node --test /Users/danilsolomin/projectsnew/qa-agent/.superpowers/sdd/2026-09-16-cross-product-qa-global-plan/p2-fresh-consumer-probe.mjs
+
+Working directory:
+/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland
+
+Exit code: 0
+
+TAP version 13
+# {"outcome":"healthy-accepted","caption":"7.25%","principal":"100.00","fee":"7.25","total":"107.25","sourceFeeRateBps":725,"helper":"openAndVerifyCardSbpSheet","checkoutAttempts":[],"unknownRequests":[]}
+# Subtest: healthy selected 7.25% caption is accepted for the coherent 725 bps quote
+ok 1 - healthy selected 7.25% caption is accepted for the coherent 725 bps quote
+  ---
+  duration_ms: 1249.907875
+  type: 'test'
+  ...
+# {"outcome":"broken-rejected","caption":"7.26%","principal":"100.00","fee":"7.25","total":"107.25","sourceFeeRateBps":725,"helper":"openAndVerifyCardSbpSheet","rejection":"selected fee percentage must match its source rate","checkoutAttempts":[],"unknownRequests":[]}
+# Subtest: broken selected 7.26% caption is rejected with the same coherent amounts and 725 bps rate
+ok 2 - broken selected 7.26% caption is rejected with the same coherent amounts and 725 bps rate
+  ---
+  duration_ms: 209.751916
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1886.433458

@@ -1,0 +1,740 @@
+DERIVED EXCERPT — first qa:verify:all run, source f1b2bd694066e24cbe5922deb7aef462094430ec, exit 1.
+Original full stdout/stderr: 722617 bytes; SHA256 374a59da758cc2097189e662458e0d0a7e35c7739ee1fc531c768a95ef0bb704.
+This excerpt starts at the canary child. Earlier completed checks: main736/736; typecheck0; release1583/1583; replacements670/670; transport70/70; private binding preflight0; baseline typecheck0 and23/23. These counts remain attributed to f1b2bd6.
+Reduced environment omitted TMPDIR; os.tmpdir() resolved /tmp, a macOS symlink to /private/tmp. Production write protection rejected the unsafe parent. No security guard was changed. Full rerun will set a verified real temporary directory explicitly.
+
+> test
+> node --test scripts/e2e/tests/browser-payment-crypto.test.mjs scripts/e2e/tests/browser-session.test.mjs scripts/e2e/tests/browser-target-mutation-guard.test.mjs scripts/e2e/tests/cdp-client.test.mjs scripts/e2e/tests/checkout-evidence.test.mjs scripts/e2e/tests/checkout-response-lifecycle.test.mjs scripts/e2e/tests/cli-options.test.mjs scripts/e2e/tests/evidence-queue.test.mjs scripts/e2e/tests/evidence-writer.test.mjs scripts/e2e/tests/live-session.test.mjs scripts/e2e/tests/network-evidence.test.mjs scripts/e2e/tests/page-runtime.test.mjs scripts/e2e/tests/provider-handoff.test.mjs scripts/e2e/tests/redaction.test.mjs scripts/e2e/tests/request-gate.test.mjs scripts/e2e/tests/staging-poller.test.mjs scripts/e2e/tests/staging-preflight.test.mjs scripts/e2e/tests/target-guard.test.mjs scripts/e2e/tests/virtual-numbers-canary.test.mjs scripts/e2e/tests/vpn-canary.test.mjs
+
+TAP version 13
+# Subtest: requires the browser WebCrypto capability used by Smart Glocal
+ok 1 - requires the browser WebCrypto capability used by Smart Glocal
+  ---
+  duration_ms: 1.15475
+  type: 'test'
+  ...
+# Subtest: selects the normal web app target before an optional Telegram adapter
+ok 2 - selects the normal web app target before an optional Telegram adapter
+  ---
+  duration_ms: 1.064542
+  type: 'test'
+  ...
+# Subtest: prefers one exact VPN tab and requires target id for duplicate VPN tabs
+ok 3 - prefers one exact VPN tab and requires target id for duplicate VPN tabs
+  ---
+  duration_ms: 1.9325
+  type: 'test'
+  ...
+# Subtest: rejects production, unrelated, and Telegram-only targets by default
+ok 4 - rejects production, unrelated, and Telegram-only targets by default
+  ---
+  duration_ms: 0.73425
+  type: 'test'
+  ...
+# Subtest: allows the Telegram adapter only behind an explicit opt-in
+ok 5 - allows the Telegram adapter only behind an explicit opt-in
+  ---
+  duration_ms: 0.1295
+  type: 'test'
+  ...
+# Subtest: rejects debugger endpoints that do not match the discovery port or target identity
+ok 6 - rejects debugger endpoints that do not match the discovery port or target identity
+  ---
+  duration_ms: 0.252541
+  type: 'test'
+  ...
+# Subtest: arms browser-wide auto-attach before returning its target snapshot
+ok 7 - arms browser-wide auto-attach before returning its target snapshot
+  ---
+  duration_ms: 1.394458
+  type: 'test'
+  ...
+# Subtest: hands secondary-target ownership over immediately after auto-attach acknowledgement
+ok 8 - hands secondary-target ownership over immediately after auto-attach acknowledgement
+  ---
+  duration_ms: 1.653917
+  type: 'test'
+  ...
+# Subtest: installs a permanently disarmed Fetch gate before resuming every new target
+ok 9 - installs a permanently disarmed Fetch gate before resuming every new target
+  ---
+  duration_ms: 0.814333
+  type: 'test'
+  ...
+# Subtest: keeps primary interception singular while recursively guarding its child workers
+ok 10 - keeps primary interception singular while recursively guarding its child workers
+  ---
+  duration_ms: 0.496625
+  type: 'test'
+  ...
+# Subtest: does not resume a target when inspection fails
+ok 11 - does not resume a target when inspection fails
+  ---
+  duration_ms: 0.334375
+  type: 'test'
+  ...
+# Subtest: rejects redirected or non-browser CDP discovery
+ok 12 - rejects redirected or non-browser CDP discovery
+  ---
+  duration_ms: 0.84825
+  type: 'test'
+  ...
+# Subtest: resolves matching CDP responses and forwards events
+ok 13 - resolves matching CDP responses and forwards events
+  ---
+  duration_ms: 0.880334
+  type: 'test'
+  ...
+# Subtest: preserves flattened target session ids on browser CDP events
+ok 14 - preserves flattened target session ids on browser CDP events
+  ---
+  duration_ms: 1.508916
+  type: 'test'
+  ...
+# Subtest: rejects matching CDP protocol errors
+ok 15 - rejects matching CDP protocol errors
+  ---
+  duration_ms: 0.419334
+  type: 'test'
+  ...
+# Subtest: cancels timed-out requests and ignores late responses
+ok 16 - cancels timed-out requests and ignores late responses
+  ---
+  duration_ms: 5.404959
+  type: 'test'
+  ...
+# Subtest: routes commands through an explicit flattened target session
+ok 17 - routes commands through an explicit flattened target session
+  ---
+  duration_ms: 0.327334
+  type: 'test'
+  ...
+# Subtest: rejects redirected CDP discovery responses
+ok 18 - rejects redirected CDP discovery responses
+  ---
+  duration_ms: 0.257083
+  type: 'test'
+  ...
+# Subtest: extracts only allowlisted checkout fields from the real unified DTO
+ok 19 - extracts only allowlisted checkout fields from the real unified DTO
+  ---
+  duration_ms: 1.049041
+  type: 'test'
+  ...
+# Subtest: normalizes every unified product type, not only vpn
+ok 20 - normalizes every unified product type, not only vpn
+  ---
+  duration_ms: 0.730167
+  type: 'test'
+  ...
+# Subtest: extracts only allowlisted VPN subscription fields
+ok 21 - extracts only allowlisted VPN subscription fields
+  ---
+  duration_ms: 0.129167
+  type: 'test'
+  ...
+# Subtest: waits for loadingFinished before reading the exact checkout response body
+ok 22 - waits for loadingFinished before reading the exact checkout response body
+  ---
+  duration_ms: 0.875917
+  type: 'test'
+  ...
+# Subtest: fails closed when the exact checkout response body does not finish loading
+ok 23 - fails closed when the exact checkout response body does not finish loading
+  ---
+  duration_ms: 0.221459
+  type: 'test'
+  ...
+# Subtest: does not request a body for a failed checkout response
+ok 24 - does not request a body for a failed checkout response
+  ---
+  duration_ms: 0.074
+  type: 'test'
+  ...
+# Subtest: ignores GET and OPTIONS responses on the checkout route before the exact POST
+ok 25 - ignores GET and OPTIONS responses on the checkout route before the exact POST
+  ---
+  duration_ms: 2.209584
+  type: 'test'
+  ...
+# Subtest: parses only the reviewed staging harness flags
+ok 26 - parses only the reviewed staging harness flags
+  ---
+  duration_ms: 1.651
+  type: 'test'
+  ...
+# Subtest: accepts one pnpm separator only as the first harness argument
+ok 27 - accepts one pnpm separator only as the first harness argument
+  ---
+  duration_ms: 1.02
+  type: 'test'
+  ...
+# Subtest: requires the stable built-in WebSocket runtime for live CDP
+ok 28 - requires the stable built-in WebSocket runtime for live CDP
+  ---
+  duration_ms: 0.182292
+  type: 'test'
+  ...
+# Subtest: serializes an event burst and flushes every write in order
+ok 29 - serializes an event burst and flushes every write in order
+  ---
+  duration_ms: 0.882917
+  type: 'test'
+  ...
+# Subtest: surfaces the first evidence failure on flush
+ok 30 - surfaces the first evidence failure on flush
+  ---
+  duration_ms: 0.928084
+  type: 'test'
+  ...
+# Subtest: makes an observed write failure unhealthy before final flush
+ok 31 - makes an observed write failure unhealthy before final flush
+  ---
+  duration_ms: 0.19325
+  type: 'test'
+  ...
+# Subtest: waits for queued writes before reporting queue health
+ok 32 - waits for queued writes before reporting queue health
+  ---
+  duration_ms: 0.126708
+  type: 'test'
+  ...
+# Subtest: creates sortable run ids without embedding secrets
+ok 33 - creates sortable run ids without embedding secrets
+  ---
+  duration_ms: 1.613084
+  type: 'test'
+  ...
+# Subtest: writes redacted JSONL evidence into the run directory
+not ok 34 - writes redacted JSONL evidence into the run directory
+  ---
+  duration_ms: 4.124167
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/packages/product-canaries/scripts/e2e/tests/evidence-writer.test.mjs:28:1'
+  failureType: 'testCodeFailure'
+  error: 'Evidence artifact root must not be a symlink'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    ensureSecureDirectory (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/packages/product-canaries/scripts/e2e/src/evidence-writer.mjs:84:15)
+    async writeEvidenceEvent (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/packages/product-canaries/scripts/e2e/src/evidence-writer.mjs:121:3)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/packages/product-canaries/scripts/e2e/tests/evidence-writer.test.mjs:31:18)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: accepts the exact capability event emitted before the VPN checkout UI
+not ok 35 - accepts the exact capability event emitted before the VPN checkout UI
+  ---
+  duration_ms: 1.310417
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/packages/product-canaries/scripts/e2e/tests/evidence-writer.test.mjs:51:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Got unwanted rejection.
+    Actual message: "Evidence artifact root must not be a symlink"
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  actual:
+  error: 'Evidence artifact root must not be a symlink'
+  stack: |-
+    ensureSecureDirectory (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/packages/product-canaries/scripts/e2e/src/evidence-writer.mjs:84:15)
+    async writeEvidenceEvent (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/packages/product-canaries/scripts/e2e/src/evidence-writer.mjs:121:3)
+    async waitForActual (node:assert:644:5)
+    async Function.doesNotReject (node:assert:787:33)
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/packages/product-canaries/scripts/e2e/tests/evidence-writer.test.mjs:53:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'doesNotReject'
+  stack: |-
+    async TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p6-entry-20260920.pnU6mK/freeland/packages/product-canaries/scripts/e2e/tests/evidence-writer.test.mjs:53:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: resolves only safe run directories below the artifact root
+ok 36 - resolves only safe run directories below the artifact root
+  ---
+  duration_ms: 0.578292
+  type: 'test'
+  ...
+# Subtest: refuses to append evidence through an existing symlink
+ok 37 - refuses to append evidence through an existing symlink
+  ---
+  duration_ms: 1.985
+  type: 'test'
+  ...
+# Subtest: rejects forbidden evidence shapes and caller-provided timestamps
+ok 38 - rejects forbidden evidence shapes and caller-provided timestamps
+  ---
+  duration_ms: 0.672875
+  type: 'test'
+  ...
+# Subtest: tightens pre-existing modes and rejects a symlinked artifact root
+ok 39 - tightens pre-existing modes and rejects a symlinked artifact root
+  ---
+  duration_ms: 13.361333
+  type: 'test'
+  ...
+# Subtest: formats failure output with sanitized run and evidence context
+ok 40 - formats failure output with sanitized run and evidence context
+  ---
+  duration_ms: 1.959333
+  type: 'test'
+  ...
+# Subtest: accepts a correlation id only from the exact checkout response route
+ok 41 - accepts a correlation id only from the exact checkout response route
+  ---
+  duration_ms: 0.106375
+  type: 'test'
+  ...
+# Subtest: correlates only provider document navigations and preserves their target identity
+ok 42 - correlates only provider document navigations and preserves their target identity
+  ---
+  duration_ms: 0.099125
+  type: 'test'
+  ...
+# Subtest: classifies only internal, staging, and reviewed provider documents as safe
+ok 43 - classifies only internal, staging, and reviewed provider documents as safe
+  ---
+  duration_ms: 0.155875
+  type: 'test'
+  ...
+# Subtest: fails closed for unguarded staging and unreviewed new browser targets
+ok 44 - fails closed for unguarded staging and unreviewed new browser targets
+  ---
+  duration_ms: 0.386291
+  type: 'test'
+  ...
+# Subtest: arms the browser target guard before the scenario can approve its checkout click
+ok 45 - arms the browser target guard before the scenario can approve its checkout click
+  ---
+  duration_ms: 0.991583
+  type: 'test'
+  ...
+# Subtest: keeps only allowlisted staging request metadata
+ok 46 - keeps only allowlisted staging request metadata
+  ---
+  duration_ms: 1.275125
+  type: 'test'
+  ...
+# Subtest: keeps response status and a UUID request correlation without headers or bodies
+ok 47 - keeps response status and a UUID request correlation without headers or bodies
+  ---
+  duration_ms: 0.174042
+  type: 'test'
+  ...
+# Subtest: records provider navigation without query data and rejects unknown origins
+ok 48 - records provider navigation without query data and rejects unknown origins
+  ---
+  duration_ms: 2.533292
+  type: 'test'
+  ...
+# Subtest: returns only the by-value result from a successful page evaluation
+ok 49 - returns only the by-value result from a successful page evaluation
+  ---
+  duration_ms: 0.987792
+  type: 'test'
+  ...
+# Subtest: allows only reviewed staging JSON reads and rejects redirected results
+ok 50 - allows only reviewed staging JSON reads and rejects redirected results
+  ---
+  duration_ms: 0.5455
+  type: 'test'
+  ...
+# Subtest: authorizes reviewed staging JSON reads without returning the browser token
+ok 51 - authorizes reviewed staging JSON reads without returning the browser token
+  ---
+  duration_ms: 1.430334
+  type: 'test'
+  ...
+# Subtest: allows the read-only payment capability endpoint for canary readiness
+ok 52 - allows the read-only payment capability endpoint for canary readiness
+  ---
+  duration_ms: 0.135292
+  type: 'test'
+  ...
+# Subtest: fails closed on page exceptions and unavailable environment endpoints
+ok 53 - fails closed on page exceptions and unavailable environment endpoints
+  ---
+  duration_ms: 0.236416
+  type: 'test'
+  ...
+# Subtest: correlates a same-tab provider handoff from the exact checkout response without exposing its query
+ok 54 - correlates a same-tab provider handoff from the exact checkout response without exposing its query
+  ---
+  duration_ms: 2.304
+  type: 'test'
+  ...
+# Subtest: correlates a reviewed provider opened in a new tab to the exact checkout payment URL
+ok 55 - correlates a reviewed provider opened in a new tab to the exact checkout payment URL
+  ---
+  duration_ms: 0.319584
+  type: 'test'
+  ...
+# Subtest: rejects the same provider path with a different checkout query before exact navigation
+ok 56 - rejects the same provider path with a different checkout query before exact navigation
+  ---
+  duration_ms: 0.363292
+  type: 'test'
+  ...
+# Subtest: allows a reviewed provider redirect only after observing the exact checkout URL
+ok 57 - allows a reviewed provider redirect only after observing the exact checkout URL
+  ---
+  duration_ms: 0.117875
+  type: 'test'
+  ...
+# Subtest: does not transfer exact checkout trust to a different provider target
+ok 58 - does not transfer exact checkout trust to a different provider target
+  ---
+  duration_ms: 0.140291
+  type: 'test'
+  ...
+# Subtest: permanently rejects a provider target that visited a different reviewed URL first
+ok 59 - permanently rejects a provider target that visited a different reviewed URL first
+  ---
+  duration_ms: 0.171667
+  type: 'test'
+  ...
+# Subtest: rejects reviewed or unreviewed external targets not correlated to this checkout
+ok 60 - rejects reviewed or unreviewed external targets not correlated to this checkout
+  ---
+  duration_ms: 0.354417
+  type: 'test'
+  ...
+# Subtest: rejects an extra unreviewed target even when the exact provider target is listed first
+ok 61 - rejects an extra unreviewed target even when the exact provider target is listed first
+  ---
+  duration_ms: 0.195584
+  type: 'test'
+  ...
+# Subtest: rejects an extra insecure HTTP target even when the exact provider target is listed first
+ok 62 - rejects an extra insecure HTTP target even when the exact provider target is listed first
+  ---
+  duration_ms: 0.387834
+  type: 'test'
+  ...
+# Subtest: rejects more than one correlated provider target
+ok 63 - rejects more than one correlated provider target
+  ---
+  duration_ms: 0.49075
+  type: 'test'
+  ...
+# Subtest: redacts secret-bearing keys and card-shaped values recursively
+ok 64 - redacts secret-bearing keys and card-shaped values recursively
+  ---
+  duration_ms: 1.869167
+  type: 'test'
+  ...
+# Subtest: preserves canonical UUIDs while redacting 13 to 19 digit PANs
+ok 65 - preserves canonical UUIDs while redacting 13 to 19 digit PANs
+  ---
+  duration_ms: 1.667792
+  type: 'test'
+  ...
+# Subtest: sanitizes URLs without destroying non-sensitive evidence
+ok 66 - sanitizes URLs without destroying non-sensitive evidence
+  ---
+  duration_ms: 0.2005
+  type: 'test'
+  ...
+# Subtest: redacts embedded payment URLs and labeled free-text credentials
+ok 67 - redacts embedded payment URLs and labeled free-text credentials
+  ---
+  duration_ms: 0.139292
+  type: 'test'
+  ...
+# Subtest: redacts Basic auth, cookies, signed Telegram data, and labelled env secrets
+ok 68 - redacts Basic auth, cookies, signed Telegram data, and labelled env secrets
+  ---
+  duration_ms: 0.204709
+  type: 'test'
+  ...
+# Subtest: aborts checkout writes unless explicitly approved
+ok 69 - aborts checkout writes unless explicitly approved
+  ---
+  duration_ms: 1.627458
+  type: 'test'
+  ...
+# Subtest: stays disarmed until explicitly approved after quote review
+ok 70 - stays disarmed until explicitly approved after quote review
+  ---
+  duration_ms: 0.178333
+  type: 'test'
+  ...
+# Subtest: allows exactly one checkout write only after the gate is explicitly armed
+ok 71 - allows exactly one checkout write only after the gate is explicitly armed
+  ---
+  duration_ms: 0.346709
+  type: 'test'
+  ...
+# Subtest: aborts production app and non-staging Supabase requests
+ok 72 - aborts production app and non-staging Supabase requests
+  ---
+  duration_ms: 0.175292
+  type: 'test'
+  ...
+# Subtest: aborts unexpected staging API writes while allowing reviewed bootstrap and quote requests
+ok 73 - aborts unexpected staging API writes while allowing reviewed bootstrap and quote requests
+  ---
+  duration_ms: 0.216542
+  type: 'test'
+  ...
+# Subtest: blocks direct staging Supabase writes while allowing reads and token refresh
+ok 74 - blocks direct staging Supabase writes while allowing reads and token refresh
+  ---
+  duration_ms: 0.336542
+  type: 'test'
+  ...
+# Subtest: selects only a separate exact-staging app target for polling
+ok 75 - selects only a separate exact-staging app target for polling
+  ---
+  duration_ms: 0.950625
+  type: 'test'
+  ...
+# Subtest: reuses an existing staging poller without closing its browser target
+ok 76 - reuses an existing staging poller without closing its browser target
+  ---
+  duration_ms: 0.38625
+  type: 'test'
+  ...
+# Subtest: creates a staging poller before checkout and closes only that harness-created target
+ok 77 - creates a staging poller before checkout and closes only that harness-created target
+  ---
+  duration_ms: 0.290917
+  type: 'test'
+  ...
+# Subtest: fails closed when the poller page attempts a direct Supabase write
+ok 78 - fails closed when the poller page attempts a direct Supabase write
+  ---
+  duration_ms: 0.548916
+  type: 'test'
+  ...
+# Subtest: accepts the exact staging environment identity
+ok 79 - accepts the exact staging environment identity
+  ---
+  duration_ms: 0.9105
+  type: 'test'
+  ...
+# Subtest: accepts the current live environment manifest shape
+ok 80 - accepts the current live environment manifest shape
+  ---
+  duration_ms: 0.154291
+  type: 'test'
+  ...
+# Subtest: rejects production or incomplete environment identity
+ok 81 - rejects production or incomplete environment identity
+  ---
+  duration_ms: 1.4255
+  type: 'test'
+  ...
+# Subtest: rejects a live release that differs from the explicitly expected SHA
+ok 82 - rejects a live release that differs from the explicitly expected SHA
+  ---
+  duration_ms: 0.129417
+  type: 'test'
+  ...
+# Subtest: rejects contradictory environment aliases instead of accepting the first match
+ok 83 - rejects contradictory environment aliases instead of accepting the first match
+  ---
+  duration_ms: 0.236167
+  type: 'test'
+  ...
+# Subtest: accepts only the canonical staging app origin
+ok 84 - accepts only the canonical staging app origin
+  ---
+  duration_ms: 0.825958
+  type: 'test'
+  ...
+# Subtest: accepts only reviewed payment-provider origins
+ok 85 - accepts only reviewed payment-provider origins
+  ---
+  duration_ms: 0.296791
+  type: 'test'
+  ...
+# Subtest: allows CDP discovery only through an explicit loopback HTTP endpoint
+ok 86 - allows CDP discovery only through an explicit loopback HTTP endpoint
+  ---
+  duration_ms: 0.685625
+  type: 'test'
+  ...
+# Subtest: allows only credential-free loopback CDP WebSocket endpoints
+ok 87 - allows only credential-free loopback CDP WebSocket endpoints
+  ---
+  duration_ms: 0.327625
+  type: 'test'
+  ...
+# Subtest: sanitizes provider URLs by dropping query, hash, and credentials
+ok 88 - sanitizes provider URLs by dropping query, hash, and credentials
+  ---
+  duration_ms: 0.180042
+  type: 'test'
+  ...
+# Subtest: reviewed quote accepts only the exact monthly amount and currency
+ok 89 - reviewed quote accepts only the exact monthly amount and currency
+  ---
+  duration_ms: 1.268958
+  type: 'test'
+  ...
+# Subtest: capability check refuses a provider outage and a missing capability
+ok 90 - capability check refuses a provider outage and a missing capability
+  ---
+  duration_ms: 0.287917
+  type: 'test'
+  ...
+# Subtest: provider bootstrap requires status and capabilities and rejects an outage banner
+ok 91 - provider bootstrap requires status and capabilities and rejects an outage banner
+  ---
+  duration_ms: 0.113375
+  type: 'test'
+  ...
+# Subtest: ui snapshot picks the monthly tariff and reviews the pay-sheet card payment
+ok 92 - ui snapshot picks the monthly tariff and reviews the pay-sheet card payment
+  ---
+  duration_ms: 0.65225
+  type: 'test'
+  ...
+# Subtest: card payment is rejected when the sheet or the card method is not ready
+ok 93 - card payment is rejected when the sheet or the card method is not ready
+  ---
+  duration_ms: 0.355083
+  type: 'test'
+  ...
+# Subtest: payer identification demand is surfaced to the caller
+ok 94 - payer identification demand is surfaced to the caller
+  ---
+  duration_ms: 0.132125
+  type: 'test'
+  ...
+# Subtest: unauthenticated or foreign pages never reach checkout
+ok 95 - unauthenticated or foreign pages never reach checkout
+  ---
+  duration_ms: 0.179709
+  type: 'test'
+  ...
+# Subtest: a fully paid and provisioned purchase is accepted
+ok 96 - a fully paid and provisioned purchase is accepted
+  ---
+  duration_ms: 1.540375
+  type: 'test'
+  ...
+# Subtest: a pending number is not accepted as provisioned
+ok 97 - a pending number is not accepted as provisioned
+  ---
+  duration_ms: 0.363375
+  type: 'test'
+  ...
+# Subtest: a number without an allocated MSISDN is not accepted
+ok 98 - a number without an allocated MSISDN is not accepted
+  ---
+  duration_ms: 0.373667
+  type: 'test'
+  ...
+# Subtest: a checkout for another product or amount is not accepted
+ok 99 - a checkout for another product or amount is not accepted
+  ---
+  duration_ms: 0.311958
+  type: 'test'
+  ...
+# Subtest: a checkout that this run did not create is not accepted
+ok 100 - a checkout that this run did not create is not accepted
+  ---
+  duration_ms: 0.074583
+  type: 'test'
+  ...
+# Subtest: an already expired number is not accepted
+ok 101 - an already expired number is not accepted
+  ---
+  duration_ms: 0.061042
+  type: 'test'
+  ...
+# Subtest: out-of-order payment timestamps are not accepted
+ok 102 - out-of-order payment timestamps are not accepted
+  ---
+  duration_ms: 0.055625
+  type: 'test'
+  ...
+# Subtest: numbers list normalizer requires a numbers array and keeps only safe fields
+ok 103 - numbers list normalizer requires a numbers array and keeps only safe fields
+  ---
+  duration_ms: 0.1165
+  type: 'test'
+  ...
+# Subtest: exactly one new number is attributed to the run
+ok 104 - exactly one new number is attributed to the run
+  ---
+  duration_ms: 0.098125
+  type: 'test'
+  ...
+# Subtest: mutation approval requires the flag, a matching sheet RUB quote and the frozen quote
+ok 105 - mutation approval requires the flag, a matching sheet RUB quote and the frozen quote
+  ---
+  duration_ms: 0.158333
+  type: 'test'
+  ...
+# Subtest: created checkout must match both the USDT quote and the reviewed RUB charge
+ok 106 - created checkout must match both the USDT quote and the reviewed RUB charge
+  ---
+  duration_ms: 0.186834
+  type: 'test'
+  ...
+# Subtest: safe terminal state exposes no payment details
+ok 107 - safe terminal state exposes no payment details
+  ---
+  duration_ms: 0.083125
+  type: 'test'
+  ...
+# Subtest: uses the normal browser VPN route as the primary canary surface
+ok 108 - uses the normal browser VPN route as the primary canary surface
+  ---
+  duration_ms: 0.684458
+  type: 'test'
+  ...
+# Subtest: fails fast unless the exact VPN payment capability is ready
+ok 109 - fails fast unless the exact VPN payment capability is ready
+  ---
+  duration_ms: 1.126084
+  type: 'test'
+  ...
+# Subtest: accepts only the reviewed monthly VPN quote
+ok 110 - accepts only the reviewed monthly VPN quote
+  ---
+  duration_ms: 0.244208
+  type: 'test'
+  ...
+# Subtest: binds checkout approval to the exact reviewed RUB card charge
+ok 111 - binds checkout approval to the exact reviewed RUB card charge
+  ---
+  duration_ms: 0.689417
+  type: 'test'
+  ...
+# Subtest: requires the created checkout to match the reviewed RUB card charge
+ok 112 - requires the created checkout to match the reviewed RUB card charge
+  ---
+  duration_ms: 0.632791
+  type: 'test'
+  ...
+# Subtest: classifies review, cancellation, and refund checkout outcomes as terminal failures
+ok 113 - classifies review, cancellation, and refund checkout outcomes as terminal failures
+  ---
+  duration_ms: 0.167625
+  type: 'test'
+  ...
+# Subtest: builds terminal evidence from safe checkout and subscription fields only
+ok 114 - builds terminal evidence from safe checkout and subscription fields only
+  ---
+  duration_ms: 0.212834
+  type: 'test'
+  ...
+# Subtest: requires paid and provisioned product evidence for success
+ok 115 - requires paid and provisioned product evidence for success
+  ---
+  duration_ms: 0.220458
+  type: 'test'
+  ...
+1..115
+# tests 115
+# suites 0
+# pass 113
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 193.790208

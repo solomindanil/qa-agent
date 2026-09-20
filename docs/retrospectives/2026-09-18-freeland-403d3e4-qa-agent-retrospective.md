@@ -1,3 +1,7 @@
+<!-- QA_LOCAL_HISTORY_20260920 -->
+> Historical record retained during local consolidation on 20 September 2026. Status, approvals, pauses, source paths and next actions below belong to the original dated scope; they are not current instructions, new test results or execution authority. Use the [current checkpoint](../qualification/current.md) and [consolidation index](../qualification/local-consolidation-20260920.md). Private/absolute historical evidence links are optional locators, not clone prerequisites. Original body bytes are preserved below.
+<!-- /QA_LOCAL_HISTORY_20260920 -->
+
 # Ретроспектива: как сработал qa-agent на релизе Freeland 403d3e4 — 18 сентября 2026
 
 Источник данных: записи `docs/qualification/freeland-velvet-recheck-403d3e4-20260918.md`, пакет `.local/freeland-velvet-recheck-20260918.W8HApt/`, рабочий runtime `.local/freeland-harness-readiness-20260917.tf5CUo/runtime` (HEAD `aa1d0ae`), каталог `MANUAL-TEST-CASES.md`, read-only клон продукта на `403d3e4`, план `docs/superpowers/plans/2026-09-16-cross-product-qa-global-plan.md`. Kernel и Console сегодня повторно не аудировались (см. аудит 17.09).

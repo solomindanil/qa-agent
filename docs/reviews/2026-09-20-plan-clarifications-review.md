@@ -1,3 +1,7 @@
+<!-- QA_LOCAL_HISTORY_20260920 -->
+> Historical record retained during local consolidation on 20 September 2026. Status, approvals, pauses, source paths and next actions below belong to the original dated scope; they are not current instructions, new test results or execution authority. Use the [current checkpoint](../qualification/current.md) and [consolidation index](../qualification/local-consolidation-20260920.md). Private/absolute historical evidence links are optional locators, not clone prerequisites. Original body bytes are preserved below.
+<!-- /QA_LOCAL_HISTORY_20260920 -->
+
 # Plan clarification review — 20 September 2026
 
 Scope: the current entry, roadmap, §10 additions to the P0–P7 global plan, and the historical R1 disclaimer. No product or source implementation was qualified.
