@@ -1,0 +1,13 @@
+
+> qa-starter@0.1.0 test
+> vitest run tests/kernel/target-observation-report.test.ts -t safe incomplete, malformed, and altered
+
+
+ RUN  v4.1.11 /Users/danilsolomin/projectsnew/qa-agent/.local/p1-observations-20260920.xOHpzs/repo/components/kernel
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 7 skipped (8)
+   Start at  16:16:11
+   Duration  11.62s (transform 597ms, setup 0ms, import 802ms, tests 10.72s, environment 0ms)
+

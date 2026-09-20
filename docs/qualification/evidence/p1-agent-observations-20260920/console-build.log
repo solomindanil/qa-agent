@@ -1,0 +1,14 @@
+✓ 181 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.76 kB │ gzip:   0.40 kB
+dist/assets/index-CGjRP9SC.css   18.49 kB │ gzip:   4.09 kB
+dist/assets/index-DIO3gcRV.js   573.00 kB │ gzip: 161.43 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 1.16s
+
+EXIT_CODE=0

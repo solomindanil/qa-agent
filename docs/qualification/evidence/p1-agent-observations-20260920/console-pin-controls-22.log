@@ -1,0 +1,145 @@
+TAP version 13
+# Subtest: actual initial rev-parse Git helper is hard-terminated and fails closed
+ok 1 - actual initial rev-parse Git helper is hard-terminated and fails closed
+  ---
+  duration_ms: 10070.0435
+  type: 'test'
+  ...
+# Subtest: actual subsequent source inventory Git helper is hard-terminated and fails closed
+ok 2 - actual subsequent source inventory Git helper is hard-terminated and fails closed
+  ---
+  duration_ms: 10300.860416
+  type: 'test'
+  ...
+# Subtest: accepted kernel strategy fixture retains exact canonical byte parity
+ok 3 - accepted kernel strategy fixture retains exact canonical byte parity
+  ---
+  duration_ms: 0.969292
+  type: 'test'
+  ...
+# Subtest: revision preflight fails closed on a non-authoritative checkout
+ok 4 - revision preflight fails closed on a non-authoritative checkout
+  ---
+  duration_ms: 19.697458
+  type: 'test'
+  ...
+# Subtest: an optional configured Kernel SHA may confirm but never override the embedded pin
+ok 5 - an optional configured Kernel SHA may confirm but never override the embedded pin
+  ---
+  duration_ms: 0.337083
+  type: 'test'
+  ...
+# Subtest: the pre-M4 Kernel pin cannot override the reviewed conditional-write successor
+ok 6 - the pre-M4 Kernel pin cannot override the reviewed conditional-write successor
+  ---
+  duration_ms: 0.06325
+  type: 'test'
+  ...
+# Subtest: the Console-loaded reviewed kernel rejects quoted credentials and retains safe references
+ok 7 - the Console-loaded reviewed kernel rejects quoted credentials and retains safe references
+  ---
+  duration_ms: 1.788333
+  type: 'test'
+  ...
+# Subtest: authority preflight rejects a dirty tracked source at the accepted HEAD
+ok 8 - authority preflight rejects a dirty tracked source at the accepted HEAD
+  ---
+  duration_ms: 1479.293292
+  type: 'test'
+  ...
+# Subtest: authority preflight rejects staged source bytes at the accepted HEAD
+ok 9 - authority preflight rejects staged source bytes at the accepted HEAD
+  ---
+  duration_ms: 1481.056125
+  type: 'test'
+  ...
+# Subtest: distribution preflight rejects a dirty noEmit build config before build or runtime import
+ok 10 - distribution preflight rejects a dirty noEmit build config before build or runtime import
+  ---
+  duration_ms: 2846.355875
+  type: 'test'
+  ...
+# Subtest: authority preflight rejects git-rm cached with an untracked source shadow
+ok 11 - authority preflight rejects git-rm cached with an untracked source shadow
+  ---
+  duration_ms: 1347.294541
+  type: 'test'
+  ...
+# Subtest: authority preflight rejects a symlinked source path escape
+ok 12 - authority preflight rejects a symlinked source path escape
+  ---
+  duration_ms: 1300.33325
+  type: 'test'
+  ...
+# Subtest: accepted kernel rejects a Console-shaped fabricated child digest
+ok 13 - accepted kernel rejects a Console-shaped fabricated child digest
+  ---
+  duration_ms: 1.235833
+  type: 'test'
+  ...
+# Subtest: Console I1 fixture passes the accepted kernel's full non-empty artifact chain
+ok 14 - Console I1 fixture passes the accepted kernel's full non-empty artifact chain
+  ---
+  duration_ms: 5.362209
+  type: 'test'
+  ...
+# Subtest: materialized artifact bytes retain exact kernel schemas, digests and reconciliation
+ok 15 - materialized artifact bytes retain exact kernel schemas, digests and reconciliation
+  ---
+  duration_ms: 12.90225
+  type: 'test'
+  ...
+# Subtest: healthy exact Kernel source passes the pinned authority preflight
+ok 16 - healthy exact Kernel source passes the pinned authority preflight
+  ---
+  duration_ms: 3272.704
+  type: 'test'
+  ...
+# Subtest: commit replacement cannot redefine the source accepted under the pinned HEAD
+ok 17 - commit replacement cannot redefine the source accepted under the pinned HEAD
+  ---
+  duration_ms: 1843.053375
+  type: 'test'
+  ...
+# Subtest: blob replacement cannot hide aligned index and working source bytes
+ok 18 - blob replacement cannot hide aligned index and working source bytes
+  ---
+  duration_ms: 1755.981375
+  type: 'test'
+  ...
+# Subtest: harmless replacement metadata does not dirty healthy authority bytes
+ok 19 - harmless replacement metadata does not dirty healthy authority bytes
+  ---
+  duration_ms: 3251.571542
+  type: 'test'
+  ...
+# Subtest: dirty and staged source bytes remain rejected
+ok 20 - dirty and staged source bytes remain rejected
+  ---
+  duration_ms: 3119.27725
+  type: 'test'
+  ...
+# Subtest: a symlink authority file remains rejected
+ok 21 - a symlink authority file remains rejected
+  ---
+  duration_ms: 1529.827625
+  type: 'test'
+  ...
+# Subtest: a configured SHA cannot override the embedded Kernel pin
+ok 22 - a configured SHA cannot override the embedded Kernel pin
+  ---
+  duration_ms: 206.503542
+  type: 'test'
+  ...
+1..22
+# tests 22
+# suites 0
+# pass 22
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 20547.342
+
+EXIT_CODE=0
+

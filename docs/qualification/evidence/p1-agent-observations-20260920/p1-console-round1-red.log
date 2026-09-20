@@ -1,0 +1,360 @@
+TAP version 13
+# Subtest: current contradictory observations render per target but cannot change managed coverage or verdict
+ok 1 - current contradictory observations render per target but cannot change managed coverage or verdict
+  ---
+  duration_ms: 19.202709
+  type: 'test'
+  ...
+# Subtest: wrong generation, missing target, duplicate or mismatched observations make only their channel unavailable
+ok 2 - wrong generation, missing target, duplicate or mismatched observations make only their channel unavailable
+  ---
+  duration_ms: 4.497083
+  type: 'test'
+  ...
+# Subtest: legacy snapshots show unavailable agent history, never a fabricated not-observed inventory
+ok 3 - legacy snapshots show unavailable agent history, never a fabricated not-observed inventory
+  ---
+  duration_ms: 1.42
+  type: 'test'
+  ...
+# Subtest: every target requires its exact duplicate-free check set even when there are no observations
+not ok 4 - every target requires its exact duplicate-free check set even when there are no observations
+  ---
+  duration_ms: 4.930333
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p1-observations-20260920.xOHpzs/repo/components/console/tests/unit/agent-observation-view.test.ts:1:4440'
+  failureType: 'testCodeFailure'
+  error: |-
+    missing field
+    + actual - expected
+    
+      {
+    +   kind: 'available',
+    +   report: {
+    +     diagnostics: [],
+    +     provenance: 'agent_authored_unattested',
+    +     publicationAuthorityDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    +     scope: 'agent_authored_unattested_observations_only',
+    +     sidecarHandling: 'not_consumed',
+    +     strategyDigest: 'sha256:f71728dde29ad889acfcc5ba6fa284334f9f1c6e7a1473f2e3b35c9333592ac5',
+    +     targets: [
+    +       {
+    +         observationState: 'not_observed',
+    +         observations: [],
+    +         targetId: 'urn:qa:surface:482b3dfe65f204a853c161d8'
+    +       },
+    +       {
+    +         observationState: 'not_observed',
+    +         observations: [],
+    +         targetId: 'urn:qa:capability:18e5724c60ca435d7a3b01af'
+    +       }
+    +     ],
+    +     workspaceDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    +   }
+    -   code: 'AGENT_OBSERVATIONS_INVALID',
+    -   kind: 'unavailable'
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    kind: 'unavailable'
+    code: 'AGENT_OBSERVATIONS_INVALID'
+  actual:
+    kind: 'available'
+    report:
+      publicationAuthorityDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      strategyDigest: 'sha256:f71728dde29ad889acfcc5ba6fa284334f9f1c6e7a1473f2e3b35c9333592ac5'
+      workspaceDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      scope: 'agent_authored_unattested_observations_only'
+      provenance: 'agent_authored_unattested'
+      sidecarHandling: 'not_consumed'
+      targets:
+        0:
+          targetId: 'urn:qa:surface:482b3dfe65f204a853c161d8'
+          observationState: 'not_observed'
+          observations:
+        1:
+          targetId: 'urn:qa:capability:18e5724c60ca435d7a3b01af'
+          observationState: 'not_observed'
+          observations:
+      diagnostics:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/Users/danilsolomin/projectsnew/qa-agent/.local/p1-observations-20260920.xOHpzs/repo/components/console/tests/unit/agent-observation-view.test.ts:95:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: diagnostic kind and code must describe the same condition
+not ok 5 - diagnostic kind and code must describe the same condition
+  ---
+  duration_ms: 1.684583
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p1-observations-20260920.xOHpzs/repo/components/console/tests/unit/agent-observation-view.test.ts:1:5687'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      {
+    +   kind: 'available',
+    +   report: {
+    +     diagnostics: [
+    +       {
+    +         code: 'AGENT_TOOL_OBSERVATION_ALTERED',
+    +         diagnosticId: 'urn:qa:diagnostic:cccccccccccccccccccccccc',
+    +         kind: 'artifact_only',
+    +         message: 'Inconsistent diagnostic',
+    +         ownerPath: '.qa-private/evidence/example'
+    +       }
+    +     ],
+    +     provenance: 'agent_authored_unattested',
+    +     publicationAuthorityDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    +     scope: 'agent_authored_unattested_observations_only',
+    +     sidecarHandling: 'not_consumed',
+    +     strategyDigest: 'sha256:f71728dde29ad889acfcc5ba6fa284334f9f1c6e7a1473f2e3b35c9333592ac5',
+    +     targets: [
+    +       {
+    +         observationState: 'not_observed',
+    +         observations: [],
+    +         targetId: 'urn:qa:surface:482b3dfe65f204a853c161d8'
+    +       },
+    +       {
+    +         observationState: 'recorded',
+    +         observations: [
+    +           {
+    +             artifactContentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    +             candidateDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    +             captureTime: '2026-09-20T00:00:00Z',
+    +             checkId: 'urn:qa:automated-check:fcbb253efc8d5f7a0748c2a4',
+    +             currentBinding: 'current',
+    +             environmentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    +             evidenceId: 'urn:qa:evidence:aaaaaaaaaaaaaaaaaaaaaaaa',
+    +             identity: {
+    +               candidate: {
+    +                 reason: 'read-only fixture has no deployment',
+    +                 state: 'unknown'
+    +               },
+    +               environment: {
+    +                 state: 'known',
+    +                 value: {
+    +                   name: 'fixture'
+    +                 }
+    +               }
+    +             },
+    +             manifestContentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    +             payload: {
+    +               actual: 'passed observed without a campaign',
+    +               attachments: [],
+    +               author: {
+    +                 agent: 'Agent A',
+    +                 authoredAt: '2026-09-20T00:00:00Z',
+    +                 host: 'codex'
+    +               },
+    +               expectationBasis: 'Reviewed requirement',
+    +               expectedBehavior: 'Empty search is allowed',
+    +               limitations: [
+    +                 'No live identity attestation'
+    +               ],
+    +               provenance: 'agent_authored_unattested',
+    +               result: 'passed',
+    +               schemaVersion: 'agent-tool-observation.v1',
+    +               scope: 'Public fixture',
+    +               tool: 'CUA fixture'
+    +             },
+    +             provenance: 'agent_authored_unattested'
+    +           },
+    +           {
+    +             artifactContentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    +             candidateDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    +             captureTime: '2026-09-20T00:00:00Z',
+    +             checkId: 'urn:qa:automated-check:fcbb253efc8d5f7a0748c2a4',
+    +             currentBinding: 'current',
+    +             environmentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    +             evidenceId: 'urn:qa:evidence:bbbbbbbbbbbbbbbbbbbbbbbb',
+    +             identity: {
+    +               candidate: {
+    +                 reason: 'read-only fixture has no deployment',
+    +                 state: 'unknown'
+    +               },
+    +               environment: {
+    +                 state: 'known',
+    +                 value: {
+    +                   name: 'fixture'
+    +                 }
+    +               }
+    +             },
+    +             manifestContentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    +             payload: {
+    +               actual: 'failed observed without a campaign',
+    +               attachments: [],
+    +               author: {
+    +                 agent: 'Agent A',
+    +                 authoredAt: '2026-09-20T00:00:00Z',
+    +                 host: 'codex'
+    +               },
+    +               expectationBasis: 'Reviewed requirement',
+    +               expectedBehavior: 'Empty search is allowed',
+    +               limitations: [
+    +                 'No live identity attestation'
+    +               ],
+    +               provenance: 'agent_authored_unattested',
+    +               result: 'failed',
+    +               schemaVersion: 'agent-tool-observation.v1',
+    +               scope: 'Public fixture',
+    +               tool: 'CUA fixture'
+    +             },
+    +             provenance: 'agent_authored_unattested'
+    +           }
+    +         ],
+    +         targetId: 'urn:qa:capability:18e5724c60ca435d7a3b01af'
+    +       }
+    +     ],
+    +     workspaceDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    +   }
+    -   code: 'AGENT_OBSERVATIONS_INVALID',
+    -   kind: 'unavailable'
+      }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    kind: 'unavailable'
+    code: 'AGENT_OBSERVATIONS_INVALID'
+  actual:
+    kind: 'available'
+    report:
+      publicationAuthorityDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      strategyDigest: 'sha256:f71728dde29ad889acfcc5ba6fa284334f9f1c6e7a1473f2e3b35c9333592ac5'
+      workspaceDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+      scope: 'agent_authored_unattested_observations_only'
+      provenance: 'agent_authored_unattested'
+      sidecarHandling: 'not_consumed'
+      targets:
+        0:
+          targetId: 'urn:qa:surface:482b3dfe65f204a853c161d8'
+          observationState: 'not_observed'
+          observations:
+        1:
+          targetId: 'urn:qa:capability:18e5724c60ca435d7a3b01af'
+          observationState: 'recorded'
+          observations:
+            0:
+              evidenceId: 'urn:qa:evidence:aaaaaaaaaaaaaaaaaaaaaaaa'
+              checkId: 'urn:qa:automated-check:fcbb253efc8d5f7a0748c2a4'
+              candidateDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              environmentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              captureTime: '2026-09-20T00:00:00Z'
+              artifactContentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              manifestContentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              identity:
+                candidate:
+                  state: 'unknown'
+                  reason: 'read-only fixture has no deployment'
+                environment:
+                  state: 'known'
+                  value:
+                    name: 'fixture'
+              payload:
+                schemaVersion: 'agent-tool-observation.v1'
+                provenance: 'agent_authored_unattested'
+                scope: 'Public fixture'
+                expectedBehavior: 'Empty search is allowed'
+                expectationBasis: 'Reviewed requirement'
+                actual: 'passed observed without a campaign'
+                result: 'passed'
+                tool: 'CUA fixture'
+                author:
+                  agent: 'Agent A'
+                  host: 'codex'
+                  authoredAt: '2026-09-20T00:00:00Z'
+                limitations:
+                  0: 'No live identity attestation'
+                attachments:
+              provenance: 'agent_authored_unattested'
+              currentBinding: 'current'
+            1:
+              evidenceId: 'urn:qa:evidence:bbbbbbbbbbbbbbbbbbbbbbbb'
+              checkId: 'urn:qa:automated-check:fcbb253efc8d5f7a0748c2a4'
+              candidateDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              environmentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              captureTime: '2026-09-20T00:00:00Z'
+              artifactContentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              manifestContentDigest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+              identity:
+                candidate:
+                  state: 'unknown'
+                  reason: 'read-only fixture has no deployment'
+                environment:
+                  state: 'known'
+                  value:
+                    name: 'fixture'
+              payload:
+                schemaVersion: 'agent-tool-observation.v1'
+                provenance: 'agent_authored_unattested'
+                scope: 'Public fixture'
+                expectedBehavior: 'Empty search is allowed'
+                expectationBasis: 'Reviewed requirement'
+                actual: 'failed observed without a campaign'
+                result: 'failed'
+                tool: 'CUA fixture'
+                author:
+                  agent: 'Agent A'
+                  host: 'codex'
+                  authoredAt: '2026-09-20T00:00:00Z'
+                limitations:
+                  0: 'No live identity attestation'
+                attachments:
+              provenance: 'agent_authored_unattested'
+              currentBinding: 'current'
+      diagnostics:
+        0:
+          diagnosticId: 'urn:qa:diagnostic:cccccccccccccccccccccccc'
+          ownerPath: '.qa-private/evidence/example'
+          kind: 'artifact_only'
+          code: 'AGENT_TOOL_OBSERVATION_ALTERED'
+          message: 'Inconsistent diagnostic'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (/Users/danilsolomin/projectsnew/qa-agent/.local/p1-observations-20260920.xOHpzs/repo/components/console/tests/unit/agent-observation-view.test.ts:105:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: stored observation text is not normalized and empty known identities are refused
+ok 6 - stored observation text is not normalized and empty known identities are refused
+  ---
+  duration_ms: 1.495417
+  type: 'test'
+  ...
+# Subtest: historical and incomplete diagnostics stay visible without satisfying current targets
+ok 7 - historical and incomplete diagnostics stay visible without satisfying current targets
+  ---
+  duration_ms: 1.760708
+  type: 'test'
+  ...
+# Subtest: channel failure leaves base scope, counts and managed results untouched
+ok 8 - channel failure leaves base scope, counts and managed results untouched
+  ---
+  duration_ms: 1.252375
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 6
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6289.184709
+
+EXIT_CODE=1
+

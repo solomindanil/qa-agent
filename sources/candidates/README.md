@@ -1,5 +1,9 @@
 # Development source archives
 
+## Agent observations, 20 September 2026
+
+Paired sources Kernel `aa5d2d188606cbcf7e3111c130347a36970ec786` and Console `48e4628f91569c4cf96d0e616cbe6e29ec31baee`; archives `kernel-agent-observations-aa5d2d1.bundle` and `console-agent-observations-48e4628.bundle` preserve complete history. Their exact trees/checksums, component reviews, scoped fixture results and remaining delivery/live-consumer gates are recorded in [qualification](../../docs/qualification/agent-observations-20260920.md). The current manifest is the selector; old archives are retained, not overwritten. No campaign/skill migration or product acceptance follows this source update.
+
 These bundles preserve reviewed and unfinished development without depending on the author's local checkout. The [manifest](../manifest.v1.json) is the only source selector; see [current qualification](../../docs/qualification/current.md) for current pins. Dated selection labels below are historical and do not override that selector. The `candidates/` directory is a provenance location, not a runtime status. No archive grants product execution, campaign migration or skill-installation authority. Do not copy an archived skill over an accepted one.
 
 ## Console authority and findings repairs, 20 September 2026

@@ -1,0 +1,382 @@
+
+> test
+> node --test tests/*.test.mjs
+
+TAP version 13
+# Subtest: qa-check remains a complete ordinary-file bundle when copied independently
+ok 1 - qa-check remains a complete ordinary-file bundle when copied independently
+  ---
+  duration_ms: 16.951167
+  type: 'test'
+  ...
+# Subtest: qa-check metadata does not force a tracker connector before product selection
+ok 2 - qa-check metadata does not force a tracker connector before product selection
+  ---
+  duration_ms: 1.27775
+  type: 'test'
+  ...
+# Subtest: qa-bugfix remains a complete ordinary-file bundle when copied independently
+ok 3 - qa-bugfix remains a complete ordinary-file bundle when copied independently
+  ---
+  duration_ms: 6.388333
+  type: 'test'
+  ...
+# Subtest: qa-bugfix metadata does not force a tracker connector before product selection
+ok 4 - qa-bugfix metadata does not force a tracker connector before product selection
+  ---
+  duration_ms: 0.600834
+  type: 'test'
+  ...
+# Subtest: qa-bugfix can read its linked Markdown resources without the donor repository
+ok 5 - qa-bugfix can read its linked Markdown resources without the donor repository
+  ---
+  duration_ms: 6.71025
+  type: 'test'
+  ...
+# Subtest: qa-source workflow remains a bounded source-only fail-closed gate
+ok 6 - qa-source workflow remains a bounded source-only fail-closed gate
+  ---
+  duration_ms: 9.08125
+  type: 'test'
+  ...
+# Subtest: qa-source validator rejects permission and unnamed-step broadenings
+ok 7 - qa-source validator rejects permission and unnamed-step broadenings
+  ---
+  duration_ms: 2.63125
+  type: 'test'
+  ...
+# Subtest: selected Console accepts exactly the manifest-selected Kernel source
+ok 8 - selected Console accepts exactly the manifest-selected Kernel source
+  ---
+  duration_ms: 4.016
+  type: 'test'
+  ...
+# Subtest: selected source roles keep reporting reference non-active
+ok 9 - selected source roles keep reporting reference non-active
+  ---
+  duration_ms: 0.391583
+  type: 'test'
+  ...
+# Subtest: cold restore materializes the exact independent source and returns a source-only summary
+ok 10 - cold restore materializes the exact independent source and returns a source-only summary
+  ---
+  duration_ms: 836.967125
+  type: 'test'
+  ...
+# Subtest: repeat restore and verify preserve existing matching bytes and an attached HEAD
+ok 11 - repeat restore and verify preserve existing matching bytes and an attached HEAD
+  ---
+  duration_ms: 2303.715875
+  type: 'test'
+  ...
+# Subtest: verify reads tracked bytes when allowed stat settings leave same-size tampering clean
+ok 12 - verify reads tracked bytes when allowed stat settings leave same-size tampering clean
+  ---
+  duration_ms: 1282.518708
+  type: 'test'
+  ...
+# Subtest: verify compares tracked executable mode independently from matching bytes
+ok 13 - verify compares tracked executable mode independently from matching bytes
+  ---
+  duration_ms: 1237.0435
+  type: 'test'
+  ...
+# Subtest: verify uses Git owner-execute semantics: rejects missing owner execute for a pinned executable
+ok 14 - verify uses Git owner-execute semantics: rejects missing owner execute for a pinned executable
+  ---
+  duration_ms: 1277.614708
+  type: 'test'
+  ...
+# Subtest: verify uses Git owner-execute semantics: accepts group and other execute for a pinned nonexecutable
+ok 15 - verify uses Git owner-execute semantics: accepts group and other execute for a pinned nonexecutable
+  ---
+  duration_ms: 1517.552875
+  type: 'test'
+  ...
+# Subtest: verify uses Git owner-execute semantics: accepts owner-only execute for a pinned executable
+ok 16 - verify uses Git owner-execute semantics: accepts owner-only execute for a pinned executable
+  ---
+  duration_ms: 1553.996042
+  type: 'test'
+  ...
+# Subtest: verify refuses a missing child without creating paths
+ok 17 - verify refuses a missing child without creating paths
+  ---
+  duration_ms: 429.135334
+  type: 'test'
+  ...
+# Subtest: preflight rejects wrong bundle digest before creating any child
+ok 18 - preflight rejects wrong bundle digest before creating any child
+  ---
+  duration_ms: 419.856667
+  type: 'test'
+  ...
+# Subtest: preflight rejects missing bundle before creating any child
+ok 19 - preflight rejects missing bundle before creating any child
+  ---
+  duration_ms: 382.217292
+  type: 'test'
+  ...
+# Subtest: preflight rejects advertised wrong commit before creating any child
+ok 20 - preflight rejects advertised wrong commit before creating any child
+  ---
+  duration_ms: 401.536875
+  type: 'test'
+  ...
+# Subtest: preflight rejects path traversal before creating any child
+ok 21 - preflight rejects path traversal before creating any child
+  ---
+  duration_ms: 359.2455
+  type: 'test'
+  ...
+# Subtest: preflight rejects absolute path before creating any child
+ok 22 - preflight rejects absolute path before creating any child
+  ---
+  duration_ms: 367.683875
+  type: 'test'
+  ...
+# Subtest: preflight rejects backslash path before creating any child
+ok 23 - preflight rejects backslash path before creating any child
+  ---
+  duration_ms: 362.178
+  type: 'test'
+  ...
+# Subtest: preflight rejects empty path segment before creating any child
+ok 24 - preflight rejects empty path segment before creating any child
+  ---
+  duration_ms: 392.734167
+  type: 'test'
+  ...
+# Subtest: preflight rejects bundle traversal before creating any child
+ok 25 - preflight rejects bundle traversal before creating any child
+  ---
+  duration_ms: 378.375958
+  type: 'test'
+  ...
+# Subtest: preflight rejects remote bundle URL before creating any child
+ok 26 - preflight rejects remote bundle URL before creating any child
+  ---
+  duration_ms: 354.595542
+  type: 'test'
+  ...
+# Subtest: preflight rejects duplicate IDs before creating any child
+ok 27 - preflight rejects duplicate IDs before creating any child
+  ---
+  duration_ms: 359.976542
+  type: 'test'
+  ...
+# Subtest: preflight rejects duplicate destinations before creating any child
+ok 28 - preflight rejects duplicate destinations before creating any child
+  ---
+  duration_ms: 353.94625
+  type: 'test'
+  ...
+# Subtest: preflight rejects nested destinations before creating any child
+ok 29 - preflight rejects nested destinations before creating any child
+  ---
+  duration_ms: 354.462167
+  type: 'test'
+  ...
+# Subtest: preflight rejects invalid schema before creating any child
+ok 30 - preflight rejects invalid schema before creating any child
+  ---
+  duration_ms: 358.777792
+  type: 'test'
+  ...
+# Subtest: preflight rejects empty qualification before creating any child
+ok 31 - preflight rejects empty qualification before creating any child
+  ---
+  duration_ms: 357.539542
+  type: 'test'
+  ...
+# Subtest: preflight rejects nonboolean authority before creating any child
+ok 32 - preflight rejects nonboolean authority before creating any child
+  ---
+  duration_ms: 347.388042
+  type: 'test'
+  ...
+# Subtest: preflight rejects uppercase commit before creating any child
+ok 33 - preflight rejects uppercase commit before creating any child
+  ---
+  duration_ms: 361.24725
+  type: 'test'
+  ...
+# Subtest: a bad second bundle prevents restoring the valid first missing child
+ok 34 - a bad second bundle prevents restoring the valid first missing child
+  ---
+  duration_ms: 391.525625
+  type: 'test'
+  ...
+# Subtest: wrong tree never returns success and leaves any new partial checkout visible
+ok 35 - wrong tree never returns success and leaves any new partial checkout visible
+  ---
+  duration_ms: 1042.868
+  type: 'test'
+  ...
+# Subtest: incremental bundle is rejected despite a matching tip and digest
+ok 36 - incremental bundle is rejected despite a matching tip and digest
+  ---
+  duration_ms: 498.789833
+  type: 'test'
+  ...
+# Subtest: matching digest does not make invalid bundle bytes acceptable
+ok 37 - matching digest does not make invalid bundle bytes acceptable
+  ---
+  duration_ms: 437.775333
+  type: 'test'
+  ...
+# Subtest: existing wrong revision is refused without checkout or repair
+ok 38 - existing wrong revision is refused without checkout or repair
+  ---
+  duration_ms: 1084.470625
+  type: 'test'
+  ...
+# Subtest: existing tracked dirt is preserved and refused
+ok 39 - existing tracked dirt is preserved and refused
+  ---
+  duration_ms: 1539.179125
+  type: 'test'
+  ...
+# Subtest: existing untracked dirt is preserved and refused
+ok 40 - existing untracked dirt is preserved and refused
+  ---
+  duration_ms: 1950.869083
+  type: 'test'
+  ...
+# Subtest: tracked tamper hidden by assume-unchanged is preserved and refused by restore and verify
+ok 41 - tracked tamper hidden by assume-unchanged is preserved and refused by restore and verify
+  ---
+  duration_ms: 1551.013875
+  type: 'test'
+  ...
+# Subtest: tracked tamper hidden by skip-worktree is preserved and refused by restore and verify
+ok 42 - tracked tamper hidden by skip-worktree is preserved and refused by restore and verify
+  ---
+  duration_ms: 1527.154875
+  type: 'test'
+  ...
+# Subtest: normal ignored files are permitted and preserved
+ok 43 - normal ignored files are permitted and preserved
+  ---
+  duration_ms: 1385.999542
+  type: 'test'
+  ...
+# Subtest: non-repository destination is retained
+ok 44 - non-repository destination is retained
+  ---
+  duration_ms: 396.081958
+  type: 'test'
+  ...
+# Subtest: a conflicting second child prevents creating the first child
+ok 45 - a conflicting second child prevents creating the first child
+  ---
+  duration_ms: 589.345584
+  type: 'test'
+  ...
+# Subtest: matching external-gitdir worktree is not accepted as independent
+ok 46 - matching external-gitdir worktree is not accepted as independent
+  ---
+  duration_ms: 476.222792
+  type: 'test'
+  ...
+# Subtest: alternates are rejected even with matching HEAD and local objects
+ok 47 - alternates are rejected even with matching HEAD and local objects
+  ---
+  duration_ms: 907.764542
+  type: 'test'
+  ...
+# Subtest: rejects a bundle symlink without following it
+ok 48 - rejects a bundle symlink without following it
+  ---
+  duration_ms: 601.926125
+  type: 'test'
+  ...
+# Subtest: rejects a child symlink without following it
+ok 49 - rejects a child symlink without following it
+  ---
+  duration_ms: 425.077375
+  type: 'test'
+  ...
+# Subtest: rejects a intermediate symlink without following it
+ok 50 - rejects a intermediate symlink without following it
+  ---
+  duration_ms: 407.575542
+  type: 'test'
+  ...
+# Subtest: rejects a git-storage symlink without following it
+ok 51 - rejects a git-storage symlink without following it
+  ---
+  duration_ms: 905.585
+  type: 'test'
+  ...
+# Subtest: rejects a manifest symlink without following it
+ok 52 - rejects a manifest symlink without following it
+  ---
+  duration_ms: 367.809583
+  type: 'test'
+  ...
+# Subtest: rejects a root symlink without following it
+ok 53 - rejects a root symlink without following it
+  ---
+  duration_ms: 225.187333
+  type: 'test'
+  ...
+# Subtest: a worktree pointer cannot serve as the assembly root
+ok 54 - a worktree pointer cannot serve as the assembly root
+  ---
+  duration_ms: 287.745209
+  type: 'test'
+  ...
+# Subtest: inherited Git overrides cannot redirect clone, objects, or verification
+ok 55 - inherited Git overrides cannot redirect clone, objects, or verification
+  ---
+  duration_ms: 1579.557375
+  type: 'test'
+  ...
+# Subtest: restore works with the donor moved away and never runs scripts, hooks or global filters
+ok 56 - restore works with the donor moved away and never runs scripts, hooks or global filters
+  ---
+  duration_ms: 888.246417
+  type: 'test'
+  ...
+# Subtest: existing local Git filters cannot execute during verification
+ok 57 - existing local Git filters cannot execute during verification
+  ---
+  duration_ms: 1137.759625
+  type: 'test'
+  ...
+# Subtest: unknown commands and flags and nonabsolute roots return JSON errors
+ok 58 - unknown commands and flags and nonabsolute roots return JSON errors
+  ---
+  duration_ms: 447.681
+  type: 'test'
+  ...
+# Subtest: CLI default root is relative to its own entrypoint rather than caller cwd
+ok 59 - CLI default root is relative to its own entrypoint rather than caller cwd
+  ---
+  duration_ms: 734.239875
+  type: 'test'
+  ...
+# Subtest: library exposes the same verified summary and coded failure contract
+ok 60 - library exposes the same verified summary and coded failure contract
+  ---
+  duration_ms: 826.381584
+  type: 'test'
+  ...
+# Subtest: malformed manifest JSON is a coded manifest failure
+ok 61 - malformed manifest JSON is a coded manifest failure
+  ---
+  duration_ms: 522.893584
+  type: 'test'
+  ...
+1..61
+# tests 61
+# suites 0
+# pass 61
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 39562.320083
+
+EXIT_CODE=0

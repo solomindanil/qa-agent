@@ -1,5 +1,13 @@
 # Current QA-agent source and execution entry
 
+## Current source checkpoint — 20 September 2026
+
+The manifest selects Kernel `aa5d2d1` with Console `48e4628` for the bounded agent-observation slice; Freeland `3ee1cb3` and inactive reference `10d398d` are unchanged. [Qualification, exact commits, tests and remaining gates](agent-observations-20260920.md) governs this source update. Component reviews passed after fixes; the record distinguishes local fixture acceptance, source delivery and canonical adoption.
+
+Use existing CLI/storage and the Coverage observation channel. Authored results remain `agent_authored_unattested`, never managed PASS or release GO. Existing registrations, campaign owners, installed skills and product evidence are not migrated. The remaining P1 exit is a separately authorized real consumer; local fixtures do not close it. No product/payment/tracker/deployment/cloud action is authorized by source selection.
+
+Everything below is dated historical qualification, not a competing current source selector. Resolve the exact current pair from the manifest before commands.
+
 Updated 2026-09-15. This is the current source index. [Manifest](../../sources/manifest.v1.json) pins executable component **source**, while [product owners](../../products/README.md) select existing campaign runtimes. This branch delivers the [reviewed continuation successor](campaign-continuation-20260914.md); cold delivery and whole-review gates passed. [Canonical adoption](continuation-adoption-20260914.md) is now complete with the user's approval and fresh packaging/source checks. [Earlier source adoption](source-adoption-20260914.md) retains its exact prior selection and gates. Older pages are dated evidence, not competing current manifests. Existing product runtimes and installed skills were not migrated.
 
 ## Selected source — 15 September

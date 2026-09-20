@@ -1,0 +1,55 @@
+TAP version 13
+# Subtest: healthy exact Kernel source passes the pinned authority preflight
+ok 1 - healthy exact Kernel source passes the pinned authority preflight
+  ---
+  duration_ms: 3071.446917
+  type: 'test'
+  ...
+# Subtest: commit replacement cannot redefine the source accepted under the pinned HEAD
+ok 2 - commit replacement cannot redefine the source accepted under the pinned HEAD
+  ---
+  duration_ms: 1732.841042
+  type: 'test'
+  ...
+# Subtest: blob replacement cannot hide aligned index and working source bytes
+ok 3 - blob replacement cannot hide aligned index and working source bytes
+  ---
+  duration_ms: 1690.975166
+  type: 'test'
+  ...
+# Subtest: harmless replacement metadata does not dirty healthy authority bytes
+ok 4 - harmless replacement metadata does not dirty healthy authority bytes
+  ---
+  duration_ms: 3669.632417
+  type: 'test'
+  ...
+# Subtest: dirty and staged source bytes remain rejected
+ok 5 - dirty and staged source bytes remain rejected
+  ---
+  duration_ms: 3307.138041
+  type: 'test'
+  ...
+# Subtest: a symlink authority file remains rejected
+ok 6 - a symlink authority file remains rejected
+  ---
+  duration_ms: 1551.774834
+  type: 'test'
+  ...
+# Subtest: a configured SHA cannot override the embedded Kernel pin
+ok 7 - a configured SHA cannot override the embedded Kernel pin
+  ---
+  duration_ms: 161.186834
+  type: 'test'
+  ...
+1..7
+# tests 7
+# suites 0
+# pass 7
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 15285.462625
+
+EXIT_CODE=0
+

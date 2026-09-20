@@ -1,0 +1,13 @@
+
+> qa-starter@0.1.0 test
+> vitest run tests/kernel/agent-tool-observation.test.ts tests/kernel/target-observation-report.test.ts
+
+
+ RUN  v4.1.11 /Users/danilsolomin/projectsnew/qa-agent/.local/p1-observations-20260920.xOHpzs/repo/components/kernel
+
+
+ Test Files  2 passed (2)
+      Tests  13 passed (13)
+   Start at  16:12:32
+   Duration  116.79s (transform 622ms, setup 0ms, import 1.05s, tests 115.54s, environment 0ms)
+

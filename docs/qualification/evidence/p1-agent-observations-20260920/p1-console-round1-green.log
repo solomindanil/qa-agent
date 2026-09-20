@@ -1,0 +1,392 @@
+TAP version 13
+# Subtest: bridge delegates observation read and contains channel failure without dropping the base snapshot
+ok 1 - bridge delegates observation read and contains channel failure without dropping the base snapshot
+  ---
+  duration_ms: 39.87825
+  type: 'test'
+  ...
+# Retained bridge fixture: /private/tmp/qa-observation-bridge-lpw9Ue
+# Subtest: registration runtime uses its existing Kernel context for observation reports
+ok 2 - registration runtime uses its existing Kernel context for observation reports
+  ---
+  duration_ms: 2532.857334
+  type: 'test'
+  ...
+# Subtest: current contradictory observations render per target but cannot change managed coverage or verdict
+ok 3 - current contradictory observations render per target but cannot change managed coverage or verdict
+  ---
+  duration_ms: 20.787125
+  type: 'test'
+  ...
+# Subtest: wrong generation, missing target, duplicate or mismatched observations make only their channel unavailable
+ok 4 - wrong generation, missing target, duplicate or mismatched observations make only their channel unavailable
+  ---
+  duration_ms: 4.871084
+  type: 'test'
+  ...
+# Subtest: legacy snapshots show unavailable agent history, never a fabricated not-observed inventory
+ok 5 - legacy snapshots show unavailable agent history, never a fabricated not-observed inventory
+  ---
+  duration_ms: 1.624208
+  type: 'test'
+  ...
+# Subtest: every target requires its exact duplicate-free check set even when there are no observations
+ok 6 - every target requires its exact duplicate-free check set even when there are no observations
+  ---
+  duration_ms: 4.086125
+  type: 'test'
+  ...
+# Subtest: diagnostic kind and code must describe the same condition
+ok 7 - diagnostic kind and code must describe the same condition
+  ---
+  duration_ms: 0.692917
+  type: 'test'
+  ...
+# Subtest: stored observation text is not normalized and empty known identities are refused
+ok 8 - stored observation text is not normalized and empty known identities are refused
+  ---
+  duration_ms: 0.811292
+  type: 'test'
+  ...
+# Subtest: historical and incomplete diagnostics stay visible without satisfying current targets
+ok 9 - historical and incomplete diagnostics stay visible without satisfying current targets
+  ---
+  duration_ms: 1.68075
+  type: 'test'
+  ...
+# Subtest: channel failure leaves base scope, counts and managed results untouched
+ok 10 - channel failure leaves base scope, counts and managed results untouched
+  ---
+  duration_ms: 1.308791
+  type: 'test'
+  ...
+# Subtest: maps an attested first-evidence receipt independently from campaign evidence
+ok 11 - maps an attested first-evidence receipt independently from campaign evidence
+  ---
+  duration_ms: 12.044792
+  type: 'test'
+  ...
+# Subtest: rejects first-evidence lifecycle or artifact binding drift
+ok 12 - rejects first-evidence lifecycle or artifact binding drift
+  ---
+  duration_ms: 4.619583
+  type: 'test'
+  ...
+# Subtest: projects rejected campaign evidence as an explicit fail-closed state
+ok 13 - projects rejected campaign evidence as an explicit fail-closed state
+  ---
+  duration_ms: 0.876084
+  type: 'test'
+  ...
+# Subtest: accepts the exact profile side-effect policy needed for catalog safety
+ok 14 - accepts the exact profile side-effect policy needed for catalog safety
+  ---
+  duration_ms: 1.39725
+  type: 'test'
+  ...
+# Subtest: accepts only the exact current Kernel managed-path adoption record
+ok 15 - accepts only the exact current Kernel managed-path adoption record
+  ---
+  duration_ms: 1.872208
+  type: 'test'
+  ...
+# Subtest: accepts the real kernel-shaped graph and derives presentation planes
+ok 16 - accepts the real kernel-shaped graph and derives presentation planes
+  ---
+  duration_ms: 0.67775
+  type: 'test'
+  ...
+# Subtest: rejects the invented graph plane and string provenance aliases
+ok 17 - rejects the invented graph plane and string provenance aliases
+  ---
+  duration_ms: 1.834125
+  type: 'test'
+  ...
+# Subtest: joins exact coverage by targetId and keeps registration NOT_EVALUATED
+ok 18 - joins exact coverage by targetId and keeps registration NOT_EVALUATED
+  ---
+  duration_ms: 1.196458
+  type: 'test'
+  ...
+# Subtest: rejects duplicate coverage targets instead of collapsing them in a Map
+ok 19 - rejects duplicate coverage targets instead of collapsing them in a Map
+  ---
+  duration_ms: 0.83625
+  type: 'test'
+  ...
+# Subtest: rejects canonically equivalent NFC duplicates like the committed kernel contract
+ok 20 - rejects canonically equivalent NFC duplicates like the committed kernel contract
+  ---
+  duration_ms: 1.264208
+  type: 'test'
+  ...
+# Subtest: rejects coverage identity and graph binding drift
+ok 21 - rejects coverage identity and graph binding drift
+  ---
+  duration_ms: 0.858667
+  type: 'test'
+  ...
+# Subtest: loads a stable test catalog and rejects duplicate or cross-graph entries
+ok 22 - loads a stable test catalog and rejects duplicate or cross-graph entries
+  ---
+  duration_ms: 1.022292
+  type: 'test'
+  ...
+# Subtest: requires duplicate-free catalog entry identities and exact graph check accounting
+ok 23 - requires duplicate-free catalog entry identities and exact graph check accounting
+  ---
+  duration_ms: 1.213417
+  type: 'test'
+  ...
+# Subtest: requires the strategy identity subset and duplicate-free child identities
+ok 24 - requires the strategy identity subset and duplicate-free child identities
+  ---
+  duration_ms: 0.897125
+  type: 'test'
+  ...
+# Subtest: exactly reconciles automated proposals and manual handoffs with catalog checks and targets
+ok 25 - exactly reconciles automated proposals and manual handoffs with catalog checks and targets
+  ---
+  duration_ms: 0.847459
+  type: 'test'
+  ...
+# Subtest: exactly reconciles unresolved oracle targets with their catalog entry
+ok 26 - exactly reconciles unresolved oracle targets with their catalog entry
+  ---
+  duration_ms: 0.471292
+  type: 'test'
+  ...
+# Subtest: rejects result and verdict fields hidden in catalog or strategy children
+ok 27 - rejects result and verdict fields hidden in catalog or strategy children
+  ---
+  duration_ms: 0.754334
+  type: 'test'
+  ...
+# Subtest: requires catalog safety fields and exact draft safety unions
+ok 28 - requires catalog safety fields and exact draft safety unions
+  ---
+  duration_ms: 2.151708
+  type: 'test'
+  ...
+# Subtest: rejects undeclared secrets and prohibited or policy-absent side effects
+ok 29 - rejects undeclared secrets and prohibited or policy-absent side effects
+  ---
+  duration_ms: 1.099916
+  type: 'test'
+  ...
+# Subtest: enforces profile safety on a catalog even before a draft strategy exists
+ok 30 - enforces profile safety on a catalog even before a draft strategy exists
+  ---
+  duration_ms: 0.25925
+  type: 'test'
+  ...
+# Subtest: rejects hidden credential and execution-evidence claims while retaining safe opaque extras
+ok 31 - rejects hidden credential and execution-evidence claims while retaining safe opaque extras
+  ---
+  duration_ms: 2.034583
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects opaque metadata requiredSecretRefs
+ok 32 - catalog-only rejects opaque metadata requiredSecretRefs
+  ---
+  duration_ms: 0.347666
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects opaque metadata required secret refs separators
+ok 33 - catalog-only rejects opaque metadata required secret refs separators
+  ---
+  duration_ms: 0.323
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects opaque metadata sideEffectClasses
+ok 34 - catalog-only rejects opaque metadata sideEffectClasses
+  ---
+  duration_ms: 0.197042
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects opaque metadata side effect classes separators
+ok 35 - catalog-only rejects opaque metadata side effect classes separators
+  ---
+  duration_ms: 0.259959
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects opaque metadata expectedEvidenceTypes
+ok 36 - catalog-only rejects opaque metadata expectedEvidenceTypes
+  ---
+  duration_ms: 0.197
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects opaque metadata expected evidence types separators
+ok 37 - catalog-only rejects opaque metadata expected evidence types separators
+  ---
+  duration_ms: 0.178167
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects opaque metadata evidenceSummary
+ok 38 - catalog-only rejects opaque metadata evidenceSummary
+  ---
+  duration_ms: 0.16625
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects opaque metadata evidence summary separators
+ok 39 - catalog-only rejects opaque metadata evidence summary separators
+  ---
+  duration_ms: 0.192083
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects opaque metadata apiKeyMaterial
+ok 40 - catalog-only rejects opaque metadata apiKeyMaterial
+  ---
+  duration_ms: 0.157417
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects opaque metadata api key material separators
+ok 41 - catalog-only rejects opaque metadata api key material separators
+  ---
+  duration_ms: 0.178542
+  type: 'test'
+  ...
+# Subtest: catalog-only preserves explicitly safe opaque tokenBudget metadata
+ok 42 - catalog-only preserves explicitly safe opaque tokenBudget metadata
+  ---
+  duration_ms: 0.200791
+  type: 'test'
+  ...
+# Subtest: catalog-only requires the exact tokenBudget metadata shape
+ok 43 - catalog-only requires the exact tokenBudget metadata shape
+  ---
+  duration_ms: 0.427
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects a safety alias inside a recursively inert opaque object
+ok 44 - catalog-only rejects a safety alias inside a recursively inert opaque object
+  ---
+  duration_ms: 0.225958
+  type: 'test'
+  ...
+# Subtest: catalog-only rejects arbitrary opaque child catchalls
+ok 45 - catalog-only rejects arbitrary opaque child catchalls
+  ---
+  duration_ms: 0.592292
+  type: 'test'
+  ...
+# Subtest: projects the exact test-strategy-draft.v1 field names and no campaign
+ok 46 - projects the exact test-strategy-draft.v1 field names and no campaign
+  ---
+  duration_ms: 0.506334
+  type: 'test'
+  ...
+# Subtest: projects a bound autonomous QA V0 receipt into the existing Runs and Verdict model
+ok 47 - projects a bound autonomous QA V0 receipt into the existing Runs and Verdict model
+  ---
+  duration_ms: 18.248167
+  type: 'test'
+  ...
+# Subtest: projects exact blocked targets as pending human handoffs without hiding the executed safe subset
+ok 48 - projects exact blocked targets as pending human handoffs without hiding the executed safe subset
+  ---
+  duration_ms: 4.297917
+  type: 'test'
+  ...
+# Subtest: projects blocked targets separately without masking a stronger product failure
+ok 49 - projects blocked targets separately without masking a stronger product failure
+  ---
+  duration_ms: 4.965666
+  type: 'test'
+  ...
+# Subtest: projects receipt dossiers as campaign findings without inventing ledger files
+ok 50 - projects receipt dossiers as campaign findings without inventing ledger files
+  ---
+  duration_ms: 5.20775
+  type: 'test'
+  ...
+# Subtest: projects flaky, harness-failure, and needs-review campaign accounting explicitly
+ok 51 - projects flaky, harness-failure, and needs-review campaign accounting explicitly
+  ---
+  duration_ms: 18.904541
+  type: 'test'
+  ...
+# Subtest: rejects autonomous receipt drift from the current product, graph, plan, and run identity
+ok 52 - rejects autonomous receipt drift from the current product, graph, plan, and run identity
+  ---
+  duration_ms: 9.948667
+  type: 'test'
+  ...
+# Subtest: receipt schema preserves runner status because private oracle signatures are not reconstructible
+ok 53 - receipt schema preserves runner status because private oracle signatures are not reconstructible
+  ---
+  duration_ms: 3.658708
+  type: 'test'
+  ...
+# Subtest: receipt schema rejects attempt topology the runner cannot emit
+ok 54 - receipt schema rejects attempt topology the runner cannot emit
+  ---
+  duration_ms: 4.400209
+  type: 'test'
+  ...
+# Subtest: receipt schema requires exact runner-owned attempt, dossier, and ticket artifact paths
+ok 55 - receipt schema requires exact runner-owned attempt, dossier, and ticket artifact paths
+  ---
+  duration_ms: 6.938167
+  type: 'test'
+  ...
+# Subtest: workspace schema rejects a non-harness browser attempt without final.png
+ok 56 - workspace schema rejects a non-harness browser attempt without final.png
+  ---
+  duration_ms: 2.698083
+  type: 'test'
+  ...
+# Subtest: rejects legacy strategy aliases rather than silently defaulting correct fields
+ok 57 - rejects legacy strategy aliases rather than silently defaulting correct fields
+  ---
+  duration_ms: 0.452
+  type: 'test'
+  ...
+# Subtest: rejects unknown keys at the snapshot, project, state, and managed boundaries
+ok 58 - rejects unknown keys at the snapshot, project, state, and managed boundaries
+  ---
+  duration_ms: 1.005125
+  type: 'test'
+  ...
+# Subtest: rejects every independent upstream digest drift in catalog and strategy
+ok 59 - rejects every independent upstream digest drift in catalog and strategy
+  ---
+  duration_ms: 1.413292
+  type: 'test'
+  ...
+# Subtest: requires non-empty reconciled artifacts at BASELINE_APPROVAL_REQUIRED
+ok 60 - requires non-empty reconciled artifacts at BASELINE_APPROVAL_REQUIRED
+  ---
+  duration_ms: 0.557875
+  type: 'test'
+  ...
+# Subtest: permits zero coverage items only while graph and registry are both draft
+ok 61 - permits zero coverage items only while graph and registry are both draft
+  ---
+  duration_ms: 0.340625
+  type: 'test'
+  ...
+# Subtest: keeps deterministic layout and exact digest rows
+ok 62 - keeps deterministic layout and exact digest rows
+  ---
+  duration_ms: 0.623083
+  type: 'test'
+  ...
+# Subtest: schema constants in the fixture are independently reconciled
+ok 63 - schema constants in the fixture are independently reconciled
+  ---
+  duration_ms: 0.04125
+  type: 'test'
+  ...
+1..63
+# tests 63
+# suites 0
+# pass 63
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9553.762792
+
+EXIT_CODE=0
+
