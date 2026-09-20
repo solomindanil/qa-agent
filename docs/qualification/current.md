@@ -10,7 +10,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 | --- | --- | --- |
 | Kernel | `aa5d2d188606cbcf7e3111c130347a36970ec786` | Active; paired [observation implementation](agent-observations-20260920.md) |
 | Console | `c421160a71c0679a357f29828029ec3550791d16` | Active; [reference correction and fresh-agent consumer](observation-skill-reference-20260920.md) |
-| Freeland | `d4754f7ddbcb8183f695f479ef21aa7728c1ace0` | Active specialist source; [readiness/PAY01 adoption](freeland-source-adoption-20260920.md) |
+| Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source in this candidate; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
 Those sources and their complete source skill bundles are delivered through local Git bundles. Source adoption did not install host skills, update registrations, migrate product campaigns or attest a live product build. An existing runtime may deliberately be older.
@@ -19,7 +19,9 @@ Those sources and their complete source skill bundles are delivered through loca
 
 The owner resumed the [global P0–P7 improvement plan](../superpowers/plans/2026-09-16-cross-product-qa-global-plan.md), targeting the agreed pre-cloud work. Its [no-loss reconciliation](../reviews/2026-09-16-global-plan-reconciliation.md) preserves previous obligations. A deadline is not acceptance evidence. Cloud P7 remains separately authorized.
 
-Next bounded implementation: **P2 semantic fee-caption regression** in the existing Freeland Card/SBP helper. The [executed counterexample](global-plan-entry-audit-20260920.md#executed-nonzero-caption-counterexample) accepted a 99% tile caption with a 12.9% API rate and correct sums. Add sensitive healthy/broken controls and repair that seam, then independent review and source delivery. The original card-top-up wallet dialog remains a separate open consumer gap; neither a fixture PASS nor this narrow repair closes it. Do not rebuild completed P0/P1 mechanisms.
+The **P2-A semantic fee-caption repair** and compatibility fixtures are implemented and independently reviewed; [exact delivery status and gates](p2-semantic-repair-20260920.md) distinguish candidate source from canonical adoption. The previous [99% counterexample](global-plan-entry-audit-20260920.md#executed-nonzero-caption-counterexample) is rejected by the repaired helper; healthy decimal controls remain accepted. Do not reimplement that repair.
+
+Next bounded implementation after delivery: **the original dry card-top-up UI consumer**. Ground current expectations before checking the selected quote, rate/fee caption, total and switching between rails. TC-PAY-07's shadow/API arithmetic does not establish the current product contract or rendered UI. Preserve the no-checkout boundary and missing-fixture outcome; neither the P2-A fixture PASS nor packaging closes original-path, full product or graph coverage. Do not rebuild completed P0/P1 mechanisms.
 
 In parallel, qualify this short P6 entry from a clean clone and fresh context. The next larger exits remain P3 full/ticket/help/resume, P4 useful graph/regression consumption, P5 cross-domain agent evaluation and P6 dialogue-ready delivery. Exact scope and evidence are in the plan, not inferred from unchecked-box counts.
 
