@@ -1,0 +1,122 @@
+name: QA source safety
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.1
+          package-manager-cache: false
+
+      - name: Restore selected bundled sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-source-restore.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node tools/workspace.mjs restore
+
+      - name: Verify selected sources without repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-source-verify.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node tools/workspace.mjs verify
+
+      - name: Run root packaging tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-root-tests.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node --test tests/*.test.mjs
+
+      - name: Verify selected Freeland provenance
+        working-directory: components/freeland
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-freeland-provenance.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node tools/freeland-main/provenance.mjs --verify .
+
+      - name: Run selected Freeland smoke oracle tests
+        working-directory: components/freeland
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-freeland-oracles.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node --test tests/product-graph/freeland-smoke-u0-oracles.test.mjs
