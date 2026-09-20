@@ -1,5 +1,18 @@
 # Development source archives
 
+## Freeland readiness and PAY01 composition, 20 September 2026
+
+Source `d4754f7ddbcb8183f695f479ef21aa7728c1ace0`, tree
+`2fffdb008347b3337a5b58eea8f3cda8889d584c`; complete-history archive
+`freeland-pay-readiness-d4754f7.bundle`, SHA256
+`9195aeea5c0995ca937876e8b7e569a1e3cbe6700147e32f67779781620651f0`.
+Combines committed readinessaa1 with reviewed PAY01v2, and extracts the pure
+PAY01 source-only test boundary without removing other tests. PAY01 remains
+shadow; seven other historical receipt authorities remain stale. See
+[delivery qualification](../../docs/qualification/freeland-source-adoption-20260920.md)
+for exact gates, selection status and limits. No campaign or installed-skill
+migration, payment or product acceptance follows this source update.
+
 ## Agent observations, 20 September 2026
 
 Paired sources Kernel `aa5d2d188606cbcf7e3111c130347a36970ec786` and Console `48e4628f91569c4cf96d0e616cbe6e29ec31baee`; archives `kernel-agent-observations-aa5d2d1.bundle` and `console-agent-observations-48e4628.bundle` preserve complete history. Their exact trees/checksums, component reviews, scoped fixture results and remaining delivery/live-consumer gates are recorded in [qualification](../../docs/qualification/agent-observations-20260920.md). The current manifest is the selector; old archives are retained, not overwritten. No campaign/skill migration or product acceptance follows this source update.

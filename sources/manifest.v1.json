@@ -24,12 +24,12 @@
     {
       "id": "freeland",
       "path": "components/freeland",
-      "commit": "3ee1cb3f6ac3676f4f0e066ef5cc9970b0baf5e0",
-      "tree": "52e0e23be1ad6413fd8bb549ce7f043b2b0fa07b",
-      "bundle": "sources/candidates/freeland-divergent-baseline-3ee1cb3.bundle",
-      "sha256": "3577569dc5be28497dfd4ac86d7f46d5b276533015d6bb664575f0c5735b0671",
+      "commit": "d4754f7ddbcb8183f695f479ef21aa7728c1ace0",
+      "tree": "2fffdb008347b3337a5b58eea8f3cda8889d584c",
+      "bundle": "sources/candidates/freeland-pay-readiness-d4754f7.bundle",
+      "sha256": "9195aeea5c0995ca937876e8b7e569a1e3cbe6700147e32f67779781620651f0",
       "runtimeAuthority": true,
-      "qualification": "reviewed QA-H003 divergent production-baseline authority successor to21c1c61: schema V3 binds the exact production, candidate and unique merge-base trees; only an explicitly requested full plan is admitted, while impacted mode fails closed before replacement. Existing V1/V2 behavior and prior M1/M5 repairs are retained. Full owning qa:verify:all passed2786/2786 with typecheck/build/provenance/private bindings; complete-history bundle, cold root restoration and independent review are recorded in docs/qualification/freeland-divergent-baseline-adoption-20260915.md. Harness/source adoption is not product PASS, live execution, payment authority, campaign migration or installed-skill promotion"
+      "qualification": "Successor to3ee1cb3 through committed readiness aa1d0ae and reviewed PAY01 composition0644108. PAY01v2 remains shadow with no historical receipt authority; 16 other bindings and nine historical receipts preserved. Pure PAY01 tests extracted without loss: split96 plus registry30/provenance34 pass; separately qualified unchanged readiness131 and TypeScript pass. Source-only CI covers PAY01 only, not mixed dependency-backed smoke/PAY07. Exact source delivery, reviews, current gate results and remaining limits: docs/qualification/freeland-source-adoption-20260920.md. No live product, financial, campaign, installed-skill or cloud acceptance; prior M1/M5 and divergent-baseline source history retained."
     },
     {
       "id": "kernel-reporting-reference",

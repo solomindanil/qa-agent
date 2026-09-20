@@ -42,7 +42,7 @@ No dependency install or browser download is required.
 | 2 | repository root | `node tools/workspace.mjs verify` | No-repair verification of bundle digests, exact source identities, trees, modes, and working bytes. |
 | 3 | repository root | `node --test tests/*.test.mjs` | Root packaging and hostile-Git/local-fixture controls, including the workflow contract. It does not run a component product suite. |
 | 4 | `components/freeland` | `node tools/freeland-main/provenance.mjs --verify .` | Reads and verifies the selected Freeland source provenance manifest. |
-| 5 | `components/freeland` | `node --test tests/product-graph/freeland-smoke-u0-oracles.test.mjs` | Runs the existing pure oracle fixtures only; it does not open a browser or contact a product. |
+| 5 | `components/freeland` | `node --test tests/product-graph/freeland-pay-01-oracle.test.mjs` | Runs the extracted PAY01 method-composition fixtures only; it does not open a browser or contact a product. |
 
 GitHub Actions stops after the first failing step. There is no
 `continue-on-error` or `if: always()` path around source verification, so a
@@ -52,10 +52,13 @@ publishing, deployment, campaign, or product-network work.
 
 ## Qualification boundary
 
-This gate tests the manifest-selected Freeland source
-`3ee1cb3f6ac3676f4f0e066ef5cc9970b0baf5e0`. Before a separate adoption it does
-not test or ship candidate `510`, change a manifest pin, or migrate any campaign.
-Its oracle result is source and local-fixture evidence, not live QA acceptance.
+This gate tests the exact Freeland source selected by `sources/manifest.v1.json`.
+The source-only oracle step covers PAY01 composition, not the complete mixed
+smoke suite. All other smoke controls, including PAY07's actual TypeScript
+projection, remain in the normal dependency-backed product-graph test glob;
+they are not executed by this no-install gate. A source pin change and its
+qualification are separate from migrating any campaign. Oracle results are
+source and local-fixture evidence, not live QA acceptance.
 
 The workflow file's contract test is only a static control over declared YAML
 steps. It does not prove that GitHub-hosted execution has occurred, that the

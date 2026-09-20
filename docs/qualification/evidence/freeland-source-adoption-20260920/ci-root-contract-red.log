@@ -1,0 +1,276 @@
+TAP version 13
+# Subtest: qa-source workflow remains a bounded source-only fail-closed gate
+not ok 1 - qa-source workflow remains a bounded source-only fail-closed gate
+  ---
+  duration_ms: 5.988
+  type: 'test'
+  location: '/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/root/tests/qa-source-workflow.test.mjs:101:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    ... Skipped lines
+    
+      [
+        '- name: Check out source\n' +
+          '  uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n' +
+          '  with:\n' +
+          '    persist-credentials: false',
+    ...
+          '      node tools/freeland-main/provenance.mjs --verify .',
+    +   '- name: Run selected Freeland smoke oracle tests\n' +
+    -   '- name: Run selected Freeland PAY01 pure oracle tests\n' +
+          '  working-directory: components/freeland\n' +
+          '  shell: bash\n' +
+          '  run: |\n' +
+          '    set -euo pipefail\n' +
+          '    qa_umask="$(umask)"\n' +
+    ...
+          '      TMPDIR="${qa_tmp}" \\\n' +
+    +     '      node --test tests/product-graph/freeland-smoke-u0-oracles.test.mjs'
+    -     '      node --test tests/product-graph/freeland-pay-01-oracle.test.mjs'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: |-
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+    1: |-
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.1
+          package-manager-cache: false
+    2: |-
+      - name: Restore selected bundled sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-source-restore.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node tools/workspace.mjs restore
+    3: |-
+      - name: Verify selected sources without repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-source-verify.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node tools/workspace.mjs verify
+    4: |-
+      - name: Run root packaging tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-root-tests.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node --test tests/*.test.mjs
+    5: |-
+      - name: Verify selected Freeland provenance
+        working-directory: components/freeland
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-freeland-provenance.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node tools/freeland-main/provenance.mjs --verify .
+    6: |-
+      - name: Run selected Freeland PAY01 pure oracle tests
+        working-directory: components/freeland
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-freeland-oracles.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node --test tests/product-graph/freeland-pay-01-oracle.test.mjs
+  actual:
+    0: |-
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+    1: |-
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.1
+          package-manager-cache: false
+    2: |-
+      - name: Restore selected bundled sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-source-restore.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node tools/workspace.mjs restore
+    3: |-
+      - name: Verify selected sources without repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-source-verify.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node tools/workspace.mjs verify
+    4: |-
+      - name: Run root packaging tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-root-tests.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node --test tests/*.test.mjs
+    5: |-
+      - name: Verify selected Freeland provenance
+        working-directory: components/freeland
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-freeland-provenance.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node tools/freeland-main/provenance.mjs --verify .
+    6: |-
+      - name: Run selected Freeland smoke oracle tests
+        working-directory: components/freeland
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-freeland-oracles.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node --test tests/product-graph/freeland-smoke-u0-oracles.test.mjs
+  operator: 'deepStrictEqual'
+  stack: |-
+    validateWorkflow (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/root/tests/qa-source-workflow.test.mjs:94:10)
+    TestContext.<anonymous> (file:///Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/root/tests/qa-source-workflow.test.mjs:104:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: qa-source validator rejects permission and unnamed-step broadenings
+ok 2 - qa-source validator rejects permission and unnamed-step broadenings
+  ---
+  duration_ms: 2.776708
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 1
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 66.133334
+

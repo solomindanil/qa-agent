@@ -1,0 +1,796 @@
+TAP version 13
+# Subtest: StorePage rejects blocked startup even when a matching shell control is visible
+ok 1 - StorePage rejects blocked startup even when a matching shell control is visible
+  ---
+  duration_ms: 788.547417
+  type: 'test'
+  ...
+# Subtest: StorePage still requires its content after ready startup
+ok 2 - StorePage still requires its content after ready startup
+  ---
+  duration_ms: 326.788375
+  type: 'test'
+  ...
+# Subtest: StorePage accepts ready startup with its actual content witness
+ok 3 - StorePage accepts ready startup with its actual content witness
+  ---
+  duration_ms: 82.513834
+  type: 'test'
+  ...
+# Subtest: WalletPage rejects blocked startup even when a matching shell control is visible
+ok 4 - WalletPage rejects blocked startup even when a matching shell control is visible
+  ---
+  duration_ms: 82.473041
+  type: 'test'
+  ...
+# Subtest: WalletPage still requires its content after ready startup
+ok 5 - WalletPage still requires its content after ready startup
+  ---
+  duration_ms: 324.432625
+  type: 'test'
+  ...
+# Subtest: WalletPage accepts ready startup with its actual content witness
+ok 6 - WalletPage accepts ready startup with its actual content witness
+  ---
+  duration_ms: 78.236166
+  type: 'test'
+  ...
+# Subtest: CheckoutPage rejects blocked startup even when a matching shell control is visible
+ok 7 - CheckoutPage rejects blocked startup even when a matching shell control is visible
+  ---
+  duration_ms: 77.432916
+  type: 'test'
+  ...
+# Subtest: CheckoutPage still requires its content after ready startup
+ok 8 - CheckoutPage still requires its content after ready startup
+  ---
+  duration_ms: 319.205625
+  type: 'test'
+  ...
+# Subtest: CheckoutPage accepts ready startup with its actual content witness
+ok 9 - CheckoutPage accepts ready startup with its actual content witness
+  ---
+  duration_ms: 75.563041
+  type: 'test'
+  ...
+# Subtest: store acceptance rejects blocked startup with misleading product-card skeleton
+ok 10 - store acceptance rejects blocked startup with misleading product-card skeleton
+  ---
+  duration_ms: 89.120875
+  type: 'test'
+  ...
+# Subtest: inbox renders its address and message filters rejects blocked startup with matching shell text
+ok 11 - inbox renders its address and message filters rejects blocked startup with matching shell text
+  ---
+  duration_ms: 86.870542
+  type: 'test'
+  ...
+# Subtest: settings section renders its controls rejects blocked startup with matching shell text
+ok 12 - settings section renders its controls rejects blocked startup with matching shell text
+  ---
+  duration_ms: 73.674125
+  type: 'test'
+  ...
+# Subtest: FREEL-247 does not classify a startup failure as its known navigation defect
+ok 13 - FREEL-247 does not classify a startup failure as its known navigation defect
+  ---
+  duration_ms: 84.054542
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: capabilities expose Card and SBP for every target-payment action
+ok 14 - finite whole-test budget precedes browser work: capabilities expose Card and SBP for every target-payment action
+  ---
+  duration_ms: 200.557291
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: eSIM purchase quotes Card and SBP without creating checkout
+ok 15 - finite whole-test budget precedes browser work: eSIM purchase quotes Card and SBP without creating checkout
+  ---
+  duration_ms: 0.156709
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: payer field labels are localized in the Card / SBP PaySheet
+ok 16 - finite whole-test budget precedes browser work: payer field labels are localized in the Card / SBP PaySheet
+  ---
+  duration_ms: 0.1765
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: Virtual Number purchase quotes Card and SBP without creating checkout
+ok 17 - finite whole-test budget precedes browser work: Virtual Number purchase quotes Card and SBP without creating checkout
+  ---
+  duration_ms: 0.099833
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: Card issue exposes Russian Card and SBP
+ok 18 - finite whole-test budget precedes browser work: Card issue exposes Russian Card and SBP
+  ---
+  duration_ms: 0.127042
+  type: 'test'
+  ...
+# Subtest: finite whole-test budget precedes browser work: VPN Card / SBP is inspectable or explicitly blocked by account state
+ok 19 - finite whole-test budget precedes browser work: VPN Card / SBP is inspectable or explicitly blocked by account state
+  ---
+  duration_ms: 0.124417
+  type: 'test'
+  ...
+# Subtest: zero-fee Card/SBP quotes need no tile fee but keep exact selected totals
+ok 20 - zero-fee Card/SBP quotes need no tile fee but keep exact selected totals
+  ---
+  duration_ms: 371.304125
+  type: 'test'
+  ...
+# Subtest: card issue waits for options and checks selected summary despite two differently named dialogs and repeated tile fees
+ok 21 - card issue waits for options and checks selected summary despite two differently named dialogs and repeated tile fees
+  ---
+  duration_ms: 575.450667
+  type: 'test'
+  ...
+# Subtest: zero-fee quote rejects an inflated UI total even if its method tile mentions a fee
+ok 22 - zero-fee quote rejects an inflated UI total even if its method tile mentions a fee
+  ---
+  duration_ms: 297.833334
+  type: 'test'
+  ...
+# Subtest: selected UI amounts cannot be satisfied by the outer dialog or an unselected tile
+ok 23 - selected UI amounts cannot be satisfied by the outer dialog or an unselected tile
+  ---
+  duration_ms: 305.041917
+  type: 'test'
+  ...
+# Subtest: method tile must actually become selected
+ok 24 - method tile must actually become selected
+  ---
+  duration_ms: 294.850916
+  type: 'test'
+  ...
+# Subtest: malformed quote arithmetic is rejected rather than trusted as UI truth
+ok 25 - malformed quote arithmetic is rejected rather than trusted as UI truth
+  ---
+  duration_ms: 130.324125
+  type: 'test'
+  ...
+# Subtest: VIP selected source keeps principal 31, included fee 4, total 35 and zero opening balance
+ok 26 - VIP selected source keeps principal 31, included fee 4, total 35 and zero opening balance
+  ---
+  duration_ms: 328.770875
+  type: 'test'
+  ...
+# Subtest: VIP rejects 39.52 instead of the frozen 35 total
+ok 27 - VIP rejects 39.52 instead of the frozen 35 total
+  ---
+  duration_ms: 361.558791
+  type: 'test'
+  ...
+# Subtest: SBP selection must refresh the summary; a correct preceding Card summary is insufficient
+ok 28 - SBP selection must refresh the summary; a correct preceding Card summary is insufficient
+  ---
+  duration_ms: 346.802041
+  type: 'test'
+  ...
+# Subtest: VIP cannot lose its zero opening balance evidence while keeping valid principal and total
+ok 29 - VIP cannot lose its zero opening balance evidence while keeping valid principal and total
+  ---
+  duration_ms: 401.87125
+  type: 'test'
+  ...
+# Subtest: repeated positive fee tile captions do not count as the selected fee summary
+ok 30 - repeated positive fee tile captions do not count as the selected fee summary
+  ---
+  duration_ms: 368.027042
+  type: 'test'
+  ...
+# Subtest: zero-fee selection rejects a percentage fallback even when the total happens to stay correct
+ok 31 - zero-fee selection rejects a percentage fallback even when the total happens to stay correct
+  ---
+  duration_ms: 319.683542
+  type: 'test'
+  ...
+# Subtest: payment-options error cannot turn the visible loading dialog into readiness
+ok 32 - payment-options error cannot turn the visible loading dialog into readiness
+  ---
+  duration_ms: 165.106917
+  type: 'test'
+  ...
+# Subtest: response for another product cannot supply payment expectations
+ok 33 - response for another product cannot supply payment expectations
+  ---
+  duration_ms: 239.781083
+  type: 'test'
+  ...
+# Subtest: missing method breakdown cannot silently fall back to a policy percentage
+ok 34 - missing method breakdown cannot silently fall back to a policy percentage
+  ---
+  duration_ms: 311.061208
+  type: 'test'
+  ...
+# Subtest: card method selection cannot create checkout even when every amount is correct
+ok 35 - card method selection cannot create checkout even when every amount is correct
+  ---
+  duration_ms: 317.437375
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: non-RUB card payment
+ok 36 - preserves the existing financial guard: non-RUB card payment
+  ---
+  duration_ms: 115.360542
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: unequal Card and SBP amounts
+ok 37 - preserves the existing financial guard: unequal Card and SBP amounts
+  ---
+  duration_ms: 116.894792
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: expired Card FX quote
+ok 38 - preserves the existing financial guard: expired Card FX quote
+  ---
+  duration_ms: 117.640084
+  type: 'test'
+  ...
+# Subtest: preserves the existing financial guard: expired product quote
+ok 39 - preserves the existing financial guard: expired product quote
+  ---
+  duration_ms: 111.417875
+  type: 'test'
+  ...
+# Subtest: auth-flows.spec.ts waits for cold startup before evaluating the anonymous gate
+ok 40 - auth-flows.spec.ts waits for cold startup before evaluating the anonymous gate
+  ---
+  duration_ms: 504.0815
+  type: 'test'
+  ...
+# Subtest: auth-flows.spec.ts still rejects a ready app that does not redirect
+ok 41 - auth-flows.spec.ts still rejects a ready app that does not redirect
+  ---
+  duration_ms: 463.112542
+  type: 'test'
+  ...
+# Subtest: access-control.spec.ts waits for cold startup before evaluating the anonymous gate
+ok 42 - access-control.spec.ts waits for cold startup before evaluating the anonymous gate
+  ---
+  duration_ms: 353.435916
+  type: 'test'
+  ...
+# Subtest: access-control.spec.ts still rejects a ready app that does not redirect
+ok 43 - access-control.spec.ts still rejects a ready app that does not redirect
+  ---
+  duration_ms: 427.698542
+  type: 'test'
+  ...
+# Subtest: gotoHydrated cannot accept a visible heading while startup is blocked
+ok 44 - gotoHydrated cannot accept a visible heading while startup is blocked
+  ---
+  duration_ms: 70.985792
+  type: 'test'
+  ...
+# Subtest: gotoHydrated cannot accept a never-ready app with a visible heading
+ok 45 - gotoHydrated cannot accept a never-ready app with a visible heading
+  ---
+  duration_ms: 1013.297208
+  type: 'test'
+  ...
+# Subtest: mobile landing cannot accept its route witness while bootstrap is blocked
+ok 46 - mobile landing cannot accept its route witness while bootstrap is blocked
+  ---
+  duration_ms: 91.393333
+  type: 'test'
+  ...
+# Subtest: mobile viewport acceptance still rejects actual store overflow
+ok 47 - mobile viewport acceptance still rejects actual store overflow
+  ---
+  duration_ms: 86.062042
+  type: 'test'
+  ...
+# Subtest: mobile viewport preserves every route in order inside its original catalog identity
+ok 48 - mobile viewport preserves every route in order inside its original catalog identity
+  ---
+  duration_ms: 195.569625
+  type: 'test'
+  ...
+# Subtest: mobile viewport rejects a missing final route after five valid routes
+ok 49 - mobile viewport rejects a missing final route after five valid routes
+  ---
+  duration_ms: 601.909
+  type: 'test'
+  ...
+# Subtest: mobile viewport rejects a blocked final route after five valid routes
+ok 50 - mobile viewport rejects a blocked final route after five valid routes
+  ---
+  duration_ms: 195.618959
+  type: 'test'
+  ...
+# Subtest: mobile known heading bug cannot absorb a blocked-startup precondition
+ok 51 - mobile known heading bug cannot absorb a blocked-startup precondition
+  ---
+  duration_ms: 73.396083
+  type: 'test'
+  ...
+# Subtest: eSIM country acceptance waits for delayed priced catalog rows after shell readiness
+ok 52 - eSIM country acceptance waits for delayed priced catalog rows after shell readiness
+  ---
+  duration_ms: 310.308542
+  type: 'test'
+  ...
+# Subtest: eSIM country acceptance rejects wallet and unrelated prices without offers
+ok 53 - eSIM country acceptance rejects wallet and unrelated prices without offers
+  ---
+  duration_ms: 1079.033
+  type: 'test'
+  ...
+# Subtest: eSIM country acceptance rejects empty catalog
+ok 54 - eSIM country acceptance rejects empty catalog
+  ---
+  duration_ms: 1097.240666
+  type: 'test'
+  ...
+# Subtest: eSIM country acceptance rejects only three offers
+ok 55 - eSIM country acceptance rejects only three offers
+  ---
+  duration_ms: 1110.707916
+  type: 'test'
+  ...
+# Subtest: eSIM region acceptance waits for the selected catalog rows
+ok 56 - eSIM region acceptance waits for the selected catalog rows
+  ---
+  duration_ms: 359.994125
+  type: 'test'
+  ...
+# Subtest: eSIM region acceptance rejects regional words outside an empty catalog
+ok 57 - eSIM region acceptance rejects regional words outside an empty catalog
+  ---
+  duration_ms: 1105.451916
+  type: 'test'
+  ...
+# Subtest: PRD-D1 esim catalogue lists priced offers in both browse modes rejects matching catalog content at the wrong route
+ok 58 - PRD-D1 esim catalogue lists priced offers in both browse modes rejects matching catalog content at the wrong route
+  ---
+  duration_ms: 188.07825
+  type: 'test'
+  ...
+# Subtest: PRD-D1 esim catalogue lists priced offers in both browse modes rejects priced rows while catalog loading is still visible
+ok 59 - PRD-D1 esim catalogue lists priced offers in both browse modes rejects priced rows while catalog loading is still visible
+  ---
+  duration_ms: 1100.396916
+  type: 'test'
+  ...
+# Subtest: PRD-D2 esim region mode swaps the catalogue to regional bundles rejects matching catalog content at the wrong route
+ok 60 - PRD-D2 esim region mode swaps the catalogue to regional bundles rejects matching catalog content at the wrong route
+  ---
+  duration_ms: 179.736875
+  type: 'test'
+  ...
+# Subtest: PRD-D2 esim region mode swaps the catalogue to regional bundles rejects priced rows while catalog loading is still visible
+ok 61 - PRD-D2 esim region mode swaps the catalogue to regional bundles rejects priced rows while catalog loading is still visible
+  ---
+  duration_ms: 1117.9995
+  type: 'test'
+  ...
+# Subtest: generic active VPN remains usable without the Karing-only headline or tariff picker
+ok 62 - generic active VPN remains usable without the Karing-only headline or tariff picker
+  ---
+  duration_ms: 267.379125
+  type: 'test'
+  ...
+# Subtest: managed active VPN keeps its setup and available launch control
+ok 63 - managed active VPN keeps its setup and available launch control
+  ---
+  duration_ms: 80.386875
+  type: 'test'
+  ...
+# Subtest: inactive VPN offers selectable priced plans and an enabled payment entry without clicking it
+ok 64 - inactive VPN offers selectable priced plans and an enabled payment entry without clicking it
+  ---
+  duration_ms: 78.454125
+  type: 'test'
+  ...
+# Subtest: VPN accepts a fractional price without requiring decimals on whole-dollar plans
+ok 65 - VPN accepts a fractional price without requiring decimals on whole-dollar plans
+  ---
+  duration_ms: 81.341458
+  type: 'test'
+  ...
+# Subtest: inactive provider outage is a distinct rendered explanation, not active access
+ok 66 - inactive provider outage is a distinct rendered explanation, not active access
+  ---
+  duration_ms: 67.837666
+  type: 'test'
+  ...
+# Subtest: an incidental unavailable message does not turn active generic access into an outage
+ok 67 - an incidental unavailable message does not turn active generic access into an outage
+  ---
+  duration_ms: 80.027875
+  type: 'test'
+  ...
+# Subtest: VPN rejects blank product shell
+ok 68 - VPN rejects blank product shell
+  ---
+  duration_ms: 171.458042
+  type: 'test'
+  ...
+# Subtest: VPN rejects generic title without access controls
+ok 69 - VPN rejects generic title without access controls
+  ---
+  duration_ms: 175.344792
+  type: 'test'
+  ...
+# Subtest: VPN rejects generic disabled copy control
+ok 70 - VPN rejects generic disabled copy control
+  ---
+  duration_ms: 86.941542
+  type: 'test'
+  ...
+# Subtest: VPN rejects generic missing active status
+ok 71 - VPN rejects generic missing active status
+  ---
+  duration_ms: 196.553708
+  type: 'test'
+  ...
+# Subtest: VPN rejects generic missing settings control
+ok 72 - VPN rejects generic missing settings control
+  ---
+  duration_ms: 180.825375
+  type: 'test'
+  ...
+# Subtest: VPN rejects managed missing launch control
+ok 73 - VPN rejects managed missing launch control
+  ---
+  duration_ms: 173.514666
+  type: 'test'
+  ...
+# Subtest: VPN rejects empty tariff picker
+ok 74 - VPN rejects empty tariff picker
+  ---
+  duration_ms: 173.783875
+  type: 'test'
+  ...
+# Subtest: VPN rejects all plans disabled
+ok 75 - VPN rejects all plans disabled
+  ---
+  duration_ms: 181.233458
+  type: 'test'
+  ...
+# Subtest: VPN rejects plan metadata without a price
+ok 76 - VPN rejects plan metadata without a price
+  ---
+  duration_ms: 185.200166
+  type: 'test'
+  ...
+# Subtest: VPN rejects payment entry disabled
+ok 77 - VPN rejects payment entry disabled
+  ---
+  duration_ms: 74.551333
+  type: 'test'
+  ...
+# Subtest: VPN rejects unrelated unavailable copy
+ok 78 - VPN rejects unrelated unavailable copy
+  ---
+  duration_ms: 172.510625
+  type: 'test'
+  ...
+# Subtest: VPN rejects active and purchase branches mixed
+ok 79 - VPN rejects active and purchase branches mixed
+  ---
+  duration_ms: 174.639667
+  type: 'test'
+  ...
+# Subtest: VPN rejects outage and active branches mixed
+ok 80 - VPN rejects outage and active branches mixed
+  ---
+  duration_ms: 173.990833
+  type: 'test'
+  ...
+# Subtest: VPN rejects outage and purchase branches mixed
+ok 81 - VPN rejects outage and purchase branches mixed
+  ---
+  duration_ms: 171.64675
+  type: 'test'
+  ...
+# Subtest: VPN waits for the actual access control instead of accepting the early heading
+ok 82 - VPN waits for the actual access control instead of accepting the early heading
+  ---
+  duration_ms: 74.267875
+  type: 'test'
+  ...
+# Subtest: mobile store accepts the product catalogue independently of marketing copy
+ok 83 - mobile store accepts the product catalogue independently of marketing copy
+  ---
+  duration_ms: 88.697792
+  type: 'test'
+  ...
+# Subtest: tablet store accepts the product catalogue independently of marketing copy
+ok 84 - tablet store accepts the product catalogue independently of marketing copy
+  ---
+  duration_ms: 85.982333
+  type: 'test'
+  ...
+# Subtest: desktop store accepts the product catalogue independently of marketing copy
+ok 85 - desktop store accepts the product catalogue independently of marketing copy
+  ---
+  duration_ms: 85.373083
+  type: 'test'
+  ...
+# Subtest: store accepts the source-valid offline badge before an enabled virtual-number title
+ok 86 - store accepts the source-valid offline badge before an enabled virtual-number title
+  ---
+  duration_ms: 90.076375
+  type: 'test'
+  ...
+# Subtest: store rejects navigation-only product labels
+ok 87 - store rejects navigation-only product labels
+  ---
+  duration_ms: 175.296667
+  type: 'test'
+  ...
+# Subtest: store rejects missing VPN product
+ok 88 - store rejects missing VPN product
+  ---
+  duration_ms: 197.426208
+  type: 'test'
+  ...
+# Subtest: store rejects disabled card entry
+ok 89 - store rejects disabled card entry
+  ---
+  duration_ms: 189.410125
+  type: 'test'
+  ...
+# Subtest: store rejects product wired to the wrong route
+ok 90 - store rejects product wired to the wrong route
+  ---
+  duration_ms: 192.673833
+  type: 'test'
+  ...
+# Subtest: store rejects offline tile with an unknown badge
+ok 91 - store rejects offline tile with an unknown badge
+  ---
+  duration_ms: 200.2155
+  type: 'test'
+  ...
+# Subtest: store rejects offline tile with a duplicated badge
+ok 92 - store rejects offline tile with a duplicated badge
+  ---
+  duration_ms: 196.2375
+  type: 'test'
+  ...
+# Subtest: store rejects offline tile with a malformed title
+ok 93 - store rejects offline tile with a malformed title
+  ---
+  duration_ms: 198.865334
+  type: 'test'
+  ...
+# Subtest: store rejects offline tile wired to the wrong route
+ok 94 - store rejects offline tile wired to the wrong route
+  ---
+  duration_ms: 197.313791
+  type: 'test'
+  ...
+# Subtest: store rejects offline tile with disabled navigation
+ok 95 - store rejects offline tile with disabled navigation
+  ---
+  duration_ms: 204.169959
+  type: 'test'
+  ...
+# Subtest: tokenless recovery exposes no password form and returns only to the local login route
+ok 96 - tokenless recovery exposes no password form and returns only to the local login route
+  ---
+  duration_ms: 200.252417
+  type: 'test'
+  ...
+# Subtest: tokenless recovery rejects password form leak
+ok 97 - tokenless recovery rejects password form leak
+  ---
+  duration_ms: 394.771375
+  type: 'test'
+  ...
+# Subtest: tokenless recovery rejects new-password field disguised as text
+ok 98 - tokenless recovery rejects new-password field disguised as text
+  ---
+  duration_ms: 396.105417
+  type: 'test'
+  ...
+# Subtest: tokenless recovery rejects new-password heading leak
+ok 99 - tokenless recovery rejects new-password heading leak
+  ---
+  duration_ms: 382.789083
+  type: 'test'
+  ...
+# Subtest: tokenless recovery rejects external login return
+ok 100 - tokenless recovery rejects external login return
+  ---
+  duration_ms: 404.98075
+  type: 'test'
+  ...
+# Subtest: tokenless recovery rejects return action that suppresses navigation
+ok 101 - tokenless recovery rejects return action that suppresses navigation
+  ---
+  duration_ms: 410.610083
+  type: 'test'
+  ...
+# Subtest: tokenless recovery rejects missing return action
+ok 102 - tokenless recovery rejects missing return action
+  ---
+  duration_ms: 387.114708
+  type: 'test'
+  ...
+# Subtest: tokenless recovery rejects still checking recovery
+ok 103 - tokenless recovery rejects still checking recovery
+  ---
+  duration_ms: 388.544375
+  type: 'test'
+  ...
+# Subtest: tokenless recovery rejects wrong expired classification
+ok 104 - tokenless recovery rejects wrong expired classification
+  ---
+  duration_ms: 411.573084
+  type: 'test'
+  ...
+# Subtest: tokenless recovery rejects a return route without the login email form
+ok 105 - tokenless recovery rejects a return route without the login email form
+  ---
+  duration_ms: 494.067125
+  type: 'test'
+  ...
+# Subtest: landing readiness accepts EN CTA label with its visible aria-hidden arrow
+ok 106 - landing readiness accepts EN CTA label with its visible aria-hidden arrow
+  ---
+  duration_ms: 254.962958
+  type: 'test'
+  ...
+# Subtest: landing readiness accepts RU CTA label with its visible aria-hidden arrow
+ok 107 - landing readiness accepts RU CTA label with its visible aria-hidden arrow
+  ---
+  duration_ms: 65.33425
+  type: 'test'
+  ...
+# Subtest: join readiness accepts the EN mobile welcome shell without depending on an h1
+ok 108 - join readiness accepts the EN mobile welcome shell without depending on an h1
+  ---
+  duration_ms: 79.429625
+  type: 'test'
+  ...
+# Subtest: join readiness accepts the RU mobile welcome shell without depending on an h1
+ok 109 - join readiness accepts the RU mobile welcome shell without depending on an h1
+  ---
+  duration_ms: 64.00625
+  type: 'test'
+  ...
+# Subtest: Freeman readiness accepts the EN route title
+ok 110 - Freeman readiness accepts the EN route title
+  ---
+  duration_ms: 58.525959
+  type: 'test'
+  ...
+# Subtest: Freeman readiness accepts the RU route title
+ok 111 - Freeman readiness accepts the RU route title
+  ---
+  duration_ms: 65.865833
+  type: 'test'
+  ...
+# Subtest: / readiness rejects a matching witness on a different route
+ok 112 - / readiness rejects a matching witness on a different route
+  ---
+  duration_ms: 169.637375
+  type: 'test'
+  ...
+# Subtest: / readiness rejects its visible loader even alongside a content witness
+ok 113 - / readiness rejects its visible loader even alongside a content witness
+  ---
+  duration_ms: 207.038209
+  type: 'test'
+  ...
+# Subtest: /join readiness rejects a matching witness on a different route
+ok 114 - /join readiness rejects a matching witness on a different route
+  ---
+  duration_ms: 173.309625
+  type: 'test'
+  ...
+# Subtest: /join readiness rejects its visible loader even alongside a content witness
+ok 115 - /join readiness rejects its visible loader even alongside a content witness
+  ---
+  duration_ms: 188.54
+  type: 'test'
+  ...
+# Subtest: /app/freeman readiness rejects a matching witness on a different route
+ok 116 - /app/freeman readiness rejects a matching witness on a different route
+  ---
+  duration_ms: 170.694666
+  type: 'test'
+  ...
+# Subtest: /app/freeman readiness rejects its visible loader even alongside a content witness
+ok 117 - /app/freeman readiness rejects its visible loader even alongside a content witness
+  ---
+  duration_ms: 191.135667
+  type: 'test'
+  ...
+# Subtest: / readiness rejects witnesses outside its route-specific root
+ok 118 - / readiness rejects witnesses outside its route-specific root
+  ---
+  duration_ms: 206.04325
+  type: 'test'
+  ...
+# Subtest: /join readiness rejects witnesses outside its route-specific root
+ok 119 - /join readiness rejects witnesses outside its route-specific root
+  ---
+  duration_ms: 169.056167
+  type: 'test'
+  ...
+# Subtest: /app/freeman readiness rejects witnesses outside its route-specific root
+ok 120 - /app/freeman readiness rejects witnesses outside its route-specific root
+  ---
+  duration_ms: 191.385708
+  type: 'test'
+  ...
+# Subtest: landing label hidden from accessibility does not satisfy readiness
+ok 121 - landing label hidden from accessibility does not satisfy readiness
+  ---
+  duration_ms: 169.930875
+  type: 'test'
+  ...
+# Subtest: landing label visually hidden does not satisfy readiness
+ok 122 - landing label visually hidden does not satisfy readiness
+  ---
+  duration_ms: 178.494583
+  type: 'test'
+  ...
+# Subtest: landing action points to another route does not satisfy readiness
+ok 123 - landing action points to another route does not satisfy readiness
+  ---
+  duration_ms: 168.914209
+  type: 'test'
+  ...
+# Subtest: landing CTA only mentions the expected label does not satisfy readiness
+ok 124 - landing CTA only mentions the expected label does not satisfy readiness
+  ---
+  duration_ms: 180.874417
+  type: 'test'
+  ...
+# Subtest: join hidden fake action does not satisfy readiness
+ok 125 - join hidden fake action does not satisfy readiness
+  ---
+  duration_ms: 176.715833
+  type: 'test'
+  ...
+# Subtest: join unrelated external action does not satisfy readiness
+ok 126 - join unrelated external action does not satisfy readiness
+  ---
+  duration_ms: 177.035375
+  type: 'test'
+  ...
+# Subtest: Freeman hidden fake title does not satisfy readiness
+ok 127 - Freeman hidden fake title does not satisfy readiness
+  ---
+  duration_ms: 170.896708
+  type: 'test'
+  ...
+# Subtest: Freeman title only mentioned in unrelated prose does not satisfy readiness
+ok 128 - Freeman title only mentioned in unrelated prose does not satisfy readiness
+  ---
+  duration_ms: 172.520541
+  type: 'test'
+  ...
+# Subtest: / loading-only shell cannot satisfy readiness
+ok 129 - / loading-only shell cannot satisfy readiness
+  ---
+  duration_ms: 172.414917
+  type: 'test'
+  ...
+# Subtest: /join loading-only shell cannot satisfy readiness
+ok 130 - /join loading-only shell cannot satisfy readiness
+  ---
+  duration_ms: 175.147083
+  type: 'test'
+  ...
+# Subtest: /app/freeman loading-only shell cannot satisfy readiness
+ok 131 - /app/freeman loading-only shell cannot satisfy readiness
+  ---
+  duration_ms: 176.329334
+  type: 'test'
+  ...
+1..131
+# tests 131
+# suites 0
+# pass 131
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 36371.122125

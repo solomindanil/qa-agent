@@ -1,0 +1,23 @@
+TAP version 13
+# Subtest: qa-source workflow remains a bounded source-only fail-closed gate
+ok 1 - qa-source workflow remains a bounded source-only fail-closed gate
+  ---
+  duration_ms: 6.981458
+  type: 'test'
+  ...
+# Subtest: qa-source validator rejects permission and unnamed-step broadenings
+ok 2 - qa-source validator rejects permission and unnamed-step broadenings
+  ---
+  duration_ms: 1.845084
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 59.207084
+

@@ -1,0 +1,56 @@
+$ git clone --no-local --no-hardlinks --branch codex/freeland-pay-readiness-integration <component> <cold>
+$ test <cold HEAD> = d4754f7ddbcb8183f695f479ef21aa7728c1ace0
+$ test ! -e <cold>/node_modules
+clone=/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/component-cold-d4754f7
+head=d4754f7ddbcb8183f695f479ef21aa7728c1ace0
+node_modules=absent
+$ node --test --test-reporter=spec --test-concurrency=1 tests/product-graph/freeland-pay-01-oracle.test.mjs
+$ node --check tests/product-graph/freeland-pay-01-oracle.test.mjs
+$ test ! -e node_modules
+$ git status --short --branch
+✔ TC-PAY-01 passes with the documented caption divergences in known[] (1.549917ms)
+✔ TC-PAY-01 accepts shuffled rows, either card alias and identity-preserving balance variants (0.5595ms)
+✔ TC-PAY-01 accepts either supported crypto rail and binds a generic tile only without ambiguity (0.991042ms)
+✔ TC-PAY-01 requires at least one available supported crypto rail (0.18225ms)
+✔ TC-PAY-01 permits an unavailable optional crypto rail to be absent or identity-bound (0.369708ms)
+✔ TC-PAY-01 reports the Stars insufficient caption only when the browser actually shows it (0.603041ms)
+✔ TC-PAY-01 rejects empty DOM composition (0.192208ms)
+✔ TC-PAY-01 rejects balance-only DOM composition (0.132542ms)
+✔ TC-PAY-01 rejects missing card DOM composition (0.342292ms)
+✔ TC-PAY-01 rejects missing sbp DOM composition (0.366041ms)
+✔ TC-PAY-01 rejects missing balance DOM composition (0.150084ms)
+✔ TC-PAY-01 rejects missing USDT DOM composition (0.092ms)
+✔ TC-PAY-01 rejects missing USDC DOM composition (0.142417ms)
+✔ TC-PAY-01 rejects duplicate card aliases in the DOM (0.108209ms)
+✔ TC-PAY-01 rejects duplicate contradictory API card rows (0.085208ms)
+✔ TC-PAY-01 rejects duplicate API crypto currencies (0.074042ms)
+✔ TC-PAY-01 rejects duplicate API balance identities (0.074ms)
+✔ TC-PAY-01 rejects duplicate API SBP identities (0.071791ms)
+✔ TC-PAY-01 rejects duplicate API Stars identities (0.074667ms)
+✔ TC-PAY-01 rejects an unrendered second balance identity (0.277125ms)
+✔ TC-PAY-01 rejects invalid card action (0.070792ms)
+✔ TC-PAY-01 rejects invalid card currency (0.060792ms)
+✔ TC-PAY-01 rejects invalid sbp action (0.059834ms)
+✔ TC-PAY-01 rejects invalid sbp currency (0.059792ms)
+✔ TC-PAY-01 rejects invalid crypto action (0.06175ms)
+✔ TC-PAY-01 rejects invalid unsupported crypto currency (0.06325ms)
+✔ TC-PAY-01 rejects unknown API identities (0.06925ms)
+✔ TC-PAY-01 rejects unknown DOM identities (0.059292ms)
+✔ TC-PAY-01 rejects unbound DOM crypto rails (0.062541ms)
+✔ TC-PAY-01 rejects unbound DOM Stars (0.077375ms)
+✔ TC-PAY-01 rejects a contradictory balance tile summary (0.08075ms)
+✔ TC-PAY-01 rejects a contradictory Stars tile summary (0.068708ms)
+✔ TC-PAY-01 fails when balance is payable, stars are payable in the browser, crypto pays directly or a checkout was attempted (0.089958ms)
+✔ TC-PAY-01 is BLOCKED by pool/provider preconditions and by an unavailable quote (0.341709ms)
+✔ TC-PAY-01 blocks on unverified balance null while retaining checkout/runtime violations (0.1055ms)
+✔ TC-PAY-01 blocks on unverified balance -0.01 while retaining checkout/runtime violations (0.065041ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.653542
+## codex/freeland-pay-readiness-integration...origin/codex/freeland-pay-readiness-integration
+exit_code=0

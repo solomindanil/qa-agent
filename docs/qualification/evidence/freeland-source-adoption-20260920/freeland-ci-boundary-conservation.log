@@ -1,0 +1,16 @@
+$ BASELINE_DIR=/tmp/freeland-pay01-baseline.gCQ5rg CURRENT_DIR=/Users/danilsolomin/projectsnew/qa-agent/.local/p0-freeland-reconcile-20260920.O5fVBF/freeland node <inline conservation check>
+{
+  "baselineHead": "064410869c2e63a4b7c23cc3753c717a337f8a3a",
+  "baselineCount": 96,
+  "candidateCount": 96,
+  "uniqueBaselineNames": 95,
+  "uniqueCandidateNames": 95,
+  "pay01BehavioralCount": 36,
+  "retainedMixedCount": 60,
+  "changedNameMultiplicities": [],
+  "exactOldFileSubtraction": true,
+  "exactNewFileExtraction": true,
+  "movedBytes": 17726,
+  "conserved": true
+}
+exit_code=0

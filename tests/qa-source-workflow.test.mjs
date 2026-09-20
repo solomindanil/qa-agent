@@ -81,7 +81,7 @@ const expectedSteps = [
   expectedRunStep('Verify selected sources without repair', 'qa-source-verify', 'node tools/workspace.mjs verify'),
   expectedRunStep('Run root packaging tests', 'qa-root-tests', 'node --test tests/*.test.mjs'),
   expectedRunStep('Verify selected Freeland provenance', 'qa-freeland-provenance', 'node tools/freeland-main/provenance.mjs --verify .', 'components/freeland'),
-  expectedRunStep('Run selected Freeland smoke oracle tests', 'qa-freeland-oracles', 'node --test tests/product-graph/freeland-smoke-u0-oracles.test.mjs', 'components/freeland'),
+  expectedRunStep('Run selected Freeland PAY01 pure oracle tests', 'qa-freeland-oracles', 'node --test tests/product-graph/freeland-pay-01-oracle.test.mjs', 'components/freeland'),
 ];
 
 function validateWorkflow(workflow) {
@@ -106,7 +106,7 @@ test('qa-source workflow remains a bounded source-only fail-closed gate', async 
   const commandMutants = [
     workflow.replace('node --test tests/*.test.mjs', 'npm test'),
     workflow.replace('set -euo pipefail', 'set -euo pipefail\n          echo broadened'),
-    workflow.replace('      - name: Run selected Freeland smoke oracle tests', '      - name: Duplicate step\n        run: echo duplicate\n\n      - name: Run selected Freeland smoke oracle tests'),
+    workflow.replace('      - name: Run selected Freeland PAY01 pure oracle tests', '      - name: Duplicate step\n        run: echo duplicate\n\n      - name: Run selected Freeland PAY01 pure oracle tests'),
   ];
   for (const mutant of commandMutants) {
     assert.throws(() => validateWorkflow(mutant), assert.AssertionError);

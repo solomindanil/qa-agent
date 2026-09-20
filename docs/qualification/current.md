@@ -1,5 +1,9 @@
 # Current QA-agent source and execution entry
 
+## Latest selected source — 20 September 2026, Freeland consolidation
+
+The manifest selects Freeland `d4754f7` (readiness lineage plus PAY01 composition and the dependency-free CI test split), with Kernel `aa5d2d1`, Console `48e4628` and inactive reference `10d398d` unchanged. [Exact qualification and adoption status](freeland-source-adoption-20260920.md) distinguishes source delivery from canonical adoption and product acceptance. Cold local workflow-body checks passed; hosted CI was not run. PAY01 remains shadow, historical stale receipts are not renewed, and frozen campaign runtimes/installed skills are unchanged. P1 real-consumer acceptance and later global-plan slices remain open. Dated source checkpoints below retain their original identities and do not override this selector.
+
 ## Current source checkpoint — 20 September 2026
 
 The manifest selects Kernel `aa5d2d1` with Console `48e4628` for the bounded agent-observation slice; Freeland `3ee1cb3` and inactive reference `10d398d` are unchanged. [Qualification, exact commits, tests and remaining gates](agent-observations-20260920.md) governs this source update. Component reviews passed after fixes; the record distinguishes local fixture acceptance, source delivery and canonical adoption.

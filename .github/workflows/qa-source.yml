@@ -101,7 +101,7 @@ jobs:
             TMPDIR="${qa_tmp}" \
             node tools/freeland-main/provenance.mjs --verify .
 
-      - name: Run selected Freeland smoke oracle tests
+      - name: Run selected Freeland PAY01 pure oracle tests
         working-directory: components/freeland
         shell: bash
         run: |
@@ -119,4 +119,4 @@ jobs:
             CI=true \
             LANG=C.UTF-8 \
             TMPDIR="${qa_tmp}" \
-            node --test tests/product-graph/freeland-smoke-u0-oracles.test.mjs
+            node --test tests/product-graph/freeland-pay-01-oracle.test.mjs

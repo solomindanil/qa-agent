@@ -1,0 +1,612 @@
+{"step":"Restore selected bundled sources","cwd":"."}
+{"status":"sources_verified","components":[{"id":"kernel","commit":"aa5d2d188606cbcf7e3111c130347a36970ec786","tree":"26c649acb36dae2739e00af0c8baee142ecfd569","path":"components/kernel","runtimeAuthority":true},{"id":"console","commit":"48e4628f91569c4cf96d0e616cbe6e29ec31baee","tree":"c206065e990329e52293801e3da10c2d5226cbd8","path":"components/console","runtimeAuthority":true},{"id":"freeland","commit":"d4754f7ddbcb8183f695f479ef21aa7728c1ace0","tree":"2fffdb008347b3337a5b58eea8f3cda8889d584c","path":"components/freeland","runtimeAuthority":true},{"id":"kernel-reporting-reference","commit":"10d398d8a077068c2184f33958e9b654a2f2947c","tree":"f9edc6f43166b69781973fd0568de624a6b11f82","path":"components/kernel-reporting-reference","runtimeAuthority":false}]}
+{"step":"Verify selected sources without repair","cwd":"."}
+{"status":"sources_verified","components":[{"id":"kernel","commit":"aa5d2d188606cbcf7e3111c130347a36970ec786","tree":"26c649acb36dae2739e00af0c8baee142ecfd569","path":"components/kernel","runtimeAuthority":true},{"id":"console","commit":"48e4628f91569c4cf96d0e616cbe6e29ec31baee","tree":"c206065e990329e52293801e3da10c2d5226cbd8","path":"components/console","runtimeAuthority":true},{"id":"freeland","commit":"d4754f7ddbcb8183f695f479ef21aa7728c1ace0","tree":"2fffdb008347b3337a5b58eea8f3cda8889d584c","path":"components/freeland","runtimeAuthority":true},{"id":"kernel-reporting-reference","commit":"10d398d8a077068c2184f33958e9b654a2f2947c","tree":"f9edc6f43166b69781973fd0568de624a6b11f82","path":"components/kernel-reporting-reference","runtimeAuthority":false}]}
+{"step":"Run root packaging tests","cwd":"."}
+TAP version 13
+# Subtest: qa-check remains a complete ordinary-file bundle when copied independently
+ok 1 - qa-check remains a complete ordinary-file bundle when copied independently
+  ---
+  duration_ms: 12.889625
+  type: 'test'
+  ...
+# Subtest: qa-check metadata does not force a tracker connector before product selection
+ok 2 - qa-check metadata does not force a tracker connector before product selection
+  ---
+  duration_ms: 0.88725
+  type: 'test'
+  ...
+# Subtest: qa-bugfix remains a complete ordinary-file bundle when copied independently
+ok 3 - qa-bugfix remains a complete ordinary-file bundle when copied independently
+  ---
+  duration_ms: 7.286833
+  type: 'test'
+  ...
+# Subtest: qa-bugfix metadata does not force a tracker connector before product selection
+ok 4 - qa-bugfix metadata does not force a tracker connector before product selection
+  ---
+  duration_ms: 0.601833
+  type: 'test'
+  ...
+# Subtest: qa-bugfix can read its linked Markdown resources without the donor repository
+ok 5 - qa-bugfix can read its linked Markdown resources without the donor repository
+  ---
+  duration_ms: 5.506417
+  type: 'test'
+  ...
+# Subtest: qa-source workflow remains a bounded source-only fail-closed gate
+ok 6 - qa-source workflow remains a bounded source-only fail-closed gate
+  ---
+  duration_ms: 6.68075
+  type: 'test'
+  ...
+# Subtest: qa-source validator rejects permission and unnamed-step broadenings
+ok 7 - qa-source validator rejects permission and unnamed-step broadenings
+  ---
+  duration_ms: 1.706792
+  type: 'test'
+  ...
+# Subtest: selected Console accepts exactly the manifest-selected Kernel source
+ok 8 - selected Console accepts exactly the manifest-selected Kernel source
+  ---
+  duration_ms: 3.673458
+  type: 'test'
+  ...
+# Subtest: selected source roles keep reporting reference non-active
+ok 9 - selected source roles keep reporting reference non-active
+  ---
+  duration_ms: 0.345333
+  type: 'test'
+  ...
+# Subtest: cold restore materializes the exact independent source and returns a source-only summary
+ok 10 - cold restore materializes the exact independent source and returns a source-only summary
+  ---
+  duration_ms: 623.153125
+  type: 'test'
+  ...
+# Subtest: repeat restore and verify preserve existing matching bytes and an attached HEAD
+ok 11 - repeat restore and verify preserve existing matching bytes and an attached HEAD
+  ---
+  duration_ms: 2328.958958
+  type: 'test'
+  ...
+# Subtest: verify reads tracked bytes when allowed stat settings leave same-size tampering clean
+ok 12 - verify reads tracked bytes when allowed stat settings leave same-size tampering clean
+  ---
+  duration_ms: 1129.277542
+  type: 'test'
+  ...
+# Subtest: verify compares tracked executable mode independently from matching bytes
+ok 13 - verify compares tracked executable mode independently from matching bytes
+  ---
+  duration_ms: 944.889791
+  type: 'test'
+  ...
+# Subtest: verify uses Git owner-execute semantics: rejects missing owner execute for a pinned executable
+ok 14 - verify uses Git owner-execute semantics: rejects missing owner execute for a pinned executable
+  ---
+  duration_ms: 982.337333
+  type: 'test'
+  ...
+# Subtest: verify uses Git owner-execute semantics: accepts group and other execute for a pinned nonexecutable
+ok 15 - verify uses Git owner-execute semantics: accepts group and other execute for a pinned nonexecutable
+  ---
+  duration_ms: 1170.306208
+  type: 'test'
+  ...
+# Subtest: verify uses Git owner-execute semantics: accepts owner-only execute for a pinned executable
+ok 16 - verify uses Git owner-execute semantics: accepts owner-only execute for a pinned executable
+  ---
+  duration_ms: 1251.691791
+  type: 'test'
+  ...
+# Subtest: verify refuses a missing child without creating paths
+ok 17 - verify refuses a missing child without creating paths
+  ---
+  duration_ms: 332.453167
+  type: 'test'
+  ...
+# Subtest: preflight rejects wrong bundle digest before creating any child
+ok 18 - preflight rejects wrong bundle digest before creating any child
+  ---
+  duration_ms: 296.896125
+  type: 'test'
+  ...
+# Subtest: preflight rejects missing bundle before creating any child
+ok 19 - preflight rejects missing bundle before creating any child
+  ---
+  duration_ms: 288.333166
+  type: 'test'
+  ...
+# Subtest: preflight rejects advertised wrong commit before creating any child
+ok 20 - preflight rejects advertised wrong commit before creating any child
+  ---
+  duration_ms: 289.788208
+  type: 'test'
+  ...
+# Subtest: preflight rejects path traversal before creating any child
+ok 21 - preflight rejects path traversal before creating any child
+  ---
+  duration_ms: 289.971583
+  type: 'test'
+  ...
+# Subtest: preflight rejects absolute path before creating any child
+ok 22 - preflight rejects absolute path before creating any child
+  ---
+  duration_ms: 295.183417
+  type: 'test'
+  ...
+# Subtest: preflight rejects backslash path before creating any child
+ok 23 - preflight rejects backslash path before creating any child
+  ---
+  duration_ms: 294.248959
+  type: 'test'
+  ...
+# Subtest: preflight rejects empty path segment before creating any child
+ok 24 - preflight rejects empty path segment before creating any child
+  ---
+  duration_ms: 295.332
+  type: 'test'
+  ...
+# Subtest: preflight rejects bundle traversal before creating any child
+ok 25 - preflight rejects bundle traversal before creating any child
+  ---
+  duration_ms: 288.177042
+  type: 'test'
+  ...
+# Subtest: preflight rejects remote bundle URL before creating any child
+ok 26 - preflight rejects remote bundle URL before creating any child
+  ---
+  duration_ms: 297.078125
+  type: 'test'
+  ...
+# Subtest: preflight rejects duplicate IDs before creating any child
+ok 27 - preflight rejects duplicate IDs before creating any child
+  ---
+  duration_ms: 296.888917
+  type: 'test'
+  ...
+# Subtest: preflight rejects duplicate destinations before creating any child
+ok 28 - preflight rejects duplicate destinations before creating any child
+  ---
+  duration_ms: 288.350333
+  type: 'test'
+  ...
+# Subtest: preflight rejects nested destinations before creating any child
+ok 29 - preflight rejects nested destinations before creating any child
+  ---
+  duration_ms: 281.924333
+  type: 'test'
+  ...
+# Subtest: preflight rejects invalid schema before creating any child
+ok 30 - preflight rejects invalid schema before creating any child
+  ---
+  duration_ms: 288.459375
+  type: 'test'
+  ...
+# Subtest: preflight rejects empty qualification before creating any child
+ok 31 - preflight rejects empty qualification before creating any child
+  ---
+  duration_ms: 284.290667
+  type: 'test'
+  ...
+# Subtest: preflight rejects nonboolean authority before creating any child
+ok 32 - preflight rejects nonboolean authority before creating any child
+  ---
+  duration_ms: 295.741417
+  type: 'test'
+  ...
+# Subtest: preflight rejects uppercase commit before creating any child
+ok 33 - preflight rejects uppercase commit before creating any child
+  ---
+  duration_ms: 305.308209
+  type: 'test'
+  ...
+# Subtest: a bad second bundle prevents restoring the valid first missing child
+ok 34 - a bad second bundle prevents restoring the valid first missing child
+  ---
+  duration_ms: 309.834166
+  type: 'test'
+  ...
+# Subtest: wrong tree never returns success and leaves any new partial checkout visible
+ok 35 - wrong tree never returns success and leaves any new partial checkout visible
+  ---
+  duration_ms: 789.229041
+  type: 'test'
+  ...
+# Subtest: incremental bundle is rejected despite a matching tip and digest
+ok 36 - incremental bundle is rejected despite a matching tip and digest
+  ---
+  duration_ms: 405.676
+  type: 'test'
+  ...
+# Subtest: matching digest does not make invalid bundle bytes acceptable
+ok 37 - matching digest does not make invalid bundle bytes acceptable
+  ---
+  duration_ms: 353.786459
+  type: 'test'
+  ...
+# Subtest: existing wrong revision is refused without checkout or repair
+ok 38 - existing wrong revision is refused without checkout or repair
+  ---
+  duration_ms: 868.664917
+  type: 'test'
+  ...
+# Subtest: existing tracked dirt is preserved and refused
+ok 39 - existing tracked dirt is preserved and refused
+  ---
+  duration_ms: 1206.260042
+  type: 'test'
+  ...
+# Subtest: existing untracked dirt is preserved and refused
+ok 40 - existing untracked dirt is preserved and refused
+  ---
+  duration_ms: 1374.044209
+  type: 'test'
+  ...
+# Subtest: tracked tamper hidden by assume-unchanged is preserved and refused by restore and verify
+ok 41 - tracked tamper hidden by assume-unchanged is preserved and refused by restore and verify
+  ---
+  duration_ms: 1571.262792
+  type: 'test'
+  ...
+# Subtest: tracked tamper hidden by skip-worktree is preserved and refused by restore and verify
+ok 42 - tracked tamper hidden by skip-worktree is preserved and refused by restore and verify
+  ---
+  duration_ms: 1228.798709
+  type: 'test'
+  ...
+# Subtest: normal ignored files are permitted and preserved
+ok 43 - normal ignored files are permitted and preserved
+  ---
+  duration_ms: 1236.08775
+  type: 'test'
+  ...
+# Subtest: non-repository destination is retained
+ok 44 - non-repository destination is retained
+  ---
+  duration_ms: 338.634708
+  type: 'test'
+  ...
+# Subtest: a conflicting second child prevents creating the first child
+ok 45 - a conflicting second child prevents creating the first child
+  ---
+  duration_ms: 333.030084
+  type: 'test'
+  ...
+# Subtest: matching external-gitdir worktree is not accepted as independent
+ok 46 - matching external-gitdir worktree is not accepted as independent
+  ---
+  duration_ms: 413.459
+  type: 'test'
+  ...
+# Subtest: alternates are rejected even with matching HEAD and local objects
+ok 47 - alternates are rejected even with matching HEAD and local objects
+  ---
+  duration_ms: 732.785708
+  type: 'test'
+  ...
+# Subtest: rejects a bundle symlink without following it
+ok 48 - rejects a bundle symlink without following it
+  ---
+  duration_ms: 308.122959
+  type: 'test'
+  ...
+# Subtest: rejects a child symlink without following it
+ok 49 - rejects a child symlink without following it
+  ---
+  duration_ms: 304.087708
+  type: 'test'
+  ...
+# Subtest: rejects a intermediate symlink without following it
+ok 50 - rejects a intermediate symlink without following it
+  ---
+  duration_ms: 295.736541
+  type: 'test'
+  ...
+# Subtest: rejects a git-storage symlink without following it
+ok 51 - rejects a git-storage symlink without following it
+  ---
+  duration_ms: 729.281958
+  type: 'test'
+  ...
+# Subtest: rejects a manifest symlink without following it
+ok 52 - rejects a manifest symlink without following it
+  ---
+  duration_ms: 301.13325
+  type: 'test'
+  ...
+# Subtest: rejects a root symlink without following it
+ok 53 - rejects a root symlink without following it
+  ---
+  duration_ms: 184.953708
+  type: 'test'
+  ...
+# Subtest: a worktree pointer cannot serve as the assembly root
+ok 54 - a worktree pointer cannot serve as the assembly root
+  ---
+  duration_ms: 217.210875
+  type: 'test'
+  ...
+# Subtest: inherited Git overrides cannot redirect clone, objects, or verification
+ok 55 - inherited Git overrides cannot redirect clone, objects, or verification
+  ---
+  duration_ms: 1115.6875
+  type: 'test'
+  ...
+# Subtest: restore works with the donor moved away and never runs scripts, hooks or global filters
+ok 56 - restore works with the donor moved away and never runs scripts, hooks or global filters
+  ---
+  duration_ms: 720.262083
+  type: 'test'
+  ...
+# Subtest: existing local Git filters cannot execute during verification
+ok 57 - existing local Git filters cannot execute during verification
+  ---
+  duration_ms: 778.834875
+  type: 'test'
+  ...
+# Subtest: unknown commands and flags and nonabsolute roots return JSON errors
+ok 58 - unknown commands and flags and nonabsolute roots return JSON errors
+  ---
+  duration_ms: 365.376792
+  type: 'test'
+  ...
+# Subtest: CLI default root is relative to its own entrypoint rather than caller cwd
+ok 59 - CLI default root is relative to its own entrypoint rather than caller cwd
+  ---
+  duration_ms: 549.43325
+  type: 'test'
+  ...
+# Subtest: library exposes the same verified summary and coded failure contract
+ok 60 - library exposes the same verified summary and coded failure contract
+  ---
+  duration_ms: 659.430459
+  type: 'test'
+  ...
+# Subtest: malformed manifest JSON is a coded manifest failure
+ok 61 - malformed manifest JSON is a coded manifest failure
+  ---
+  duration_ms: 411.536
+  type: 'test'
+  ...
+1..61
+# tests 61
+# suites 0
+# pass 61
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 31602.814
+{"step":"Verify selected Freeland provenance","cwd":"components/freeland"}
+{"schemaVersion":1,"sourceCount":8,"gitFileCount":274,"assembledFileCount":129,"privateFileCount":80,"status":"VALID"}
+{"step":"Run selected Freeland PAY01 pure oracle tests","cwd":"components/freeland"}
+TAP version 13
+# Subtest: TC-PAY-01 passes with the documented caption divergences in known[]
+ok 1 - TC-PAY-01 passes with the documented caption divergences in known[]
+  ---
+  duration_ms: 1.566666
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 accepts shuffled rows, either card alias and identity-preserving balance variants
+ok 2 - TC-PAY-01 accepts shuffled rows, either card alias and identity-preserving balance variants
+  ---
+  duration_ms: 0.555833
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 accepts either supported crypto rail and binds a generic tile only without ambiguity
+ok 3 - TC-PAY-01 accepts either supported crypto rail and binds a generic tile only without ambiguity
+  ---
+  duration_ms: 1.499917
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 requires at least one available supported crypto rail
+ok 4 - TC-PAY-01 requires at least one available supported crypto rail
+  ---
+  duration_ms: 0.240625
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 permits an unavailable optional crypto rail to be absent or identity-bound
+ok 5 - TC-PAY-01 permits an unavailable optional crypto rail to be absent or identity-bound
+  ---
+  duration_ms: 0.321083
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 reports the Stars insufficient caption only when the browser actually shows it
+ok 6 - TC-PAY-01 reports the Stars insufficient caption only when the browser actually shows it
+  ---
+  duration_ms: 0.550417
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects empty DOM composition
+ok 7 - TC-PAY-01 rejects empty DOM composition
+  ---
+  duration_ms: 0.253333
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects balance-only DOM composition
+ok 8 - TC-PAY-01 rejects balance-only DOM composition
+  ---
+  duration_ms: 0.122625
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing card DOM composition
+ok 9 - TC-PAY-01 rejects missing card DOM composition
+  ---
+  duration_ms: 0.345125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing sbp DOM composition
+ok 10 - TC-PAY-01 rejects missing sbp DOM composition
+  ---
+  duration_ms: 0.37
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing balance DOM composition
+ok 11 - TC-PAY-01 rejects missing balance DOM composition
+  ---
+  duration_ms: 0.136833
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing USDT DOM composition
+ok 12 - TC-PAY-01 rejects missing USDT DOM composition
+  ---
+  duration_ms: 0.081792
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects missing USDC DOM composition
+ok 13 - TC-PAY-01 rejects missing USDC DOM composition
+  ---
+  duration_ms: 0.073333
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate card aliases in the DOM
+ok 14 - TC-PAY-01 rejects duplicate card aliases in the DOM
+  ---
+  duration_ms: 0.126
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate contradictory API card rows
+ok 15 - TC-PAY-01 rejects duplicate contradictory API card rows
+  ---
+  duration_ms: 0.092083
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API crypto currencies
+ok 16 - TC-PAY-01 rejects duplicate API crypto currencies
+  ---
+  duration_ms: 0.082917
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API balance identities
+ok 17 - TC-PAY-01 rejects duplicate API balance identities
+  ---
+  duration_ms: 0.0835
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API SBP identities
+ok 18 - TC-PAY-01 rejects duplicate API SBP identities
+  ---
+  duration_ms: 0.076625
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects duplicate API Stars identities
+ok 19 - TC-PAY-01 rejects duplicate API Stars identities
+  ---
+  duration_ms: 0.069875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects an unrendered second balance identity
+ok 20 - TC-PAY-01 rejects an unrendered second balance identity
+  ---
+  duration_ms: 0.326167
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid card action
+ok 21 - TC-PAY-01 rejects invalid card action
+  ---
+  duration_ms: 0.081042
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid card currency
+ok 22 - TC-PAY-01 rejects invalid card currency
+  ---
+  duration_ms: 0.067208
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid sbp action
+ok 23 - TC-PAY-01 rejects invalid sbp action
+  ---
+  duration_ms: 0.060125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid sbp currency
+ok 24 - TC-PAY-01 rejects invalid sbp currency
+  ---
+  duration_ms: 0.060125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid crypto action
+ok 25 - TC-PAY-01 rejects invalid crypto action
+  ---
+  duration_ms: 0.062542
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects invalid unsupported crypto currency
+ok 26 - TC-PAY-01 rejects invalid unsupported crypto currency
+  ---
+  duration_ms: 0.075125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unknown API identities
+ok 27 - TC-PAY-01 rejects unknown API identities
+  ---
+  duration_ms: 0.134041
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unknown DOM identities
+ok 28 - TC-PAY-01 rejects unknown DOM identities
+  ---
+  duration_ms: 0.185125
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unbound DOM crypto rails
+ok 29 - TC-PAY-01 rejects unbound DOM crypto rails
+  ---
+  duration_ms: 0.107875
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects unbound DOM Stars
+ok 30 - TC-PAY-01 rejects unbound DOM Stars
+  ---
+  duration_ms: 0.092917
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects a contradictory balance tile summary
+ok 31 - TC-PAY-01 rejects a contradictory balance tile summary
+  ---
+  duration_ms: 0.088916
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 rejects a contradictory Stars tile summary
+ok 32 - TC-PAY-01 rejects a contradictory Stars tile summary
+  ---
+  duration_ms: 0.072167
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 fails when balance is payable, stars are payable in the browser, crypto pays directly or a checkout was attempted
+ok 33 - TC-PAY-01 fails when balance is payable, stars are payable in the browser, crypto pays directly or a checkout was attempted
+  ---
+  duration_ms: 0.094459
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 is BLOCKED by pool/provider preconditions and by an unavailable quote
+ok 34 - TC-PAY-01 is BLOCKED by pool/provider preconditions and by an unavailable quote
+  ---
+  duration_ms: 0.275042
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 blocks on unverified balance null while retaining checkout/runtime violations
+ok 35 - TC-PAY-01 blocks on unverified balance null while retaining checkout/runtime violations
+  ---
+  duration_ms: 0.087958
+  type: 'test'
+  ...
+# Subtest: TC-PAY-01 blocks on unverified balance -0.01 while retaining checkout/runtime violations
+ok 36 - TC-PAY-01 blocks on unverified balance -0.01 while retaining checkout/runtime violations
+  ---
+  duration_ms: 0.060333
+  type: 'test'
+  ...
+1..36
+# tests 36
+# suites 0
+# pass 36
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 67.843375
+{"status":"COLD_WORKFLOW_PASS","steps":5,"noNodeModules":true,"head":"170bc02b091cb2195d1e768b985f21daa580c142","trackedStatus":""}
+

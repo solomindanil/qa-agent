@@ -1,5 +1,7 @@
 # Continuation roadmap
 
+Latest source selection (20 September): Freeland `d4754f7`, Kernel `aa5d2d1`, Console `48e4628`; reporting `10d398d` stays inactive. Resolve [current entry](../qualification/current.md) and [Freeland delivery/adoption status](../qualification/freeland-source-adoption-20260920.md) before commands. Source/CI delivery is not a new product verdict or completed universality. P1 real consumer and subsequent semantic execution, scope/resume, graph usefulness, evaluations, portability and cloud work remain open. Dated selections below are historical.
+
 The north star is agent-first QA that can test products through dialogue first and later run on another host. Assembly reuses the existing implementations; it does not restart the roadmap or count source tests as product coverage.
 
 ## Approved global plan — 2026-09-13
