@@ -9,7 +9,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `aa5d2d188606cbcf7e3111c130347a36970ec786` | Active; paired [observation implementation](agent-observations-20260920.md) |
-| Console | `c421160a71c0679a357f29828029ec3550791d16` | Active; [reference correction and fresh-agent consumer](observation-skill-reference-20260920.md) |
+| Console | `94083bf55d3237b6e60870211b034bfbc4b9dcc2` | Active; [ordinary status repair](ordinary-campaign-status-20260921.md); prior [reference correction](observation-skill-reference-20260920.md) retained |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
@@ -17,15 +17,20 @@ Those sources and their complete source skill bundles are delivered through loca
 
 ## Active plan and next action
 
-**21 September checkpoint: universal development is paused at the user's request
-while Freeland PR #431 receives targeted acceptance.** The universal baseline is
-`6d610a122c825112ec0e27126485568554c72bf2`, with the manifest pins above unchanged.
-The ordinary-campaign `status` fix is diagnosed but not implemented; its proposed
-approval and the unfamiliar-product selection are deferred. The completed
-reviewed cycle must not be repeated. Resume the universal queue below only when
-the user returns to it. [Current Freeland findings, evidence and remaining gate](freeland-pr431-targeted-review-20260921.md)
-are separate from universal harness qualification. No production action or
-four-eyes role/resolver authority follows from this checkpoint.
+**21 September checkpoint: universal development resumed while waiting for Nikita.**
+The user-approved ordinary-campaign `status` repair is independently reviewed and
+selected as Console94083bf. [Repair scope, gates and actual consumer
+readback](ordinary-campaign-status-20260921.md) remain separate from product QA.
+It reuses existing readers, preserves exact selection/current bindings and v1
+historical status, and does not convert non-PASS into PASS. No old receipts,
+working campaigns or source skills are rewritten. The completed reviewed cycle
+must not be repeated; continue with the unfamiliar-product and ticket/help exits
+below. Source-delivery review and independent cold source restoration passed;
+the exact bounded evidence is retained in the repair report.
+[Current Freeland findings, evidence and remaining gate](freeland-pr431-targeted-review-20260921.md)
+remain separately pending: no production action or four-eyes role/resolver
+authority follows from this resumption. The unfamiliar-product selection remains
+open; independent harness repair does not require starting a product campaign.
 
 Local consolidation is adopted on `codex/p2-semantic-source-delivery`; see the [delivery index](local-consolidation-20260920.md) for the original-state backup, exact reviewed-tree equality, fresh canonical/cold gates and inactive candidates. GitHub publication awaits the owner's deferred email verification; no push or PR is claimed. Historical pause/next-action text in imported records is not the current queue.
 
@@ -35,11 +40,11 @@ The **P2-A semantic fee-caption repair** and compatibility fixtures are implemen
 
 **P2-B is an unaccepted candidate, not the selected source.** The original dry card-top-up consumer reached a green source gate at `8aefe79`, but independent Lead AQA review reproduced sensitive assertion/locator content in failure artifacts. The separate `2ab052c` checkpoint preserves two failing regression controls; it is not a fix. Both source histories and evidence are [retained](p2-topup-ui-20260921.md). Keep Freeland `0ea2df1` selected until repair, independent review and delivery qualification. TC-PAY-07 remains shadow; no new product, payment or whole-flow acceptance is implied.
 
-**Primary next result: P3/P5 universal dialogue flow, alongside the bounded P2-B repair.** Reuse existing product-analysis, ticket/help/resume and evaluation mechanisms; do not wait for every Freeland-specific gap or build another runner. The decision baseline and [first controlled execution/continuation sample](../../evals/public-input-agent-cycle/20260921/README.md) exposed an oracle-quality gap: unpromised exact summary wording failed healthy behavior. The [bounded guidance experiment](../../evals/oracle-grounding/20260921/README.md) did not remove guessed semantic classifiers; its candidate remains **unselected**, Console stays c421160. Stop adding prompt prose for this slice.
+**Primary next result: P3/P5 universal dialogue flow, alongside the bounded P2-B repair.** Reuse existing product-analysis, ticket/help/resume and evaluation mechanisms; do not wait for every Freeland-specific gap or build another runner. The decision baseline and [first controlled execution/continuation sample](../../evals/public-input-agent-cycle/20260921/README.md) exposed an oracle-quality gap: unpromised exact summary wording failed healthy behavior. The [bounded guidance experiment](../../evals/oracle-grounding/20260921/README.md) did not remove guessed semantic classifiers; its candidate remains **unselected**. Console94083bf retains the accepted c421160 skill bytes. Stop adding prompt prose for this slice.
 
 The subsequent [reviewed actual cycle](../../evals/public-input-agent-cycle/20260921-reviewed/README.md) now exercised independent Lead AQA test-design review **before** execution. Review rejected the first design; its corrected two checks distinguished faulty search from the controller's healthy route. A fresh actor recovered the original evidence, completed bounded remaining public checks and stored two current partial observations without another campaign or receipt rewrite. All four original targets and four strategy blockers remain visible. This qualifies a bounded existing workflow after review, not first-attempt reliability, full known-product coverage or P3/P5 completion. Follow the report's final review status and attribution; managed results remain INCONCLUSIVE.
 
-Next qualify that workflow on an unfamiliar permitted web/API product, preserving scope, grounded test design, evidence, and continuation. Ticket/help/mixed-batch exits remain separate. Address measured ordinary-campaign `status`/continuation-run routing and invocation friction through existing entrypoints with focused controls, not another runner; this cycle did not fix those APIs. Challenge complete-meaning contradictions as well as healthy paraphrases. Open-context fixtures are not hidden-answer or cross-domain qualification. [Git preservation record](git-preservation-20260921.md) separates earlier accepted bytes and archived candidates. P4 graph/dependency learning, the complete known denominator, agent-native result semantics and remaining P2 obligations stay in the global plan.
+Next qualify that workflow on an unfamiliar permitted web/API product, preserving scope, grounded test design, evidence, and continuation. Ticket/help/mixed-batch exits remain separate. The separate ordinary-status repair closes its measured routing defect, not every invocation friction or all historical reads. Challenge complete-meaning contradictions as well as healthy paraphrases. Open-context fixtures are not hidden-answer or cross-domain qualification. [Git preservation record](git-preservation-20260921.md) separates earlier accepted bytes and archived candidates. P4 graph/dependency learning, the complete known denominator, agent-native result semantics and remaining P2 obligations stay in the global plan.
 
 The assembled source passed clean-clone restore/verify, root61/61 and independent entry/delivery review; [local consolidation evidence](local-consolidation-20260920.md#verification-and-next-step) records the exact scope. This is not a new-product execution by a fresh agent. The next larger exits remain P3 full/ticket/help/resume, P4 useful graph/regression consumption, P5 cross-domain agent evaluation and P6 dialogue-ready delivery. Exact scope and evidence are in the plan, not inferred from unchecked-box counts.
 

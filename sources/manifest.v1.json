@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "c421160a71c0679a357f29828029ec3550791d16",
-      "tree": "8b66b620fd2428c60715c8bdc6c602a3bb0422c1",
-      "bundle": "sources/candidates/console-observation-skill-c421160.bundle",
-      "sha256": "eb477e4a2d575a7ff983c47b39f1a40f1ff8267aa737e830dc30f952fe040ea5",
+      "commit": "94083bf55d3237b6e60870211b034bfbc4b9dcc2",
+      "tree": "355005e4f3eb2f1132d22e996b3de2da8a6f7332",
+      "bundle": "sources/candidates/console-ordinary-status-94083bf.bundle",
+      "sha256": "3c48b02a3feceff1a87a1ebe826d7b76194e909626fa6d1e5a28387245dd8dd7",
       "runtimeAuthority": true,
-      "qualification": "Reference-only c421160 successor to48e4628: two identical qa-product-v0 reference files now document actual observation CLI/envelope/64KiB/zero-attachment/recovery boundaries. Runtime, tests and exact Kernelaa5d2d1 authority bytes unchanged. Independent Lead AQA approved; packaging2/2 and unchanged CLI boundary4/4 passed. Historical runtime gates remain attributed to48e4628 in docs/qualification/agent-observations-20260920.md. Skill delivery, fresh-consumer evidence and limitations: docs/qualification/observation-skill-reference-20260920.md. Observations stay agent-authored/unattested; no installed-skill update, campaign migration, full-product PASS, hosted CI or cloud qualification."
+      "qualification": "Ordinary-status successor to c421160: existing CLI selects the ordinary receipt reader for exact run IDs, retaining v1 historical dispatch, current-model binding, oracle approval and lazy pinned-Kernel dependency checks. Independent Lead AQA approved after test-only authority-plumbing controls; covering CLI3/3 and dependency2/2, complementary ingestion89/89 passed. Original actual INCONCLUSIVE receipt read unchanged. Exact scope and delivery: docs/qualification/ordinary-campaign-status-20260921.md. Kernel aa5d2d1 and complete source skills unchanged; c421 reference qualification remains historical. No installed-skill update, campaign migration, product execution, full-product PASS, hosted CI or cloud qualification."
     },
     {
       "id": "freeland",

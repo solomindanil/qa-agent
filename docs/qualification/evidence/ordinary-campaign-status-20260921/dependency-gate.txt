@@ -1,0 +1,23 @@
+TAP version 13
+# Subtest: run accepts explicit dependency digest flag before workspace admission
+ok 1 - run accepts explicit dependency digest flag before workspace admission
+  ---
+  duration_ms: 1907.691333
+  type: 'test'
+  ...
+# Subtest: pinned Kernel validates exact run scope; missing and stale flags send no requests; real dependency satisfies original login assertions
+ok 2 - pinned Kernel validates exact run scope; missing and stale flags send no requests; real dependency satisfies original login assertions
+  ---
+  duration_ms: 476212.384292
+  type: 'test'
+  ...
+# Retained local fixture and command evidence: /private/var/folders/wb/zqtxc1qs7sqgspnt3vwlmr640000gn/T/qa-g1-cli-Ux0t2u
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 479200.637291

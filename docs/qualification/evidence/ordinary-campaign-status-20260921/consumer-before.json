@@ -1,0 +1,19 @@
+{
+  "code": 1,
+  "error": "Invalid campaign continuation: explicit canonical workspace/run required",
+  "stderr": "",
+  "runId": null,
+  "receiptDigest": null,
+  "verdict": null,
+  "receiptEqualsPersisted": false,
+  "persistedReceiptSha256": "f6c1a34ff8dfa18bc929a742f90274fd4985beaf8c89c20a7f45616c5658884d",
+  "before": {
+    "entryCount": 180,
+    "treeDigest": "96f211105f0a3470912e6a4d583a52f1ff55f14f26b90539f02636ef86517014"
+  },
+  "after": {
+    "entryCount": 180,
+    "treeDigest": "96f211105f0a3470912e6a4d583a52f1ff55f14f26b90539f02636ef86517014"
+  },
+  "unchanged": true
+}

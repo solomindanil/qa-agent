@@ -1,0 +1,554 @@
+TAP version 13
+# Subtest: accepts the real Kernel-shaped unresolved automated catalog entry only with its exact human approval
+ok 1 - accepts the real Kernel-shaped unresolved automated catalog entry only with its exact human approval
+  ---
+  duration_ms: 29.594416
+  type: 'test'
+  ...
+# Subtest: renders the exact human oracle approval identity into a generated Nuanu ticket
+ok 2 - renders the exact human oracle approval identity into a generated Nuanu ticket
+  ---
+  duration_ms: 13.182958
+  type: 'test'
+  ...
+# Subtest: bridge rejects campaign evidence when its independent oracle receipt is missing
+ok 3 - bridge rejects campaign evidence when its independent oracle receipt is missing
+  ---
+  duration_ms: 82.959042
+  type: 'test'
+  ...
+# Subtest: bridge projects terminal first evidence only from attested registration reads
+ok 4 - bridge projects terminal first evidence only from attested registration reads
+  ---
+  duration_ms: 39.551459
+  type: 'test'
+  ...
+# Subtest: bridge keeps an invalid terminal first-evidence binding distinct from no evidence
+ok 5 - bridge keeps an invalid terminal first-evidence binding distinct from no evidence
+  ---
+  duration_ms: 29.606667
+  type: 'test'
+  ...
+# Subtest: bridge fails closed when any workspace state schema claims a terminal first-evidence lifecycle
+ok 6 - bridge fails closed when any workspace state schema claims a terminal first-evidence lifecycle
+  ---
+  duration_ms: 29.880167
+  type: 'test'
+  ...
+# Subtest: file preview rejects campaign text evidence when its independent oracle receipt is missing
+ok 7 - file preview rejects campaign text evidence when its independent oracle receipt is missing
+  ---
+  duration_ms: 37.260958
+  type: 'test'
+  ...
+# Subtest: file preview serves exact receipt-bound campaign text after authority and Kernel validation
+ok 8 - file preview serves exact receipt-bound campaign text after authority and Kernel validation
+  ---
+  duration_ms: 58.3735
+  type: 'test'
+  ...
+# Subtest: bridge rejects tampered, noncanonical, wrong-mode, symlinked, and hardlinked oracle authority
+    # Subtest: tampered
+    ok 1 - tampered
+      ---
+      duration_ms: 41.112125
+      type: 'test'
+      ...
+    # Subtest: noncanonical
+    ok 2 - noncanonical
+      ---
+      duration_ms: 48.505
+      type: 'test'
+      ...
+    # Subtest: wrong mode
+    ok 3 - wrong mode
+      ---
+      duration_ms: 36.867125
+      type: 'test'
+      ...
+    # Subtest: symlinked
+    ok 4 - symlinked
+      ---
+      duration_ms: 46.180375
+      type: 'test'
+      ...
+    # Subtest: hardlinked
+    ok 5 - hardlinked
+      ---
+      duration_ms: 42.520958
+      type: 'test'
+      ...
+    1..5
+ok 9 - bridge rejects tampered, noncanonical, wrong-mode, symlinked, and hardlinked oracle authority
+  ---
+  duration_ms: 216.626667
+  type: 'test'
+  ...
+# Subtest: bridge does not revive an old terminal receipt when a v1 campaign requires explicit selection
+ok 10 - bridge does not revive an old terminal receipt when a v1 campaign requires explicit selection
+  ---
+  duration_ms: 221.68525
+  type: 'test'
+  ...
+# Subtest: bridge exposes the latest valid canonical autonomous receipt and never opens secrets.env
+ok 11 - bridge exposes the latest valid canonical autonomous receipt and never opens secrets.env
+  ---
+  duration_ms: 94.363833
+  type: 'test'
+  ...
+# Subtest: bridge serves an exact receipt-bound final screenshot as image/png
+ok 12 - bridge serves an exact receipt-bound final screenshot as image/png
+  ---
+  duration_ms: 37.528708
+  type: 'test'
+  ...
+# Subtest: bridge exposes a candidate only after the current Kernel validates the workspace
+ok 13 - bridge exposes a candidate only after the current Kernel validates the workspace
+  ---
+  duration_ms: 50.45925
+  type: 'test'
+  ...
+# Subtest: missing campaign plan with no terminal receipt remains no evidence
+ok 14 - missing campaign plan with no terminal receipt remains no evidence
+  ---
+  duration_ms: 23.947
+  type: 'test'
+  ...
+# Subtest: terminal receipt makes a missing, unsafe, or invalid canonical plan fail closed through the Kernel gate
+    # Subtest: missing plan
+    ok 1 - missing plan
+      ---
+      duration_ms: 34.071584
+      type: 'test'
+      ...
+    # Subtest: symlinked plan
+    ok 2 - symlinked plan
+      ---
+      duration_ms: 35.19475
+      type: 'test'
+      ...
+    # Subtest: schema-invalid plan
+    ok 3 - schema-invalid plan
+      ---
+      duration_ms: 45.433541
+      type: 'test'
+      ...
+    1..3
+ok 15 - terminal receipt makes a missing, unsafe, or invalid canonical plan fail closed through the Kernel gate
+  ---
+  duration_ms: 115.346917
+  type: 'test'
+  ...
+# Subtest: bridge requires the exact sealed Kernel V0 modes and directory grammar
+    # Subtest: plan
+    ok 1 - plan
+      ---
+      duration_ms: 32.724041
+      type: 'test'
+      ...
+    # Subtest: runs root
+    ok 2 - runs root
+      ---
+      duration_ms: 33.320542
+      type: 'test'
+      ...
+    # Subtest: run directory
+    ok 3 - run directory
+      ---
+      duration_ms: 32.680167
+      type: 'test'
+      ...
+    # Subtest: receipt
+    ok 4 - receipt
+      ---
+      duration_ms: 35.699334
+      type: 'test'
+      ...
+    # Subtest: checks directory
+    ok 5 - checks directory
+      ---
+      duration_ms: 34.64225
+      type: 'test'
+      ...
+    # Subtest: attempt result
+    ok 6 - attempt result
+      ---
+      duration_ms: 36.276667
+      type: 'test'
+      ...
+    # Subtest: unexpected empty directory
+    ok 7 - unexpected empty directory
+      ---
+      duration_ms: 45.715833
+      type: 'test'
+      ...
+    # Subtest: runner-shaped but receipt-unowned empty attempt directory
+    ok 8 - runner-shaped but receipt-unowned empty attempt directory
+      ---
+      duration_ms: 55.19275
+      type: 'test'
+      ...
+    1..8
+ok 16 - bridge requires the exact sealed Kernel V0 modes and directory grammar
+  ---
+  duration_ms: 307.580792
+  type: 'test'
+  ...
+# Subtest: newest receipt is authoritative: invalid newest and equal mtimes fail closed
+ok 17 - newest receipt is authoritative: invalid newest and equal mtimes fail closed
+  ---
+  duration_ms: 100.28675
+  type: 'test'
+  ...
+# Subtest: bridge rejects malformed, mismatched, noncanonical, escaping, and symlinked receipts
+    # Subtest: malformed JSON
+    ok 1 - malformed JSON
+      ---
+      duration_ms: 52.46425
+      type: 'test'
+      ...
+    # Subtest: plan mismatch
+    ok 2 - plan mismatch
+      ---
+      duration_ms: 39.076167
+      type: 'test'
+      ...
+    # Subtest: status disagrees with attempts
+    ok 3 - status disagrees with attempts
+      ---
+      duration_ms: 43.648958
+      type: 'test'
+      ...
+    # Subtest: harness failure forged with a second attempt
+    ok 4 - harness failure forged with a second attempt
+      ---
+      duration_ms: 61.348583
+      type: 'test'
+      ...
+    # Subtest: environment failure forged without its required retry
+    ok 5 - environment failure forged without its required retry
+      ---
+      duration_ms: 41.494042
+      type: 'test'
+      ...
+    # Subtest: escaping runDirectory
+    ok 6 - escaping runDirectory
+      ---
+      duration_ms: 39.3495
+      type: 'test'
+      ...
+    # Subtest: noncanonical run id
+    ok 7 - noncanonical run id
+      ---
+      duration_ms: 33.448
+      type: 'test'
+      ...
+    # Subtest: symlinked receipt
+    ok 8 - symlinked receipt
+      ---
+      duration_ms: 37.926667
+      type: 'test'
+      ...
+    1..8
+ok 18 - bridge rejects malformed, mismatched, noncanonical, escaping, and symlinked receipts
+  ---
+  duration_ms: 350.207958
+  type: 'test'
+  ...
+# Subtest: bridge preserves runner-authored status when private oracle signatures cannot be reconstructed
+ok 19 - bridge preserves runner-authored status when private oracle signatures cannot be reconstructed
+  ---
+  duration_ms: 110.430375
+  type: 'test'
+  ...
+# Subtest: bridge accepts empty observation strings emitted by the canonical runner schema
+ok 20 - bridge accepts empty observation strings emitted by the canonical runner schema
+  ---
+  duration_ms: 47.525125
+  type: 'test'
+  ...
+# Subtest: bridge accepts a canonical partial run and preserves exact blocked target accounting
+ok 21 - bridge accepts a canonical partial run and preserves exact blocked target accounting
+  ---
+  duration_ms: 70.581709
+  type: 'test'
+  ...
+# Subtest: bridge preserves INCONCLUSIVE over blocked targets when a canonical partial run has two oracle failures (QA-01)
+ok 22 - bridge preserves INCONCLUSIVE over blocked targets when a canonical partial run has two oracle failures (QA-01)
+  ---
+  duration_ms: 78.169333
+  type: 'test'
+  ...
+# Subtest: bridge rejects blocked target accounting that drifts from the bound plan
+ok 23 - bridge rejects blocked target accounting that drifts from the bound plan
+  ---
+  duration_ms: 34.151334
+  type: 'test'
+  ...
+# Subtest: reader keeps accepting a historical approval-bound dossier receipt (synthetic) while the current runner yields needs_review without a dossier (QA-01)
+ok 24 - reader keeps accepting a historical approval-bound dossier receipt (synthetic) while the current runner yields needs_review without a dossier (QA-01)
+  ---
+  duration_ms: 129.9965
+  type: 'test'
+  ...
+# Subtest: bridge binds a canonical runner receipt to the runner-normalized plan
+ok 25 - bridge binds a canonical runner receipt to the runner-normalized plan
+  ---
+  duration_ms: 97.838209
+  type: 'test'
+  ...
+# Subtest: bridge rejects plans outside the runner's full schema and exact graph closure
+    # Subtest: omitted coverage target
+    ok 1 - omitted coverage target
+      ---
+      duration_ms: 32.183666
+      type: 'test'
+      ...
+    # Subtest: unknown coverage target
+    ok 2 - unknown coverage target
+      ---
+      duration_ms: 34.551708
+      type: 'test'
+      ...
+    # Subtest: coverage target accounted twice
+    ok 3 - coverage target accounted twice
+      ---
+      duration_ms: 29.631416
+      type: 'test'
+      ...
+    # Subtest: missing required executable-check field
+    ok 4 - missing required executable-check field
+      ---
+      duration_ms: 27.956667
+      type: 'test'
+      ...
+    1..4
+ok 26 - bridge rejects plans outside the runner's full schema and exact graph closure
+  ---
+  duration_ms: 125.772208
+  type: 'test'
+  ...
+# Subtest: bridge requires a trace for every attempt and final.png for non-harness browser attempts
+    # Subtest: API attempt without trace
+    ok 1 - API attempt without trace
+      ---
+      duration_ms: 32.274541
+      type: 'test'
+      ...
+    # Subtest: browser pass without final.png
+    ok 2 - browser pass without final.png
+      ---
+      duration_ms: 31.159584
+      type: 'test'
+      ...
+    # Subtest: browser oracle failure with one attempt missing final.png
+    ok 3 - browser oracle failure with one attempt missing final.png
+      ---
+      duration_ms: 36.053875
+      type: 'test'
+      ...
+    1..3
+ok 27 - bridge requires a trace for every attempt and final.png for non-harness browser attempts
+  ---
+  duration_ms: 100.222917
+  type: 'test'
+  ...
+# Subtest: canonical runner adapter exceptions persist a trace and project as harness failure
+ok 28 - canonical runner adapter exceptions persist a trace and project as harness failure
+  ---
+  duration_ms: 54.724917
+  type: 'test'
+  ...
+# Subtest: bridge rejects missing, tampered, symlinked, hardlinked, and unmanifested dossier artifacts
+    # Subtest: missing artifact
+    ok 1 - missing artifact
+      ---
+      duration_ms: 31.25025
+      type: 'test'
+      ...
+    # Subtest: attempt result omitted from artifacts
+    ok 2 - attempt result omitted from artifacts
+      ---
+      duration_ms: 28.699917
+      type: 'test'
+      ...
+    # Subtest: unmanifested regular file
+    ok 3 - unmanifested regular file
+      ---
+      duration_ms: 35.410167
+      type: 'test'
+      ...
+    # Subtest: unmanifested symlink
+    ok 4 - unmanifested symlink
+      ---
+      duration_ms: 35.557125
+      type: 'test'
+      ...
+    # Subtest: tampered artifact bytes
+    ok 5 - tampered artifact bytes
+      ---
+      duration_ms: 32.577208
+      type: 'test'
+      ...
+    # Subtest: symlinked artifact
+    ok 6 - symlinked artifact
+      ---
+      duration_ms: 35.116458
+      type: 'test'
+      ...
+    # Subtest: artifact below a symlinked directory
+    ok 7 - artifact below a symlinked directory
+      ---
+      duration_ms: 31.923167
+      type: 'test'
+      ...
+    # Subtest: hardlinked artifact
+    ok 8 - hardlinked artifact
+      ---
+      duration_ms: 37.307708
+      type: 'test'
+      ...
+    # Subtest: dossier path omitted from artifacts
+    ok 9 - dossier path omitted from artifacts
+      ---
+      duration_ms: 42.15975
+      type: 'test'
+      ...
+    # Subtest: ticket path omitted from artifacts
+    ok 10 - ticket path omitted from artifacts
+      ---
+      duration_ms: 44.270375
+      type: 'test'
+      ...
+    # Subtest: dossier and ticket paths aliased
+    ok 11 - dossier and ticket paths aliased
+      ---
+      duration_ms: 44.5065
+      type: 'test'
+      ...
+    1..11
+ok 29 - bridge rejects missing, tampered, symlinked, hardlinked, and unmanifested dossier artifacts
+  ---
+  duration_ms: 400.457292
+  type: 'test'
+  ...
+# Subtest: bridge reconciles each public result, dossier, and deterministic ticket with the receipt
+    # Subtest: result semantics differ from receipt attempt
+    ok 1 - result semantics differ from receipt attempt
+      ---
+      duration_ms: 41.128292
+      type: 'test'
+      ...
+    # Subtest: dossier check binding
+    ok 2 - dossier check binding
+      ---
+      duration_ms: 57.140959
+      type: 'test'
+      ...
+    # Subtest: dossier target binding
+    ok 3 - dossier target binding
+      ---
+      duration_ms: 49.790959
+      type: 'test'
+      ...
+    # Subtest: dossier evidence binding
+    ok 4 - dossier evidence binding
+      ---
+      duration_ms: 44.905791
+      type: 'test'
+      ...
+    # Subtest: dossier dedupe binding
+    ok 5 - dossier dedupe binding
+      ---
+      duration_ms: 46.068375
+      type: 'test'
+      ...
+    # Subtest: dossier oracle approval binding
+    ok 6 - dossier oracle approval binding
+      ---
+      duration_ms: 45.6245
+      type: 'test'
+      ...
+    # Subtest: dossier run binding
+    ok 7 - dossier run binding
+      ---
+      duration_ms: 56.281666
+      type: 'test'
+      ...
+    # Subtest: dossier registration binding
+    ok 8 - dossier registration binding
+      ---
+      duration_ms: 44.697167
+      type: 'test'
+      ...
+    # Subtest: dossier scope binding
+    ok 9 - dossier scope binding
+      ---
+      duration_ms: 49.773584
+      type: 'test'
+      ...
+    # Subtest: ticket is not the deterministic dossier rendering
+    ok 10 - ticket is not the deterministic dossier rendering
+      ---
+      duration_ms: 46.639334
+      type: 'test'
+      ...
+    1..10
+ok 30 - bridge reconciles each public result, dossier, and deterministic ticket with the receipt
+  ---
+  duration_ms: 483.561292
+  type: 'test'
+  ...
+# Subtest: bridge rejects hardlinked plan and receipt JSON files
+    # Subtest: hardlinked plan
+    ok 1 - hardlinked plan
+      ---
+      duration_ms: 31.056291
+      type: 'test'
+      ...
+    # Subtest: hardlinked receipt
+    ok 2 - hardlinked receipt
+      ---
+      duration_ms: 30.247583
+      type: 'test'
+      ...
+    1..2
+ok 31 - bridge rejects hardlinked plan and receipt JSON files
+  ---
+  duration_ms: 61.689542
+  type: 'test'
+  ...
+# Subtest: selected workspaces outside the configured allowlist cannot expose campaign receipts
+ok 32 - selected workspaces outside the configured allowlist cannot expose campaign receipts
+  ---
+  duration_ms: 6.76425
+  type: 'test'
+  ...
+# Subtest: receipt readback grammar accepts the explicit observation and rejects what the strict parser rejects (QA-01)
+    # Subtest: an observation-bearing plan with a needs_review double failure and no dossier reads back
+    ok 1 - an observation-bearing plan with a needs_review double failure and no dossier reads back
+      ---
+      duration_ms: 45.593917
+      type: 'test'
+      ...
+    # Subtest: an observation combination the strict parser rejects is rejected by readback too
+    ok 2 - an observation combination the strict parser rejects is rejected by readback too
+      ---
+      duration_ms: 38.65625
+      type: 'test'
+      ...
+    1..2
+ok 33 - receipt readback grammar accepts the explicit observation and rejects what the strict parser rejects (QA-01)
+  ---
+  duration_ms: 86.50475
+  type: 'test'
+  ...
+1..33
+# tests 89
+# suites 0
+# pass 89
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 14707.654042

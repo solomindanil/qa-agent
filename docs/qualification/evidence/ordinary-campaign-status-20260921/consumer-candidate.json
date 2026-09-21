@@ -1,0 +1,19 @@
+{
+  "code": 0,
+  "error": null,
+  "stderr": "",
+  "runId": "run-8faed1fa237a0a75-fd0ed7dc-d955-4ec8-9377-937292a081d7",
+  "receiptDigest": "sha256:f6c1a34ff8dfa18bc929a742f90274fd4985beaf8c89c20a7f45616c5658884d",
+  "verdict": "INCONCLUSIVE",
+  "receiptEqualsPersisted": true,
+  "persistedReceiptSha256": "f6c1a34ff8dfa18bc929a742f90274fd4985beaf8c89c20a7f45616c5658884d",
+  "before": {
+    "entryCount": 180,
+    "treeDigest": "96f211105f0a3470912e6a4d583a52f1ff55f14f26b90539f02636ef86517014"
+  },
+  "after": {
+    "entryCount": 180,
+    "treeDigest": "96f211105f0a3470912e6a4d583a52f1ff55f14f26b90539f02636ef86517014"
+  },
+  "unchanged": true
+}
