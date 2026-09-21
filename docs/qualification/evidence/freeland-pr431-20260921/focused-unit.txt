@@ -1,0 +1,18 @@
+
+ RUN  v3.2.6 /Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr431-acceptance-20260921.PXj6PP/product/apps/api
+
+ ✓ tests/target-payment-migration-fingerprint.test.ts (1 test) 12ms
+ ✓ tests/payassist-status-lookup-quota-migration.test.ts (3 tests) 26ms
+ ✓ tests/payment-confirmed-unpaid-migration-contract.test.ts (11 tests) 10ms
+ ✓ tests/payment-checkout-state-machine.test.ts (8 tests) 5ms
+ ✓ tests/payment-financial-resolution.test.ts (6 tests) 22ms
+ ✓ tests/payment-checkouts.test.ts (42 tests) 758ms
+   ✓ payment checkout provisioning orchestrator > normalizes only exact PayAssist terminal and partial inspection signals  722ms
+ ✓ tests/payment-checkout-create-conflicts.test.ts (63 tests) 887ms
+   ✓ payment checkout active-intent conflict classification > offers Card and SBP with the same locked RUB quote  743ms
+
+ Test Files  7 passed (7)
+      Tests  134 passed (134)
+   Start at  14:29:16
+   Duration  1.70s (transform 1.51s, setup 279ms, collect 1.71s, tests 1.72s, environment 1ms, prepare 1.26s)
+

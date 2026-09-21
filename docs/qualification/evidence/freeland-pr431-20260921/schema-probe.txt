@@ -1,0 +1,26 @@
+{
+  "probe": "exact-source-schema-no-network",
+  "stagingAccepted": false,
+  "stagingErrors": [
+    {
+      "path": [
+        "providerEvidence",
+        "merchantRequestId"
+      ],
+      "code": "invalid_string",
+      "message": "Invalid"
+    },
+    {
+      "path": [
+        "providerEvidence",
+        "environment"
+      ],
+      "code": "invalid_literal",
+      "message": "Invalid literal value, expected \"production\""
+    }
+  ],
+  "syntheticProductionShapeAccepted": true,
+  "actualStagingNamespace": "pa_staging_"
+}
+{"probe":"binding-freshness-only-not-service-replay","delayMs":0,"accepted":true}
+{"probe":"binding-freshness-only-not-service-replay","delayMs":900001,"accepted":false,"error":"PAYMENT_CONFIRMED_UNPAID_EVIDENCE_NOT_FRESH"}

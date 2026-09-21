@@ -1,0 +1,14 @@
+
+> @freeland/api@0.0.1 build /Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr431-acceptance-20260921.PXj6PP/product/apps/api
+> pnpm run prepare:environment && tsc && node ../../scripts/prod/fix-node-esm-specifiers.mjs dist
+
+
+> @freeland/api@0.0.1 prepare:environment /Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr431-acceptance-20260921.PXj6PP/product/apps/api
+> pnpm --filter @freeland/environment build
+
+
+> @freeland/environment@0.0.1 build /Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr431-acceptance-20260921.PXj6PP/product/packages/environment
+> tsc --build --force && node ../../scripts/prod/fix-node-esm-specifiers.mjs dist
+
+Patched 7 JS files under /Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr431-acceptance-20260921.PXj6PP/product/packages/environment/dist
+Patched 273 JS files under /Users/danilsolomin/projectsnew/qa-agent/.local/freeland-pr431-acceptance-20260921.PXj6PP/product/apps/api/dist

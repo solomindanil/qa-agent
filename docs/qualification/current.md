@@ -17,6 +17,16 @@ Those sources and their complete source skill bundles are delivered through loca
 
 ## Active plan and next action
 
+**21 September checkpoint: universal development is paused at the user's request
+while Freeland PR #431 receives targeted acceptance.** The universal baseline is
+`6d610a122c825112ec0e27126485568554c72bf2`, with the manifest pins above unchanged.
+The ordinary-campaign `status` fix is diagnosed but not implemented; its proposed
+approval and the unfamiliar-product selection are deferred. The completed
+reviewed cycle must not be repeated. Resume the universal queue below only when
+the user returns to it. [Current Freeland findings, evidence and remaining gate](freeland-pr431-targeted-review-20260921.md)
+are separate from universal harness qualification. No production action or
+four-eyes role/resolver authority follows from this checkpoint.
+
 Local consolidation is adopted on `codex/p2-semantic-source-delivery`; see the [delivery index](local-consolidation-20260920.md) for the original-state backup, exact reviewed-tree equality, fresh canonical/cold gates and inactive candidates. GitHub publication awaits the owner's deferred email verification; no push or PR is claimed. Historical pause/next-action text in imported records is not the current queue.
 
 The owner resumed the [global P0–P7 improvement plan](../superpowers/plans/2026-09-16-cross-product-qa-global-plan.md), targeting the agreed pre-cloud work. Its [no-loss reconciliation](../reviews/2026-09-16-global-plan-reconciliation.md) preserves previous obligations. A deadline is not acceptance evidence. Cloud P7 remains separately authorized.
