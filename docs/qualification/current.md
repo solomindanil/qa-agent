@@ -1,6 +1,6 @@
 # Current QA-agent source and execution entry
 
-Updated 21 September 2026. This page is the active entry, not a history of every former priority. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
+Updated 22 September 2026 (Bali). This page is the active entry, not a history of every former priority. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
 
 ## Selected source
 
@@ -17,7 +17,38 @@ Those sources and their complete source skill bundles are delivered through loca
 
 ## Active plan and next action
 
-**21 September checkpoint: universal development resumed while waiting for Nikita.**
+**22 September checkpoint: owner resumed universal development and approved the
+cross-product priority refinement after independent Lead AQA review with conditions.**
+MagicPay, rw-int and Nuanu App already supply unfamiliar-product field evidence;
+do not start a fourth pilot merely to satisfy an outdated "not yet started" note.
+Existing field results need exact source/runtime/build attribution and separate
+qualification; their bug counts do not establish whole-stage acceptance.
+The [field-scope baseline](../../evals/dialogue-quality/20260922-field/README.md)
+has now passed independent Lead AQA review with evidence limits: the fresh actor
+recovered material superseded/current distinctions and chose safe next actions.
+The unchanged first answer, search errors and one timing-only intervention remain
+recorded. Missing durable reader stdout/capture time limits independent invocation
+verification; this is not remaining-work execution or complete P3/P5 acceptance.
+Next, qualify one measured recording/entry friction seam using existing readers,
+starting with durable output and as-of identity capture. Check existing capability
+before proposing a helper or source change; do not rerun to manufacture missing
+historical evidence. Product execution remains with the authorized owners.
+The existing same-host A-done/B-unknown/C-pending recovery was already accepted in
+its bounded scope; repeating it is compatibility evidence, not a newly completed
+P3 milestone. Another guidance-only reconstruction loop is not the next step.
+
+Order: P0 entry/safety and P5 baseline first; bounded P3 full/ticket/help/resume with
+relevant P2 semantic controls; measured P1/P6 friction improvements only where
+needed; P4 actual learned selection; then independent transfer and P6 dialogue
+readiness. P5 runs throughout. Failed, partial, blocked and unassessed obligations
+remain distinct; a blocked case is not verified. Reuse evidence only while its
+build/fixture/expectation remains applicable. No second ledger/verdict/runner is
+introduced. Privacy-blocked P2-B stays inactive and does not block unrelated safe
+work. Product owners retain execution; this source task does not take over their
+active campaigns. The Freeland messenger monitor was removed at the owner's
+request; source work must not restart it.
+
+**Retained 21 September source delivery:**
 The user-approved ordinary-campaign `status` repair is independently reviewed and
 selected as Console94083bf. [Repair scope, gates and actual consumer
 readback](ordinary-campaign-status-20260921.md) remain separate from product QA.
@@ -29,8 +60,8 @@ below. Source-delivery review and independent cold source restoration passed;
 the exact bounded evidence is retained in the repair report.
 [Current Freeland findings, evidence and remaining gate](freeland-pr431-targeted-review-20260921.md)
 remain separately pending: no production action or four-eyes role/resolver
-authority follows from this resumption. The unfamiliar-product selection remains
-open; independent harness repair does not require starting a product campaign.
+authority follows from this resumption. Independent source work does not require
+starting a product campaign; current field evidence is assessed separately below.
 
 Local consolidation is adopted on `codex/p2-semantic-source-delivery`; see the [delivery index](local-consolidation-20260920.md) for the original-state backup, exact reviewed-tree equality, fresh canonical/cold gates and inactive candidates. GitHub publication awaits the owner's deferred email verification; no push or PR is claimed. Historical pause/next-action text in imported records is not the current queue.
 
@@ -44,7 +75,7 @@ The **P2-A semantic fee-caption repair** and compatibility fixtures are implemen
 
 The subsequent [reviewed actual cycle](../../evals/public-input-agent-cycle/20260921-reviewed/README.md) now exercised independent Lead AQA test-design review **before** execution. Review rejected the first design; its corrected two checks distinguished faulty search from the controller's healthy route. A fresh actor recovered the original evidence, completed bounded remaining public checks and stored two current partial observations without another campaign or receipt rewrite. All four original targets and four strategy blockers remain visible. This qualifies a bounded existing workflow after review, not first-attempt reliability, full known-product coverage or P3/P5 completion. Follow the report's final review status and attribution; managed results remain INCONCLUSIVE.
 
-Next qualify that workflow on an unfamiliar permitted web/API product, preserving scope, grounded test design, evidence, and continuation. Ticket/help/mixed-batch exits remain separate. The separate ordinary-status repair closes its measured routing defect, not every invocation friction or all historical reads. Challenge complete-meaning contradictions as well as healthy paraphrases. Open-context fixtures are not hidden-answer or cross-domain qualification. [Git preservation record](git-preservation-20260921.md) separates earlier accepted bytes and archived candidates. P4 graph/dependency learning, the complete known denominator, agent-native result semantics and remaining P2 obligations stay in the global plan.
+Existing rw-int field work used the selected observation channel with fresh-process readback; MagicPay and Nuanu App provide additional real, separately attributed evidence. Reconcile those actual records before selecting the next qualification gap; do not erase historical errors or claim all products used identical runtimes. Ticket/help/mixed-batch exits remain separate. The separate ordinary-status repair closes its measured routing defect, not every invocation friction or all historical reads. Challenge complete-meaning contradictions as well as healthy paraphrases. Open-context fixtures and documentary field reconstruction are not hidden-answer or complete cross-domain qualification. [Git preservation record](git-preservation-20260921.md) separates earlier accepted bytes and archived candidates. P4 graph/dependency learning, the complete known denominator, agent-native result semantics and remaining P2 obligations stay in the global plan.
 
 The assembled source passed clean-clone restore/verify, root61/61 and independent entry/delivery review; [local consolidation evidence](local-consolidation-20260920.md#verification-and-next-step) records the exact scope. This is not a new-product execution by a fresh agent. The next larger exits remain P3 full/ticket/help/resume, P4 useful graph/regression consumption, P5 cross-domain agent evaluation and P6 dialogue-ready delivery. Exact scope and evidence are in the plan, not inferred from unchecked-box counts.
 

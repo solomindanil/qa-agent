@@ -15,3 +15,8 @@ Run only a reviewed selection with declared side effects, isolated output and ex
 retains rejected and corrected test design, one managed execution, independent
 healthy controls and fresh remaining-only continuation on selected sources.
 It is an owned open-context fixture, not whole-product or cross-domain qualification.
+
+[Real-product scope reconstruction](dialogue-quality/20260922-field/README.md)
+retains one fresh first response over MagicPay, rw-int and Nuanu App owner records,
+including later supersessions and a separate existing local observation read.
+It is a documentary field baseline, not new product execution or hidden-key transfer.
