@@ -1,0 +1,414 @@
+{
+  "baseUrl": "http://127.0.0.1:53783/",
+  "blockers": [
+    {
+      "catalogCheckIds": [
+        "urn:qa:automated-check:fb9bbebdfb4f9a0fd8725338"
+      ],
+      "disposition": "blocked",
+      "reason": "Inventory management belongs to a separate staff role, and this exercise supplies neither a staff account nor an authenticated staff surface.",
+      "recovery": "Provide a separately authorized staff test surface and test identity, then design a role-scoped, non-production inventory check without weakening the public-catalog checks.",
+      "targetId": "urn:qa:discovery-target:b1774c66e87b898f6cd8f01d"
+    }
+  ],
+  "checks": [
+    {
+      "assertions": [
+        {
+          "afterOperationIndex": 1,
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": "HAM"
+        },
+        {
+          "afterOperationIndex": 1,
+          "kind": "count",
+          "locator": {
+            "kind": "testId",
+            "testId": "item"
+          },
+          "value": 1
+        },
+        {
+          "afterOperationIndex": 1,
+          "kind": "visible",
+          "locator": {
+            "kind": "text",
+            "text": "Hammer"
+          }
+        },
+        {
+          "afterOperationIndex": 1,
+          "kind": "text",
+          "locator": {
+            "kind": "testId",
+            "testId": "summary"
+          },
+          "value": "1 result"
+        },
+        {
+          "afterOperationIndex": 2,
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          },
+          "value": "fruit"
+        },
+        {
+          "afterOperationIndex": 2,
+          "kind": "count",
+          "locator": {
+            "kind": "testId",
+            "testId": "item"
+          },
+          "observation": {
+            "mode": "absence_window",
+            "timeoutMs": 1000
+          },
+          "value": 0
+        },
+        {
+          "afterOperationIndex": 2,
+          "kind": "text",
+          "locator": {
+            "kind": "testId",
+            "testId": "summary"
+          },
+          "value": "0 results"
+        },
+        {
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": ""
+        },
+        {
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          },
+          "value": "fruit"
+        },
+        {
+          "kind": "count",
+          "locator": {
+            "kind": "testId",
+            "testId": "item"
+          },
+          "value": 2
+        },
+        {
+          "kind": "visible",
+          "locator": {
+            "kind": "text",
+            "text": "Apple"
+          }
+        },
+        {
+          "kind": "visible",
+          "locator": {
+            "kind": "text",
+            "text": "Pear"
+          }
+        },
+        {
+          "kind": "count",
+          "locator": {
+            "kind": "text",
+            "text": "Hammer"
+          },
+          "observation": {
+            "mode": "absence_window",
+            "timeoutMs": 1000
+          },
+          "value": 0
+        },
+        {
+          "kind": "text",
+          "locator": {
+            "kind": "testId",
+            "testId": "summary"
+          },
+          "value": "2 results"
+        },
+        {
+          "kind": "no_console_errors"
+        }
+      ],
+      "checkId": "urn:qa:automated-check:c39dd2ff2b5acf9caafdfcc6",
+      "disposition": "executable",
+      "expectedBehavior": "For the rendered Apple, Pear, and Hammer witnesses, an uppercase literal substring HAM matches Hammer case-insensitively; selecting Fruit composes with that search and yields an empty displayed set whose summary reports zero; clearing Search removes only the text restriction, leaves Fruit selected, restores Apple and Pear, excludes Hammer, and makes the summary agree with the two displayed items. No sorting order is asserted.",
+      "kind": "browser",
+      "operations": [
+        {
+          "kind": "navigate",
+          "path": "/catalog"
+        },
+        {
+          "kind": "fill",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": {
+            "kind": "literal",
+            "value": "HAM"
+          }
+        },
+        {
+          "kind": "select",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          },
+          "value": {
+            "kind": "literal",
+            "value": "fruit"
+          }
+        },
+        {
+          "kind": "fill",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": {
+            "kind": "literal",
+            "value": ""
+          }
+        }
+      ],
+      "preconditions": [
+        "The owned loopback catalog is reachable at /catalog.",
+        "Rendered discovery shows Apple and Pear in Fruit, Hammer in Tools, Search and Category controls, and summary/item test IDs."
+      ],
+      "reproductionSteps": [
+        "Open /catalog in a fresh public browser context.",
+        "Enter HAM in Search and observe the case-insensitive literal substring result and summary.",
+        "Select Fruit without clearing Search and observe the composed empty result and zero summary.",
+        "Clear Search and observe that Fruit remains selected while Fruit items and the matching summary recover."
+      ],
+      "severity": "high",
+      "severityJustification": "Broken search/filter composition or clear-state retention prevents the catalog's primary visitor journey and can make valid inventory undiscoverable.",
+      "sideEffectClass": "read_only",
+      "surface": "web",
+      "targetIds": [
+        "urn:qa:discovery-target:5d912227740e0877768e8ff0"
+      ],
+      "title": "Search, category composition, and clear preserve all declared clauses",
+      "viewport": {
+        "height": 720,
+        "width": 1280
+      }
+    },
+    {
+      "assertions": [
+        {
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": "zzzz-no-household-match-20260921"
+        },
+        {
+          "kind": "count",
+          "locator": {
+            "kind": "testId",
+            "testId": "item"
+          },
+          "observation": {
+            "mode": "absence_window",
+            "timeoutMs": 1000
+          },
+          "value": 0
+        },
+        {
+          "kind": "text",
+          "locator": {
+            "kind": "testId",
+            "testId": "summary"
+          },
+          "value": "0 results"
+        },
+        {
+          "kind": "no_console_errors"
+        }
+      ],
+      "checkId": "urn:qa:automated-check:61bf0b7efd50f8d797ac3e93",
+      "disposition": "executable",
+      "expectedBehavior": "A public name substring absent from the rendered inventory is a supported empty result: no item is displayed and the result summary reports zero, so summary and displayed items agree. No no-results message or particular copy beyond the current numeric summary witness is required.",
+      "kind": "browser",
+      "operations": [
+        {
+          "kind": "navigate",
+          "path": "/catalog"
+        },
+        {
+          "kind": "fill",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": {
+            "kind": "literal",
+            "value": "zzzz-no-household-match-20260921"
+          }
+        }
+      ],
+      "preconditions": [
+        "The owned loopback catalog is reachable at /catalog.",
+        "The absent public probe is not one of the three rendered item names observed during design."
+      ],
+      "reproductionSteps": [
+        "Open /catalog in a fresh public browser context.",
+        "Enter zzzz-no-household-match-20260921 in Search.",
+        "Compare the displayed item count with the numeric result summary."
+      ],
+      "severity": "medium",
+      "severityJustification": "A contradictory empty-state summary misleads visitors about whether inventory exists even when filtering itself is correct.",
+      "sideEffectClass": "read_only",
+      "surface": "web",
+      "targetIds": [
+        "urn:qa:discovery-target:d6735977b5d37ae97d565205"
+      ],
+      "title": "Empty-result summary agrees with displayed items",
+      "viewport": {
+        "height": 720,
+        "width": 1280
+      }
+    },
+    {
+      "assertions": [
+        {
+          "kind": "visible",
+          "locator": {
+            "kind": "role",
+            "name": "Catalog",
+            "role": "heading"
+          }
+        },
+        {
+          "kind": "visible",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          }
+        },
+        {
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          },
+          "value": "tools"
+        },
+        {
+          "kind": "count",
+          "locator": {
+            "kind": "testId",
+            "testId": "item"
+          },
+          "value": 1
+        },
+        {
+          "kind": "visible",
+          "locator": {
+            "kind": "text",
+            "text": "Hammer"
+          }
+        },
+        {
+          "kind": "count",
+          "locator": {
+            "kind": "text",
+            "text": "Apple"
+          },
+          "observation": {
+            "mode": "absence_window",
+            "timeoutMs": 1000
+          },
+          "value": 0
+        },
+        {
+          "kind": "count",
+          "locator": {
+            "kind": "text",
+            "text": "Pear"
+          },
+          "observation": {
+            "mode": "absence_window",
+            "timeoutMs": 1000
+          },
+          "value": 0
+        },
+        {
+          "kind": "text",
+          "locator": {
+            "kind": "testId",
+            "testId": "summary"
+          },
+          "value": "1 result"
+        },
+        {
+          "kind": "no_horizontal_overflow"
+        },
+        {
+          "kind": "no_console_errors"
+        }
+      ],
+      "checkId": "urn:qa:automated-check:23d96250f725ca8cd1df4dd8",
+      "disposition": "executable",
+      "expectedBehavior": "The public Catalog surface exposes visible Search and Category controls. Selecting the rendered Tools category restricts displayed items to Hammer, excludes the rendered Fruit items Apple and Pear, and keeps the numeric result summary consistent with the one displayed item, without horizontal overflow or console errors at the observed desktop viewport. No sorting order is asserted.",
+      "kind": "browser",
+      "operations": [
+        {
+          "kind": "navigate",
+          "path": "/catalog"
+        },
+        {
+          "kind": "select",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          },
+          "value": {
+            "kind": "literal",
+            "value": "tools"
+          }
+        }
+      ],
+      "preconditions": [
+        "The owned loopback catalog is reachable at /catalog.",
+        "Rendered discovery shows the Tools option value tools and Hammer as its visible witness item."
+      ],
+      "reproductionSteps": [
+        "Open /catalog in a fresh public browser context.",
+        "Select Tools in Category.",
+        "Inspect the visible controls, displayed item set, numeric summary, page overflow, and console errors."
+      ],
+      "severity": "high",
+      "severityJustification": "A broken public category control or contradictory result set blocks a primary discovery path for visitors.",
+      "sideEffectClass": "read_only",
+      "surface": "web",
+      "targetIds": [
+        "urn:qa:surface:0d486d3d59e029e50d756590"
+      ],
+      "title": "Public catalog surface and Tools category remain coherent",
+      "viewport": {
+        "height": 720,
+        "width": 1280
+      }
+    }
+  ],
+  "graphDigest": "sha256:2404d8cde6183b92b113bb0cd9f302f39712a0ae8723db0fce7caa98d3de0037",
+  "productSlug": "public-household-catalog",
+  "schemaVersion": "qa-campaign.v0"
+}

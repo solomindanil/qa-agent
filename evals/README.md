@@ -10,3 +10,8 @@ Use these delivered sources to develop/review the harness, not as product runtim
 Run only a reviewed selection with declared side effects, isolated output and explicit pass/fail/skip counts. Preserve changed-input RED controls; a fixture passing because an assertion disappeared is not improvement.
 
 [Dialogue decision controls](dialogue-quality/README.md) exercise agent reasoning from pilot failures and an unfamiliar agent-native domain. They use fresh answers plus independent semantic review, not phrase-matching tests, a new runner or live acceptance.
+
+[Reviewed actual public-input cycle](public-input-agent-cycle/20260921-reviewed/README.md)
+retains rejected and corrected test design, one managed execution, independent
+healthy controls and fresh remaining-only continuation on selected sources.
+It is an owned open-context fixture, not whole-product or cross-domain qualification.

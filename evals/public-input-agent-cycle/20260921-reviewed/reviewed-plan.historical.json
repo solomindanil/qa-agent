@@ -1,0 +1,351 @@
+{
+  "baseUrl": "http://127.0.0.1:53783/",
+  "blockers": [
+    {
+      "catalogCheckIds": [
+        "urn:qa:automated-check:61bf0b7efd50f8d797ac3e93"
+      ],
+      "disposition": "blocked",
+      "reason": "The declarative adapter's strict text equality cannot establish that arbitrary complete summary wording semantically agrees with the displayed item set without inventing copy requirements.",
+      "recovery": "After reviewed publication, use the authorized managed-browser observation lane to capture the full rendered summary and item names for concrete plural, singular, and empty states, interpret each complete meaning against the displayed count, store one agent_authored_unattested observation through the accepted writer, and read it back without promoting the campaign verdict.",
+      "targetId": "urn:qa:discovery-target:d6735977b5d37ae97d565205"
+    },
+    {
+      "catalogCheckIds": [
+        "urn:qa:automated-check:fb9bbebdfb4f9a0fd8725338"
+      ],
+      "disposition": "blocked",
+      "reason": "Inventory management belongs to a separate staff role, and this exercise supplies neither a staff account nor an authenticated staff surface.",
+      "recovery": "Provide a separately authorized staff test surface and test identity, then design a role-scoped, non-production inventory check without weakening the public-catalog checks.",
+      "targetId": "urn:qa:discovery-target:b1774c66e87b898f6cd8f01d"
+    }
+  ],
+  "checks": [
+    {
+      "assertions": [
+        {
+          "afterOperationIndex": 1,
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": "AMM"
+        },
+        {
+          "afterOperationIndex": 1,
+          "kind": "count",
+          "locator": {
+            "kind": "testId",
+            "testId": "item"
+          },
+          "value": 1
+        },
+        {
+          "afterOperationIndex": 1,
+          "kind": "visible",
+          "locator": {
+            "kind": "text",
+            "text": "Hammer"
+          }
+        },
+        {
+          "afterOperationIndex": 2,
+          "kind": "visible",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          }
+        },
+        {
+          "afterOperationIndex": 2,
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          },
+          "value": "fruit"
+        },
+        {
+          "afterOperationIndex": 2,
+          "kind": "count",
+          "locator": {
+            "kind": "testId",
+            "testId": "item"
+          },
+          "observation": {
+            "mode": "absence_window",
+            "timeoutMs": 1000
+          },
+          "value": 0
+        },
+        {
+          "kind": "visible",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          }
+        },
+        {
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": ""
+        },
+        {
+          "kind": "visible",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          }
+        },
+        {
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          },
+          "value": "fruit"
+        },
+        {
+          "kind": "count",
+          "locator": {
+            "kind": "testId",
+            "testId": "item"
+          },
+          "value": 2
+        },
+        {
+          "kind": "visible",
+          "locator": {
+            "kind": "text",
+            "text": "Apple"
+          }
+        },
+        {
+          "kind": "visible",
+          "locator": {
+            "kind": "text",
+            "text": "Pear"
+          }
+        },
+        {
+          "kind": "count",
+          "locator": {
+            "kind": "text",
+            "text": "Hammer"
+          },
+          "observation": {
+            "mode": "absence_window",
+            "timeoutMs": 1000
+          },
+          "value": 0
+        }
+      ],
+      "checkId": "urn:qa:automated-check:c39dd2ff2b5acf9caafdfcc6",
+      "disposition": "executable",
+      "expectedBehavior": "For the rendered Apple, Pear, and Hammer witnesses, uppercase AMM is an internal substring of Hammer and therefore matches Hammer case-insensitively; selecting Fruit composes with that search and displays no items; clearing Search removes only the text restriction, leaves Fruit selected and visible, restores Apple and Pear, and excludes Hammer. No sorting order or summary copy is asserted.",
+      "kind": "browser",
+      "operations": [
+        {
+          "kind": "navigate",
+          "path": "/catalog"
+        },
+        {
+          "kind": "fill",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": {
+            "kind": "literal",
+            "value": "AMM"
+          }
+        },
+        {
+          "kind": "select",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          },
+          "value": {
+            "kind": "literal",
+            "value": "fruit"
+          }
+        },
+        {
+          "kind": "fill",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": {
+            "kind": "literal",
+            "value": ""
+          }
+        }
+      ],
+      "preconditions": [
+        "The owned loopback catalog is reachable at /catalog.",
+        "Rendered discovery shows Apple and Pear in Fruit, Hammer in Tools, and AMM only as a non-prefix substring of Hammer among those witnesses."
+      ],
+      "reproductionSteps": [
+        "Open /catalog in a fresh public browser context.",
+        "Enter AMM in Search and inspect the internal, case-insensitive substring result.",
+        "Select Fruit without clearing Search and inspect the composed empty displayed set.",
+        "Clear Search and inspect that Fruit remains visible and selected while Apple and Pear return and Hammer remains excluded."
+      ],
+      "severity": "high",
+      "severityJustification": "Prefix-only search, broken filter composition, or lost category state prevents the catalog's primary visitor journey and can make valid inventory undiscoverable.",
+      "sideEffectClass": "read_only",
+      "surface": "web",
+      "targetIds": [
+        "urn:qa:discovery-target:5d912227740e0877768e8ff0"
+      ],
+      "title": "Internal substring, category composition, and clear retain supported state",
+      "viewport": {
+        "height": 720,
+        "width": 1280
+      }
+    },
+    {
+      "assertions": [
+        {
+          "afterOperationIndex": 1,
+          "kind": "visible",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          }
+        },
+        {
+          "afterOperationIndex": 1,
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          },
+          "value": "tools"
+        },
+        {
+          "afterOperationIndex": 1,
+          "kind": "count",
+          "locator": {
+            "kind": "testId",
+            "testId": "item"
+          },
+          "value": 1
+        },
+        {
+          "afterOperationIndex": 1,
+          "kind": "visible",
+          "locator": {
+            "kind": "text",
+            "text": "Hammer"
+          }
+        },
+        {
+          "kind": "visible",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          }
+        },
+        {
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": "."
+        },
+        {
+          "kind": "visible",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          }
+        },
+        {
+          "kind": "value",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          },
+          "value": "tools"
+        },
+        {
+          "kind": "count",
+          "locator": {
+            "kind": "testId",
+            "testId": "item"
+          },
+          "observation": {
+            "mode": "absence_window",
+            "timeoutMs": 1000
+          },
+          "value": 0
+        }
+      ],
+      "checkId": "urn:qa:automated-check:23d96250f725ca8cd1df4dd8",
+      "disposition": "executable",
+      "expectedBehavior": "The public Catalog surface keeps Search and Category visible. Selecting the rendered Tools category displays Hammer; entering a literal period while Tools remains selected displays no item because the rendered Hammer witness contains no period, so a pattern or wildcard interpretation of the period is rejected. No sorting order, summary copy, console-error rule, or overflow rule is asserted.",
+      "kind": "browser",
+      "operations": [
+        {
+          "kind": "navigate",
+          "path": "/catalog"
+        },
+        {
+          "kind": "select",
+          "locator": {
+            "kind": "label",
+            "label": "Category"
+          },
+          "value": {
+            "kind": "literal",
+            "value": "tools"
+          }
+        },
+        {
+          "kind": "fill",
+          "locator": {
+            "kind": "label",
+            "label": "Search"
+          },
+          "value": {
+            "kind": "literal",
+            "value": "."
+          }
+        }
+      ],
+      "preconditions": [
+        "The owned loopback catalog is reachable at /catalog.",
+        "Rendered discovery shows the Tools option value tools and Hammer as its witness item, with no period in that visible name."
+      ],
+      "reproductionSteps": [
+        "Open /catalog in a fresh public browser context.",
+        "Select Tools and inspect that Hammer is displayed.",
+        "Enter a period in Search and inspect that the literal period is not treated as a pattern matching Hammer.",
+        "Inspect that Search and Category remain visible and Category remains tools."
+      ],
+      "severity": "high",
+      "severityJustification": "A broken category control or pattern interpretation in a promised literal search can return materially incorrect public results.",
+      "sideEffectClass": "read_only",
+      "surface": "web",
+      "targetIds": [
+        "urn:qa:surface:0d486d3d59e029e50d756590"
+      ],
+      "title": "Public controls stay visible and period search remains literal",
+      "viewport": {
+        "height": 720,
+        "width": 1280
+      }
+    }
+  ],
+  "graphDigest": "sha256:6090fad12b80304bdf164e9e3ed9a2f674c2573f26e57cba0154271116de5c59",
+  "productSlug": "public-household-catalog",
+  "schemaVersion": "qa-campaign.v0"
+}
