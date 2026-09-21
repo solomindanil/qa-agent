@@ -56,6 +56,8 @@ Fresh source checks on candidate bytes: unchanged skill parity/reference tests2/
 
 The root delivery gate freshly passed61/61, zero failed/skipped; [raw output](root-delivery-gate.log). This is repository packaging verification, not acceptance of the candidate's semantic behavior or any product. No push, hosted execution, component selection or installed-host promotion is part of this delivery.
 
+Independent [delivery review](delivery-review.md) approved exact root `e7e9f635a77003c6788c6e01e183276f0d7e6a15`, tree `a2ceae3dd87ac68e8b72e8875fbb6a2bf1de7109`, including a cold candidate clone and archive readback. That reviewed tree was fast-forwarded unchanged into canonical `codex/p2-semantic-source-delivery`. Canonical selected-source verification again passed and its fresh root gate passed61/61, zero failed/skipped; [canonical output](canonical-gate.log). This final documentation follow-up preserves the review and canonical output; it does not change the reviewed source/evaluation bytes, selected components or behavioral NO-GO.
+
 ## Boundaries
 
 The change is limited to the two identical existing product-analysis references. Entry metadata, runner, schemas, Kernel pin and permissions do not change. Codex/Claude source parity is not actual Claude execution or installed-host qualification. No live product, payment, tracker, installation, cloud or external publication is performed.
