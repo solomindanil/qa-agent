@@ -1,0 +1,747 @@
+[
+  {
+    "releaseId": "q2",
+    "workspacePath": "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/q2/nuanu-readonly-qa",
+    "planPath": "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/q2/nuanu-readonly-qa/tests/qa-campaign.v0.json",
+    "baseUrl": "http://127.0.0.1:50604/",
+    "graphDigest": "sha256:e512c5543959f68c94f39107ddce8c1f03481f15067da0ac079145b0de2978e9",
+    "catalogDigest": "sha256:4dada3f928ca92d00a48997be09de4599059b83f34105d7f9a50d0e489074c3c",
+    "planDigest": "sha256:3322ef57616a7263675410f286f50c918fd9fcdb623d6342cbb3cb8ff7b4ee84",
+    "graphTargetCount": 5,
+    "catalogEntryCount": 3,
+    "executableCheckCount": 2,
+    "assertionCount": 8,
+    "blockerCount": 3,
+    "closure": {
+      "plan": {
+        "schemaVersion": "qa-campaign.v0",
+        "productSlug": "api-contract-consumer",
+        "graphDigest": "sha256:e512c5543959f68c94f39107ddce8c1f03481f15067da0ac079145b0de2978e9",
+        "baseUrl": "http://127.0.0.1:50604/",
+        "checks": [
+          {
+            "checkId": "urn:qa:check:2507ded4b4e6be11c21572ea",
+            "title": "Anonymous OpenAPI response satisfies every promised contract clause",
+            "targetIds": [
+              "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4"
+            ],
+            "disposition": "executable",
+            "sideEffectClass": "read_only",
+            "preconditions": [
+              "The assigned exact loopback release origin is available.",
+              "Use anonymous read-only GET; no identity, credential, cookie or authentication state is required."
+            ],
+            "reproductionSteps": [
+              "Send anonymous GET /openapi.json to the registered base URL.",
+              "Assert the HTTP status, media type and every promised JSON field independently."
+            ],
+            "expectedBehavior": "GET /openapi.json returns HTTP200 application/json with openapi 3.0.3, info.title Widget API, and paths /v1/widgets GET summary List widgets.",
+            "severity": "high",
+            "severityJustification": "A wrong public integration contract can mislead client generation or integration development.",
+            "kind": "api",
+            "surface": "api",
+            "method": "GET",
+            "path": "/openapi.json",
+            "assertions": [
+              {
+                "kind": "status",
+                "value": 200
+              },
+              {
+                "kind": "media_type",
+                "value": "application/json"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/openapi",
+                "value": "3.0.3"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/info/title",
+                "value": "Widget API"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/paths/~1v1~1widgets/get/summary",
+                "value": "List widgets"
+              }
+            ]
+          },
+          {
+            "checkId": "urn:qa:check:d5f2e5a74496a729507c1fbd",
+            "title": "Anonymous status response satisfies every promised contract clause",
+            "targetIds": [
+              "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+            ],
+            "disposition": "executable",
+            "sideEffectClass": "read_only",
+            "preconditions": [
+              "The assigned exact loopback release origin is available.",
+              "Use anonymous read-only GET; no identity, credential, cookie or authentication state is required."
+            ],
+            "reproductionSteps": [
+              "Send anonymous GET /api/status to the registered base URL.",
+              "Assert the HTTP status, media type and every promised JSON field independently."
+            ],
+            "expectedBehavior": "GET /api/status returns HTTP200 application/json with status operational.",
+            "severity": "medium",
+            "severityJustification": "An incorrect public status contract misrepresents service readiness to integration consumers.",
+            "kind": "api",
+            "surface": "api",
+            "method": "GET",
+            "path": "/api/status",
+            "assertions": [
+              {
+                "kind": "status",
+                "value": 200
+              },
+              {
+                "kind": "media_type",
+                "value": "application/json"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/status",
+                "value": "operational"
+              }
+            ]
+          }
+        ],
+        "blockers": [
+          {
+            "targetId": "urn:qa:surface:49c9fe0ae677390c5ff9d806",
+            "catalogCheckIds": [
+              "urn:qa:automated-check:fc7ea431d3f3c9ed9b57c50b"
+            ],
+            "disposition": "blocked",
+            "reason": "The generated general API-surface candidate has an unresolved oracle. The two resolved endpoint checks do not establish this additional broad surface target.",
+            "recovery": "Retain this coverage gap; a separately authorized knowledge/oracle decision is needed before selecting the general API-surface candidate."
+          },
+          {
+            "targetId": "urn:qa:discovery-target:b52984675afcb81452fd7870",
+            "catalogCheckIds": [],
+            "disposition": "blocked",
+            "reason": "BLOCKED: /member/audit requires a member identity that has not been supplied; authenticated requests are outside this anonymous API campaign.",
+            "recovery": "The owner must separately authorize and supply member access through an appropriate secure mechanism; do not request or expose credentials here."
+          },
+          {
+            "targetId": "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962",
+            "catalogCheckIds": [],
+            "disposition": "blocked",
+            "reason": "UNASSESSED: rendered /docs/ behavior is explicitly outside this API-only request. No rendered-documentation request is authorized in this campaign.",
+            "recovery": "A separately scoped rendered-documentation request and supported browser check would be needed; do not infer its outcome from API checks."
+          }
+        ]
+      },
+      "readyToRun": false,
+      "executableTargetIds": [
+        "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4",
+        "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+      ],
+      "blockedTargetIds": [
+        "urn:qa:discovery-target:b52984675afcb81452fd7870",
+        "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962",
+        "urn:qa:surface:49c9fe0ae677390c5ff9d806"
+      ]
+    },
+    "firstDesignUnchanged": true,
+    "executed": false
+  },
+  {
+    "releaseId": "n8",
+    "workspacePath": "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/n8/nuanu-readonly-qa",
+    "planPath": "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/n8/nuanu-readonly-qa/tests/qa-campaign.v0.json",
+    "baseUrl": "http://127.0.0.1:50738/",
+    "graphDigest": "sha256:2a9f6207d4ac6328684c160f4d3408e1cf18fda991e1cda0ce8139dfdb12d2d7",
+    "catalogDigest": "sha256:89c1a2939a63cec9ae0f355aac65aa0c9fe095befbbd7f8c6345d51f74c0de64",
+    "planDigest": "sha256:fdc729169e80dc3213cf922886af99804aeaa69a05164e1d9a035ce7269b303f",
+    "graphTargetCount": 5,
+    "catalogEntryCount": 3,
+    "executableCheckCount": 2,
+    "assertionCount": 8,
+    "blockerCount": 3,
+    "closure": {
+      "plan": {
+        "schemaVersion": "qa-campaign.v0",
+        "productSlug": "api-contract-consumer",
+        "graphDigest": "sha256:2a9f6207d4ac6328684c160f4d3408e1cf18fda991e1cda0ce8139dfdb12d2d7",
+        "baseUrl": "http://127.0.0.1:50738/",
+        "checks": [
+          {
+            "checkId": "urn:qa:check:2507ded4b4e6be11c21572ea",
+            "title": "Anonymous OpenAPI response satisfies every promised contract clause",
+            "targetIds": [
+              "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4"
+            ],
+            "disposition": "executable",
+            "sideEffectClass": "read_only",
+            "preconditions": [
+              "The assigned exact loopback release origin is available.",
+              "Use anonymous read-only GET; no identity, credential, cookie or authentication state is required."
+            ],
+            "reproductionSteps": [
+              "Send anonymous GET /openapi.json to the registered base URL.",
+              "Assert the HTTP status, media type and every promised JSON field independently."
+            ],
+            "expectedBehavior": "GET /openapi.json returns HTTP200 application/json with openapi 3.0.3, info.title Widget API, and paths /v1/widgets GET summary List widgets.",
+            "severity": "high",
+            "severityJustification": "A wrong public integration contract can mislead client generation or integration development.",
+            "kind": "api",
+            "surface": "api",
+            "method": "GET",
+            "path": "/openapi.json",
+            "assertions": [
+              {
+                "kind": "status",
+                "value": 200
+              },
+              {
+                "kind": "media_type",
+                "value": "application/json"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/openapi",
+                "value": "3.0.3"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/info/title",
+                "value": "Widget API"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/paths/~1v1~1widgets/get/summary",
+                "value": "List widgets"
+              }
+            ]
+          },
+          {
+            "checkId": "urn:qa:check:d5f2e5a74496a729507c1fbd",
+            "title": "Anonymous status response satisfies every promised contract clause",
+            "targetIds": [
+              "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+            ],
+            "disposition": "executable",
+            "sideEffectClass": "read_only",
+            "preconditions": [
+              "The assigned exact loopback release origin is available.",
+              "Use anonymous read-only GET; no identity, credential, cookie or authentication state is required."
+            ],
+            "reproductionSteps": [
+              "Send anonymous GET /api/status to the registered base URL.",
+              "Assert the HTTP status, media type and every promised JSON field independently."
+            ],
+            "expectedBehavior": "GET /api/status returns HTTP200 application/json with status operational.",
+            "severity": "medium",
+            "severityJustification": "An incorrect public status contract misrepresents service readiness to integration consumers.",
+            "kind": "api",
+            "surface": "api",
+            "method": "GET",
+            "path": "/api/status",
+            "assertions": [
+              {
+                "kind": "status",
+                "value": 200
+              },
+              {
+                "kind": "media_type",
+                "value": "application/json"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/status",
+                "value": "operational"
+              }
+            ]
+          }
+        ],
+        "blockers": [
+          {
+            "targetId": "urn:qa:surface:49c9fe0ae677390c5ff9d806",
+            "catalogCheckIds": [
+              "urn:qa:automated-check:fc7ea431d3f3c9ed9b57c50b"
+            ],
+            "disposition": "blocked",
+            "reason": "The generated general API-surface candidate has an unresolved oracle. The two resolved endpoint checks do not establish this additional broad surface target.",
+            "recovery": "Retain this coverage gap; a separately authorized knowledge/oracle decision is needed before selecting the general API-surface candidate."
+          },
+          {
+            "targetId": "urn:qa:discovery-target:b52984675afcb81452fd7870",
+            "catalogCheckIds": [],
+            "disposition": "blocked",
+            "reason": "BLOCKED: /member/audit requires a member identity that has not been supplied; authenticated requests are outside this anonymous API campaign.",
+            "recovery": "The owner must separately authorize and supply member access through an appropriate secure mechanism; do not request or expose credentials here."
+          },
+          {
+            "targetId": "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962",
+            "catalogCheckIds": [],
+            "disposition": "blocked",
+            "reason": "UNASSESSED: rendered /docs/ behavior is explicitly outside this API-only request. No rendered-documentation request is authorized in this campaign.",
+            "recovery": "A separately scoped rendered-documentation request and supported browser check would be needed; do not infer its outcome from API checks."
+          }
+        ]
+      },
+      "readyToRun": false,
+      "executableTargetIds": [
+        "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4",
+        "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+      ],
+      "blockedTargetIds": [
+        "urn:qa:discovery-target:b52984675afcb81452fd7870",
+        "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962",
+        "urn:qa:surface:49c9fe0ae677390c5ff9d806"
+      ]
+    },
+    "firstDesignUnchanged": true,
+    "executed": false
+  },
+  {
+    "releaseId": "c4",
+    "workspacePath": "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/c4/nuanu-readonly-qa",
+    "planPath": "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/c4/nuanu-readonly-qa/tests/qa-campaign.v0.json",
+    "baseUrl": "http://127.0.0.1:50921/",
+    "graphDigest": "sha256:712166c45ec1fde798725f929b172397fb9b15d678dbeb41ebae6ed8d94f4d8c",
+    "catalogDigest": "sha256:98dac614c3c86e53fb7f7cd55f3fd19f556c47e13ebc09d84f611943945cfff9",
+    "planDigest": "sha256:f1854611f8edca012ec94ff3c9b35986763f4ee7a2821a4990159bc0c7ba44da",
+    "graphTargetCount": 5,
+    "catalogEntryCount": 3,
+    "executableCheckCount": 2,
+    "assertionCount": 8,
+    "blockerCount": 3,
+    "closure": {
+      "plan": {
+        "schemaVersion": "qa-campaign.v0",
+        "productSlug": "api-contract-consumer",
+        "graphDigest": "sha256:712166c45ec1fde798725f929b172397fb9b15d678dbeb41ebae6ed8d94f4d8c",
+        "baseUrl": "http://127.0.0.1:50921/",
+        "checks": [
+          {
+            "checkId": "urn:qa:check:2507ded4b4e6be11c21572ea",
+            "title": "Anonymous OpenAPI response satisfies every promised contract clause",
+            "targetIds": [
+              "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4"
+            ],
+            "disposition": "executable",
+            "sideEffectClass": "read_only",
+            "preconditions": [
+              "The assigned exact loopback release origin is available.",
+              "Use anonymous read-only GET; no identity, credential, cookie or authentication state is required."
+            ],
+            "reproductionSteps": [
+              "Send anonymous GET /openapi.json to the registered base URL.",
+              "Assert the HTTP status, media type and every promised JSON field independently."
+            ],
+            "expectedBehavior": "GET /openapi.json returns HTTP200 application/json with openapi 3.0.3, info.title Widget API, and paths /v1/widgets GET summary List widgets.",
+            "severity": "high",
+            "severityJustification": "A wrong public integration contract can mislead client generation or integration development.",
+            "kind": "api",
+            "surface": "api",
+            "method": "GET",
+            "path": "/openapi.json",
+            "assertions": [
+              {
+                "kind": "status",
+                "value": 200
+              },
+              {
+                "kind": "media_type",
+                "value": "application/json"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/openapi",
+                "value": "3.0.3"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/info/title",
+                "value": "Widget API"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/paths/~1v1~1widgets/get/summary",
+                "value": "List widgets"
+              }
+            ]
+          },
+          {
+            "checkId": "urn:qa:check:d5f2e5a74496a729507c1fbd",
+            "title": "Anonymous status response satisfies every promised contract clause",
+            "targetIds": [
+              "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+            ],
+            "disposition": "executable",
+            "sideEffectClass": "read_only",
+            "preconditions": [
+              "The assigned exact loopback release origin is available.",
+              "Use anonymous read-only GET; no identity, credential, cookie or authentication state is required."
+            ],
+            "reproductionSteps": [
+              "Send anonymous GET /api/status to the registered base URL.",
+              "Assert the HTTP status, media type and every promised JSON field independently."
+            ],
+            "expectedBehavior": "GET /api/status returns HTTP200 application/json with status operational.",
+            "severity": "medium",
+            "severityJustification": "An incorrect public status contract misrepresents service readiness to integration consumers.",
+            "kind": "api",
+            "surface": "api",
+            "method": "GET",
+            "path": "/api/status",
+            "assertions": [
+              {
+                "kind": "status",
+                "value": 200
+              },
+              {
+                "kind": "media_type",
+                "value": "application/json"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/status",
+                "value": "operational"
+              }
+            ]
+          }
+        ],
+        "blockers": [
+          {
+            "targetId": "urn:qa:surface:49c9fe0ae677390c5ff9d806",
+            "catalogCheckIds": [
+              "urn:qa:automated-check:fc7ea431d3f3c9ed9b57c50b"
+            ],
+            "disposition": "blocked",
+            "reason": "The generated general API-surface candidate has an unresolved oracle. The two resolved endpoint checks do not establish this additional broad surface target.",
+            "recovery": "Retain this coverage gap; a separately authorized knowledge/oracle decision is needed before selecting the general API-surface candidate."
+          },
+          {
+            "targetId": "urn:qa:discovery-target:b52984675afcb81452fd7870",
+            "catalogCheckIds": [],
+            "disposition": "blocked",
+            "reason": "BLOCKED: /member/audit requires a member identity that has not been supplied; authenticated requests are outside this anonymous API campaign.",
+            "recovery": "The owner must separately authorize and supply member access through an appropriate secure mechanism; do not request or expose credentials here."
+          },
+          {
+            "targetId": "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962",
+            "catalogCheckIds": [],
+            "disposition": "blocked",
+            "reason": "UNASSESSED: rendered /docs/ behavior is explicitly outside this API-only request. No rendered-documentation request is authorized in this campaign.",
+            "recovery": "A separately scoped rendered-documentation request and supported browser check would be needed; do not infer its outcome from API checks."
+          }
+        ]
+      },
+      "readyToRun": false,
+      "executableTargetIds": [
+        "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4",
+        "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+      ],
+      "blockedTargetIds": [
+        "urn:qa:discovery-target:b52984675afcb81452fd7870",
+        "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962",
+        "urn:qa:surface:49c9fe0ae677390c5ff9d806"
+      ]
+    },
+    "firstDesignUnchanged": true,
+    "executed": false
+  },
+  {
+    "releaseId": "r6",
+    "workspacePath": "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/r6/nuanu-readonly-qa",
+    "planPath": "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/r6/nuanu-readonly-qa/tests/qa-campaign.v0.json",
+    "baseUrl": "http://127.0.0.1:51098/",
+    "graphDigest": "sha256:f28b09aa6baa46290c7c1ce08e4d3fb016883cf9ef8939e8653650551a448fd5",
+    "catalogDigest": "sha256:85652b739b4ade8cc187d3169fc6594e8b787f363bc5c75a5c68d57b61be59f7",
+    "planDigest": "sha256:e5d92c31d2e9b90908b23669b421f87b5aa99072c796288e9f31de24aa4667a6",
+    "graphTargetCount": 5,
+    "catalogEntryCount": 3,
+    "executableCheckCount": 2,
+    "assertionCount": 8,
+    "blockerCount": 3,
+    "closure": {
+      "plan": {
+        "schemaVersion": "qa-campaign.v0",
+        "productSlug": "api-contract-consumer",
+        "graphDigest": "sha256:f28b09aa6baa46290c7c1ce08e4d3fb016883cf9ef8939e8653650551a448fd5",
+        "baseUrl": "http://127.0.0.1:51098/",
+        "checks": [
+          {
+            "checkId": "urn:qa:check:2507ded4b4e6be11c21572ea",
+            "title": "Anonymous OpenAPI response satisfies every promised contract clause",
+            "targetIds": [
+              "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4"
+            ],
+            "disposition": "executable",
+            "sideEffectClass": "read_only",
+            "preconditions": [
+              "The assigned exact loopback release origin is available.",
+              "Use anonymous read-only GET; no identity, credential, cookie or authentication state is required."
+            ],
+            "reproductionSteps": [
+              "Send anonymous GET /openapi.json to the registered base URL.",
+              "Assert the HTTP status, media type and every promised JSON field independently."
+            ],
+            "expectedBehavior": "GET /openapi.json returns HTTP200 application/json with openapi 3.0.3, info.title Widget API, and paths /v1/widgets GET summary List widgets.",
+            "severity": "high",
+            "severityJustification": "A wrong public integration contract can mislead client generation or integration development.",
+            "kind": "api",
+            "surface": "api",
+            "method": "GET",
+            "path": "/openapi.json",
+            "assertions": [
+              {
+                "kind": "status",
+                "value": 200
+              },
+              {
+                "kind": "media_type",
+                "value": "application/json"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/openapi",
+                "value": "3.0.3"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/info/title",
+                "value": "Widget API"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/paths/~1v1~1widgets/get/summary",
+                "value": "List widgets"
+              }
+            ]
+          },
+          {
+            "checkId": "urn:qa:check:d5f2e5a74496a729507c1fbd",
+            "title": "Anonymous status response satisfies every promised contract clause",
+            "targetIds": [
+              "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+            ],
+            "disposition": "executable",
+            "sideEffectClass": "read_only",
+            "preconditions": [
+              "The assigned exact loopback release origin is available.",
+              "Use anonymous read-only GET; no identity, credential, cookie or authentication state is required."
+            ],
+            "reproductionSteps": [
+              "Send anonymous GET /api/status to the registered base URL.",
+              "Assert the HTTP status, media type and every promised JSON field independently."
+            ],
+            "expectedBehavior": "GET /api/status returns HTTP200 application/json with status operational.",
+            "severity": "medium",
+            "severityJustification": "An incorrect public status contract misrepresents service readiness to integration consumers.",
+            "kind": "api",
+            "surface": "api",
+            "method": "GET",
+            "path": "/api/status",
+            "assertions": [
+              {
+                "kind": "status",
+                "value": 200
+              },
+              {
+                "kind": "media_type",
+                "value": "application/json"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/status",
+                "value": "operational"
+              }
+            ]
+          }
+        ],
+        "blockers": [
+          {
+            "targetId": "urn:qa:surface:49c9fe0ae677390c5ff9d806",
+            "catalogCheckIds": [
+              "urn:qa:automated-check:fc7ea431d3f3c9ed9b57c50b"
+            ],
+            "disposition": "blocked",
+            "reason": "The generated general API-surface candidate has an unresolved oracle. The two resolved endpoint checks do not establish this additional broad surface target.",
+            "recovery": "Retain this coverage gap; a separately authorized knowledge/oracle decision is needed before selecting the general API-surface candidate."
+          },
+          {
+            "targetId": "urn:qa:discovery-target:b52984675afcb81452fd7870",
+            "catalogCheckIds": [],
+            "disposition": "blocked",
+            "reason": "BLOCKED: /member/audit requires a member identity that has not been supplied; authenticated requests are outside this anonymous API campaign.",
+            "recovery": "The owner must separately authorize and supply member access through an appropriate secure mechanism; do not request or expose credentials here."
+          },
+          {
+            "targetId": "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962",
+            "catalogCheckIds": [],
+            "disposition": "blocked",
+            "reason": "UNASSESSED: rendered /docs/ behavior is explicitly outside this API-only request. No rendered-documentation request is authorized in this campaign.",
+            "recovery": "A separately scoped rendered-documentation request and supported browser check would be needed; do not infer its outcome from API checks."
+          }
+        ]
+      },
+      "readyToRun": false,
+      "executableTargetIds": [
+        "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4",
+        "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+      ],
+      "blockedTargetIds": [
+        "urn:qa:discovery-target:b52984675afcb81452fd7870",
+        "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962",
+        "urn:qa:surface:49c9fe0ae677390c5ff9d806"
+      ]
+    },
+    "firstDesignUnchanged": true,
+    "executed": false
+  },
+  {
+    "releaseId": "t9",
+    "workspacePath": "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/t9/nuanu-readonly-qa",
+    "planPath": "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/t9/nuanu-readonly-qa/tests/qa-campaign.v0.json",
+    "baseUrl": "http://127.0.0.1:51324/",
+    "graphDigest": "sha256:0c09c131ace66c9f5f96b2a53b1adaa961417931ed7372cf04c937ffe93d4d32",
+    "catalogDigest": "sha256:233f342976033d36a968e28bac161891f2882e386fe9b836727f550ebfea579c",
+    "planDigest": "sha256:645f48ff287b8ceed0be09509f49a37062d2fda7a66e8e7997fc8c0dcd6bf199",
+    "graphTargetCount": 5,
+    "catalogEntryCount": 3,
+    "executableCheckCount": 2,
+    "assertionCount": 8,
+    "blockerCount": 3,
+    "closure": {
+      "plan": {
+        "schemaVersion": "qa-campaign.v0",
+        "productSlug": "api-contract-consumer",
+        "graphDigest": "sha256:0c09c131ace66c9f5f96b2a53b1adaa961417931ed7372cf04c937ffe93d4d32",
+        "baseUrl": "http://127.0.0.1:51324/",
+        "checks": [
+          {
+            "checkId": "urn:qa:check:2507ded4b4e6be11c21572ea",
+            "title": "Anonymous OpenAPI response satisfies every promised contract clause",
+            "targetIds": [
+              "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4"
+            ],
+            "disposition": "executable",
+            "sideEffectClass": "read_only",
+            "preconditions": [
+              "The assigned exact loopback release origin is available.",
+              "Use anonymous read-only GET; no identity, credential, cookie or authentication state is required."
+            ],
+            "reproductionSteps": [
+              "Send anonymous GET /openapi.json to the registered base URL.",
+              "Assert the HTTP status, media type and every promised JSON field independently."
+            ],
+            "expectedBehavior": "GET /openapi.json returns HTTP200 application/json with openapi 3.0.3, info.title Widget API, and paths /v1/widgets GET summary List widgets.",
+            "severity": "high",
+            "severityJustification": "A wrong public integration contract can mislead client generation or integration development.",
+            "kind": "api",
+            "surface": "api",
+            "method": "GET",
+            "path": "/openapi.json",
+            "assertions": [
+              {
+                "kind": "status",
+                "value": 200
+              },
+              {
+                "kind": "media_type",
+                "value": "application/json"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/openapi",
+                "value": "3.0.3"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/info/title",
+                "value": "Widget API"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/paths/~1v1~1widgets/get/summary",
+                "value": "List widgets"
+              }
+            ]
+          },
+          {
+            "checkId": "urn:qa:check:d5f2e5a74496a729507c1fbd",
+            "title": "Anonymous status response satisfies every promised contract clause",
+            "targetIds": [
+              "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+            ],
+            "disposition": "executable",
+            "sideEffectClass": "read_only",
+            "preconditions": [
+              "The assigned exact loopback release origin is available.",
+              "Use anonymous read-only GET; no identity, credential, cookie or authentication state is required."
+            ],
+            "reproductionSteps": [
+              "Send anonymous GET /api/status to the registered base URL.",
+              "Assert the HTTP status, media type and every promised JSON field independently."
+            ],
+            "expectedBehavior": "GET /api/status returns HTTP200 application/json with status operational.",
+            "severity": "medium",
+            "severityJustification": "An incorrect public status contract misrepresents service readiness to integration consumers.",
+            "kind": "api",
+            "surface": "api",
+            "method": "GET",
+            "path": "/api/status",
+            "assertions": [
+              {
+                "kind": "status",
+                "value": 200
+              },
+              {
+                "kind": "media_type",
+                "value": "application/json"
+              },
+              {
+                "kind": "json_pointer",
+                "path": "/status",
+                "value": "operational"
+              }
+            ]
+          }
+        ],
+        "blockers": [
+          {
+            "targetId": "urn:qa:surface:49c9fe0ae677390c5ff9d806",
+            "catalogCheckIds": [
+              "urn:qa:automated-check:fc7ea431d3f3c9ed9b57c50b"
+            ],
+            "disposition": "blocked",
+            "reason": "The generated general API-surface candidate has an unresolved oracle. The two resolved endpoint checks do not establish this additional broad surface target.",
+            "recovery": "Retain this coverage gap; a separately authorized knowledge/oracle decision is needed before selecting the general API-surface candidate."
+          },
+          {
+            "targetId": "urn:qa:discovery-target:b52984675afcb81452fd7870",
+            "catalogCheckIds": [],
+            "disposition": "blocked",
+            "reason": "BLOCKED: /member/audit requires a member identity that has not been supplied; authenticated requests are outside this anonymous API campaign.",
+            "recovery": "The owner must separately authorize and supply member access through an appropriate secure mechanism; do not request or expose credentials here."
+          },
+          {
+            "targetId": "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962",
+            "catalogCheckIds": [],
+            "disposition": "blocked",
+            "reason": "UNASSESSED: rendered /docs/ behavior is explicitly outside this API-only request. No rendered-documentation request is authorized in this campaign.",
+            "recovery": "A separately scoped rendered-documentation request and supported browser check would be needed; do not infer its outcome from API checks."
+          }
+        ]
+      },
+      "readyToRun": false,
+      "executableTargetIds": [
+        "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4",
+        "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+      ],
+      "blockedTargetIds": [
+        "urn:qa:discovery-target:b52984675afcb81452fd7870",
+        "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962",
+        "urn:qa:surface:49c9fe0ae677390c5ff9d806"
+      ]
+    },
+    "firstDesignUnchanged": true,
+    "executed": false
+  }
+]

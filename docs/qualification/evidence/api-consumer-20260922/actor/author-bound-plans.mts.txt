@@ -1,0 +1,102 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFile, writeFile, lstat } from 'node:fs/promises';
+import { QaCampaignPlanV0Schema, validateCampaignClosure } from '/Users/danilsolomin/projectsnew/qa-agent/components/console/src/lib/qa-campaign-v0.ts';
+import { digestCanonical } from '/Users/danilsolomin/projectsnew/qa-agent/components/console/src/lib/canonical-digest.ts';
+import { readCampaignWorkspace, readCampaignPlan, writeNewCampaignPlan } from '/Users/danilsolomin/projectsnew/qa-agent/components/console/src/node/qa-campaign-files.ts';
+
+const actorRoot = '/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor';
+const packet = JSON.parse(await readFile(`${actorRoot}/actor-context.json`, 'utf8'));
+const firstDesignBytes = await readFile(`${actorRoot}/first-design.json`);
+assert.equal(createHash('sha256').update(firstDesignBytes).digest('hex'), 'e3ba08fe284e02b405991dd4ec14be599719536f8236b0caeb867c4241a7103c');
+const firstDesign = JSON.parse(firstDesignBytes.toString('utf8'));
+const reports = [];
+
+for (const release of packet.releases) {
+  assert(release.workspacePath.startsWith(`${actorRoot}/${release.releaseId}/`));
+  assert.equal(new URL(release.baseUrl).hostname, '127.0.0.1');
+  const workspace = await readCampaignWorkspace(release.workspacePath);
+  assert.equal(workspace.project.product.slug, packet.productSlug);
+  assert.deepEqual(workspace.project.environments.map(environment => environment.baseUrl), [release.baseUrl]);
+  const graphTargets = workspace.graph.nodes.filter(node => node.coverageTarget);
+  assert.equal(graphTargets.length, 5);
+  assert.equal(workspace.catalog.entries.length, 3);
+  const expectedNames = ['Download the OpenAPI contract', 'Read independent service status'];
+  const checks = firstDesign.checks.map((design, index) => {
+    const matchingTargets = graphTargets.filter(target => target.name === expectedNames[index]);
+    assert.equal(matchingTargets.length, 1);
+    const target = matchingTargets[0];
+    const matchingEntries = workspace.catalog.entries.filter(entry => entry.targetIds.includes(target.id));
+    assert.equal(matchingEntries.length, 1);
+    const entry = matchingEntries[0];
+    assert.equal(entry.oracle.state, 'resolved');
+    assert.equal(entry.runnerId, 'playwright');
+    assert.deepEqual(entry.requiredSecretRefs, []);
+    assert.deepEqual(entry.sideEffectClasses, ['read_only']);
+    assert.deepEqual(entry.expectedEvidenceTypes, ['http_response']);
+    return {
+      checkId: entry.checkId,
+      title: index === 0 ? 'Anonymous OpenAPI response satisfies every promised contract clause' : 'Anonymous status response satisfies every promised contract clause',
+      targetIds: entry.targetIds,
+      disposition: 'executable',
+      sideEffectClass: 'read_only',
+      preconditions: ['The assigned exact loopback release origin is available.', 'Use anonymous read-only GET; no identity, credential, cookie or authentication state is required.'],
+      reproductionSteps: [`Send anonymous GET ${design.request.path} to the registered base URL.`, 'Assert the HTTP status, media type and every promised JSON field independently.'],
+      expectedBehavior: entry.oracle.description,
+      severity: index === 0 ? 'high' : 'medium',
+      severityJustification: index === 0 ? 'A wrong public integration contract can mislead client generation or integration development.' : 'An incorrect public status contract misrepresents service readiness to integration consumers.',
+      kind: 'api',
+      surface: 'api',
+      method: design.request.method,
+      path: design.request.path,
+      assertions: design.assertions,
+    };
+  });
+  const selectedTargetIds = new Set(checks.flatMap(check => check.targetIds));
+  const blockers = graphTargets.filter(target => !selectedTargetIds.has(target.id)).map(target => {
+    const catalogCheckIds = workspace.catalog.entries.filter(entry => entry.targetIds.includes(target.id)).map(entry => entry.checkId);
+    if (target.name === 'Public service API') {
+      assert.equal(catalogCheckIds.length, 1);
+      return { targetId: target.id, catalogCheckIds, disposition: 'blocked',
+        reason: 'The generated general API-surface candidate has an unresolved oracle. The two resolved endpoint checks do not establish this additional broad surface target.',
+        recovery: 'Retain this coverage gap; a separately authorized knowledge/oracle decision is needed before selecting the general API-surface candidate.' };
+    }
+    if (target.name === 'Read rendered API reference') {
+      return { targetId: target.id, catalogCheckIds, disposition: 'blocked',
+        reason: 'UNASSESSED: rendered /docs/ behavior is explicitly outside this API-only request. No rendered-documentation request is authorized in this campaign.',
+        recovery: 'A separately scoped rendered-documentation request and supported browser check would be needed; do not infer its outcome from API checks.' };
+    }
+    if (target.name === 'Read member audit history') {
+      return { targetId: target.id, catalogCheckIds, disposition: 'blocked',
+        reason: 'BLOCKED: /member/audit requires a member identity that has not been supplied; authenticated requests are outside this anonymous API campaign.',
+        recovery: 'The owner must separately authorize and supply member access through an appropriate secure mechanism; do not request or expose credentials here.' };
+    }
+    throw new Error(`Unexpected retained target: ${target.name}`);
+  });
+  const proposedPlan = {
+    schemaVersion: 'qa-campaign.v0', productSlug: packet.productSlug,
+    graphDigest: workspace.graph.semanticDigest, baseUrl: release.baseUrl, checks, blockers,
+  };
+  await writeFile(`${actorRoot}/${release.releaseId}/first-proposed-plan.json`, JSON.stringify(proposedPlan, null, 2) + '\n', { flag: 'wx' });
+  const plan = QaCampaignPlanV0Schema.parse(proposedPlan);
+  const closure = validateCampaignClosure({ graph: workspace.graph, catalog: workspace.catalog, plan,
+    expectedProductSlug: packet.productSlug, allowedBaseUrls: [release.baseUrl] });
+  const planPath = `${release.workspacePath}/tests/qa-campaign.v0.json`;
+  await assert.rejects(lstat(planPath), { code: 'ENOENT' });
+  await writeNewCampaignPlan(release.workspacePath, planPath, plan);
+  const readback = QaCampaignPlanV0Schema.parse(await readCampaignPlan(release.workspacePath, planPath));
+  assert.deepEqual(readback, plan);
+  assert.deepEqual(readback.checks.map(check => check.assertions), firstDesign.checks.map(check => check.assertions));
+  const report = {
+    releaseId: release.releaseId, workspacePath: release.workspacePath, planPath,
+    baseUrl: release.baseUrl, graphDigest: workspace.graph.semanticDigest,
+    catalogDigest: workspace.catalog.semanticDigest, planDigest: digestCanonical(readback),
+    graphTargetCount: graphTargets.length, catalogEntryCount: workspace.catalog.entries.length,
+    executableCheckCount: readback.checks.length, assertionCount: readback.checks.reduce((sum, check) => sum + check.assertions.length, 0),
+    blockerCount: readback.blockers.length, closure,
+    firstDesignUnchanged: true, executed: false,
+  };
+  reports.push(report);
+  console.log(JSON.stringify(report, null, 2));
+}
+await writeFile(`${actorRoot}/bound-plan-manifest.json`, JSON.stringify(reports, null, 2) + '\n', { flag: 'wx' });

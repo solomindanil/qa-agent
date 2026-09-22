@@ -1,0 +1,1273 @@
+[
+  {
+    "releaseId": "q2",
+    "baseUrl": "http://127.0.0.1:50604/",
+    "planDigest": "sha256:3322ef57616a7263675410f286f50c918fd9fcdb623d6342cbb3cb8ff7b4ee84",
+    "runId": "run-c3e32cd84101ccf8-c399ab55-9377-435f-b2bd-f049e8eb6dd4",
+    "runDirectory": "tests/campaign-runs/run-c3e32cd84101ccf8-c399ab55-9377-435f-b2bd-f049e8eb6dd4",
+    "receiptDigest": "sha256:52a18e8d258bcbf828cd611721194d5da7b7bb1922f679f547b1b85bbdd1109d",
+    "receiptObservedAt": "2026-09-22T05:34:00.421Z",
+    "runStartedAt": "2026-09-22T05:33:50.143Z",
+    "runEndedAt": "2026-09-22T05:34:09.092Z",
+    "runExitCode": 1,
+    "statusExitCode": 0,
+    "verdict": "NEEDS_HUMAN",
+    "checks": [
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "outcome": "pass"
+          }
+        ],
+        "checkId": "urn:qa:check:2507ded4b4e6be11c21572ea",
+        "status": "pass",
+        "targetIds": [
+          "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4"
+        ]
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "outcome": "pass"
+          }
+        ],
+        "checkId": "urn:qa:check:d5f2e5a74496a729507c1fbd",
+        "status": "pass",
+        "targetIds": [
+          "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+        ]
+      }
+    ],
+    "blockedTargets": [
+      {
+        "catalogCheckIds": [
+          "urn:qa:automated-check:fc7ea431d3f3c9ed9b57c50b"
+        ],
+        "disposition": "blocked",
+        "reason": "The generated general API-surface candidate has an unresolved oracle. The two resolved endpoint checks do not establish this additional broad surface target.",
+        "recovery": "Retain this coverage gap; a separately authorized knowledge/oracle decision is needed before selecting the general API-surface candidate.",
+        "targetId": "urn:qa:surface:49c9fe0ae677390c5ff9d806"
+      },
+      {
+        "catalogCheckIds": [],
+        "disposition": "blocked",
+        "reason": "BLOCKED: /member/audit requires a member identity that has not been supplied; authenticated requests are outside this anonymous API campaign.",
+        "recovery": "The owner must separately authorize and supply member access through an appropriate secure mechanism; do not request or expose credentials here.",
+        "targetId": "urn:qa:discovery-target:b52984675afcb81452fd7870"
+      },
+      {
+        "catalogCheckIds": [],
+        "disposition": "blocked",
+        "reason": "UNASSESSED: rendered /docs/ behavior is explicitly outside this API-only request. No rendered-documentation request is authorized in this campaign.",
+        "recovery": "A separately scoped rendered-documentation request and supported browser check would be needed; do not infer its outcome from API checks.",
+        "targetId": "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962"
+      }
+    ],
+    "dossierCount": 0,
+    "artifactPayloads": [
+      {
+        "path": "tests/campaign-runs/run-c3e32cd84101ccf8-c399ab55-9377-435f-b2bd-f049e8eb6dd4/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-1/result.json",
+        "sha256": "sha256:ba3a2877fde556e6b214a3294d73e9cef678ff11d635d3e854070303b5b5e2dc",
+        "payload": {
+          "kind": "pass",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-c3e32cd84101ccf8-c399ab55-9377-435f-b2bd-f049e8eb6dd4/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-1/trace.json",
+        "sha256": "sha256:1a9fd85f473a05e529f66da5b1d30609d61c8e5099d8cb810909ae176fa49316",
+        "payload": {
+          "attempt": 1,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:50604/openapi.json",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=200",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "index": 0,
+              "kind": "status",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 1,
+              "kind": "media_type",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 2,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 3,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 4,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "pass",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 7
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-c3e32cd84101ccf8-c399ab55-9377-435f-b2bd-f049e8eb6dd4/checks/check-a6d7db802b67448a1e37afeb17ed61dccb9babd385acead2e318d14cebb500d2/attempt-1/result.json",
+        "sha256": "sha256:ba3a2877fde556e6b214a3294d73e9cef678ff11d635d3e854070303b5b5e2dc",
+        "payload": {
+          "kind": "pass",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-c3e32cd84101ccf8-c399ab55-9377-435f-b2bd-f049e8eb6dd4/checks/check-a6d7db802b67448a1e37afeb17ed61dccb9babd385acead2e318d14cebb500d2/attempt-1/trace.json",
+        "sha256": "sha256:0976a4e0962b7e61a83574782520d8012a3477201f7d75627eefb9a62e335a65",
+        "payload": {
+          "attempt": 1,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:50604/api/status",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=200",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "index": 0,
+              "kind": "status",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 1,
+              "kind": "media_type",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 2,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "pass",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 5
+        }
+      }
+    ]
+  },
+  {
+    "releaseId": "n8",
+    "baseUrl": "http://127.0.0.1:50738/",
+    "planDigest": "sha256:fdc729169e80dc3213cf922886af99804aeaa69a05164e1d9a035ce7269b303f",
+    "runId": "run-b27f95ea934bf6aa-b3a4c9f9-03f1-44ee-a4d2-351c2da0ed47",
+    "runDirectory": "tests/campaign-runs/run-b27f95ea934bf6aa-b3a4c9f9-03f1-44ee-a4d2-351c2da0ed47",
+    "receiptDigest": "sha256:88b2a6c93203c95954be91c05480bdbd07e05eff03376065a9957c547ace6560",
+    "receiptObservedAt": "2026-09-22T05:34:40.027Z",
+    "runStartedAt": "2026-09-22T05:34:26.853Z",
+    "runEndedAt": "2026-09-22T05:34:52.788Z",
+    "runExitCode": 1,
+    "statusExitCode": 0,
+    "verdict": "INCONCLUSIVE",
+    "checks": [
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "oracle": {
+              "actual": "body bytes=169 sha256:2835d573471c270b20d7739732446dbda4de888afdae5e33879c663cd861c511",
+              "assertionId": "assertion-4",
+              "failureCode": "json_pointer_mismatch",
+              "message": "JSON pointer /paths/~1v1~1widgets/get/summary did not match"
+            },
+            "outcome": "oracle_failure"
+          },
+          {
+            "attempt": 2,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "oracle": {
+              "actual": "body bytes=169 sha256:2835d573471c270b20d7739732446dbda4de888afdae5e33879c663cd861c511",
+              "assertionId": "assertion-4",
+              "failureCode": "json_pointer_mismatch",
+              "message": "JSON pointer /paths/~1v1~1widgets/get/summary did not match"
+            },
+            "outcome": "oracle_failure"
+          }
+        ],
+        "checkId": "urn:qa:check:2507ded4b4e6be11c21572ea",
+        "status": "needs_review",
+        "targetIds": [
+          "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4"
+        ]
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "outcome": "pass"
+          }
+        ],
+        "checkId": "urn:qa:check:d5f2e5a74496a729507c1fbd",
+        "status": "pass",
+        "targetIds": [
+          "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+        ]
+      }
+    ],
+    "blockedTargets": [
+      {
+        "catalogCheckIds": [
+          "urn:qa:automated-check:fc7ea431d3f3c9ed9b57c50b"
+        ],
+        "disposition": "blocked",
+        "reason": "The generated general API-surface candidate has an unresolved oracle. The two resolved endpoint checks do not establish this additional broad surface target.",
+        "recovery": "Retain this coverage gap; a separately authorized knowledge/oracle decision is needed before selecting the general API-surface candidate.",
+        "targetId": "urn:qa:surface:49c9fe0ae677390c5ff9d806"
+      },
+      {
+        "catalogCheckIds": [],
+        "disposition": "blocked",
+        "reason": "BLOCKED: /member/audit requires a member identity that has not been supplied; authenticated requests are outside this anonymous API campaign.",
+        "recovery": "The owner must separately authorize and supply member access through an appropriate secure mechanism; do not request or expose credentials here.",
+        "targetId": "urn:qa:discovery-target:b52984675afcb81452fd7870"
+      },
+      {
+        "catalogCheckIds": [],
+        "disposition": "blocked",
+        "reason": "UNASSESSED: rendered /docs/ behavior is explicitly outside this API-only request. No rendered-documentation request is authorized in this campaign.",
+        "recovery": "A separately scoped rendered-documentation request and supported browser check would be needed; do not infer its outcome from API checks.",
+        "targetId": "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962"
+      }
+    ],
+    "dossierCount": 0,
+    "artifactPayloads": [
+      {
+        "path": "tests/campaign-runs/run-b27f95ea934bf6aa-b3a4c9f9-03f1-44ee-a4d2-351c2da0ed47/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-1/result.json",
+        "sha256": "sha256:4aafdca930ff35ec98ac922dc5f9b0f93d6e88b3d0fd94b07676758ed815fd0d",
+        "payload": {
+          "kind": "oracle_failure",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "oracle": {
+            "actual": "body bytes=169 sha256:2835d573471c270b20d7739732446dbda4de888afdae5e33879c663cd861c511",
+            "assertionId": "assertion-4",
+            "failureCode": "json_pointer_mismatch",
+            "message": "JSON pointer /paths/~1v1~1widgets/get/summary did not match"
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-b27f95ea934bf6aa-b3a4c9f9-03f1-44ee-a4d2-351c2da0ed47/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-1/trace.json",
+        "sha256": "sha256:df439e4f602e67d138665485649651152c9fc3011f02cc3d8a4f97d7c993be4a",
+        "payload": {
+          "attempt": 1,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:50738/openapi.json",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=200",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "index": 0,
+              "kind": "status",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 1,
+              "kind": "media_type",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 2,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 3,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "detail": "body bytes=169 sha256:2835d573471c270b20d7739732446dbda4de888afdae5e33879c663cd861c511",
+              "index": 4,
+              "kind": "json_pointer",
+              "outcome": "failed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "oracle_failure",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 7
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-b27f95ea934bf6aa-b3a4c9f9-03f1-44ee-a4d2-351c2da0ed47/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-2/result.json",
+        "sha256": "sha256:4aafdca930ff35ec98ac922dc5f9b0f93d6e88b3d0fd94b07676758ed815fd0d",
+        "payload": {
+          "kind": "oracle_failure",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "oracle": {
+            "actual": "body bytes=169 sha256:2835d573471c270b20d7739732446dbda4de888afdae5e33879c663cd861c511",
+            "assertionId": "assertion-4",
+            "failureCode": "json_pointer_mismatch",
+            "message": "JSON pointer /paths/~1v1~1widgets/get/summary did not match"
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-b27f95ea934bf6aa-b3a4c9f9-03f1-44ee-a4d2-351c2da0ed47/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-2/trace.json",
+        "sha256": "sha256:c99d09f17ecb4ab8e1786c0a746df00268efe0b70cf8de8a1caaad4a213316e4",
+        "payload": {
+          "attempt": 2,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:50738/openapi.json",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=200",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "index": 0,
+              "kind": "status",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 1,
+              "kind": "media_type",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 2,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 3,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "detail": "body bytes=169 sha256:2835d573471c270b20d7739732446dbda4de888afdae5e33879c663cd861c511",
+              "index": 4,
+              "kind": "json_pointer",
+              "outcome": "failed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "oracle_failure",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 7
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-b27f95ea934bf6aa-b3a4c9f9-03f1-44ee-a4d2-351c2da0ed47/checks/check-a6d7db802b67448a1e37afeb17ed61dccb9babd385acead2e318d14cebb500d2/attempt-1/result.json",
+        "sha256": "sha256:ba3a2877fde556e6b214a3294d73e9cef678ff11d635d3e854070303b5b5e2dc",
+        "payload": {
+          "kind": "pass",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-b27f95ea934bf6aa-b3a4c9f9-03f1-44ee-a4d2-351c2da0ed47/checks/check-a6d7db802b67448a1e37afeb17ed61dccb9babd385acead2e318d14cebb500d2/attempt-1/trace.json",
+        "sha256": "sha256:ab0c90d77ea390cc3ce3d512ca77e3d9fb47be59ee0f79cd193a05a05078a13f",
+        "payload": {
+          "attempt": 1,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:50738/api/status",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=200",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "index": 0,
+              "kind": "status",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 1,
+              "kind": "media_type",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 2,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "pass",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 5
+        }
+      }
+    ]
+  },
+  {
+    "releaseId": "c4",
+    "baseUrl": "http://127.0.0.1:50921/",
+    "planDigest": "sha256:f1854611f8edca012ec94ff3c9b35986763f4ee7a2821a4990159bc0c7ba44da",
+    "runId": "run-c785ff5055bbbb13-b083ac5e-bfa7-4c8c-899b-c5f40b39ee48",
+    "runDirectory": "tests/campaign-runs/run-c785ff5055bbbb13-b083ac5e-bfa7-4c8c-899b-c5f40b39ee48",
+    "receiptDigest": "sha256:36de7c9ead980c40fca1b5b7a1a27513f4ab2c62bb93220db623ee672bfefb38",
+    "receiptObservedAt": "2026-09-22T05:34:44.058Z",
+    "runStartedAt": "2026-09-22T05:34:29.736Z",
+    "runEndedAt": "2026-09-22T05:34:55.872Z",
+    "runExitCode": 1,
+    "statusExitCode": 0,
+    "verdict": "INCONCLUSIVE",
+    "checks": [
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "oracle": {
+              "actual": "text/plain",
+              "assertionId": "assertion-1",
+              "failureCode": "media_type_mismatch",
+              "message": "Content-Type media type did not match"
+            },
+            "outcome": "oracle_failure"
+          },
+          {
+            "attempt": 2,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "oracle": {
+              "actual": "text/plain",
+              "assertionId": "assertion-1",
+              "failureCode": "media_type_mismatch",
+              "message": "Content-Type media type did not match"
+            },
+            "outcome": "oracle_failure"
+          }
+        ],
+        "checkId": "urn:qa:check:2507ded4b4e6be11c21572ea",
+        "status": "needs_review",
+        "targetIds": [
+          "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4"
+        ]
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "outcome": "pass"
+          }
+        ],
+        "checkId": "urn:qa:check:d5f2e5a74496a729507c1fbd",
+        "status": "pass",
+        "targetIds": [
+          "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+        ]
+      }
+    ],
+    "blockedTargets": [
+      {
+        "catalogCheckIds": [
+          "urn:qa:automated-check:fc7ea431d3f3c9ed9b57c50b"
+        ],
+        "disposition": "blocked",
+        "reason": "The generated general API-surface candidate has an unresolved oracle. The two resolved endpoint checks do not establish this additional broad surface target.",
+        "recovery": "Retain this coverage gap; a separately authorized knowledge/oracle decision is needed before selecting the general API-surface candidate.",
+        "targetId": "urn:qa:surface:49c9fe0ae677390c5ff9d806"
+      },
+      {
+        "catalogCheckIds": [],
+        "disposition": "blocked",
+        "reason": "BLOCKED: /member/audit requires a member identity that has not been supplied; authenticated requests are outside this anonymous API campaign.",
+        "recovery": "The owner must separately authorize and supply member access through an appropriate secure mechanism; do not request or expose credentials here.",
+        "targetId": "urn:qa:discovery-target:b52984675afcb81452fd7870"
+      },
+      {
+        "catalogCheckIds": [],
+        "disposition": "blocked",
+        "reason": "UNASSESSED: rendered /docs/ behavior is explicitly outside this API-only request. No rendered-documentation request is authorized in this campaign.",
+        "recovery": "A separately scoped rendered-documentation request and supported browser check would be needed; do not infer its outcome from API checks.",
+        "targetId": "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962"
+      }
+    ],
+    "dossierCount": 0,
+    "artifactPayloads": [
+      {
+        "path": "tests/campaign-runs/run-c785ff5055bbbb13-b083ac5e-bfa7-4c8c-899b-c5f40b39ee48/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-1/result.json",
+        "sha256": "sha256:c00b22c77150880a2e85631e6e4701849440b28e476f4c980a2058c11a87eeb1",
+        "payload": {
+          "kind": "oracle_failure",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "oracle": {
+            "actual": "text/plain",
+            "assertionId": "assertion-1",
+            "failureCode": "media_type_mismatch",
+            "message": "Content-Type media type did not match"
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-c785ff5055bbbb13-b083ac5e-bfa7-4c8c-899b-c5f40b39ee48/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-1/trace.json",
+        "sha256": "sha256:4f8d2f65f6f924d87524c41ea054d9f9da45d69481d8cbdc9be22d62c248310b",
+        "payload": {
+          "attempt": 1,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:50921/openapi.json",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=200",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "index": 0,
+              "kind": "status",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "detail": "text/plain",
+              "index": 1,
+              "kind": "media_type",
+              "outcome": "failed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "oracle_failure",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 4
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-c785ff5055bbbb13-b083ac5e-bfa7-4c8c-899b-c5f40b39ee48/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-2/result.json",
+        "sha256": "sha256:c00b22c77150880a2e85631e6e4701849440b28e476f4c980a2058c11a87eeb1",
+        "payload": {
+          "kind": "oracle_failure",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "oracle": {
+            "actual": "text/plain",
+            "assertionId": "assertion-1",
+            "failureCode": "media_type_mismatch",
+            "message": "Content-Type media type did not match"
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-c785ff5055bbbb13-b083ac5e-bfa7-4c8c-899b-c5f40b39ee48/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-2/trace.json",
+        "sha256": "sha256:e7363cdacb053e1029c11d889f5d56b31143972cbdc714fb5e385d7f7f93d509",
+        "payload": {
+          "attempt": 2,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:50921/openapi.json",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=200",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "index": 0,
+              "kind": "status",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "detail": "text/plain",
+              "index": 1,
+              "kind": "media_type",
+              "outcome": "failed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "oracle_failure",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 4
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-c785ff5055bbbb13-b083ac5e-bfa7-4c8c-899b-c5f40b39ee48/checks/check-a6d7db802b67448a1e37afeb17ed61dccb9babd385acead2e318d14cebb500d2/attempt-1/result.json",
+        "sha256": "sha256:ba3a2877fde556e6b214a3294d73e9cef678ff11d635d3e854070303b5b5e2dc",
+        "payload": {
+          "kind": "pass",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-c785ff5055bbbb13-b083ac5e-bfa7-4c8c-899b-c5f40b39ee48/checks/check-a6d7db802b67448a1e37afeb17ed61dccb9babd385acead2e318d14cebb500d2/attempt-1/trace.json",
+        "sha256": "sha256:40faacb44c5207d92bda0f9d956ba4b01ad20c6a40e91f1842645b70c94a95e0",
+        "payload": {
+          "attempt": 1,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:50921/api/status",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=200",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "index": 0,
+              "kind": "status",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 1,
+              "kind": "media_type",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 2,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "pass",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 5
+        }
+      }
+    ]
+  },
+  {
+    "releaseId": "r6",
+    "baseUrl": "http://127.0.0.1:51098/",
+    "planDigest": "sha256:e5d92c31d2e9b90908b23669b421f87b5aa99072c796288e9f31de24aa4667a6",
+    "runId": "run-ccc7342faf25703f-4d143a12-3ad1-4358-a28a-90a55b90e309",
+    "runDirectory": "tests/campaign-runs/run-ccc7342faf25703f-4d143a12-3ad1-4358-a28a-90a55b90e309",
+    "receiptDigest": "sha256:529e2fff227bab672f69be60130e81f00671df5e39d11d7c7ded816aad418acf",
+    "receiptObservedAt": "2026-09-22T05:34:43.661Z",
+    "runStartedAt": "2026-09-22T05:34:29.331Z",
+    "runEndedAt": "2026-09-22T05:34:55.562Z",
+    "runExitCode": 1,
+    "statusExitCode": 0,
+    "verdict": "INCONCLUSIVE",
+    "checks": [
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "oracle": {
+              "actual": "503",
+              "assertionId": "assertion-0",
+              "failureCode": "status_mismatch",
+              "message": "Expected status 200; received 503"
+            },
+            "outcome": "oracle_failure"
+          },
+          {
+            "attempt": 2,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "oracle": {
+              "actual": "503",
+              "assertionId": "assertion-0",
+              "failureCode": "status_mismatch",
+              "message": "Expected status 200; received 503"
+            },
+            "outcome": "oracle_failure"
+          }
+        ],
+        "checkId": "urn:qa:check:2507ded4b4e6be11c21572ea",
+        "status": "needs_review",
+        "targetIds": [
+          "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4"
+        ]
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "outcome": "pass"
+          }
+        ],
+        "checkId": "urn:qa:check:d5f2e5a74496a729507c1fbd",
+        "status": "pass",
+        "targetIds": [
+          "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+        ]
+      }
+    ],
+    "blockedTargets": [
+      {
+        "catalogCheckIds": [
+          "urn:qa:automated-check:fc7ea431d3f3c9ed9b57c50b"
+        ],
+        "disposition": "blocked",
+        "reason": "The generated general API-surface candidate has an unresolved oracle. The two resolved endpoint checks do not establish this additional broad surface target.",
+        "recovery": "Retain this coverage gap; a separately authorized knowledge/oracle decision is needed before selecting the general API-surface candidate.",
+        "targetId": "urn:qa:surface:49c9fe0ae677390c5ff9d806"
+      },
+      {
+        "catalogCheckIds": [],
+        "disposition": "blocked",
+        "reason": "BLOCKED: /member/audit requires a member identity that has not been supplied; authenticated requests are outside this anonymous API campaign.",
+        "recovery": "The owner must separately authorize and supply member access through an appropriate secure mechanism; do not request or expose credentials here.",
+        "targetId": "urn:qa:discovery-target:b52984675afcb81452fd7870"
+      },
+      {
+        "catalogCheckIds": [],
+        "disposition": "blocked",
+        "reason": "UNASSESSED: rendered /docs/ behavior is explicitly outside this API-only request. No rendered-documentation request is authorized in this campaign.",
+        "recovery": "A separately scoped rendered-documentation request and supported browser check would be needed; do not infer its outcome from API checks.",
+        "targetId": "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962"
+      }
+    ],
+    "dossierCount": 0,
+    "artifactPayloads": [
+      {
+        "path": "tests/campaign-runs/run-ccc7342faf25703f-4d143a12-3ad1-4358-a28a-90a55b90e309/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-1/result.json",
+        "sha256": "sha256:20dad909826e73e35f119c97e3f1a816495c7440397aca25a6f11d3d527eb8d9",
+        "payload": {
+          "kind": "oracle_failure",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "oracle": {
+            "actual": "503",
+            "assertionId": "assertion-0",
+            "failureCode": "status_mismatch",
+            "message": "Expected status 200; received 503"
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-ccc7342faf25703f-4d143a12-3ad1-4358-a28a-90a55b90e309/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-1/trace.json",
+        "sha256": "sha256:70a25596efaa75a745f5a6bdba3091be958cd34f065b43f8ebab69c1ece6b9c9",
+        "payload": {
+          "attempt": 1,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:51098/openapi.json",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=503",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "detail": "503",
+              "index": 0,
+              "kind": "status",
+              "outcome": "failed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "oracle_failure",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 3
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-ccc7342faf25703f-4d143a12-3ad1-4358-a28a-90a55b90e309/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-2/result.json",
+        "sha256": "sha256:20dad909826e73e35f119c97e3f1a816495c7440397aca25a6f11d3d527eb8d9",
+        "payload": {
+          "kind": "oracle_failure",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "oracle": {
+            "actual": "503",
+            "assertionId": "assertion-0",
+            "failureCode": "status_mismatch",
+            "message": "Expected status 200; received 503"
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-ccc7342faf25703f-4d143a12-3ad1-4358-a28a-90a55b90e309/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-2/trace.json",
+        "sha256": "sha256:c0075a257f878b30764e2b58816156610a86b7487b25c7f8129f1869900c0b1c",
+        "payload": {
+          "attempt": 2,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:51098/openapi.json",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=503",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "detail": "503",
+              "index": 0,
+              "kind": "status",
+              "outcome": "failed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "oracle_failure",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 3
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-ccc7342faf25703f-4d143a12-3ad1-4358-a28a-90a55b90e309/checks/check-a6d7db802b67448a1e37afeb17ed61dccb9babd385acead2e318d14cebb500d2/attempt-1/result.json",
+        "sha256": "sha256:ba3a2877fde556e6b214a3294d73e9cef678ff11d635d3e854070303b5b5e2dc",
+        "payload": {
+          "kind": "pass",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-ccc7342faf25703f-4d143a12-3ad1-4358-a28a-90a55b90e309/checks/check-a6d7db802b67448a1e37afeb17ed61dccb9babd385acead2e318d14cebb500d2/attempt-1/trace.json",
+        "sha256": "sha256:c6dcefc34240a6462c94c50ee0176f0b587669b99ae549535975b1776de8a349",
+        "payload": {
+          "attempt": 1,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:51098/api/status",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=200",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "index": 0,
+              "kind": "status",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 1,
+              "kind": "media_type",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 2,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "pass",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 5
+        }
+      }
+    ]
+  },
+  {
+    "releaseId": "t9",
+    "baseUrl": "http://127.0.0.1:51324/",
+    "planDigest": "sha256:645f48ff287b8ceed0be09509f49a37062d2fda7a66e8e7997fc8c0dcd6bf199",
+    "runId": "run-a57560b856ca5a58-40a56165-74e4-42fb-ba13-570eb176e8eb",
+    "runDirectory": "tests/campaign-runs/run-a57560b856ca5a58-40a56165-74e4-42fb-ba13-570eb176e8eb",
+    "receiptDigest": "sha256:d33ff2202cf65a50cc2abfde90c2bf27b7c9d9377e38cc9f6221e9df6ed53db2",
+    "receiptObservedAt": "2026-09-22T05:34:43.111Z",
+    "runStartedAt": "2026-09-22T05:34:28.971Z",
+    "runEndedAt": "2026-09-22T05:34:55.058Z",
+    "runExitCode": 1,
+    "statusExitCode": 0,
+    "verdict": "NEEDS_HUMAN",
+    "checks": [
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "outcome": "pass"
+          }
+        ],
+        "checkId": "urn:qa:check:2507ded4b4e6be11c21572ea",
+        "status": "pass",
+        "targetIds": [
+          "urn:qa:discovery-target:05a0eb9814ef0ac7b14d9fc4"
+        ]
+      },
+      {
+        "attempts": [
+          {
+            "attempt": 1,
+            "observations": {
+              "consoleErrors": [],
+              "failedRequests": []
+            },
+            "outcome": "pass"
+          }
+        ],
+        "checkId": "urn:qa:check:d5f2e5a74496a729507c1fbd",
+        "status": "pass",
+        "targetIds": [
+          "urn:qa:discovery-target:9f40466f7df6f7c406732a7c"
+        ]
+      }
+    ],
+    "blockedTargets": [
+      {
+        "catalogCheckIds": [
+          "urn:qa:automated-check:fc7ea431d3f3c9ed9b57c50b"
+        ],
+        "disposition": "blocked",
+        "reason": "The generated general API-surface candidate has an unresolved oracle. The two resolved endpoint checks do not establish this additional broad surface target.",
+        "recovery": "Retain this coverage gap; a separately authorized knowledge/oracle decision is needed before selecting the general API-surface candidate.",
+        "targetId": "urn:qa:surface:49c9fe0ae677390c5ff9d806"
+      },
+      {
+        "catalogCheckIds": [],
+        "disposition": "blocked",
+        "reason": "BLOCKED: /member/audit requires a member identity that has not been supplied; authenticated requests are outside this anonymous API campaign.",
+        "recovery": "The owner must separately authorize and supply member access through an appropriate secure mechanism; do not request or expose credentials here.",
+        "targetId": "urn:qa:discovery-target:b52984675afcb81452fd7870"
+      },
+      {
+        "catalogCheckIds": [],
+        "disposition": "blocked",
+        "reason": "UNASSESSED: rendered /docs/ behavior is explicitly outside this API-only request. No rendered-documentation request is authorized in this campaign.",
+        "recovery": "A separately scoped rendered-documentation request and supported browser check would be needed; do not infer its outcome from API checks.",
+        "targetId": "urn:qa:discovery-target:da4a4bbacfdeed1a2b9be962"
+      }
+    ],
+    "dossierCount": 0,
+    "artifactPayloads": [
+      {
+        "path": "tests/campaign-runs/run-a57560b856ca5a58-40a56165-74e4-42fb-ba13-570eb176e8eb/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-1/result.json",
+        "sha256": "sha256:ba3a2877fde556e6b214a3294d73e9cef678ff11d635d3e854070303b5b5e2dc",
+        "payload": {
+          "kind": "pass",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-a57560b856ca5a58-40a56165-74e4-42fb-ba13-570eb176e8eb/checks/check-9bd97f18b446f01240c95a632557b412968177c66ac0fc6a9f1084e7c81552a3/attempt-1/trace.json",
+        "sha256": "sha256:cfe282eae18713b7deca5c93d23d64ebacbc87b7bbf21076d2825a88a4448fdd",
+        "payload": {
+          "attempt": 1,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:51324/openapi.json",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=200",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "index": 0,
+              "kind": "status",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 1,
+              "kind": "media_type",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 2,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 3,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 4,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "pass",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 7
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-a57560b856ca5a58-40a56165-74e4-42fb-ba13-570eb176e8eb/checks/check-a6d7db802b67448a1e37afeb17ed61dccb9babd385acead2e318d14cebb500d2/attempt-1/result.json",
+        "sha256": "sha256:ba3a2877fde556e6b214a3294d73e9cef678ff11d635d3e854070303b5b5e2dc",
+        "payload": {
+          "kind": "pass",
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          }
+        }
+      },
+      {
+        "path": "tests/campaign-runs/run-a57560b856ca5a58-40a56165-74e4-42fb-ba13-570eb176e8eb/checks/check-a6d7db802b67448a1e37afeb17ed61dccb9babd385acead2e318d14cebb500d2/attempt-1/trace.json",
+        "sha256": "sha256:720f2defcd515192c36a0f934653abb6e445ca6e4cb3384badeafd9e33eb2ea0",
+        "payload": {
+          "attempt": 1,
+          "events": [
+            {
+              "detail": "http://127.0.0.1:51324/api/status",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "started",
+              "phase": "request"
+            },
+            {
+              "detail": "status=200",
+              "index": 0,
+              "kind": "GET",
+              "outcome": "passed",
+              "phase": "request"
+            },
+            {
+              "index": 0,
+              "kind": "status",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 1,
+              "kind": "media_type",
+              "outcome": "passed",
+              "phase": "assertion"
+            },
+            {
+              "index": 2,
+              "kind": "json_pointer",
+              "outcome": "passed",
+              "phase": "assertion"
+            }
+          ],
+          "observations": {
+            "consoleErrors": [],
+            "failedRequests": []
+          },
+          "outcome": "pass",
+          "schemaVersion": "qa-campaign-trace.v0",
+          "totalEventCount": 5
+        }
+      }
+    ]
+  }
+]

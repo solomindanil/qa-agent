@@ -1,0 +1,96 @@
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {createServer} from 'node:http';
+import {createHash} from 'node:crypto';
+import {registerAuthoredFixture,rehashCompilation} from '/Users/danilsolomin/projectsnew/qa-agent/components/console/tests/fixtures/nuanu-readonly/fixture.ts';
+
+const root='/private/tmp/qa-api-consumer-20260922.iVqZ2s';
+const sourceRoot='/Users/danilsolomin/projectsnew/qa-agent';
+const slug='api-contract-consumer';
+const definitions={
+ schema:{name:'Download the OpenAPI contract',expectation:'GET /openapi.json returns HTTP200 application/json with openapi 3.0.3, info.title Widget API, and paths /v1/widgets GET summary List widgets.'},
+ status:{name:'Read independent service status',expectation:'GET /api/status returns HTTP200 application/json with status operational.'},
+ docs:{name:'Read rendered API reference',expectation:'The rendered /docs/ page visibly presents Widget API, GET /v1/widgets and List widgets.'},
+ audit:{name:'Read member audit history',expectation:'An authorized member can read member audit history at /member/audit.'},
+};
+const variants=[{id:'q2',kind:'healthy'},{id:'n8',kind:'wrong_content'},{id:'c4',kind:'wrong_media'},{id:'r6',kind:'wrong_status'},{id:'t9',kind:'healthy_extended'}];
+const json=async(file,value)=>{await mkdir(path.dirname(file),{recursive:true,mode:0o700});await writeFile(file,JSON.stringify(value,null,2)+'\n',{flag:'wx',mode:0o600});};
+const digest=(value)=>createHash('sha256').update(value).digest('hex');
+const services=[];
+const packets=[];
+const controlRows=[];
+try {
+ for(const v of variants){
+  const hits=[];
+  const body=v.kind==='healthy_extended'
+   ? {paths:{'/v1/widgets':{get:{responses:{'200':{description:'OK'}},summary:'List widgets',description:'Public widget index'}}},'x-version-note':'permitted extra',info:{version:'1.0.0',title:'Widget API'},openapi:'3.0.3'}
+   : {openapi:'3.0.3',info:{title:'Widget API',version:'1.0.0'},paths:{'/v1/widgets':{get:{summary:v.kind==='wrong_content'?'Delete widgets':'List widgets',responses:{'200':{description:'OK'}}}}}};
+  const server=createServer((req,res)=>{
+   const requestPath=new URL(req.url??'/', 'http://fixture.invalid').pathname;
+   hits.push({method:req.method,path:requestPath,at:new Date().toISOString()});
+   res.setHeader('cache-control','no-store');
+   res.setHeader('content-type','application/json; charset=utf-8');
+   if(req.method!=='GET'){res.statusCode=405;res.end('{"error":"read_only"}');return;}
+   if(requestPath==='/openapi.json'){
+    res.statusCode=v.kind==='wrong_status'?503:200;
+    res.setHeader('content-type',v.kind==='wrong_media'?'text/plain; charset=utf-8':v.kind==='healthy_extended'?'Application/JSON; Charset="UTF-8"':'application/json; charset=utf-8');
+    res.end(JSON.stringify(body));return;
+   }
+   if(requestPath==='/api/status'){res.end(JSON.stringify(v.kind==='healthy_extended'?{uptime:42,status:'operational'}:{status:'operational'}));return;}
+   res.statusCode=404;res.end('{"error":"out_of_scope"}');
+  });
+  await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve)});
+  const address=server.address();assert.ok(address&&typeof address!=='string');
+  const baseUrl=`http://127.0.0.1:${address.port}/`;
+  services.push({v,server,hits,baseUrl});
+  // Controller sanity reads, before actor release information is provided.
+  for(const route of ['/openapi.json','/api/status']){
+   const r=await fetch(new URL(route,baseUrl));const bytes=await r.text();
+   controlRows.push({releaseId:v.id,route,status:r.status,contentType:r.headers.get('content-type'),bodyDigest:digest(bytes),body:JSON.parse(bytes),observedAt:new Date().toISOString()});
+  }
+  const releaseRoot=path.join(root,'actor',v.id);await mkdir(releaseRoot,{mode:0o700});
+  const reg=await registerAuthoredFixture(baseUrl,releaseRoot,{
+   productSlug:slug,name:'Public service reference API contracts',description:'Bounded anonymous OpenAPI and service status acceptance; rendered docs and member audit remain separate gaps.',
+   surfaces:[{kind:'api',name:'Public service API'}],
+   journeys:Object.values(definitions).map(d=>({name:d.name,expectedOutcome:d.expectation})),
+   authoredJourneyName:definitions.schema.name,
+  });
+  const k=reg.kernel,c=structuredClone(reg.authority.compilation),defs={};
+  for(const key of ['schema','status']){
+   const d=definitions[key],target=c.graph.nodes.find(n=>n.kind==='journey'&&n.name===d.name);assert.ok(target);
+   const removed=c.catalog.entries.filter(e=>e.targetIds.includes(target.id));assert.ok(removed.every(e=>e.targetIds.length===1));
+   const ids=new Set(removed.map(e=>e.entryId)),checks=new Set(removed.map(e=>e.checkId));
+   c.catalog.entries=c.catalog.entries.filter(e=>!ids.has(e.entryId));
+   c.graph.nodes=c.graph.nodes.filter(n=>!checks.has(n.id));
+   c.graph.edges=c.graph.edges.filter(e=>!checks.has(e.from)&&!checks.has(e.to));
+   for(const field of ['proposedAutomatedChecks','manualHandoffs','unresolvedOracles'])c.strategy[field]=c.strategy[field].filter(e=>!ids.has(e.catalogEntryId));
+   const checkId=k.stableId('check',{fixture:slug,key}),entryId=k.stableId('catalog-entry',{fixture:slug,key});
+   defs[key]={checkId,entryId,targetId:target.id};
+   c.graph.nodes.push({...target,id:checkId,kind:'automated_check',coverageTarget:false,name:`Contract: ${d.name}`});
+   c.graph.edges.push({id:k.stableId('edge',{fixture:slug,key}),kind:'verifies',from:checkId,to:target.id,reviewStatus:'reviewed',assuranceLevel:'declared',provenance:target.provenance,semanticDigest:k.digestCanonical('pending')});
+   c.catalog.entries.push({entryId,checkId,targetIds:[target.id],executionKind:'automated',runnerId:'playwright',candidatePath:'tests/api/generated/registration.candidates.spec.ts',requiredSecretRefs:[],sideEffectClasses:['read_only'],expectedEvidenceTypes:['http_response'],oracle:{state:'resolved',description:d.expectation},provenance:target.provenance});
+   const coverage=c.coverage.items.find(i=>i.targetId===target.id);assert.ok(coverage);
+   Object.assign(coverage,{status:'automated',verificationMode:'automated',checkIds:[checkId],reason:'Normative synthetic contract only; execution evidence not yet collected.'});
+   c.coverage.unresolved=c.coverage.unresolved.filter(i=>i.targetId!==target.id);
+   c.strategy.proposedAutomatedChecks.push({proposalId:k.stableId('proposal',{fixture:slug,key}),catalogEntryId:entryId,checkId,targetIds:[target.id],reason:'Declared synthetic contract; consumer independently authors assertions.'});
+  }
+  c.strategy.sideEffectClasses=[...new Set(c.catalog.entries.flatMap(e=>e.sideEffectClasses))];
+  c.strategy.expectedEvidenceTypes=[...new Set(c.catalog.entries.flatMap(e=>e.expectedEvidenceTypes))];
+  const authority=k.buildRegistrationKnowledgeRevision(reg.authority,rehashCompilation(k,c));
+  const preview=await k.previewRegistrationPublication(reg.workspacePath,authority,reg.workspaceDependencies);
+  const receipt=await k.applyRegistrationPublication(reg.workspacePath,authority,preview.previewDigest,reg.workspaceDependencies);
+  const validation=await k.validateWorkspace(reg.workspacePath,reg.workspaceDependencies);
+  assert.equal(validation.valid,true);assert.equal(validation.publicationAuthorityDigest,authority.semanticDigest);assert.equal(validation.workspaceDigest,receipt.workspaceDigestAfter);
+  for(const [name,value] of Object.entries({initial:reg.authority,authority,preview,receipt,validation,defs}))await json(path.join(root,'controller',v.id,`${name}.json`),value);
+  packets.push({releaseId:v.id,baseUrl,workspacePath:reg.workspacePath});
+ }
+ await json(path.join(root,'controller','ground-truth.json'),variants);
+ await json(path.join(root,'controller','control-reads.json'),controlRows);
+ assert.equal(controlRows.find(r=>r.releaseId==='n8'&&r.route==='/openapi.json').status,200);
+ assert.equal(controlRows.find(r=>r.releaseId==='n8'&&r.route==='/openapi.json').contentType,'application/json; charset=utf-8');
+ await json(path.join(root,'actor','actor-context.json'),{sourceRoot,consolePath:path.join(sourceRoot,'components/console'),kernelPath:path.join(sourceRoot,'components/kernel'),productSlug:slug,actorRoot:path.join(root,'actor'),releases:packets});
+ console.log(JSON.stringify({status:'ready',packet:path.join(root,'actor','actor-context.json')}));
+ const stop=async()=>{for(const s of services){await json(path.join(root,'controller',`http-${s.v.id}.json`),s.hits);await new Promise<void>(resolve=>s.server.close(()=>resolve()));}console.log('fixture stopped');process.exit(0);};
+ process.once('SIGINT',()=>void stop());process.once('SIGTERM',()=>void stop());
+}catch(e){for(const s of services)s.server.close();throw e;}

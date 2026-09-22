@@ -1,0 +1,14 @@
+{
+  "command": "node",
+  "args": [
+    "--import",
+    "/Users/danilsolomin/projectsnew/qa-agent/components/console/node_modules/tsx/dist/loader.mjs",
+    "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/verify-post-run.mts"
+  ],
+  "cwd": "/Users/danilsolomin/projectsnew/qa-agent/components/console",
+  "startedAt": "2026-09-22T05:37:31.478Z",
+  "endedAt": "2026-09-22T05:37:31.623Z",
+  "exitCode": 0,
+  "signal": null,
+  "spawnError": null
+}

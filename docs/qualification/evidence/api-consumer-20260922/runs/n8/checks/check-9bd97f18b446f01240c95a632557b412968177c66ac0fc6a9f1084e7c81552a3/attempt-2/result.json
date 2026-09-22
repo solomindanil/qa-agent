@@ -1,0 +1,1 @@
+{"kind":"oracle_failure","observations":{"consoleErrors":[],"failedRequests":[]},"oracle":{"actual":"body bytes=169 sha256:2835d573471c270b20d7739732446dbda4de888afdae5e33879c663cd861c511","assertionId":"assertion-4","failureCode":"json_pointer_mismatch","message":"JSON pointer /paths/~1v1~1widgets/get/summary did not match"}}

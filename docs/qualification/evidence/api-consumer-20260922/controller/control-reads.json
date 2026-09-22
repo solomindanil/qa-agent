@@ -1,0 +1,195 @@
+[
+  {
+    "releaseId": "q2",
+    "route": "/openapi.json",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "bodyDigest": "4e9dcf98f00f0aa7e18e84ff79f9d5c6507c97046c6f16680fc452b1b12c9448",
+    "body": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "Widget API",
+        "version": "1.0.0"
+      },
+      "paths": {
+        "/v1/widgets": {
+          "get": {
+            "summary": "List widgets",
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            }
+          }
+        }
+      }
+    },
+    "observedAt": "2026-09-22T05:24:25.338Z"
+  },
+  {
+    "releaseId": "q2",
+    "route": "/api/status",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "bodyDigest": "a646f1194e2a52a3616b98129d194cd7a246b437c94121d8bae30b5a02ea3f91",
+    "body": {
+      "status": "operational"
+    },
+    "observedAt": "2026-09-22T05:24:25.340Z"
+  },
+  {
+    "releaseId": "n8",
+    "route": "/openapi.json",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "bodyDigest": "2835d573471c270b20d7739732446dbda4de888afdae5e33879c663cd861c511",
+    "body": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "Widget API",
+        "version": "1.0.0"
+      },
+      "paths": {
+        "/v1/widgets": {
+          "get": {
+            "summary": "Delete widgets",
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            }
+          }
+        }
+      }
+    },
+    "observedAt": "2026-09-22T05:25:04.085Z"
+  },
+  {
+    "releaseId": "n8",
+    "route": "/api/status",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "bodyDigest": "a646f1194e2a52a3616b98129d194cd7a246b437c94121d8bae30b5a02ea3f91",
+    "body": {
+      "status": "operational"
+    },
+    "observedAt": "2026-09-22T05:25:04.087Z"
+  },
+  {
+    "releaseId": "c4",
+    "route": "/openapi.json",
+    "status": 200,
+    "contentType": "text/plain; charset=utf-8",
+    "bodyDigest": "4e9dcf98f00f0aa7e18e84ff79f9d5c6507c97046c6f16680fc452b1b12c9448",
+    "body": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "Widget API",
+        "version": "1.0.0"
+      },
+      "paths": {
+        "/v1/widgets": {
+          "get": {
+            "summary": "List widgets",
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            }
+          }
+        }
+      }
+    },
+    "observedAt": "2026-09-22T05:26:03.014Z"
+  },
+  {
+    "releaseId": "c4",
+    "route": "/api/status",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "bodyDigest": "a646f1194e2a52a3616b98129d194cd7a246b437c94121d8bae30b5a02ea3f91",
+    "body": {
+      "status": "operational"
+    },
+    "observedAt": "2026-09-22T05:26:03.018Z"
+  },
+  {
+    "releaseId": "r6",
+    "route": "/openapi.json",
+    "status": 503,
+    "contentType": "application/json; charset=utf-8",
+    "bodyDigest": "4e9dcf98f00f0aa7e18e84ff79f9d5c6507c97046c6f16680fc452b1b12c9448",
+    "body": {
+      "openapi": "3.0.3",
+      "info": {
+        "title": "Widget API",
+        "version": "1.0.0"
+      },
+      "paths": {
+        "/v1/widgets": {
+          "get": {
+            "summary": "List widgets",
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            }
+          }
+        }
+      }
+    },
+    "observedAt": "2026-09-22T05:26:44.082Z"
+  },
+  {
+    "releaseId": "r6",
+    "route": "/api/status",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "bodyDigest": "a646f1194e2a52a3616b98129d194cd7a246b437c94121d8bae30b5a02ea3f91",
+    "body": {
+      "status": "operational"
+    },
+    "observedAt": "2026-09-22T05:26:44.085Z"
+  },
+  {
+    "releaseId": "t9",
+    "route": "/openapi.json",
+    "status": 200,
+    "contentType": "Application/JSON; Charset=\"UTF-8\"",
+    "bodyDigest": "cef31b4a4d0173913c9e30ae7c1e82dab8c649b39dc32e0fe14d40da63afb968",
+    "body": {
+      "paths": {
+        "/v1/widgets": {
+          "get": {
+            "responses": {
+              "200": {
+                "description": "OK"
+              }
+            },
+            "summary": "List widgets",
+            "description": "Public widget index"
+          }
+        }
+      },
+      "x-version-note": "permitted extra",
+      "info": {
+        "version": "1.0.0",
+        "title": "Widget API"
+      },
+      "openapi": "3.0.3"
+    },
+    "observedAt": "2026-09-22T05:27:45.739Z"
+  },
+  {
+    "releaseId": "t9",
+    "route": "/api/status",
+    "status": 200,
+    "contentType": "application/json; charset=utf-8",
+    "bodyDigest": "4368166147ed03ff5f2c6d2911766fe5f1fc79c667b46100e6765fed4e8819fb",
+    "body": {
+      "uptime": 42,
+      "status": "operational"
+    },
+    "observedAt": "2026-09-22T05:27:45.741Z"
+  }
+]

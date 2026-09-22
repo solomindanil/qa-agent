@@ -1,0 +1,35 @@
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const actorRoot = dirname(fileURLToPath(import.meta.url));
+const [attempt, command, ...args] = process.argv.slice(2);
+if (!/^[a-z0-9][a-z0-9-]*$/.test(attempt ?? '') || !command) {
+  throw new Error('Usage: capture-command.mjs unique-attempt command [args...]');
+}
+const logsRoot = join(actorRoot, 'invocations');
+const temporaryRoot = join(actorRoot, 'runtime-tmp');
+mkdirSync(logsRoot, { recursive: true });
+mkdirSync(temporaryRoot, { recursive: true });
+const attemptRoot = join(logsRoot, attempt);
+mkdirSync(attemptRoot);
+const startedAt = new Date().toISOString();
+const result = spawnSync(command, args, {
+  cwd: process.cwd(),
+  env: { ...process.env, TMPDIR: temporaryRoot, TSX_DISABLE_CACHE: '1' },
+  encoding: 'utf8',
+  maxBuffer: 32 * 1024 * 1024,
+});
+const endedAt = new Date().toISOString();
+writeFileSync(join(attemptRoot, 'stdout.txt'), result.stdout ?? '', { flag: 'wx' });
+writeFileSync(join(attemptRoot, 'stderr.txt'), result.stderr ?? '', { flag: 'wx' });
+writeFileSync(join(attemptRoot, 'invocation.json'), JSON.stringify({
+  command, args, cwd: process.cwd(), startedAt, endedAt,
+  exitCode: result.status, signal: result.signal,
+  spawnError: result.error ? { name: result.error.name, message: result.error.message, code: result.error.code } : null,
+}, null, 2) + '\n', { flag: 'wx' });
+process.stdout.write(result.stdout ?? '');
+process.stderr.write(result.stderr ?? '');
+console.log(JSON.stringify({ capture: attemptRoot, exitCode: result.status, startedAt, endedAt }));
+process.exitCode = result.status ?? 1;

@@ -60,9 +60,14 @@ current entry сохранены Git-коммитом57fa5a82353b010279c71996a5c
 и не закрытие P4/P5. Согласованный [API-oracle срез](../../qualification/api-oracles-20260922.md)
 теперь реализован в существующем адаптере и reader: media type и escaped JSON
 keys, отрицательные контроли, исправление найденного AQA false PASS и повторное GO.
-Следующий bounded exit — свежий consumer сам составляет полный API-контракт и
-отличает healthy от contradictory controls на новой привязанной фикстуре. Старые
-планы/receipts не переписываются; это не новый runner и не весь P2/P5.
+Последующий [fresh API consumer](../../qualification/api-consumer-20260922.md)
+с первой версии составил восемь полных assertions и исполнил пять новых bound
+кампаний: обе healthy-формы прошли выбранные проверки, три противоречия найдены,
+включая HTTP200 с правильным media type и неверным JSON-смыслом. Пробелы и
+non-PASS campaign verdicts сохранены в exact-run readback; окончательное ревью
+и границы — в отчёте. Это documentation-assisted synthetic sample, не скрытый
+transfer, новый runner или весь P2/P5. Старые планы/receipts не переписаны;
+повтор этой фикстуры не является следующим milestone.
 Реальный help/resume всё ещё ждёт readiness.
 
 **Status — актуализация entry 21 сентября 2026:** это действующий план P0–P7, не новый набор полномочий. Source выбирает [manifest](../../../sources/manifest.v1.json), следующую задачу и ограничения — [current checkpoint](../../qualification/current.md). Приняты Kernel `aa5d2d1`, Console `94083bf`, Freeland `0ea2df1`; reporting `10d398d` неактивен. P0-ремонты и P1 writer/reader/reference входят в выбранные successors; ограниченное реальное продолжение свежим агентом принято, но это не закрывает весь P1 или общий end-to-end scope. P0–P7 в целом не завершены. Source selection не мигрирует campaigns/skills и не даёт product/cloud authority. Остальные датированные implementation/adoption-описания ниже сохраняют состояние своих ревью, а не переопределяют текущую очередь: не повторять завершённые P0/P1 действия по старым словам «начать» или «pending». Все obligations и acceptance gates сохраняются. [Исходные bytes до entry-правки](2026-09-16-cross-product-qa-global-plan.3accb18.snapshot.md) сохранены отдельно.

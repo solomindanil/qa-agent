@@ -1,0 +1,28 @@
+{
+  "command": "env",
+  "args": [
+    "QA_STARTER_REPO=/Users/danilsolomin/projectsnew/qa-agent/components/kernel",
+    "QA_STARTER_EXPECTED_SHA=aa5d2d188606cbcf7e3111c130347a36970ec786",
+    "QA_WORKSPACE=/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/r6/nuanu-readonly-qa",
+    "QA_WORKSPACE_ROOTS=/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor",
+    "QA_CONSOLE_STATE=/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/runtime-state/receipts.json",
+    "QA_CONSOLE_PRIVATE_ROOT=/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/runtime-state/private",
+    "QA_REGISTRATION_STORE=/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/runtime-state/registrations",
+    "QA_REGISTRATION_TARGET_REGISTRY=/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/runtime-state/targets.v1.json",
+    "node",
+    "--import",
+    "/Users/danilsolomin/projectsnew/qa-agent/components/console/node_modules/tsx/dist/loader.mjs",
+    "scripts/qa-campaign.ts",
+    "status",
+    "--workspace",
+    "/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor/r6/nuanu-readonly-qa",
+    "--run-id",
+    "run-ccc7342faf25703f-4d143a12-3ad1-4358-a28a-90a55b90e309"
+  ],
+  "cwd": "/Users/danilsolomin/projectsnew/qa-agent/components/console",
+  "startedAt": "2026-09-22T05:35:08.230Z",
+  "endedAt": "2026-09-22T05:35:09.565Z",
+  "exitCode": 0,
+  "signal": null,
+  "spawnError": null
+}

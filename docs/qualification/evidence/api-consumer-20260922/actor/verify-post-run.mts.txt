@@ -1,0 +1,62 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { digestCanonical } from '/Users/danilsolomin/projectsnew/qa-agent/components/console/src/lib/canonical-digest.ts';
+
+const actorRoot = '/private/tmp/qa-api-consumer-20260922.iVqZ2s/actor';
+const evidence = JSON.parse(await readFile(`${actorRoot}/execution-evidence-summary.json`, 'utf8'));
+const manifests = JSON.parse(await readFile(`${actorRoot}/bound-plan-manifest.json`, 'utf8'));
+assert.equal(createHash('sha256').update(await readFile(`${actorRoot}/first-design.json`)).digest('hex'), 'e3ba08fe284e02b405991dd4ec14be599719536f8236b0caeb867c4241a7103c');
+assert.equal(createHash('sha256').update(await readFile(`${actorRoot}/first-design.md`)).digest('hex'), 'ffd7bfdffb68a9c3ad2691ec799eeebeb9485d3ea7b032f134100da9bfdca8c9');
+const totals = { campaigns: 0, checks: 0, passedChecks: 0, needsReviewChecks: 0, attempts: 0,
+  artifacts: 0, traces: 0, plannedClauses: 0, passedClauses: 0, failedClauses: 0, unassessedClauses: 0,
+  graphTargetInstances: 0, retainedBlockerInstances: 0, dossiers: 0 };
+const releases = [];
+for (const [index, report] of evidence.entries()) {
+  const manifest = manifests.find(item => item.releaseId === report.releaseId);
+  const plan = JSON.parse(await readFile(manifest.planPath, 'utf8'));
+  assert.equal(digestCanonical(plan), manifest.planDigest);
+  const statusRoot = `${actorRoot}/invocations/${String(index + 20).padStart(3, '0')}-status-${report.releaseId}`;
+  const status = JSON.parse(await readFile(`${statusRoot}/stdout.txt`, 'utf8'));
+  const statusMeta = JSON.parse(await readFile(`${statusRoot}/invocation.json`, 'utf8'));
+  assert.equal(statusMeta.exitCode, 0);
+  assert.equal(status.ok, true);
+  assert.equal(status.receipt.planDigest, manifest.planDigest);
+  assert.equal(status.runId, report.runId);
+  assert.deepEqual((await readdir(`${manifest.workspacePath}/tests/campaign-runs`)).filter(name => name.startsWith('run-')), [report.runId]);
+  const traces = report.artifactPayloads.filter(item => item.path.endsWith('/trace.json')).map(item => item.payload);
+  for (const trace of traces) assert.equal(trace.events.length, trace.totalEventCount);
+  const clauseCounts = { planned: 0, passed: 0, failed: 0, unassessed: 0 };
+  for (const check of plan.checks) {
+    const trace = traces.find(trace => trace.attempt === 1 && trace.events.some(event => event.phase === 'request' && event.outcome === 'started' && event.detail === `${report.baseUrl.slice(0, -1)}${check.path}`));
+    assert(trace);
+    const events = trace.events.filter(event => event.phase === 'assertion');
+    clauseCounts.planned += check.assertions.length;
+    clauseCounts.passed += events.filter(event => event.outcome === 'passed').length;
+    clauseCounts.failed += events.filter(event => event.outcome === 'failed').length;
+    clauseCounts.unassessed += check.assertions.length - events.length;
+  }
+  totals.campaigns++;
+  totals.checks += report.checks.length;
+  totals.passedChecks += report.checks.filter(check => check.status === 'pass').length;
+  totals.needsReviewChecks += report.checks.filter(check => check.status === 'needs_review').length;
+  totals.attempts += report.checks.reduce((sum, check) => sum + check.attempts.length, 0);
+  totals.artifacts += report.artifactPayloads.length;
+  totals.traces += traces.length;
+  totals.plannedClauses += clauseCounts.planned;
+  totals.passedClauses += clauseCounts.passed;
+  totals.failedClauses += clauseCounts.failed;
+  totals.unassessedClauses += clauseCounts.unassessed;
+  totals.graphTargetInstances += manifest.graphTargetCount;
+  totals.retainedBlockerInstances += report.blockedTargets.length;
+  totals.dossiers += report.dossierCount;
+  releases.push({ releaseId: report.releaseId, runId: report.runId, planDigest: manifest.planDigest,
+    verdict: report.verdict, clauseCounts, statusReadback: 'ok' });
+}
+const summary = { verifiedAt: new Date().toISOString(), executionPerformed: true,
+  state: 'five-reviewed-campaigns-completed-and-read-back', initialDesignUnchanged: true,
+  sourceVerificationCapture: 'invocations/029-final-source-verification',
+  priorCaptureCaveat: 'Invocation 028 reused the immutable pre-run integrity helper. Its constant executionPerformed:false and awaiting-independent-review postlude is stale; only its plan-integrity assertions apply after execution. Original capture retained.',
+  totals, releases };
+await writeFile(`${actorRoot}/post-run-verification.json`, JSON.stringify(summary, null, 2) + '\n', { flag: 'wx' });
+console.log(JSON.stringify(summary, null, 2));

@@ -1,0 +1,47 @@
+import {readFile,readdir,writeFile,lstat} from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {readLatestCampaignEvidence} from '/Users/danilsolomin/projectsnew/qa-agent/components/console/server/campaign-receipts.mjs';
+const root='/private/tmp/qa-api-consumer-20260922.iVqZ2s';
+const json=async p=>JSON.parse(await readFile(p,'utf8'));
+const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+const context=await json(path.join(root,'actor/actor-context.json'));
+const truth=await json(path.join(root,'controller/ground-truth.json'));
+const design=await json(path.join(root,'actor/first-design.json'));
+const frozen={json:'e3ba08fe284e02b405991dd4ec14be599719536f8236b0caeb867c4241a7103c',md:'ffd7bfdffb68a9c3ad2691ec799eeebeb9485d3ea7b032f134100da9bfdca8c9'};
+for(const ext of ['json','md'])assert.equal(sha(await readFile(path.join(root,`actor/first-design.${ext}`))),frozen[ext]);
+const rows=[];
+for(const r of context.releases){
+ const plan=await json(path.join(r.workspacePath,'tests/qa-campaign.v0.json'));
+ const graph=await json(path.join(r.workspacePath,'model/product.graph.json'));
+ const catalog=await json(path.join(r.workspacePath,'model/test-catalog.json'));
+ const dirs=(await readdir(path.join(r.workspacePath,'tests/campaign-runs'))).filter(x=>x.startsWith('run-'));
+ assert.equal(dirs.length,1,`${r.releaseId}: one campaign only`);
+ const runDirectory=path.join(r.workspacePath,'tests/campaign-runs',dirs[0]);
+ const receipt=await json(path.join(runDirectory,'receipt.json'));
+ const evidence=await readLatestCampaignEvidence({workspaceDir:r.workspacePath,workspaceRoots:[context.actorRoot],runId:receipt.runId,productSlug:context.productSlug,graph,catalog,allowedBaseUrls:[r.baseUrl]});
+ assert.deepEqual(evidence.receipt,receipt,`${r.releaseId}: exact receipt passes persisted reader`);
+ assert.deepEqual(evidence.plan,plan);
+ assert.equal(graph.nodes.filter(n=>n.coverageTarget).length,5);
+ const executable=plan.checks.filter(c=>c.kind==='api');assert.equal(executable.length,2);
+ for(const c of executable){const d=design.checks.find(x=>x.request.path===c.path);assert.ok(d);assert.deepEqual(c.assertions,d.assertions);}
+ assert.equal(receipt.dossiers.length,0);
+ assert.equal(plan.blockers.length,3);
+ assert.deepEqual(receipt.blockedTargets,plan.blockers,'retained gaps must not disappear during execution');
+ const defs=await json(path.join(root,'controller',r.releaseId,'defs.json'));
+ const schema=receipt.checks.find(c=>c.checkId===defs.schema.checkId);
+ const status=receipt.checks.find(c=>c.checkId===defs.status.checkId);
+ const variant=truth.find(t=>t.id===r.releaseId).kind;
+ assert.equal(schema.status,variant.startsWith('healthy')?'pass':'needs_review');
+ assert.equal(status.status,'pass');
+ assert.equal(schema.attempts.length,variant.startsWith('healthy')?1:2);
+ assert.equal(status.attempts.length,1);
+ const hashes=[];
+ async function walk(dir){for(const e of await readdir(dir,{withFileTypes:true})){const p=path.join(dir,e.name);if(e.isDirectory())await walk(p);else {assert.ok(e.isFile());hashes.push({path:path.relative(runDirectory,p),sha256:sha(await readFile(p)),mode:(await lstat(p)).mode&0o777});}}}
+ await walk(runDirectory);
+ rows.push({releaseId:r.releaseId,variant,runId:receipt.runId,verdict:receipt.verdict,planDigest:receipt.planDigest,graphDigest:graph.semanticDigest,catalogDigest:catalog.semanticDigest,targets:5,apiChecks:2,planCheckCount:plan.checks.length,planBlockerCount:plan.blockers.length,schema,status,dossiers:receipt.dossiers.length,receiptSha256:sha(await readFile(path.join(runDirectory,'receipt.json'))),artifactHashes:hashes});
+}
+const result={schemaVersion:'api-consumer-readback.v1',capturedAt:new Date().toISOString(),reader:'fresh plain Node process, existing persisted reader; no TS loader',immutableDesign:frozen,rows};
+await writeFile(path.join(root,'controller/readback-verification.json'),JSON.stringify(result,null,2)+'\n',{flag:'wx',mode:0o600});
+console.log(JSON.stringify({capturedAt:result.capturedAt,rows:rows.map(({artifactHashes,...r})=>({...r,artifactCount:artifactHashes.length}))},null,2));

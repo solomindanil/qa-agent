@@ -51,10 +51,14 @@ P4/P5. A reusable opt-in browser regression is delivered without runtime changes
 The approved [API-oracle slice](api-oracles-20260922.md) now adds strict media type
 and escaped JSON object-key assertions to the existing adapter and readback,
 with counterexamples and independent AQA review. Legacy rules remain unchanged;
-this is not a new runner or full P2/P5 acceptance. Next, qualify a fresh consumer
-authoring a complete API contract from this source against healthy and
-contradictory controls, including a correct-media/wrong-content response. This
-must be a new bound fixture/campaign, never a rewrite of retained consumer plans.
+this is not a new runner or full P2/P5 acceptance. The subsequent
+[fresh API consumer](api-consumer-20260922.md) authored eight complete assertions
+without semantic correction, then executed five new bound campaigns: both
+healthy representations passed the selected checks and all three contradictions
+were detected, including correct-media/wrong-content. Exact-run readback retained
+all gaps and non-PASS campaign verdicts. Follow the report's final review status;
+this is one documentation-assisted synthetic sample, not hidden transfer or full
+P2/P5. The original consumer plans remain unchanged; do not repeat this slice.
 Resume the exact live guest check only after actual readiness, preserving other
 owners' scope. Do not take over an active product campaign or repeat a capture-only
 baseline.

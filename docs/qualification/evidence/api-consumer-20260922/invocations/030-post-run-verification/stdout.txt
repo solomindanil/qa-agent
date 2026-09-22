@@ -1,0 +1,91 @@
+{
+  "verifiedAt": "2026-09-22T05:37:31.616Z",
+  "executionPerformed": true,
+  "state": "five-reviewed-campaigns-completed-and-read-back",
+  "initialDesignUnchanged": true,
+  "sourceVerificationCapture": "invocations/029-final-source-verification",
+  "priorCaptureCaveat": "Invocation 028 reused the immutable pre-run integrity helper. Its constant executionPerformed:false and awaiting-independent-review postlude is stale; only its plan-integrity assertions apply after execution. Original capture retained.",
+  "totals": {
+    "campaigns": 5,
+    "checks": 10,
+    "passedChecks": 7,
+    "needsReviewChecks": 3,
+    "attempts": 13,
+    "artifacts": 26,
+    "traces": 13,
+    "plannedClauses": 40,
+    "passedClauses": 30,
+    "failedClauses": 3,
+    "unassessedClauses": 7,
+    "graphTargetInstances": 25,
+    "retainedBlockerInstances": 15,
+    "dossiers": 0
+  },
+  "releases": [
+    {
+      "releaseId": "q2",
+      "runId": "run-c3e32cd84101ccf8-c399ab55-9377-435f-b2bd-f049e8eb6dd4",
+      "planDigest": "sha256:3322ef57616a7263675410f286f50c918fd9fcdb623d6342cbb3cb8ff7b4ee84",
+      "verdict": "NEEDS_HUMAN",
+      "clauseCounts": {
+        "planned": 8,
+        "passed": 8,
+        "failed": 0,
+        "unassessed": 0
+      },
+      "statusReadback": "ok"
+    },
+    {
+      "releaseId": "n8",
+      "runId": "run-b27f95ea934bf6aa-b3a4c9f9-03f1-44ee-a4d2-351c2da0ed47",
+      "planDigest": "sha256:fdc729169e80dc3213cf922886af99804aeaa69a05164e1d9a035ce7269b303f",
+      "verdict": "INCONCLUSIVE",
+      "clauseCounts": {
+        "planned": 8,
+        "passed": 7,
+        "failed": 1,
+        "unassessed": 0
+      },
+      "statusReadback": "ok"
+    },
+    {
+      "releaseId": "c4",
+      "runId": "run-c785ff5055bbbb13-b083ac5e-bfa7-4c8c-899b-c5f40b39ee48",
+      "planDigest": "sha256:f1854611f8edca012ec94ff3c9b35986763f4ee7a2821a4990159bc0c7ba44da",
+      "verdict": "INCONCLUSIVE",
+      "clauseCounts": {
+        "planned": 8,
+        "passed": 4,
+        "failed": 1,
+        "unassessed": 3
+      },
+      "statusReadback": "ok"
+    },
+    {
+      "releaseId": "r6",
+      "runId": "run-ccc7342faf25703f-4d143a12-3ad1-4358-a28a-90a55b90e309",
+      "planDigest": "sha256:e5d92c31d2e9b90908b23669b421f87b5aa99072c796288e9f31de24aa4667a6",
+      "verdict": "INCONCLUSIVE",
+      "clauseCounts": {
+        "planned": 8,
+        "passed": 3,
+        "failed": 1,
+        "unassessed": 4
+      },
+      "statusReadback": "ok"
+    },
+    {
+      "releaseId": "t9",
+      "runId": "run-a57560b856ca5a58-40a56165-74e4-42fb-ba13-570eb176e8eb",
+      "planDigest": "sha256:645f48ff287b8ceed0be09509f49a37062d2fda7a66e8e7997fc8c0dcd6bf199",
+      "verdict": "NEEDS_HUMAN",
+      "clauseCounts": {
+        "planned": 8,
+        "passed": 8,
+        "failed": 0,
+        "unassessed": 0
+      },
+      "statusReadback": "ok"
+    }
+  ]
+}

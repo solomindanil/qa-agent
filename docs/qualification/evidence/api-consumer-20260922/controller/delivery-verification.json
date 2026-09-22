@@ -1,0 +1,17 @@
+{
+  "verifiedAt": "2026-09-22T05:42:38.258Z",
+  "archivedFilesExactBytesAndModes": 982,
+  "selectedInventoryFilesVerified": 118,
+  "appendOnlyHistoricalAttemptSnapshot": 1,
+  "consumerFinalExact": true,
+  "rootGate": {
+    "command": "npm test",
+    "exitCode": 0,
+    "passed": 61,
+    "failed": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "logSha256": "b7036917afa8c952b869232a626d7b594de9a9f707d3f3e604c711f86fa088db"
+  },
+  "earlierDiagnostic": "Initial delivery verifier compared the pre-run attempt-log snapshot to the later append-only source and failed on that expected difference; retained snapshot was not altered. This verifier proves prefix chronology and exact final log while requiring exact bytes for all other indexed sources."
+}

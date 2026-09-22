@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "independent-api-contract-design.v1",
+  "status": "immutable-initial-design-before-release-requests",
+  "source": "product-brief.md",
+  "runtime": {
+    "root": "fcc211c53b11d19da6d192c7d9401865fae44326",
+    "console": "8065713fba11446e32ec2f76832d65110550989b",
+    "kernel": "aa5d2d188606cbcf7e3111c130347a36970ec786"
+  },
+  "authority": {
+    "assignedOriginsOnly": true,
+    "anonymous": true,
+    "sideEffectClass": "read_only",
+    "methods": ["GET"],
+    "executeBeforeIndependentReview": false
+  },
+  "checks": [
+    {
+      "designId": "openapi-contract",
+      "request": {"method": "GET", "path": "/openapi.json"},
+      "assertions": [
+        {"kind": "status", "value": 200},
+        {"kind": "media_type", "value": "application/json"},
+        {"kind": "json_pointer", "path": "/openapi", "value": "3.0.3"},
+        {"kind": "json_pointer", "path": "/info/title", "value": "Widget API"},
+        {"kind": "json_pointer", "path": "/paths/~1v1~1widgets/get/summary", "value": "List widgets"}
+      ],
+      "materialClauses": [
+        {"clause": "GET /openapi.json returns HTTP 200", "assertionIndex": 0},
+        {"clause": "Media type is application/json; valid parameters and case variation are allowed", "assertionIndex": 1},
+        {"clause": "JSON openapi equals string 3.0.3", "assertionIndex": 2},
+        {"clause": "JSON info.title equals Widget API", "assertionIndex": 3},
+        {"clause": "The GET operation under path key /v1/widgets has summary List widgets", "assertionIndex": 4}
+      ]
+    },
+    {
+      "designId": "status-contract",
+      "request": {"method": "GET", "path": "/api/status"},
+      "assertions": [
+        {"kind": "status", "value": 200},
+        {"kind": "media_type", "value": "application/json"},
+        {"kind": "json_pointer", "path": "/status", "value": "operational"}
+      ],
+      "materialClauses": [
+        {"clause": "GET /api/status returns HTTP 200", "assertionIndex": 0},
+        {"clause": "Media type is application/json; valid parameters and case variation are allowed", "assertionIndex": 1},
+        {"clause": "JSON status equals operational", "assertionIndex": 2}
+      ]
+    }
+  ],
+  "allowedVariations": [
+    "JSON object property order is unconstrained",
+    "Additional undocumented JSON properties are unconstrained",
+    "Valid Content-Type parameters are accepted",
+    "Content-Type type/subtype case variation is accepted"
+  ],
+  "retainedGaps": [
+    {"path": "/docs/", "state": "UNASSESSED", "reason": "Rendered documentation is explicitly outside the API-only request; do not request it"},
+    {"path": "/member/audit", "state": "BLOCKED", "reason": "Member identity not supplied and authenticated work is not authorized; do not request it"}
+  ],
+  "coverage": {
+    "knownSurfaces": 4,
+    "selectedApiContracts": 2,
+    "selectedMaterialAssertions": 8,
+    "executed": 0,
+    "verified": 0,
+    "wholeProductAcceptance": false
+  }
+}
