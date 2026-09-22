@@ -17,6 +17,29 @@ Those sources and their complete source skill bundles are delivered through loca
 
 ## Active plan and next action
 
+**Owner priority decision, 22 September:** defer the P2-B report-confidentiality
+repair and further privacy experiments; continue independent work that improves
+QA decisions and completion. The bounded action/lifecycle probe retained FAIL
+outcomes and the prohibited-action control but exposed diagnostic-content leaks;
+it did not demonstrate a loss of assertion accuracy. This is a deferral, not
+acceptance of P2-B or permission to weaken existing guards. Selected sources,
+historical failures and the original top-up acceptance gap remain unchanged.
+
+**Next bounded quality slice:** reassess the already reviewed
+[registration-planning snapshot candidate](registration-planning-snapshot-20260915.md)
+against the current pair. Read-only inspection at `2026-09-22T07:31:41.164Z`
+confirmed the defect in the retained q2 synthetic workspace from the
+[API consumer](api-consumer-20260922.md): the existing Console reader and schema
+accept a plan with two checks, three blockers and digest
+`sha256:3322ef57616a7263675410f286f50c918fd9fcdb623d6342cbb3cb8ff7b4ee84`,
+while `views/current-plan.md` incorrectly says `No CampaignPlan exists`.
+This can mislead continuation; no failed agent continuation is claimed by this
+readback alone. The proposed narrow port labels the registration snapshot and
+points to the existing authoritative plan reader/validator; it does not invent
+a live-plan synchronizer, change verdicts or rewrite retained workspaces.
+Implementation/adoption still needs the bounded design approval and current-pair
+qualification; the historical candidate is not selected automatically.
+
 **22 September checkpoint: owner resumed universal development and approved the
 cross-product priority refinement after independent Lead AQA review with conditions.**
 MagicPay, rw-int and Nuanu App already supply unfamiliar-product field evidence;
@@ -72,7 +95,7 @@ three PARTIAL and two fixture BLOCKED. Two tickets received substantive UI check
 F06 received a fixture check only. AQA narrowed an overbroad snapshot/lifecycle
 oracle before execution; follow the report's final review status. No whole-ticket
 FIXED, human-help/resume, fresh-context execution or complete P3/P5 is claimed.
-Next resolve only the genuine fixture/contract gaps under the existing owner:
+For that dependent product lane, resolve only genuine fixture/contract gaps under the existing owner:
 seeded connector state, unsubmitted onboarding, applicable artifact result and
 retryability. Do not recreate them or run AI/providers without separate authority.
 Preserve remaining-only scope; do not invent human participation, take over the
@@ -115,7 +138,7 @@ The **P2-A semantic fee-caption repair** and compatibility fixtures are implemen
 
 **P2-B is an unaccepted candidate, not the selected source.** The original dry card-top-up consumer reached a green source gate at `8aefe79`, but independent Lead AQA review reproduced sensitive assertion/locator content in failure artifacts. The separate `2ab052c` checkpoint preserves two failing regression controls; it is not a fix. Both source histories and evidence are [retained](p2-topup-ui-20260921.md). Keep Freeland `0ea2df1` selected until repair, independent review and delivery qualification. TC-PAY-07 remains shadow; no new product, payment or whole-flow acceptance is implied.
 
-**Primary next result: P3/P5 universal dialogue flow, alongside the bounded P2-B repair.** Reuse existing product-analysis, ticket/help/resume and evaluation mechanisms; do not wait for every Freeland-specific gap or build another runner. The decision baseline and [first controlled execution/continuation sample](../../evals/public-input-agent-cycle/20260921/README.md) exposed an oracle-quality gap: unpromised exact summary wording failed healthy behavior. The [bounded guidance experiment](../../evals/oracle-grounding/20260921/README.md) did not remove guessed semantic classifiers; its candidate remains **unselected**. Console94083bf retains the accepted c421160 skill bytes. Stop adding prompt prose for this slice.
+**Primary larger result: P3/P5 universal dialogue flow; P2-B privacy repair is owner-deferred.** Reuse existing product-analysis, ticket/help/resume and evaluation mechanisms; do not wait for every Freeland-specific gap or build another runner. The decision baseline and [first controlled execution/continuation sample](../../evals/public-input-agent-cycle/20260921/README.md) exposed an oracle-quality gap: unpromised exact summary wording failed healthy behavior. The [bounded guidance experiment](../../evals/oracle-grounding/20260921/README.md) did not remove guessed semantic classifiers; its candidate remains **unselected**. Console94083bf retains the accepted c421160 skill bytes. Stop adding prompt prose for this slice.
 
 The subsequent [reviewed actual cycle](../../evals/public-input-agent-cycle/20260921-reviewed/README.md) now exercised independent Lead AQA test-design review **before** execution. Review rejected the first design; its corrected two checks distinguished faulty search from the controller's healthy route. A fresh actor recovered the original evidence, completed bounded remaining public checks and stored two current partial observations without another campaign or receipt rewrite. All four original targets and four strategy blockers remain visible. This qualifies a bounded existing workflow after review, not first-attempt reliability, full known-product coverage or P3/P5 completion. Follow the report's final review status and attribution; managed results remain INCONCLUSIVE.
 
