@@ -29,10 +29,14 @@ recovered material superseded/current distinctions and chose safe next actions.
 The unchanged first answer, search errors and one timing-only intervention remain
 recorded. Missing durable reader stdout/capture time limits independent invocation
 verification; this is not remaining-work execution or complete P3/P5 acceptance.
-Next, qualify one measured recording/entry friction seam using existing readers,
-starting with durable output and as-of identity capture. Check existing capability
-before proposing a helper or source change; do not rerun to manufacture missing
-historical evidence. Product execution remains with the authorized owners.
+The [reader-capture diagnostic](reader-capture-20260922.md) has now exercised
+ordinary process/file capture against the unchanged CLI, including a separate
+nonzero control and fresh-process file readback. It found no need for a new
+exporter or reader change; use its final review status and retain the earlier
+missing historical evidence as a limit. Next qualify a previously unqualified
+P3 ticket/help/remaining-work path, applying this capture discipline during that
+work. Resolve its owner and execution scope first; do not take over an active
+product campaign or repeat another capture-only baseline.
 The existing same-host A-done/B-unknown/C-pending recovery was already accepted in
 its bounded scope; repeating it is compatibility evidence, not a newly completed
 P3 milestone. Another guidance-only reconstruction loop is not the next step.
