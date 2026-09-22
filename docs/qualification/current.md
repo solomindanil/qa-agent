@@ -40,10 +40,20 @@ pending. F01 was blocked; F02's original symptom was not reproduced with limits;
 F03's schema response improved but rendered documentation still failed under
 CSP. Its first design/capture errors remain recorded. Follow its final review
 status; this is not whole-ticket, live mixed-batch or post-help resume acceptance.
-Next resume the exact guest check only after actual readiness, while preserving
-other owners' scope; the confirmed docs/CSP/render dependency is a candidate for
-owner-led P4 reuse, not an already published graph edge. Do not take over an
-active product campaign or repeat another capture-only baseline.
+The subsequent [docs-render consumer cycle](docs-render-consumer-20260922.md)
+has now published a reviewed dependency through the existing API in isolated
+synthetic workspaces and executed two fresh consumers against faulty/healthy
+controls. Both selected rendering and distinguished the variants; incremental
+graph detection gain is zero in this pair. AQA caught an incomplete HTTP200 HTML
+oracle before execution; initial and corrected designs remain separate. Follow
+the report's final review status. This is not publication into rw-int or complete
+P4/P5. A reusable opt-in browser regression is delivered without runtime changes.
+The next bounded implementation candidate is complete API oracle expression in
+the existing adapter (media type and escaped JSON object keys), subject to design
+review and counterexamples—not a new runner or another prompt-only experiment.
+Resume the exact live guest check only after actual readiness, preserving other
+owners' scope. Do not take over an active product campaign or repeat a capture-only
+baseline.
 The existing same-host A-done/B-unknown/C-pending recovery was already accepted in
 its bounded scope; repeating it is compatibility evidence, not a newly completed
 P3 milestone. Another guidance-only reconstruction loop is not the next step.

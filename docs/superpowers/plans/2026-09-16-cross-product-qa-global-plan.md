@@ -50,8 +50,16 @@ current entry сохранены Git-коммитом57fa5a82353b010279c71996a5c
 стала доступна, но браузерная документация пуста из-за CSP: HTTP200 не принят за
 успех UI. Ограничения и окончательный AQA-статус — в отчёте. Это не весь тикет,
 не live mixed batch и не завершённый ответ человека/resume; эти выходы открыты.
-Подтверждённая зависимость docs initializer/CSP/render — кандидат для P4 через
-существующего владельца, не автоматическая публикация графа или новый runner.
+Зависимость docs initializer/CSP/render затем перенесена в
+[изолированный P4/P5 consumer-срез](../../qualification/docs-render-consumer-20260922.md)
+через штатную reviewed knowledge publication: два свежих агента исполнили
+проверки исправной/сломанной фикстур. Оба выбрали rendering, дополнительный выигрыш
+графа в этой паре нулевой. AQA до запуска исправил неполную HTTP200 HTML assertion;
+первая ошибка сохранена. В исходники добавлена воспроизводимая браузерная
+регрессия; окончательный статус ревью — в отчёте. Это не публикация графа rw-int
+и не закрытие P4/P5. Следующий узкий code-кандидат — полнота API-oracles в текущем
+адаптере (media type и escaped JSON keys) после design-review с отрицательными
+контролями, без нового runner. Реальный help/resume всё ещё ждёт readiness.
 
 **Status — актуализация entry 21 сентября 2026:** это действующий план P0–P7, не новый набор полномочий. Source выбирает [manifest](../../../sources/manifest.v1.json), следующую задачу и ограничения — [current checkpoint](../../qualification/current.md). Приняты Kernel `aa5d2d1`, Console `94083bf`, Freeland `0ea2df1`; reporting `10d398d` неактивен. P0-ремонты и P1 writer/reader/reference входят в выбранные successors; ограниченное реальное продолжение свежим агентом принято, но это не закрывает весь P1 или общий end-to-end scope. P0–P7 в целом не завершены. Source selection не мигрирует campaigns/skills и не даёт product/cloud authority. Остальные датированные implementation/adoption-описания ниже сохраняют состояние своих ревью, а не переопределяют текущую очередь: не повторять завершённые P0/P1 действия по старым словам «начать» или «pending». Все obligations и acceptance gates сохраняются. [Исходные bytes до entry-правки](2026-09-16-cross-product-qa-global-plan.3accb18.snapshot.md) сохранены отдельно.
 

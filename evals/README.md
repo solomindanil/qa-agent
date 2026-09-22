@@ -20,3 +20,9 @@ It is an owned open-context fixture, not whole-product or cross-domain qualifica
 retains one fresh first response over MagicPay, rw-int and Nuanu App owner records,
 including later supersessions and a separate existing local observation read.
 It is a documentary field baseline, not new product execution or hidden-key transfer.
+
+[Documentation-render consumer cycle](docs-render-agent-cycle/README.md) transfers
+the field lesson HTTP200/schema ≠ visible documentation into reviewed synthetic
+knowledge and actual paired agent execution. The opt-in CSP/browser fixture is
+reusable; original design errors and corrected results remain distinct, and equal
+control/treatment detection does not establish incremental graph benefit.
