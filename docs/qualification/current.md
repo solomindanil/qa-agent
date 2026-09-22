@@ -33,10 +33,17 @@ The [reader-capture diagnostic](reader-capture-20260922.md) has now exercised
 ordinary process/file capture against the unchanged CLI, including a separate
 nonzero control and fresh-process file readback. It found no need for a new
 exporter or reader change; use its final review status and retain the earlier
-missing historical evidence as a limit. Next qualify a previously unqualified
-P3 ticket/help/remaining-work path, applying this capture discipline during that
-work. Resolve its owner and execution scope first; do not take over an active
-product campaign or repeat another capture-only baseline.
+missing historical evidence as a limit. The subsequent
+[live ticket subset](live-ticket-subset-20260922.md) now exercised actual tracker
+reads and independent public checks while a guest-surface help request remained
+pending. F01 was blocked; F02's original symptom was not reproduced with limits;
+F03's schema response improved but rendered documentation still failed under
+CSP. Its first design/capture errors remain recorded. Follow its final review
+status; this is not whole-ticket, live mixed-batch or post-help resume acceptance.
+Next resume the exact guest check only after actual readiness, while preserving
+other owners' scope; the confirmed docs/CSP/render dependency is a candidate for
+owner-led P4 reuse, not an already published graph edge. Do not take over an
+active product campaign or repeat another capture-only baseline.
 The existing same-host A-done/B-unknown/C-pending recovery was already accepted in
 its bounded scope; repeating it is compatibility evidence, not a newly completed
 P3 milestone. Another guidance-only reconstruction loop is not the next step.
