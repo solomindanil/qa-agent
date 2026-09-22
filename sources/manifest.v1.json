@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "94083bf55d3237b6e60870211b034bfbc4b9dcc2",
-      "tree": "355005e4f3eb2f1132d22e996b3de2da8a6f7332",
-      "bundle": "sources/candidates/console-ordinary-status-94083bf.bundle",
-      "sha256": "3c48b02a3feceff1a87a1ebe826d7b76194e909626fa6d1e5a28387245dd8dd7",
+      "commit": "8065713fba11446e32ec2f76832d65110550989b",
+      "tree": "a836c6072f8b8600df3300deead925772d73438f",
+      "bundle": "sources/candidates/console-api-oracles-8065713.bundle",
+      "sha256": "e4789e60284fd4f6f8f8446db59a3b955f95a4da11c2d3174014eb19d85747fb",
       "runtimeAuthority": true,
-      "qualification": "Ordinary-status successor to c421160: existing CLI selects the ordinary receipt reader for exact run IDs, retaining v1 historical dispatch, current-model binding, oracle approval and lazy pinned-Kernel dependency checks. Independent Lead AQA approved after test-only authority-plumbing controls; covering CLI3/3 and dependency2/2, complementary ingestion89/89 passed. Original actual INCONCLUSIVE receipt read unchanged. Exact scope and delivery: docs/qualification/ordinary-campaign-status-20260921.md. Kernel aa5d2d1 and complete source skills unchanged; c421 reference qualification remains historical. No installed-skill update, campaign migration, product execution, full-product PASS, hosted CI or cloud qualification."
+      "qualification": "API-oracle successor to94083bf: strict media_type and safe plain json_pointer in existing adapter and persisted reader. Non-transforming expected JSON validation fixes review-discovered false PASS; legacy assertions and classification unchanged. Independent Lead AQA GO after repair; compatibility257/257, final semantic/fresh-process reader15/15, typecheck, scoped lint and build passed (Vite warnings retained). Exact source/delivery and exclusions: docs/qualification/api-oracles-20260922.md. Prior ordinary-status qualification remains historical. Kernel aa5d2d1 and source skills unchanged. No installed-skill update, campaign migration, live-product acceptance, full-suite, hosted CI or cloud qualification."
     },
     {
       "id": "freeland",

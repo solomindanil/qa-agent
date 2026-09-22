@@ -1,0 +1,31 @@
+
+> qa-console@0.1.0 build
+> tsc -b && vite build --configLoader runner
+
+1:02:49 PM [vite] (inline) warning:
+/private/tmp/qa-api-oracles-20260922.lbrbAM/console/server/kernel-authority.mjs
+296 |    const configuredRevision = options.configuredRevision;
+297 |    preparePinnedKernelDistribution(starterRepo, configuredRevision);
+298 |    const load = options.loader ?? ((url) => import(url));
+    |                                                    ^^^
+299 |    let kernel;
+300 |    try {
+The above dynamic import cannot be analyzed by Vite.
+See https://github.com/rollup/plugins/tree/master/packages/dynamic-import-vars#limitations for supported dynamic import formats. If this is intended to be left as-is, you can use the /* @vite-ignore */ comment inside the import() call to suppress this warning.
+
+  Plugin: vite:import-analysis
+  File: /private/tmp/qa-api-oracles-20260922.lbrbAM/console/server/kernel-authority.mjs
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 182 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.76 kB │ gzip:   0.40 kB
+dist/assets/index-CGjRP9SC.css   18.49 kB │ gzip:   4.09 kB
+dist/assets/index-yDQeAaOB.js   575.21 kB │ gzip: 162.17 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 982ms

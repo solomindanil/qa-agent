@@ -1,0 +1,1567 @@
+TAP version 13
+# Subtest: media_type requires an exact bare media type without rewriting its bytes
+ok 1 - media_type requires an exact bare media type without rewriting its bytes
+  ---
+  duration_ms: 2.720583
+  type: 'test'
+  ...
+# Subtest: json_pointer accepts plain RFC 6901 tokens, preserves bytes, and rejects unsafe paths
+ok 2 - json_pointer accepts plain RFC 6901 tokens, preserves bytes, and rejects unsafe paths
+  ---
+  duration_ms: 9.527459
+  type: 'test'
+  ...
+# Subtest: json_pointer requires a JSON expected value, including explicit null
+ok 3 - json_pointer requires a JSON expected value, including explicit null
+  ---
+  duration_ms: 0.395292
+  type: 'test'
+  ...
+# Subtest: legacy assertion parsing is unchanged
+ok 4 - legacy assertion parsing is unchanged
+  ---
+  duration_ms: 1.473542
+  type: 'test'
+  ...
+# Subtest: json_pointer never strips prototype-sensitive expected keys into a weaker oracle
+ok 5 - json_pointer never strips prototype-sensitive expected keys into a weaker oracle
+  ---
+  duration_ms: 35.261667
+  type: 'test'
+  ...
+# Subtest: json_pointer expected-value validation preserves plain data and never evaluates accessors
+ok 6 - json_pointer expected-value validation preserves plain data and never evaluates accessors
+  ---
+  duration_ms: 0.483792
+  type: 'test'
+  ...
+# Subtest: media_type matches type/subtype across case, OWS and valid parameters over real HTTP
+ok 7 - media_type matches type/subtype across case, OWS and valid parameters over real HTTP
+  ---
+  duration_ms: 137.602834
+  type: 'test'
+  ...
+# Subtest: media_type rejects absent, malformed, wrong and duplicate Content-Type fields
+ok 8 - media_type rejects absent, malformed, wrong and duplicate Content-Type fields
+  ---
+  duration_ms: 379.27775
+  type: 'test'
+  ...
+# Subtest: media_type does not replace exact legacy header, text, or status assertions
+ok 9 - media_type does not replace exact legacy header, text, or status assertions
+  ---
+  duration_ms: 78.226875
+  type: 'test'
+  ...
+# Subtest: json_pointer resolves escaped route keys, empty keys, literal tokens and arrays over real HTTP
+ok 10 - json_pointer resolves escaped route keys, empty keys, literal tokens and arrays over real HTTP
+  ---
+  duration_ms: 170.731125
+  type: 'test'
+  ...
+# Subtest: json_pointer distinguishes missing, null, scalar types, deep object equality and array order
+ok 11 - json_pointer distinguishes missing, null, scalar types, deep object equality and array order
+  ---
+  duration_ms: 456.549625
+  type: 'test'
+  ...
+# Subtest: json_pointer parses JSON strictly and accepts scalar roots without traversing them
+ok 12 - json_pointer parses JSON strictly and accepts scalar roots without traversing them
+  ---
+  duration_ms: 339.491792
+  type: 'test'
+  ...
+# Subtest: invalid or prototype-sensitive assertions fail before any HTTP request
+ok 13 - invalid or prototype-sensitive assertions fail before any HTTP request
+  ---
+  duration_ms: 57.006709
+  type: 'test'
+  ...
+# Subtest: semantic assertion evidence keeps response bodies and parameter values out of public artifacts
+ok 14 - semantic assertion evidence keeps response bodies and parameter values out of public artifacts
+  ---
+  duration_ms: 23.203833
+  type: 'test'
+  ...
+# Subtest: new assertions round-trip real runner receipts through the persisted reader, with unchanged verdicts
+ok 15 - new assertions round-trip real runner receipts through the persisted reader, with unchanged verdicts
+  ---
+  duration_ms: 621.84225
+  type: 'test'
+  ...
+# Subtest: accepts the real Kernel-shaped unresolved automated catalog entry only with its exact human approval
+ok 16 - accepts the real Kernel-shaped unresolved automated catalog entry only with its exact human approval
+  ---
+  duration_ms: 22.5505
+  type: 'test'
+  ...
+# Subtest: renders the exact human oracle approval identity into a generated Nuanu ticket
+ok 17 - renders the exact human oracle approval identity into a generated Nuanu ticket
+  ---
+  duration_ms: 9.091208
+  type: 'test'
+  ...
+# Subtest: bridge rejects campaign evidence when its independent oracle receipt is missing
+ok 18 - bridge rejects campaign evidence when its independent oracle receipt is missing
+  ---
+  duration_ms: 94.640542
+  type: 'test'
+  ...
+# Subtest: bridge projects terminal first evidence only from attested registration reads
+ok 19 - bridge projects terminal first evidence only from attested registration reads
+  ---
+  duration_ms: 36.976417
+  type: 'test'
+  ...
+# Subtest: bridge keeps an invalid terminal first-evidence binding distinct from no evidence
+ok 20 - bridge keeps an invalid terminal first-evidence binding distinct from no evidence
+  ---
+  duration_ms: 47.053792
+  type: 'test'
+  ...
+# Subtest: bridge fails closed when any workspace state schema claims a terminal first-evidence lifecycle
+ok 21 - bridge fails closed when any workspace state schema claims a terminal first-evidence lifecycle
+  ---
+  duration_ms: 45.726875
+  type: 'test'
+  ...
+# Subtest: file preview rejects campaign text evidence when its independent oracle receipt is missing
+ok 22 - file preview rejects campaign text evidence when its independent oracle receipt is missing
+  ---
+  duration_ms: 72.838833
+  type: 'test'
+  ...
+# Subtest: file preview serves exact receipt-bound campaign text after authority and Kernel validation
+ok 23 - file preview serves exact receipt-bound campaign text after authority and Kernel validation
+  ---
+  duration_ms: 97.788542
+  type: 'test'
+  ...
+# Subtest: bridge rejects tampered, noncanonical, wrong-mode, symlinked, and hardlinked oracle authority
+    # Subtest: tampered
+    ok 1 - tampered
+      ---
+      duration_ms: 50.480083
+      type: 'test'
+      ...
+    # Subtest: noncanonical
+    ok 2 - noncanonical
+      ---
+      duration_ms: 34.341167
+      type: 'test'
+      ...
+    # Subtest: wrong mode
+    ok 3 - wrong mode
+      ---
+      duration_ms: 63.168958
+      type: 'test'
+      ...
+    # Subtest: symlinked
+    ok 4 - symlinked
+      ---
+      duration_ms: 57.62025
+      type: 'test'
+      ...
+    # Subtest: hardlinked
+    ok 5 - hardlinked
+      ---
+      duration_ms: 40.862041
+      type: 'test'
+      ...
+    1..5
+ok 24 - bridge rejects tampered, noncanonical, wrong-mode, symlinked, and hardlinked oracle authority
+  ---
+  duration_ms: 247.633084
+  type: 'test'
+  ...
+# Subtest: bridge does not revive an old terminal receipt when a v1 campaign requires explicit selection
+ok 25 - bridge does not revive an old terminal receipt when a v1 campaign requires explicit selection
+  ---
+  duration_ms: 276.224625
+  type: 'test'
+  ...
+# Subtest: bridge exposes the latest valid canonical autonomous receipt and never opens secrets.env
+ok 26 - bridge exposes the latest valid canonical autonomous receipt and never opens secrets.env
+  ---
+  duration_ms: 100.313708
+  type: 'test'
+  ...
+# Subtest: bridge serves an exact receipt-bound final screenshot as image/png
+ok 27 - bridge serves an exact receipt-bound final screenshot as image/png
+  ---
+  duration_ms: 80.724958
+  type: 'test'
+  ...
+# Subtest: bridge exposes a candidate only after the current Kernel validates the workspace
+ok 28 - bridge exposes a candidate only after the current Kernel validates the workspace
+  ---
+  duration_ms: 82.397333
+  type: 'test'
+  ...
+# Subtest: missing campaign plan with no terminal receipt remains no evidence
+ok 29 - missing campaign plan with no terminal receipt remains no evidence
+  ---
+  duration_ms: 47.368792
+  type: 'test'
+  ...
+# Subtest: terminal receipt makes a missing, unsafe, or invalid canonical plan fail closed through the Kernel gate
+    # Subtest: missing plan
+    ok 1 - missing plan
+      ---
+      duration_ms: 51.372417
+      type: 'test'
+      ...
+    # Subtest: symlinked plan
+    ok 2 - symlinked plan
+      ---
+      duration_ms: 67.763333
+      type: 'test'
+      ...
+    # Subtest: schema-invalid plan
+    ok 3 - schema-invalid plan
+      ---
+      duration_ms: 30.211792
+      type: 'test'
+      ...
+    1..3
+ok 30 - terminal receipt makes a missing, unsafe, or invalid canonical plan fail closed through the Kernel gate
+  ---
+  duration_ms: 150.209417
+  type: 'test'
+  ...
+# Subtest: bridge requires the exact sealed Kernel V0 modes and directory grammar
+    # Subtest: plan
+    ok 1 - plan
+      ---
+      duration_ms: 46.861875
+      type: 'test'
+      ...
+    # Subtest: runs root
+    ok 2 - runs root
+      ---
+      duration_ms: 58.782167
+      type: 'test'
+      ...
+    # Subtest: run directory
+    ok 3 - run directory
+      ---
+      duration_ms: 57.6155
+      type: 'test'
+      ...
+    # Subtest: receipt
+    ok 4 - receipt
+      ---
+      duration_ms: 38.695167
+      type: 'test'
+      ...
+    # Subtest: checks directory
+    ok 5 - checks directory
+      ---
+      duration_ms: 34.463166
+      type: 'test'
+      ...
+    # Subtest: attempt result
+    ok 6 - attempt result
+      ---
+      duration_ms: 69.929792
+      type: 'test'
+      ...
+    # Subtest: unexpected empty directory
+    ok 7 - unexpected empty directory
+      ---
+      duration_ms: 52.579792
+      type: 'test'
+      ...
+    # Subtest: runner-shaped but receipt-unowned empty attempt directory
+    ok 8 - runner-shaped but receipt-unowned empty attempt directory
+      ---
+      duration_ms: 45.051042
+      type: 'test'
+      ...
+    1..8
+ok 31 - bridge requires the exact sealed Kernel V0 modes and directory grammar
+  ---
+  duration_ms: 405.017458
+  type: 'test'
+  ...
+# Subtest: newest receipt is authoritative: invalid newest and equal mtimes fail closed
+ok 32 - newest receipt is authoritative: invalid newest and equal mtimes fail closed
+  ---
+  duration_ms: 99.11125
+  type: 'test'
+  ...
+# Subtest: bridge rejects malformed, mismatched, noncanonical, escaping, and symlinked receipts
+    # Subtest: malformed JSON
+    ok 1 - malformed JSON
+      ---
+      duration_ms: 28.164625
+      type: 'test'
+      ...
+    # Subtest: plan mismatch
+    ok 2 - plan mismatch
+      ---
+      duration_ms: 43.440208
+      type: 'test'
+      ...
+    # Subtest: status disagrees with attempts
+    ok 3 - status disagrees with attempts
+      ---
+      duration_ms: 45.056083
+      type: 'test'
+      ...
+    # Subtest: harness failure forged with a second attempt
+    ok 4 - harness failure forged with a second attempt
+      ---
+      duration_ms: 53.8565
+      type: 'test'
+      ...
+    # Subtest: environment failure forged without its required retry
+    ok 5 - environment failure forged without its required retry
+      ---
+      duration_ms: 38.244333
+      type: 'test'
+      ...
+    # Subtest: escaping runDirectory
+    ok 6 - escaping runDirectory
+      ---
+      duration_ms: 29.959166
+      type: 'test'
+      ...
+    # Subtest: noncanonical run id
+    ok 7 - noncanonical run id
+      ---
+      duration_ms: 38.662375
+      type: 'test'
+      ...
+    # Subtest: symlinked receipt
+    ok 8 - symlinked receipt
+      ---
+      duration_ms: 47.421834
+      type: 'test'
+      ...
+    1..8
+ok 33 - bridge rejects malformed, mismatched, noncanonical, escaping, and symlinked receipts
+  ---
+  duration_ms: 325.784416
+  type: 'test'
+  ...
+# Subtest: bridge preserves runner-authored status when private oracle signatures cannot be reconstructed
+ok 34 - bridge preserves runner-authored status when private oracle signatures cannot be reconstructed
+  ---
+  duration_ms: 109.060792
+  type: 'test'
+  ...
+# Subtest: bridge accepts empty observation strings emitted by the canonical runner schema
+ok 35 - bridge accepts empty observation strings emitted by the canonical runner schema
+  ---
+  duration_ms: 42.249916
+  type: 'test'
+  ...
+# Subtest: bridge accepts a canonical partial run and preserves exact blocked target accounting
+ok 36 - bridge accepts a canonical partial run and preserves exact blocked target accounting
+  ---
+  duration_ms: 62.838125
+  type: 'test'
+  ...
+# Subtest: bridge preserves INCONCLUSIVE over blocked targets when a canonical partial run has two oracle failures (QA-01)
+ok 37 - bridge preserves INCONCLUSIVE over blocked targets when a canonical partial run has two oracle failures (QA-01)
+  ---
+  duration_ms: 84.590333
+  type: 'test'
+  ...
+# Subtest: bridge rejects blocked target accounting that drifts from the bound plan
+ok 38 - bridge rejects blocked target accounting that drifts from the bound plan
+  ---
+  duration_ms: 35.472333
+  type: 'test'
+  ...
+# Subtest: reader keeps accepting a historical approval-bound dossier receipt (synthetic) while the current runner yields needs_review without a dossier (QA-01)
+ok 39 - reader keeps accepting a historical approval-bound dossier receipt (synthetic) while the current runner yields needs_review without a dossier (QA-01)
+  ---
+  duration_ms: 128.559541
+  type: 'test'
+  ...
+# Subtest: bridge binds a canonical runner receipt to the runner-normalized plan
+ok 40 - bridge binds a canonical runner receipt to the runner-normalized plan
+  ---
+  duration_ms: 127.593958
+  type: 'test'
+  ...
+# Subtest: bridge rejects plans outside the runner's full schema and exact graph closure
+    # Subtest: omitted coverage target
+    ok 1 - omitted coverage target
+      ---
+      duration_ms: 60.563125
+      type: 'test'
+      ...
+    # Subtest: unknown coverage target
+    ok 2 - unknown coverage target
+      ---
+      duration_ms: 33.188292
+      type: 'test'
+      ...
+    # Subtest: coverage target accounted twice
+    ok 3 - coverage target accounted twice
+      ---
+      duration_ms: 24.381959
+      type: 'test'
+      ...
+    # Subtest: missing required executable-check field
+    ok 4 - missing required executable-check field
+      ---
+      duration_ms: 28.63425
+      type: 'test'
+      ...
+    1..4
+ok 41 - bridge rejects plans outside the runner's full schema and exact graph closure
+  ---
+  duration_ms: 147.947083
+  type: 'test'
+  ...
+# Subtest: bridge requires a trace for every attempt and final.png for non-harness browser attempts
+    # Subtest: API attempt without trace
+    ok 1 - API attempt without trace
+      ---
+      duration_ms: 43.690417
+      type: 'test'
+      ...
+    # Subtest: browser pass without final.png
+    ok 2 - browser pass without final.png
+      ---
+      duration_ms: 47.883417
+      type: 'test'
+      ...
+    # Subtest: browser oracle failure with one attempt missing final.png
+    ok 3 - browser oracle failure with one attempt missing final.png
+      ---
+      duration_ms: 53.644542
+      type: 'test'
+      ...
+    1..3
+ok 42 - bridge requires a trace for every attempt and final.png for non-harness browser attempts
+  ---
+  duration_ms: 145.617458
+  type: 'test'
+  ...
+# Subtest: canonical runner adapter exceptions persist a trace and project as harness failure
+ok 43 - canonical runner adapter exceptions persist a trace and project as harness failure
+  ---
+  duration_ms: 46.892792
+  type: 'test'
+  ...
+# Subtest: bridge rejects missing, tampered, symlinked, hardlinked, and unmanifested dossier artifacts
+    # Subtest: missing artifact
+    ok 1 - missing artifact
+      ---
+      duration_ms: 37.649041
+      type: 'test'
+      ...
+    # Subtest: attempt result omitted from artifacts
+    ok 2 - attempt result omitted from artifacts
+      ---
+      duration_ms: 53.835208
+      type: 'test'
+      ...
+    # Subtest: unmanifested regular file
+    ok 3 - unmanifested regular file
+      ---
+      duration_ms: 49.679625
+      type: 'test'
+      ...
+    # Subtest: unmanifested symlink
+    ok 4 - unmanifested symlink
+      ---
+      duration_ms: 42.877416
+      type: 'test'
+      ...
+    # Subtest: tampered artifact bytes
+    ok 5 - tampered artifact bytes
+      ---
+      duration_ms: 29.087416
+      type: 'test'
+      ...
+    # Subtest: symlinked artifact
+    ok 6 - symlinked artifact
+      ---
+      duration_ms: 26.650833
+      type: 'test'
+      ...
+    # Subtest: artifact below a symlinked directory
+    ok 7 - artifact below a symlinked directory
+      ---
+      duration_ms: 36.710083
+      type: 'test'
+      ...
+    # Subtest: hardlinked artifact
+    ok 8 - hardlinked artifact
+      ---
+      duration_ms: 45.3025
+      type: 'test'
+      ...
+    # Subtest: dossier path omitted from artifacts
+    ok 9 - dossier path omitted from artifacts
+      ---
+      duration_ms: 45.489375
+      type: 'test'
+      ...
+    # Subtest: ticket path omitted from artifacts
+    ok 10 - ticket path omitted from artifacts
+      ---
+      duration_ms: 32.419667
+      type: 'test'
+      ...
+    # Subtest: dossier and ticket paths aliased
+    ok 11 - dossier and ticket paths aliased
+      ---
+      duration_ms: 32.954833
+      type: 'test'
+      ...
+    1..11
+ok 44 - bridge rejects missing, tampered, symlinked, hardlinked, and unmanifested dossier artifacts
+  ---
+  duration_ms: 434.172958
+  type: 'test'
+  ...
+# Subtest: bridge reconciles each public result, dossier, and deterministic ticket with the receipt
+    # Subtest: result semantics differ from receipt attempt
+    ok 1 - result semantics differ from receipt attempt
+      ---
+      duration_ms: 39.075334
+      type: 'test'
+      ...
+    # Subtest: dossier check binding
+    ok 2 - dossier check binding
+      ---
+      duration_ms: 60.547958
+      type: 'test'
+      ...
+    # Subtest: dossier target binding
+    ok 3 - dossier target binding
+      ---
+      duration_ms: 55.353042
+      type: 'test'
+      ...
+    # Subtest: dossier evidence binding
+    ok 4 - dossier evidence binding
+      ---
+      duration_ms: 47.882958
+      type: 'test'
+      ...
+    # Subtest: dossier dedupe binding
+    ok 5 - dossier dedupe binding
+      ---
+      duration_ms: 45.268584
+      type: 'test'
+      ...
+    # Subtest: dossier oracle approval binding
+    ok 6 - dossier oracle approval binding
+      ---
+      duration_ms: 58.46875
+      type: 'test'
+      ...
+    # Subtest: dossier run binding
+    ok 7 - dossier run binding
+      ---
+      duration_ms: 56.300875
+      type: 'test'
+      ...
+    # Subtest: dossier registration binding
+    ok 8 - dossier registration binding
+      ---
+      duration_ms: 72.425291
+      type: 'test'
+      ...
+    # Subtest: dossier scope binding
+    ok 9 - dossier scope binding
+      ---
+      duration_ms: 40.806958
+      type: 'test'
+      ...
+    # Subtest: ticket is not the deterministic dossier rendering
+    ok 10 - ticket is not the deterministic dossier rendering
+      ---
+      duration_ms: 65.103208
+      type: 'test'
+      ...
+    1..10
+ok 45 - bridge reconciles each public result, dossier, and deterministic ticket with the receipt
+  ---
+  duration_ms: 542.4755
+  type: 'test'
+  ...
+# Subtest: bridge rejects hardlinked plan and receipt JSON files
+    # Subtest: hardlinked plan
+    ok 1 - hardlinked plan
+      ---
+      duration_ms: 47.282583
+      type: 'test'
+      ...
+    # Subtest: hardlinked receipt
+    ok 2 - hardlinked receipt
+      ---
+      duration_ms: 40.688167
+      type: 'test'
+      ...
+    1..2
+ok 46 - bridge rejects hardlinked plan and receipt JSON files
+  ---
+  duration_ms: 88.245583
+  type: 'test'
+  ...
+# Subtest: selected workspaces outside the configured allowlist cannot expose campaign receipts
+ok 47 - selected workspaces outside the configured allowlist cannot expose campaign receipts
+  ---
+  duration_ms: 4.234708
+  type: 'test'
+  ...
+# Subtest: receipt readback grammar accepts the explicit observation and rejects what the strict parser rejects (QA-01)
+    # Subtest: an observation-bearing plan with a needs_review double failure and no dossier reads back
+    ok 1 - an observation-bearing plan with a needs_review double failure and no dossier reads back
+      ---
+      duration_ms: 37.67475
+      type: 'test'
+      ...
+    # Subtest: an observation combination the strict parser rejects is rejected by readback too
+    ok 2 - an observation combination the strict parser rejects is rejected by readback too
+      ---
+      duration_ms: 44.90125
+      type: 'test'
+      ...
+    1..2
+ok 48 - receipt readback grammar accepts the explicit observation and rejects what the strict parser rejects (QA-01)
+  ---
+  duration_ms: 84.540084
+  type: 'test'
+  ...
+# Subtest: a real 390px Chromium check passes a visible heading and stores final evidence
+ok 49 - a real 390px Chromium check passes a visible heading and stores final evidence
+  ---
+  duration_ms: 1224.822458
+  type: 'test'
+  ...
+# Subtest: trace retention records 100 total events with 100 retained browser events
+ok 50 - trace retention records 100 total events with 100 retained browser events
+  ---
+  duration_ms: 512.319166
+  type: 'test'
+  ...
+# Subtest: trace retention records 102 total events with 100 retained browser events
+ok 51 - trace retention records 102 total events with 100 retained browser events
+  ---
+  duration_ms: 452.030042
+  type: 'test'
+  ...
+# Subtest: trace retention preserves a late oracle failure without counting or executing an unreached assertion
+ok 52 - trace retention preserves a late oracle failure without counting or executing an unreached assertion
+  ---
+  duration_ms: 332.231792
+  type: 'test'
+  ...
+# Subtest: trace retention counts API request and assertion events without browser-style started assertions
+ok 53 - trace retention counts API request and assertion events without browser-style started assertions
+  ---
+  duration_ms: 32.384542
+  type: 'test'
+  ...
+# Subtest: navigation HTTP status is observational unless the plan asserts it
+ok 54 - navigation HTTP status is observational unless the plan asserts it
+  ---
+  duration_ms: 551.261791
+  type: 'test'
+  ...
+# Subtest: response_status fails from the exact failed navigation response without a second request
+ok 55 - response_status fails from the exact failed navigation response without a second request
+  ---
+  duration_ms: 290.650375
+  type: 'test'
+  ...
+# Subtest: response_status passes from the exact successful navigation response without a second request
+ok 56 - response_status passes from the exact successful navigation response without a second request
+  ---
+  duration_ms: 296.024167
+  type: 'test'
+  ...
+# Subtest: response_status observes the requested navigation response before a same-origin redirect
+ok 57 - response_status observes the requested navigation response before a same-origin redirect
+  ---
+  duration_ms: 306.359166
+  type: 'test'
+  ...
+# Subtest: no_console_errors waits for slow async page resources and leaves no route rejection after teardown
+ok 58 - no_console_errors waits for slow async page resources and leaves no route rejection after teardown
+  ---
+  duration_ms: 397.410459
+  type: 'test'
+  ...
+# Subtest: baseline assertions wait for slow async layout changes before checking overflow
+ok 59 - baseline assertions wait for slow async layout changes before checking overflow
+  ---
+  duration_ms: 594.662
+  type: 'test'
+  ...
+# Subtest: frame settling fails closed within the adapter deadline when the page stalls animation frames
+ok 60 - frame settling fails closed within the adapter deadline when the page stalls animation frames
+  ---
+  duration_ms: 392.075333
+  type: 'test'
+  ...
+# Subtest: ambient page and same-origin request failures remain observations unless explicitly asserted
+    # Subtest: page error
+    ok 1 - page error
+      ---
+      duration_ms: 278.16375
+      type: 'test'
+      ...
+    # Subtest: critical request
+    ok 2 - critical request
+      ---
+      duration_ms: 268.058791
+      type: 'test'
+      ...
+    1..2
+ok 61 - ambient page and same-origin request failures remain observations unless explicitly asserted
+  ---
+  duration_ms: 547.010042
+  type: 'test'
+  ...
+# Subtest: an explicit no-console-errors assertion attributes a page error to the product
+ok 62 - an explicit no-console-errors assertion attributes a page error to the product
+  ---
+  duration_ms: 250.364084
+  type: 'test'
+  ...
+# Subtest: a blocked cross-origin subresource is environment-blocked even when assertions pass
+ok 63 - a blocked cross-origin subresource is environment-blocked even when assertions pass
+  ---
+  duration_ms: 239.755417
+  type: 'test'
+  ...
+# Subtest: a blocked cross-origin dependency outranks a coincident assertion failure
+ok 64 - a blocked cross-origin dependency outranks a coincident assertion failure
+  ---
+  duration_ms: 297.275
+  type: 'test'
+  ...
+# Subtest: API response body bytes never enter result or trace evidence
+ok 65 - API response body bytes never enter result or trace evidence
+  ---
+  duration_ms: 20.802625
+  type: 'test'
+  ...
+# Subtest: a deterministic real mobile overflow returns a stable oracle failure
+ok 66 - a deterministic real mobile overflow returns a stable oracle failure
+  ---
+  duration_ms: 245.363875
+  type: 'test'
+  ...
+# Subtest: a browser operation failure stores only the canonical final screenshot
+ok 67 - a browser operation failure stores only the canonical final screenshot
+  ---
+  duration_ms: 459.66175
+  type: 'test'
+  ...
+# Subtest: a browser exception after page creation stores only the canonical final screenshot
+ok 68 - a browser exception after page creation stores only the canonical final screenshot
+  ---
+  duration_ms: 512.024875
+  type: 'test'
+  ...
+# Subtest: environment fill values are masked and observations are sanitized and bounded
+ok 69 - environment fill values are masked and observations are sanitized and bounded
+  ---
+  duration_ms: 594.174792
+  type: 'test'
+  ...
+# Subtest: a low-entropy secret cannot rewrite the adapter result protocol
+ok 70 - a low-entropy secret cannot rewrite the adapter result protocol
+  ---
+  duration_ms: 322.44325
+  type: 'test'
+  ...
+# Subtest: a read-only check blocks a form POST before the product receives it
+ok 71 - a read-only check blocks a form POST before the product receives it
+  ---
+  duration_ms: 348.21075
+  type: 'test'
+  ...
+# Subtest: a redirect outside the configured origin blocks a later secret fill
+ok 72 - a redirect outside the configured origin blocks a later secret fill
+  ---
+  duration_ms: 361.798625
+  type: 'test'
+  ...
+# Subtest: API and browser response assertions block cross-origin redirects before evaluation
+ok 73 - API and browser response assertions block cross-origin redirects before evaluation
+  ---
+  duration_ms: 259.04625
+  type: 'test'
+  ...
+# Subtest: an unsupported operation is a harness failure before navigation
+ok 74 - an unsupported operation is a harness failure before navigation
+  ---
+  duration_ms: 12.289917
+  type: 'test'
+  ...
+# Subtest: json_path equality ignores object key order at every depth
+ok 75 - json_path equality ignores object key order at every depth
+  ---
+  duration_ms: 68.840167
+  type: 'test'
+  ...
+# Subtest: json_path equality preserves array order, null-versus-missing and scalar types
+ok 76 - json_path equality preserves array order, null-versus-missing and scalar types
+  ---
+  duration_ms: 133.766167
+  type: 'test'
+  ...
+# Subtest: validate rejects unknown --dry-run before requiring a workspace
+ok 77 - validate rejects unknown --dry-run before requiring a workspace
+  ---
+  duration_ms: 780.801167
+  type: 'test'
+  ...
+# Subtest: status uses historical reader without requiring Kernel or an owning channel
+ok 78 - status uses historical reader without requiring Kernel or an owning channel
+  ---
+  duration_ms: 873.2625
+  type: 'test'
+  ...
+# Subtest: status reads an exact sealed ordinary non-PASS receipt without target requests or writes
+ok 79 - status reads an exact sealed ordinary non-PASS receipt without target requests or writes
+  ---
+  duration_ms: 9200.815583
+  type: 'test'
+  ...
+# Subtest: status reads only externally approved ordinary authority from the environment-selected store
+ok 80 - status reads only externally approved ordinary authority from the environment-selected store
+  ---
+  duration_ms: 2890.347583
+  type: 'test'
+  ...
+# Subtest: status retains v1 historical partial progress without current models, Kernel, or owner
+ok 81 - status retains v1 historical partial progress without current models, Kernel, or owner
+  ---
+  duration_ms: 652.83675
+  type: 'test'
+  ...
+# Subtest: resume refuses a missing inherited owning channel before workspace or target reads
+ok 82 - resume refuses a missing inherited owning channel before workspace or target reads
+  ---
+  duration_ms: 520.959375
+  type: 'test'
+  ...
+# Subtest: campaign parser preserves supported options before workspace requirements
+    # Subtest: prepare
+    ok 1 - prepare
+      ---
+      duration_ms: 522.678167
+      type: 'test'
+      ...
+    # Subtest: generate-baseline
+    ok 2 - generate-baseline
+      ---
+      duration_ms: 519.616834
+      type: 'test'
+      ...
+    # Subtest: approve-oracles
+    ok 3 - approve-oracles
+      ---
+      duration_ms: 514.317541
+      type: 'test'
+      ...
+    # Subtest: validate
+    ok 4 - validate
+      ---
+      duration_ms: 545.645958
+      type: 'test'
+      ...
+    # Subtest: run
+    ok 5 - run
+      ---
+      duration_ms: 508.493541
+      type: 'test'
+      ...
+    1..5
+ok 83 - campaign parser preserves supported options before workspace requirements
+  ---
+  duration_ms: 2611.907125
+  type: 'test'
+  ...
+# Subtest: campaign parser rejects options belonging to another verb before workspace requirements
+    # Subtest: prepare
+    ok 1 - prepare
+      ---
+      duration_ms: 527.222417
+      type: 'test'
+      ...
+    # Subtest: generate-baseline
+    ok 2 - generate-baseline
+      ---
+      duration_ms: 743.640791
+      type: 'test'
+      ...
+    # Subtest: approve-oracles
+    ok 3 - approve-oracles
+      ---
+      duration_ms: 681.229167
+      type: 'test'
+      ...
+    # Subtest: validate
+    ok 4 - validate
+      ---
+      duration_ms: 584.083625
+      type: 'test'
+      ...
+    # Subtest: run
+    ok 5 - run
+      ---
+      duration_ms: 572.267916
+      type: 'test'
+      ...
+    1..5
+ok 84 - campaign parser rejects options belonging to another verb before workspace requirements
+  ---
+  duration_ms: 3109.631125
+  type: 'test'
+  ...
+# Subtest: campaign parser preserves duplicate and missing-value errors
+    # Subtest: duplicate
+    ok 1 - duplicate
+      ---
+      duration_ms: 504.472541
+      type: 'test'
+      ...
+    # Subtest: missing value
+    ok 2 - missing value
+      ---
+      duration_ms: 532.238708
+      type: 'test'
+      ...
+    # Subtest: next option is not a value
+    ok 3 - next option is not a value
+      ---
+      duration_ms: 561.768666
+      type: 'test'
+      ...
+    # Subtest: missing required option
+    ok 4 - missing required option
+      ---
+      duration_ms: 513.935667
+      type: 'test'
+      ...
+    1..4
+ok 85 - campaign parser preserves duplicate and missing-value errors
+  ---
+  duration_ms: 2113.182042
+  type: 'test'
+  ...
+# Subtest: generate-baseline exclusively creates one canonical public plan and reports executable and blocked counts
+ok 86 - generate-baseline exclusively creates one canonical public plan and reports executable and blocked counts
+  ---
+  duration_ms: 1227.549833
+  type: 'test'
+  ...
+# Subtest: generate-baseline accepts only the Kernel canonical plan destination and never changes rejected paths
+ok 87 - generate-baseline accepts only the Kernel canonical plan destination and never changes rejected paths
+  ---
+  duration_ms: 2680.3955
+  type: 'test'
+  ...
+# Subtest: writeNewCampaignPlan cannot escape when tests is swapped to a symlink at exclusive create
+ok 88 - writeNewCampaignPlan cannot escape when tests is swapped to a symlink at exclusive create
+  ---
+  duration_ms: 3.310084
+  type: 'test'
+  ...
+# Subtest: writeNewCampaignPlan anchors and syncs the parent and reads back through the created descriptor
+ok 89 - writeNewCampaignPlan anchors and syncs the parent and reads back through the created descriptor
+  ---
+  duration_ms: 18.934583
+  type: 'test'
+  ...
+# Subtest: writeNewCampaignPlan fails closed before creation on unsupported platforms
+ok 90 - writeNewCampaignPlan fails closed before creation on unsupported platforms
+  ---
+  duration_ms: 0.753292
+  type: 'test'
+  ...
+# Subtest: writeNewCampaignPlan rejects a workspace reached through a non-system ancestor symlink
+ok 91 - writeNewCampaignPlan rejects a workspace reached through a non-system ancestor symlink
+  ---
+  duration_ms: 1.306209
+  type: 'test'
+  ...
+# Subtest: writeNewCampaignPlan never writes plan bytes after its created leaf is moved outside
+ok 92 - writeNewCampaignPlan never writes plan bytes after its created leaf is moved outside
+  ---
+  duration_ms: 2.4415
+  type: 'test'
+  ...
+# Subtest: writeNewCampaignPlan rejects bytes appended after exact readback
+ok 93 - writeNewCampaignPlan rejects bytes appended after exact readback
+  ---
+  duration_ms: 13.758042
+  type: 'test'
+  ...
+# Subtest: writeNewCampaignPlan keeps the final path absent after a partial staged write and permits retry
+ok 94 - writeNewCampaignPlan keeps the final path absent after a partial staged write and permits retry
+  ---
+  duration_ms: 25.487916
+  type: 'test'
+  ...
+# Subtest: writeNewCampaignPlan leaves no staging residue when the final plan already exists
+ok 95 - writeNewCampaignPlan leaves no staging residue when the final plan already exists
+  ---
+  duration_ms: 2.58725
+  type: 'test'
+  ...
+# Subtest: writeNewCampaignPlan rolls back its exact final and stage after a post-link verification failure
+ok 96 - writeNewCampaignPlan rolls back its exact final and stage after a post-link verification failure
+  ---
+  duration_ms: 47.71925
+  type: 'test'
+  ...
+# Subtest: writeNewCampaignPlan closes and removes its stage when initial descriptor stat fails
+ok 97 - writeNewCampaignPlan closes and removes its stage when initial descriptor stat fails
+  ---
+  duration_ms: 7.274792
+  type: 'test'
+  ...
+# Subtest: writeNewCampaignPlan reports success after close errors beyond the durable commit point
+ok 98 - writeNewCampaignPlan reports success after close errors beyond the durable commit point
+  ---
+  duration_ms: 21.792209
+  type: 'test'
+  ...
+# Subtest: prepare writes a canonical graph-bound draft and validate emits one canonical closure result
+ok 99 - prepare writes a canonical graph-bound draft and validate emits one canonical closure result
+  ---
+  duration_ms: 1191.785916
+  type: 'test'
+  ...
+# Subtest: validate exits non-zero when the declared plan leaves a graph target uncovered
+ok 100 - validate exits non-zero when the declared plan leaves a graph target uncovered
+  ---
+  duration_ms: 554.237459
+  type: 'test'
+  ...
+# Subtest: validate refuses a plan for another registered product or environment
+ok 101 - validate refuses a plan for another registered product or environment
+  ---
+  duration_ms: 1582.810208
+  type: 'test'
+  ...
+# Subtest: validate refuses a known catalog check remapped to a different graph target
+ok 102 - validate refuses a known catalog check remapped to a different graph target
+  ---
+  duration_ms: 511.538625
+  type: 'test'
+  ...
+# Subtest: approve-oracles previews an exact deterministic batch without mutating the plan
+ok 103 - approve-oracles previews an exact deterministic batch without mutating the plan
+  ---
+  duration_ms: 1065.61625
+  type: 'test'
+  ...
+# Subtest: approve-oracles exposes the exact API method, path, assertions, preconditions, and severity it asks a human to approve
+ok 104 - approve-oracles exposes the exact API method, path, assertions, preconditions, and severity it asks a human to approve
+  ---
+  duration_ms: 554.766167
+  type: 'test'
+  ...
+# Subtest: approve-oracles applies only the exact preview digest and reads back the atomic plan write
+ok 105 - approve-oracles applies only the exact preview digest and reads back the atomic plan write
+  ---
+  duration_ms: 2879.873416
+  type: 'test'
+  ...
+# Subtest: approve-oracles rejects a stale preview after the plan changes and never follows plan symlinks
+ok 106 - approve-oracles rejects a stale preview after the plan changes and never follows plan symlinks
+  ---
+  duration_ms: 1587.297834
+  type: 'test'
+  ...
+# Subtest: refuses a symlinked campaign component without following it
+ok 107 - refuses a symlinked campaign component without following it
+  ---
+  duration_ms: 513.111416
+  type: 'test'
+  ...
+# Subtest: refuses a symlinked model directory before it reaches graph artifacts
+ok 108 - refuses a symlinked model directory before it reaches graph artifacts
+  ---
+  duration_ms: 508.408125
+  type: 'test'
+  ...
+# Subtest: validate refuses a private plan even when it contains a closure-valid campaign
+ok 109 - validate refuses a private plan even when it contains a closure-valid campaign
+  ---
+  duration_ms: 508.952167
+  type: 'test'
+  ...
+# Subtest: validate refuses a case-aliased private plan before opening it
+ok 110 - validate refuses a case-aliased private plan before opening it
+  ---
+  duration_ms: 531.231958
+  type: 'test'
+  ...
+# Subtest: validate refuses direct and parent-directory plan symlinks
+ok 111 - validate refuses direct and parent-directory plan symlinks
+  ---
+  duration_ms: 1028.739958
+  type: 'test'
+  ...
+# Subtest: prepare refuses catalog and project symlinks
+ok 112 - prepare refuses catalog and project symlinks
+  ---
+  duration_ms: 999.952292
+  type: 'test'
+  ...
+# Subtest: prepare refuses a symlink at the draft destination
+ok 113 - prepare refuses a symlink at the draft destination
+  ---
+  duration_ms: 528.60375
+  type: 'test'
+  ...
+# Subtest: the obsolete side-effect flag cannot bypass pinned Kernel preflight
+ok 114 - the obsolete side-effect flag cannot bypass pinned Kernel preflight
+  ---
+  duration_ms: 9546.659167
+  type: 'test'
+  ...
+# Subtest: run rereads and validates the campaign plan after the Kernel pre-gate instead of executing a stale object
+ok 115 - run rereads and validates the campaign plan after the Kernel pre-gate instead of executing a stale object
+  ---
+  duration_ms: 9739.818875
+  type: 'test'
+  ...
+# Subtest: run fails closed when the current plan drifts after receipt sealing instead of printing a stale verdict
+ok 116 - run fails closed when the current plan drifts after receipt sealing instead of printing a stale verdict
+  ---
+  duration_ms: 17606.243666
+  type: 'test'
+  ...
+# Subtest: run rejects an invalid pinned Kernel workspace before creating campaign artifacts
+ok 117 - run rejects an invalid pinned Kernel workspace before creating campaign artifacts
+  ---
+  duration_ms: 9226.690834
+  type: 'test'
+  ...
+# Subtest: Kernel preflight prevents a hand-built workspace from contacting a failing product
+ok 118 - Kernel preflight prevents a hand-built workspace from contacting a failing product
+  ---
+  duration_ms: 8936.003791
+  type: 'test'
+  ...
+# Subtest: maps exact catalog URN check identities to Kernel-portable artifact directories
+ok 119 - maps exact catalog URN check identities to Kernel-portable artifact directories
+  ---
+  duration_ms: 151.308416
+  type: 'test'
+  ...
+# Subtest: pass results are not rerun and produce a PASS receipt
+ok 120 - pass results are not rerun and produce a PASS receipt
+  ---
+  duration_ms: 57.799
+  type: 'test'
+  ...
+# Subtest: an unresolved self-consistent plan without its private receipt fails before adapter invocation
+ok 121 - an unresolved self-consistent plan without its private receipt fails before adapter invocation
+  ---
+  duration_ms: 12.851542
+  type: 'test'
+  ...
+# Subtest: two matching oracle failures stay needs_review and produce no automatic dossier (QA-01)
+ok 122 - two matching oracle failures stay needs_review and produce no automatic dossier (QA-01)
+  ---
+  duration_ms: 144.6365
+  type: 'test'
+  ...
+# Subtest: an oracle failure followed by pass is flaky and emits no dossier
+ok 123 - an oracle failure followed by pass is flaky and emits no dossier
+  ---
+  duration_ms: 107.71475
+  type: 'test'
+  ...
+# Subtest: secret-bound catalog checks are rejected before the adapter or workspace run
+ok 124 - secret-bound catalog checks are rejected before the adapter or workspace run
+  ---
+  duration_ms: 6.631583
+  type: 'test'
+  ...
+# Subtest: distinct full oracle values do not confirm when their first 500 characters match
+ok 125 - distinct full oracle values do not confirm when their first 500 characters match
+  ---
+  duration_ms: 254.723458
+  type: 'test'
+  ...
+# Subtest: the real Playwright adapter keeps distinct raw oracle failures inconclusive after public truncation
+ok 126 - the real Playwright adapter keeps distinct raw oracle failures inconclusive after public truncation
+  ---
+  duration_ms: 1531.037208
+  type: 'test'
+  ...
+# Subtest: navigation unavailability is environment blocked and emits no dossier
+ok 127 - navigation unavailability is environment blocked and emits no dossier
+  ---
+  duration_ms: 159.873459
+  type: 'test'
+  ...
+# Subtest: an adapter exception is a harness failure and preserves a receipt
+ok 128 - an adapter exception is a harness failure and preserves a receipt
+  ---
+  duration_ms: 32.34725
+  type: 'test'
+  ...
+# Subtest: an action failure before an oracle needs review and emits no dossier
+ok 129 - an action failure before an oracle needs review and emits no dossier
+  ---
+  duration_ms: 92.088667
+  type: 'test'
+  ...
+# Subtest: runs the executable safe subset while preserving exact blocked target accounting
+ok 130 - runs the executable safe subset while preserving exact blocked target accounting
+  ---
+  duration_ms: 53.943834
+  type: 'test'
+  ...
+# Subtest: blocked targets never mask a stronger automated verdict
+    # Subtest: double oracle failure stays inconclusive
+    ok 1 - double oracle failure stays inconclusive
+      ---
+      duration_ms: 103.388459
+      type: 'test'
+      ...
+    # Subtest: environment failure
+    ok 2 - environment failure
+      ---
+      duration_ms: 146.71975
+      type: 'test'
+      ...
+    # Subtest: harness failure
+    ok 3 - harness failure
+      ---
+      duration_ms: 43.453208
+      type: 'test'
+      ...
+    # Subtest: inconclusive retry
+    ok 4 - inconclusive retry
+      ---
+      duration_ms: 123.507083
+      type: 'test'
+      ...
+    1..4
+ok 131 - blocked targets never mask a stronger automated verdict
+  ---
+  duration_ms: 417.969875
+  type: 'test'
+  ...
+# Subtest: zero executable checks and unauthorized side effects fail before filesystem or adapter effects
+ok 132 - zero executable checks and unauthorized side effects fail before filesystem or adapter effects
+  ---
+  duration_ms: 3.787042
+  type: 'test'
+  ...
+# Subtest: mixed verdict precedence keeps HARNESS_FAIL and produces no automatic dossier (QA-01)
+ok 133 - mixed verdict precedence keeps HARNESS_FAIL and produces no automatic dossier (QA-01)
+  ---
+  duration_ms: 152.76975
+  type: 'test'
+  ...
+# Subtest: receipt is written last and hashes read-back public artifacts
+ok 134 - receipt is written last and hashes read-back public artifacts
+  ---
+  duration_ms: 153.918916
+  type: 'test'
+  ...
+# Subtest: public marker values remain structurally valid across JSON campaign artifacts
+ok 135 - public marker values remain structurally valid across JSON campaign artifacts
+  ---
+  duration_ms: 100.073541
+  type: 'test'
+  ...
+# Subtest: low-entropy public markers do not mutate receipt protocol fields
+ok 136 - low-entropy public markers do not mutate receipt protocol fields
+  ---
+  duration_ms: 52.41875
+  type: 'test'
+  ...
+# Subtest: low-entropy public oracle payloads stay needs_review without a dossier (QA-01)
+ok 137 - low-entropy public oracle payloads stay needs_review without a dossier (QA-01)
+  ---
+  duration_ms: 154.896834
+  type: 'test'
+  ...
+# Subtest: synthetic dossier renderer HTML-escapes supplied fields
+ok 138 - synthetic dossier renderer HTML-escapes supplied fields
+  ---
+  duration_ms: 1.077166
+  type: 'test'
+  ...
+# Subtest: synthetic dossier dedupe normalizes equivalent inputs and separates different failures
+ok 139 - synthetic dossier dedupe normalizes equivalent inputs and separates different failures
+  ---
+  duration_ms: 1.161917
+  type: 'test'
+  ...
+# Subtest: runner bounds adapter-provided observations before persisting public JSON
+ok 140 - runner bounds adapter-provided observations before persisting public JSON
+  ---
+  duration_ms: 41.509791
+  type: 'test'
+  ...
+# Subtest: unsafe adapter artifacts produce a finalized immutable HARNESS_FAIL receipt
+ok 141 - unsafe adapter artifacts produce a finalized immutable HARNESS_FAIL receipt
+  ---
+  duration_ms: 44.163292
+  type: 'test'
+  ...
+# Subtest: malformed adapter results become a finalized HARNESS_FAIL receipt
+ok 142 - malformed adapter results become a finalized HARNESS_FAIL receipt
+  ---
+  duration_ms: 45.922292
+  type: 'test'
+  ...
+# Subtest: symlink adapter artifacts are unlinked without touching targets and finalize HARNESS_FAIL
+ok 143 - symlink adapter artifacts are unlinked without touching targets and finalize HARNESS_FAIL
+  ---
+  duration_ms: 50.312875
+  type: 'test'
+  ...
+# Subtest: adapter-created nested result.json is not runner-owned and cannot leak malformed public content
+ok 144 - adapter-created nested result.json is not runner-owned and cannot leak malformed public content
+  ---
+  duration_ms: 107.823084
+  type: 'test'
+  ...
+# Subtest: adapter-created dossiers/raw.zip is never trusted and finalizes without leaked public bytes
+ok 145 - adapter-created dossiers/raw.zip is never trusted and finalizes without leaked public bytes
+  ---
+  duration_ms: 41.073625
+  type: 'test'
+  ...
+# Subtest: later adapter replacement of a runner-owned result is untrusted and finalizes HARNESS_FAIL
+ok 146 - later adapter replacement of a runner-owned result is untrusted and finalizes HARNESS_FAIL
+  ---
+  duration_ms: 70.175833
+  type: 'test'
+  ...
+# Subtest: prepares exactly one placeholder suggestion for each graph coverage target
+ok 147 - prepares exactly one placeholder suggestion for each graph coverage target
+  ---
+  duration_ms: 18.40025
+  type: 'test'
+  ...
+# Subtest: rejects an omitted graph target
+ok 148 - rejects an omitted graph target
+  ---
+  duration_ms: 2.50075
+  type: 'test'
+  ...
+# Subtest: rejects an unknown target
+ok 149 - rejects an unknown target
+  ---
+  duration_ms: 0.497833
+  type: 'test'
+  ...
+# Subtest: rejects duplicate check IDs
+ok 150 - rejects duplicate check IDs
+  ---
+  duration_ms: 0.665875
+  type: 'test'
+  ...
+# Subtest: rejects an overlapped target when another graph target is thereby omitted
+ok 151 - rejects an overlapped target when another graph target is thereby omitted
+  ---
+  duration_ms: 0.442958
+  type: 'test'
+  ...
+# Subtest: accounts for every catalog check even when several checks cover one target
+ok 152 - accounts for every catalog check even when several checks cover one target
+  ---
+  duration_ms: 6.74325
+  type: 'test'
+  ...
+# Subtest: rejects a plan bound to another graph digest
+ok 153 - rejects a plan bound to another graph digest
+  ---
+  duration_ms: 0.738
+  type: 'test'
+  ...
+# Subtest: rejects catalog authority bound to another registered product profile
+ok 154 - rejects catalog authority bound to another registered product profile
+  ---
+  duration_ms: 14.642417
+  type: 'test'
+  ...
+# Subtest: accepts only an origin-root campaign base URL
+ok 155 - accepts only an origin-root campaign base URL
+  ---
+  duration_ms: 6.35
+  type: 'test'
+  ...
+# Subtest: rejects a foreign product, environment origin, and known catalog check-target drift
+ok 156 - rejects a foreign product, environment origin, and known catalog check-target drift
+  ---
+  duration_ms: 7.902916
+  type: 'test'
+  ...
+# Subtest: rejects catalog contents changed without resealing the semantic digest
+ok 157 - rejects catalog contents changed without resealing the semantic digest
+  ---
+  duration_ms: 0.936458
+  type: 'test'
+  ...
+# Subtest: requires the full Kernel catalog authority fields and nonempty provenance
+ok 158 - requires the full Kernel catalog authority fields and nonempty provenance
+  ---
+  duration_ms: 1.629583
+  type: 'test'
+  ...
+# Subtest: authorizes executable checks only from exact resolved Playwright catalog entries
+ok 159 - authorizes executable checks only from exact resolved Playwright catalog entries
+  ---
+  duration_ms: 12.326416
+  type: 'test'
+  ...
+# Subtest: executes an unresolved catalog oracle only with an exact human approval receipt
+ok 160 - executes an unresolved catalog oracle only with an exact human approval receipt
+  ---
+  duration_ms: 51.036416
+  type: 'test'
+  ...
+# Subtest: forbids a human oracle approval when the registered catalog oracle is already resolved
+ok 161 - forbids a human oracle approval when the registered catalog oracle is already resolved
+  ---
+  duration_ms: 0.453417
+  type: 'test'
+  ...
+# Subtest: keeps secret-bearing and otherwise ineligible catalog targets blocked in public-only V0
+ok 162 - keeps secret-bearing and otherwise ineligible catalog targets blocked in public-only V0
+  ---
+  duration_ms: 1.822541
+  type: 'test'
+  ...
+# Subtest: requires API plans to use the API catalog candidate and evidence route
+ok 163 - requires API plans to use the API catalog candidate and evidence route
+  ---
+  duration_ms: 18.213042
+  type: 'test'
+  ...
+# Subtest: fill and select admit bounded public literals without changing legacy environment values
+ok 164 - fill and select admit bounded public literals without changing legacy environment values
+  ---
+  duration_ms: 3.530375
+  type: 'test'
+  ...
+# Subtest: public literal input closes against the catalog without acquiring a secret capability
+ok 165 - public literal input closes against the catalog without acquiring a secret capability
+  ---
+  duration_ms: 1.001041
+  type: 'test'
+  ...
+# Subtest: rejects a changed graph that reuses an earlier semantic digest before it can close a smaller denominator
+ok 166 - rejects a changed graph that reuses an earlier semantic digest before it can close a smaller denominator
+  ---
+  duration_ms: 0.248875
+  type: 'test'
+  ...
+# Subtest: rejects unsupported native check surfaces
+ok 167 - rejects unsupported native check surfaces
+  ---
+  duration_ms: 0.247334
+  type: 'test'
+  ...
+# Subtest: rejects an unresolved draft placeholder in a final plan
+ok 168 - rejects an unresolved draft placeholder in a final plan
+  ---
+  duration_ms: 0.205958
+  type: 'test'
+  ...
+# Subtest: rejects prohibited campaign side effects
+ok 169 - rejects prohibited campaign side effects
+  ---
+  duration_ms: 0.191
+  type: 'test'
+  ...
+# Subtest: requires reproduction metadata for every executable check
+ok 170 - requires reproduction metadata for every executable check
+  ---
+  duration_ms: 0.208208
+  type: 'test'
+  ...
+# Subtest: rejects unsafe campaign origins and cross-origin browser paths
+ok 171 - rejects unsafe campaign origins and cross-origin browser paths
+  ---
+  duration_ms: 0.363041
+  type: 'test'
+  ...
+# Subtest: rejects unsafe runner identifiers and prototype-traversing JSON paths
+ok 172 - rejects unsafe runner identifiers and prototype-traversing JSON paths
+  ---
+  duration_ms: 0.612292
+  type: 'test'
+  ...
+# Subtest: declares browser response status assertions for the allowlisted adapter
+ok 173 - declares browser response status assertions for the allowlisted adapter
+  ---
+  duration_ms: 0.167792
+  type: 'test'
+  ...
+# Subtest: allows two checks to cover the exact graph denominator
+ok 174 - allows two checks to cover the exact graph denominator
+  ---
+  duration_ms: 0.162167
+  type: 'test'
+  ...
+# Subtest: accounts for a named blocker but does not call the campaign runnable
+ok 175 - accounts for a named blocker but does not call the campaign runnable
+  ---
+  duration_ms: 1.587625
+  type: 'test'
+  ...
+# Subtest: workspace artifact containment rejects lexical and symlink escapes
+ok 176 - workspace artifact containment rejects lexical and symlink escapes
+  ---
+  duration_ms: 36.471542
+  type: 'test'
+  ...
+# Subtest: qa-campaign subprocess timeout terminates a hanging process
+ok 177 - qa-campaign subprocess timeout terminates a hanging process
+  ---
+  duration_ms: 3272.878667
+  type: 'test'
+  ...
+# Subtest: a canonical HTTPS Task 2 registration compiles into one Web baseline and explicit non-Web gaps
+ok 178 - a canonical HTTPS Task 2 registration compiles into one Web baseline and explicit non-Web gaps
+  ---
+  duration_ms: 56275.665041
+  type: 'test'
+  ...
+# Subtest: the generated loopback baseline cannot launch without its private receipt and then runs real Chromium with digest evidence
+ok 179 - the generated loopback baseline cannot launch without its private receipt and then runs real Chromium with digest evidence
+  ---
+  duration_ms: 3110.167416
+  type: 'test'
+  ...
+# Subtest: the public two-target runner retains Chromium failure evidence for agent review without auto-confirming a bug
+ok 180 - the public two-target runner retains Chromium failure evidence for agent review without auto-confirming a bug
+  ---
+  duration_ms: 1855.268417
+  type: 'test'
+  ...
+# Subtest: removing either exact graph target fails before adapter invocation and creates no dossier
+ok 181 - removing either exact graph target fails before adapter invocation and creates no dossier
+  ---
+  duration_ms: 5.283333
+  type: 'test'
+  ...
+1..181
+# tests 257
+# suites 0
+# pass 257
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 96908.780292

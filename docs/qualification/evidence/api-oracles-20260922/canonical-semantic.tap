@@ -1,0 +1,100 @@
+TAP version 13
+# Subtest: media_type requires an exact bare media type without rewriting its bytes
+ok 1 - media_type requires an exact bare media type without rewriting its bytes
+  ---
+  duration_ms: 2.423667
+  type: 'test'
+  ...
+# Subtest: json_pointer accepts plain RFC 6901 tokens, preserves bytes, and rejects unsafe paths
+ok 2 - json_pointer accepts plain RFC 6901 tokens, preserves bytes, and rejects unsafe paths
+  ---
+  duration_ms: 0.7965
+  type: 'test'
+  ...
+# Subtest: json_pointer requires a JSON expected value, including explicit null
+ok 3 - json_pointer requires a JSON expected value, including explicit null
+  ---
+  duration_ms: 0.251667
+  type: 'test'
+  ...
+# Subtest: legacy assertion parsing is unchanged
+ok 4 - legacy assertion parsing is unchanged
+  ---
+  duration_ms: 0.712083
+  type: 'test'
+  ...
+# Subtest: json_pointer never strips prototype-sensitive expected keys into a weaker oracle
+ok 5 - json_pointer never strips prototype-sensitive expected keys into a weaker oracle
+  ---
+  duration_ms: 26.18675
+  type: 'test'
+  ...
+# Subtest: json_pointer expected-value validation preserves plain data and never evaluates accessors
+ok 6 - json_pointer expected-value validation preserves plain data and never evaluates accessors
+  ---
+  duration_ms: 0.397417
+  type: 'test'
+  ...
+# Subtest: media_type matches type/subtype across case, OWS and valid parameters over real HTTP
+ok 7 - media_type matches type/subtype across case, OWS and valid parameters over real HTTP
+  ---
+  duration_ms: 99.897958
+  type: 'test'
+  ...
+# Subtest: media_type rejects absent, malformed, wrong and duplicate Content-Type fields
+ok 8 - media_type rejects absent, malformed, wrong and duplicate Content-Type fields
+  ---
+  duration_ms: 115.23125
+  type: 'test'
+  ...
+# Subtest: media_type does not replace exact legacy header, text, or status assertions
+ok 9 - media_type does not replace exact legacy header, text, or status assertions
+  ---
+  duration_ms: 31.593958
+  type: 'test'
+  ...
+# Subtest: json_pointer resolves escaped route keys, empty keys, literal tokens and arrays over real HTTP
+ok 10 - json_pointer resolves escaped route keys, empty keys, literal tokens and arrays over real HTTP
+  ---
+  duration_ms: 126.079917
+  type: 'test'
+  ...
+# Subtest: json_pointer distinguishes missing, null, scalar types, deep object equality and array order
+ok 11 - json_pointer distinguishes missing, null, scalar types, deep object equality and array order
+  ---
+  duration_ms: 152.064584
+  type: 'test'
+  ...
+# Subtest: json_pointer parses JSON strictly and accepts scalar roots without traversing them
+ok 12 - json_pointer parses JSON strictly and accepts scalar roots without traversing them
+  ---
+  duration_ms: 98.237125
+  type: 'test'
+  ...
+# Subtest: invalid or prototype-sensitive assertions fail before any HTTP request
+ok 13 - invalid or prototype-sensitive assertions fail before any HTTP request
+  ---
+  duration_ms: 45.293292
+  type: 'test'
+  ...
+# Subtest: semantic assertion evidence keeps response bodies and parameter values out of public artifacts
+ok 14 - semantic assertion evidence keeps response bodies and parameter values out of public artifacts
+  ---
+  duration_ms: 17.679417
+  type: 'test'
+  ...
+# Subtest: new assertions round-trip real runner receipts through the persisted reader, with unchanged verdicts
+ok 15 - new assertions round-trip real runner receipts through the persisted reader, with unchanged verdicts
+  ---
+  duration_ms: 626.785584
+  type: 'test'
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 15
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1999.364042

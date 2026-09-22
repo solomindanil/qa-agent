@@ -9,7 +9,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `aa5d2d188606cbcf7e3111c130347a36970ec786` | Active; paired [observation implementation](agent-observations-20260920.md) |
-| Console | `94083bf55d3237b6e60870211b034bfbc4b9dcc2` | Active; [ordinary status repair](ordinary-campaign-status-20260921.md); prior [reference correction](observation-skill-reference-20260920.md) retained |
+| Console | `8065713fba11446e32ec2f76832d65110550989b` | Active; [API semantic assertions](api-oracles-20260922.md); prior [ordinary status repair](ordinary-campaign-status-20260921.md) and [reference correction](observation-skill-reference-20260920.md) retained |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
@@ -48,9 +48,13 @@ graph detection gain is zero in this pair. AQA caught an incomplete HTTP200 HTML
 oracle before execution; initial and corrected designs remain separate. Follow
 the report's final review status. This is not publication into rw-int or complete
 P4/P5. A reusable opt-in browser regression is delivered without runtime changes.
-The next bounded implementation candidate is complete API oracle expression in
-the existing adapter (media type and escaped JSON object keys), subject to design
-review and counterexamples—not a new runner or another prompt-only experiment.
+The approved [API-oracle slice](api-oracles-20260922.md) now adds strict media type
+and escaped JSON object-key assertions to the existing adapter and readback,
+with counterexamples and independent AQA review. Legacy rules remain unchanged;
+this is not a new runner or full P2/P5 acceptance. Next, qualify a fresh consumer
+authoring a complete API contract from this source against healthy and
+contradictory controls, including a correct-media/wrong-content response. This
+must be a new bound fixture/campaign, never a rewrite of retained consumer plans.
 Resume the exact live guest check only after actual readiness, preserving other
 owners' scope. Do not take over an active product campaign or repeat a capture-only
 baseline.
