@@ -76,6 +76,15 @@ PASS. Ответа человека не было; это не закрывае�
 и ограничения — в отчёте. Следующий больший выход — разрешённый live mixed batch
 у существующего product owner, с реальными, а не искусственно созданными
 help-dependent gaps и дальнейшим remaining-only продолжением. P3/P5 остаются открыты.
+Последующий [live mixed-ticket batch](../../qualification/live-mixed-tickets-20260922.md)
+выбрал три тикета rw-int, сохранив шесть обязательств: один PASS сохранённых
+UI-статусов, три PARTIAL и два fixture BLOCKED. Содержательно проверены два
+тикета; у F06 проверена только доступность исходной формы. AQA до исполнения
+сузил ложный lifecycle-oracle до чтения существующего состояния. Окончательные
+review/gates — в отчёте; whole-ticket FIXED, human-help/resume и свежий remaining
+execution не приняты. Следующий шаг — подходящие scoped fixtures/contracts для
+этих остатков, а не повтор успешных проверок или несанкционированное создание
+подключений, онбординга и AI-запусков. P3/P5 по-прежнему открыты.
 
 **Status — актуализация entry 21 сентября 2026:** это действующий план P0–P7, не новый набор полномочий. Source выбирает [manifest](../../../sources/manifest.v1.json), следующую задачу и ограничения — [current checkpoint](../../qualification/current.md). Приняты Kernel `aa5d2d1`, Console `94083bf`, Freeland `0ea2df1`; reporting `10d398d` неактивен. P0-ремонты и P1 writer/reader/reference входят в выбранные successors; ограниченное реальное продолжение свежим агентом принято, но это не закрывает весь P1 или общий end-to-end scope. P0–P7 в целом не завершены. Source selection не мигрирует campaigns/skills и не даёт product/cloud authority. Остальные датированные implementation/adoption-описания ниже сохраняют состояние своих ревью, а не переопределяют текущую очередь: не повторять завершённые P0/P1 действия по старым словам «начать» или «pending». Все obligations и acceptance gates сохраняются. [Исходные bytes до entry-правки](2026-09-16-cross-product-qa-global-plan.3accb18.snapshot.md) сохранены отдельно.
 

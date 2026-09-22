@@ -66,10 +66,17 @@ four partial keyboard obligations and a passing menu open/Escape control.
 There was no human reply; do not count independent recovery as the complete
 help/resume exit. Follow the report's final review status. The old guest help
 request is no longer needed for pointer execution; do not repeat this subset.
-Next select a bounded live mixed-ticket batch under the existing product owner's
-scope, preserving genuinely help-dependent gaps and remaining-only recovery.
-Do not invent a human blocker for qualification, take over an active campaign or
-repeat a capture-only baseline.
+The subsequent [live mixed-ticket batch](live-mixed-tickets-20260922.md) selected
+three rw-int tickets and retained six obligations: one visible-status PASS,
+three PARTIAL and two fixture BLOCKED. Two tickets received substantive UI checks;
+F06 received a fixture check only. AQA narrowed an overbroad snapshot/lifecycle
+oracle before execution; follow the report's final review status. No whole-ticket
+FIXED, human-help/resume, fresh-context execution or complete P3/P5 is claimed.
+Next resolve only the genuine fixture/contract gaps under the existing owner:
+seeded connector state, unsubmitted onboarding, applicable artifact result and
+retryability. Do not recreate them or run AI/providers without separate authority.
+Preserve remaining-only scope; do not invent human participation, take over the
+campaign, repeat completed subsets or substitute another capture-only baseline.
 The existing same-host A-done/B-unknown/C-pending recovery was already accepted in
 its bounded scope; repeating it is compatibility evidence, not a newly completed
 P3 milestone. Another guidance-only reconstruction loop is not the next step.
