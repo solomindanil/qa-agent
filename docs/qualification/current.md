@@ -59,9 +59,17 @@ were detected, including correct-media/wrong-content. Exact-run readback retaine
 all gaps and non-PASS campaign verdicts. Follow the report's final review status;
 this is one documentation-assisted synthetic sample, not hidden transfer or full
 P2/P5. The original consumer plans remain unchanged; do not repeat this slice.
-Resume the exact live guest check only after actual readiness, preserving other
-owners' scope. Do not take over an active product campaign or repeat a capture-only
-baseline.
+The subsequent [real guest continuation](live-guest-continuation-20260922.md)
+recovered the guest prerequisite through native Chrome without changing the
+owner session and ran only the remaining F01 checks: four pointer failures,
+four partial keyboard obligations and a passing menu open/Escape control.
+There was no human reply; do not count independent recovery as the complete
+help/resume exit. Follow the report's final review status. The old guest help
+request is no longer needed for pointer execution; do not repeat this subset.
+Next select a bounded live mixed-ticket batch under the existing product owner's
+scope, preserving genuinely help-dependent gaps and remaining-only recovery.
+Do not invent a human blocker for qualification, take over an active campaign or
+repeat a capture-only baseline.
 The existing same-host A-done/B-unknown/C-pending recovery was already accepted in
 its bounded scope; repeating it is compatibility evidence, not a newly completed
 P3 milestone. Another guidance-only reconstruction loop is not the next step.

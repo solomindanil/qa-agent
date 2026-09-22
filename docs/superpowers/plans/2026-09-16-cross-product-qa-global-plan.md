@@ -68,7 +68,14 @@ non-PASS campaign verdicts сохранены в exact-run readback; оконч�
 и границы — в отчёте. Это documentation-assisted synthetic sample, не скрытый
 transfer, новый runner или весь P2/P5. Старые планы/receipts не переписаны;
 повтор этой фикстуры не является следующим milestone.
-Реальный help/resume всё ещё ждёт readiness.
+Последующий [реальный guest-continuation](../../qualification/live-guest-continuation-20260922.md)
+самостоятельно снял гостевой блокер через доступный Chrome-профиль и выполнил
+только остаток F01: четыре pointer FAIL, четыре keyboard PARTIAL, menu open/Escape
+PASS. Ответа человека не было; это не закрывает human-help exit. Старый запрос
+гостевой формы больше не нужен для pointer-проверок. Окончательные review/gates
+и ограничения — в отчёте. Следующий больший выход — разрешённый live mixed batch
+у существующего product owner, с реальными, а не искусственно созданными
+help-dependent gaps и дальнейшим remaining-only продолжением. P3/P5 остаются открыты.
 
 **Status — актуализация entry 21 сентября 2026:** это действующий план P0–P7, не новый набор полномочий. Source выбирает [manifest](../../../sources/manifest.v1.json), следующую задачу и ограничения — [current checkpoint](../../qualification/current.md). Приняты Kernel `aa5d2d1`, Console `94083bf`, Freeland `0ea2df1`; reporting `10d398d` неактивен. P0-ремонты и P1 writer/reader/reference входят в выбранные successors; ограниченное реальное продолжение свежим агентом принято, но это не закрывает весь P1 или общий end-to-end scope. P0–P7 в целом не завершены. Source selection не мигрирует campaigns/skills и не даёт product/cloud authority. Остальные датированные implementation/adoption-описания ниже сохраняют состояние своих ревью, а не переопределяют текущую очередь: не повторять завершённые P0/P1 действия по старым словам «начать» или «pending». Все obligations и acceptance gates сохраняются. [Исходные bytes до entry-правки](2026-09-16-cross-product-qa-global-plan.3accb18.snapshot.md) сохранены отдельно.
 
