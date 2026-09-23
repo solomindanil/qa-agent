@@ -19,4 +19,6 @@ The reference now distinguishes the verified readback already returned by `recor
 
 The complete-history Console bundle is `sources/candidates/console-observation-readback-a945711.bundle`, SHA-256 `dd8a4f345410b57c0b6369fec30785e9e9949d4b249240f276e4847a75865e16`; its advertised tip is the exact selected commit and its tree is `e955cac8352ec311e3aabe6e4a2eaba48a4b6441`. The prior API-oracle qualification retains its own source attribution. Existing campaigns retain frozen owner runtimes.
 
+After root commit `4dcc43b`, an independent `git clone --no-local` restored all four bundled components and passed a second `sources:verify`. Its root packaging gate passed 61/61 with zero failures/skips in 41.26 seconds; the cold root and restored Console remained clean. This verifies portable source bytes, not an installed host skill or product behavior.
+
 The W2b diagnostic that motivated this change measured a 12.09–15.04-second separate CLI read of the same local API fixture, while direct Kernel read took about 1.61 seconds. Three repeated checkout-authority checks accounted for most of that CLI gap and were not weakened. The broader paired trial timed out in Console bridge; browser/MCP measurement and live remaining-only W1 are still open. This reference correction does not complete W2b, install skills, execute a product, update a tracker, or authorize cloud use.
