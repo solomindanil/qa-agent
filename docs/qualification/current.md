@@ -9,7 +9,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `aa5d2d188606cbcf7e3111c130347a36970ec786` | Active; paired [observation implementation](agent-observations-20260920.md) |
-| Console | `8065713fba11446e32ec2f76832d65110550989b` | Active; [API semantic assertions](api-oracles-20260922.md); prior [ordinary status repair](ordinary-campaign-status-20260921.md) and [reference correction](observation-skill-reference-20260920.md) retained |
+| Console | `a94571175ca893a5a66eafb5c3d06801238ad04d` | Active; [observation readback reference](observation-readback-reference-20260923.md), documentation only. Prior [API semantic assertions](api-oracles-20260922.md), [ordinary status repair](ordinary-campaign-status-20260921.md) and [reference correction](observation-skill-reference-20260920.md) retain their attribution. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 

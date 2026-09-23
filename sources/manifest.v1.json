@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "8065713fba11446e32ec2f76832d65110550989b",
-      "tree": "a836c6072f8b8600df3300deead925772d73438f",
-      "bundle": "sources/candidates/console-api-oracles-8065713.bundle",
-      "sha256": "e4789e60284fd4f6f8f8446db59a3b955f95a4da11c2d3174014eb19d85747fb",
+      "commit": "a94571175ca893a5a66eafb5c3d06801238ad04d",
+      "tree": "e955cac8352ec311e3aabe6e4a2eaba48a4b6441",
+      "bundle": "sources/candidates/console-observation-readback-a945711.bundle",
+      "sha256": "dd8a4f345410b57c0b6369fec30785e9e9949d4b249240f276e4847a75865e16",
       "runtimeAuthority": true,
-      "qualification": "API-oracle successor to94083bf: strict media_type and safe plain json_pointer in existing adapter and persisted reader. Non-transforming expected JSON validation fixes review-discovered false PASS; legacy assertions and classification unchanged. Independent Lead AQA GO after repair; compatibility257/257, final semantic/fresh-process reader15/15, typecheck, scoped lint and build passed (Vite warnings retained). Exact source/delivery and exclusions: docs/qualification/api-oracles-20260922.md. Prior ordinary-status qualification remains historical. Kernel aa5d2d1 and source skills unchanged. No installed-skill update, campaign migration, live-product acceptance, full-suite, hosted CI or cloud qualification."
+      "qualification": "Documentation-only successor to8065713: both qa-product-v0 observation references clarify that record-observation already returns verified readback, while independent read-observation remains for fresh actors and recovery. Reference RED/GREEN and mirrored bundle test2/2 passed; quick_validate.py unavailable without PyYAML. Runtime, schemas, provenance checks, and Kernel aa5d2d1 unchanged. Exact delivery and limits: docs/qualification/observation-readback-reference-20260923.md. API-oracle qualification at8065713 remains historical. No installed-skill update, campaign migration, live-product acceptance, full-suite, hosted CI or cloud qualification."
     },
     {
       "id": "freeland",
