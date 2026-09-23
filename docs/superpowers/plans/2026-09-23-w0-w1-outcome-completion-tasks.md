@@ -84,7 +84,7 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 
 **Результат:** fixture.mjs + fixture.test.mjs + run.mjs. Source-only; никаких production claims.
 
-- [ ] **3.1 RED** Создать следующий тест до fixture.mjs и выполнить `node --test evals/outcome-completion/fixture.test.mjs`. Первое падение — отсутствующий fixture module; после stub полезный RED должен быть на поведении.
+- [x] **3.1 RED** Создать следующий тест до fixture.mjs и выполнить `node --test evals/outcome-completion/fixture.test.mjs`. Первое падение — отсутствующий fixture module; после stub полезный RED должен быть на поведении.
 
     import { test } from 'node:test';
     import assert from 'node:assert/strict';
@@ -117,7 +117,7 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
       }
     });
 
-- [ ] **3.2 GREEN** Реализовать target следующим содержимым; пути и ответы — только контракт T2.
+- [x] **3.2 GREEN** Реализовать target следующим содержимым; пути и ответы — только контракт T2.
 
     import { createServer } from 'node:http';
 
@@ -334,7 +334,7 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 - [x] **6.1** Сохранить исходные actor/reviewer outputs в новом private run root. Для каждого из четырёх trial записать fixture revision, фактические действия, время capture, observed outcome по G/Q/P, помощь и ограничения. Не присваивать synthetic наблюдениям IDs реального продукта.
 - [x] **6.2** Подготовить sanitized runs/w0-w1-first/README.md по этим исходным данным: первая попытка и исправления отдельно; fixture controls и actor performance отдельно. Это local unattested trial, не managed receipt и не product PASS.
 - [ ] **6.3** Для выбранного в T1 live owner прочитать его полный selected skill и required references. Если это Starter observation lane, прочитать agent-observations.md выбранной версии и подтвердить существующие publication/target bindings; для Freeland использовать его собственный evidence path. Ничего не регистрировать заново.
-- [ ] **6.4** Новый reader-контекст читает trial record и актуальный checkpoint live owner. До действий перечисляет completed/partial/unobserved и конкретный остаток. Ошибка чтения означает blocker, а не отсутствие observations. Если предыдущий write имеет unknown outcome, сначала readback существующего ID/bytes, не повтор с новым временем.
+- [x] **6.4** Новый reader-контекст читает trial record и актуальный checkpoint live owner. До действий перечисляет completed/partial/unobserved и конкретный остаток. Ошибка чтения означает blocker, а не отсутствие observations. Если предыдущий write имеет unknown outcome, сначала readback существующего ID/bytes, не повтор с новым временем.
 
 **Проверка:** trial переносим без устной подсказки, реальный scope не заменён synthetic scope. Фактический managed append/readback проверяется только на результате T7; T6 сама его не доказывает.
 
@@ -375,16 +375,16 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 
 **Результат:** отдельные итоги fixture integrity, actor quality, storage и live continuation; не общий зелёный total.
 
-- [ ] **8.1** Выполнить scoped gates: `node --test evals/outcome-completion/fixture.test.mjs`, `node --test evals/outcome-completion/browser.test.mjs`, root `npm test`, `npm run sources:verify`. Не запускать default child npm test или продуктовые suites.
+- [x] **8.1** Выполнить scoped gates: `node --test evals/outcome-completion/fixture.test.mjs`, `node --test evals/outcome-completion/browser.test.mjs`, root `npm test`, `npm run sources:verify`. Не запускать default child npm test или продуктовые suites.
 - [x] **8.2** В runs/w0-w1-first/README.md сохранить actual source/host/model, первые ошибки и помощь, reviewer verdict по каждой задаче, counts/время и границы. Приватные URLs/account/session/managed state не публиковать.
-- [ ] **8.3** Независимое итоговое review проверяет T2→T4 неизменность expectations и T5/T6/T7 достаточность. Без T7 отметить «controlled W1 принят, live W1 pending», не закрывать весь W1/P3/P5.
-- [ ] **8.4** Обновить current checkpoint фактом, а не будущим обещанием; сохранить только проверенный разрешённый diff отдельным логическим коммитом. Pins и чужие изменения не добавлять. Push/PR отдельно.
+- [x] **8.3** Независимое итоговое review проверяет T2→T4 неизменность expectations и T5/T6/T7 достаточность. Без T7 отметить «controlled W1 принят, live W1 pending», не закрывать весь W1/P3/P5.
+- [x] **8.4** Обновить current checkpoint фактом, а не будущим обещанием; сохранить только проверенный разрешённый diff отдельным логическим коммитом. Pins и чужие изменения не добавлять. Push/PR отдельно.
 
 ## Самопроверка плана и handoff
 
 - Восемь задач имеют отдельные результаты; шаги внутри — отдельные действия. Нельзя принять fixture unit tests за самостоятельный QA.
 - T1/T2 покрываютW0; T3/T4/T5/T6/T7 покрывают три пары и actual remaining consumerW1; T8 фиксирует предел принятия.
 - Будущие fixture API определены здесь; существующие status/observation команды сверены с selected Console. Это не обещание одинаковых CLI у всех historical owners.
-- T3/T4 code из плана ещё не создан и не исполнен. Если reviewer выявит нужный новый интерфейс/серьёзное расширение, исправить bounded design до implementation.
+- T3/T4 реализованы и проверены (fixture2/2, browser4/4); исходный предложенный код выше сохранён как история дизайна. Исполняемые файлы и execution correction в Review Focus — актуальный результат; повторная реализация не требуется. Live T7 остаётся pending.
 - Дополнительные quote/UI mutation, live fixture и owner gaps не маскируются новой инфраструктурой. Нет точного будущего live caseID, пока он не разрешён актуальным owner; T1/T7 имеют явную процедуру выбора, а не вымышленную запись.
 - Для исполнения этого связанного небольшого пакета достаточно inline implementer + отдельные test-design/final reviews; свежий actor T5/T7 нужен именно для оценки поведения. Режим исполнения подтверждается при передаче к реализации.

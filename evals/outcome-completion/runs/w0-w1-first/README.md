@@ -2,7 +2,7 @@
 
 ## Status and boundaries
 
-Controlled execution completed; final independent AQA review pending. **Live W1 remains pending**, so W1/P3/P5/global acceptance is not closed. This package adds opt-in local evaluations, not a changed product runner, installed skill, model router or managed verdict engine.
+Controlled execution completed; independent final AQA gave GO for the bounded local slice at a9168faa071c063c689aa862af15d3af10fd1693, with no Critical/Important code findings. **Live W1 remains pending**, so W1/P3/P5/global acceptance is not closed. This package adds opt-in local evaluations, not a changed product runner, installed skill, model router or managed verdict engine.
 
 Implementation: `d9d7c997798b89fe347a3cb6fb9ee4ca43b6a6c6`; initial base `7aa1b2498875b498c4370c513065b4fe265d1fd6`; contract/plan commit `4236ad8`. Host: local macOS, Node/Playwright Chromium already present. Four fresh actors: gpt-6-sol, medium; independent test-design AQA reviewed before execution. Warm dependencies were reused explicitly; no installation or cold-dependency qualification.
 
@@ -44,5 +44,6 @@ Read-only capture 06:19:02.415–06:22:10.366 UTC took 187951 ms in one concurre
 
 An authenticated owner-browser capability is unavailable in this task. No current build/account readback or new live action was obtained. Local fresh Playwright is not the owner's authenticated session. T7 stays pending until a supported authenticated owner context can name and execute one authorized remaining assertion, preserve original scope, and record/read back through its accepted lane. No token copying, replacement registration or new synthetic product action is warranted.
 
-Next: finish independent branch/readback review; keep live W1 open. Then resume T7 through the owner capability, before claiming full W1 completion. W2–W9 are not implemented by this slice.
+Final AQA independently inspected all actor originals/captures, verified 53 private artifact hashes, reran 6/6 controls and source verification. Original design-review responses were retrieved verbatim from the original reviewer after execution and retained separately; retrieval is not independent review-timestamp attestation. Its fresh reader confirmed 20 targets and distinguished five latest passed observations / three partial from whole-target acceptance.
 
+Two documentation notes: stale T3/T4 status was regraded as consequential handoff misinformation and corrected with a failing-then-passing status check; the cosmetic extra EOF blank line remains deferred (whole-range diff-check warning, not a runtime failure). No implementation re-review loop. Next: resume T7 through the owner capability before claiming full W1 completion. W2–W9 are not implemented by this slice.
