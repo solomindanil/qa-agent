@@ -4,22 +4,22 @@
     {
       "id": "kernel",
       "path": "components/kernel",
-      "commit": "aa5d2d188606cbcf7e3111c130347a36970ec786",
-      "tree": "26c649acb36dae2739e00af0c8baee142ecfd569",
-      "bundle": "sources/candidates/kernel-agent-observations-aa5d2d1.bundle",
-      "sha256": "195841c00d83fed459635c418d15b8c584ae8c15a14e0a53a158aa20250ecf17",
+      "commit": "a0a20e65b3290e6bbf5afe91d0e45ed372389adb",
+      "tree": "1673f3edc3199d814f2c634e41278e9db3d60d39",
+      "bundle": "sources/candidates/kernel-w2a-snapshot-a0a20e6.bundle",
+      "sha256": "8a26e2c4bfba9736017306615fd80b3cb3b4e587e646568cd64faa95523c7979",
       "runtimeAuthority": true,
-      "qualification": "P1 reviewed agent-authored observation successor to185d3e7. Existing publication/private store reused; text JSON only, zero attachments, immutable observations and full target report. Lead AQA fixes accepted; focused13/13 plus complete-owner control1/1, typecheck/build passed. Paired Console48e4628 actual CLI/fresh-process/default-bridge/Coverage fixture passed. This is stored caller-authored/unattested evidence, never managed PASS or GO. Exact gates, historical attribution, source restoration and remaining live-consumer limits: docs/qualification/agent-observations-20260920.md. No product execution, installed-skill or campaign migration, cold dependency or cloud qualification."
+      "qualification": "W2a source-only successor to aa5d2d1: both generated current-plan views identify a registration planning snapshot and point to Console readCampaignPlan plus separate QaCampaignPlanV0Schema.parse; no Kernel plan reader or synchronizer. Owning RED/GREEN, blueprint40/40, expanded149/149, typecheck/build and source packaging passed. Full npm run verify is NOT GREEN: one registration-service 120s timeout was reported and the run was interrupted at 20m (exit130); isolated changed/baseline cases passed near timeout. Existing observation semantics remain caller-authored/unattested. Exact results and limits: docs/qualification/w2a-registration-snapshot-adoption-20260924.md. No product execution, installed-skill or campaign migration, full-suite, cloud or live W1/T7 qualification."
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "a94571175ca893a5a66eafb5c3d06801238ad04d",
-      "tree": "e955cac8352ec311e3aabe6e4a2eaba48a4b6441",
-      "bundle": "sources/candidates/console-observation-readback-a945711.bundle",
-      "sha256": "dd8a4f345410b57c0b6369fec30785e9e9949d4b249240f276e4847a75865e16",
+      "commit": "f75d9630edd599d9fd9bfbfbf5faf195e25db685",
+      "tree": "6a8b61ccd0914bdc6b963a2843049fa50158eda7",
+      "bundle": "sources/candidates/console-w2a-snapshot-f75d963.bundle",
+      "sha256": "e0cc267a15baff8034223ec74532f89d0e17052de5032ec68359d609947687fa",
       "runtimeAuthority": true,
-      "qualification": "Documentation-only successor to8065713: both qa-product-v0 observation references clarify that record-observation already returns verified readback, while independent read-observation remains for fresh actors and recovery. Reference RED/GREEN and mirrored bundle test2/2 passed; quick_validate.py unavailable without PyYAML. Runtime, schemas, provenance checks, and Kernel aa5d2d1 unchanged. Exact delivery and limits: docs/qualification/observation-readback-reference-20260923.md. API-oracle qualification at8065713 remains historical. No installed-skill update, campaign migration, live-product acceptance, full-suite, hosted CI or cloud qualification."
+      "qualification": "W2a exact-pin successor to a945711, paired only with Kernel a0a20e6. Existing readCampaignPlan returns unknown; separate QaCampaignPlanV0Schema.parse validates. Controlled absent-to-authored-to-CAS-revised fixture preserves authoritative digest, pre-CAS V0 bytes and blockers; snapshot stays a snapshot. Old Kernel rejected; corrected isolated portability3/3, lifecycle/authority22/22, API/observation/status76/76 and nonincremental typecheck passed. Initial combined22/23 had only missing portability invocation prerequisites. Prior observation reference and API/status qualifications retain attribution. Exact results and limits: docs/qualification/w2a-registration-snapshot-adoption-20260924.md. No product execution, installed-skill or campaign migration, full-suite, hosted CI, cloud or live W1/T7 qualification."
     },
     {
       "id": "freeland",

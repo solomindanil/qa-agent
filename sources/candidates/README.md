@@ -7,8 +7,26 @@ retains historical bb9b739/510e08a/0644108 archives and two explicitly
 **inactive/unqualified** candidates: failed→skip seven-file patch and committed
 auth diagnostic43b025c bundle. Exact bases, hashes, effects and acceptance gaps
 are recorded there. Neither archival retention nor passing root tests selects
-a candidate. The manifest continues to select Freeland0ea2df1, Consolec421160 and
-Kernelaa5d2d1; old dated selection labels below do not override it.
+a candidate. The committed manifest selects Freeland0ea2df1 and the
+W2a Console/Kernel pair below after independent root delivery review; old
+dated selection labels below do not override the manifest.
+
+## W2a registration snapshot pair, 24 September 2026
+
+Kernel `a0a20e65b3290e6bbf5afe91d0e45ed372389adb`, tree
+`1673f3edc3199d814f2c634e41278e9db3d60d39`, is preserved in
+`kernel-w2a-snapshot-a0a20e6.bundle` (969922 bytes, SHA256
+`8a26e2c4bfba9736017306615fd80b3cb3b4e587e646568cd64faa95523c7979`).
+Console `f75d9630edd599d9fd9bfbfbf5faf195e25db685`, tree
+`6a8b61ccd0914bdc6b963a2843049fa50158eda7`, is preserved in
+`console-w2a-snapshot-f75d963.bundle` (4395974 bytes, SHA256
+`e0cc267a15baff8034223ec74532f89d0e17052de5032ec68359d609947687fa`).
+Both are complete-history bundles with one `HEAD`; independent normal clones
+recover exact clean trees and pass `git fsck --full`. This exact pair is the
+bounded committed source selection, not a migration of existing campaign
+runtimes. [W2a qualification](../../docs/qualification/w2a-registration-snapshot-adoption-20260924.md)
+retains the full Kernel timeout/exit130, the Console portability preflight
+failure and corrected pass, old-workspace incompatibility, and live T7 gap.
 
 ## Freeland readiness and PAY01 composition, 20 September 2026
 

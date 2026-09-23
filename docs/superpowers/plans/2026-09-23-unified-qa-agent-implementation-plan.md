@@ -117,11 +117,18 @@ W0+W1 разложен на [восемь задач T1–T8](2026-09-23-w0-w1-o
 
 **Owning files:** Kernel `src/kernel/workspace-blueprint.ts`, `tests/workspace/blueprint.test.ts`; Console `src/node/qa-campaign-files.ts` (`readCampaignPlan`) и `src/lib/qa-campaign-v0.ts` (`QaCampaignPlanV0Schema`) остаются authority, не переносятся в Kernel. Точные pin/docs/fixture updates — по текущему source pair и [reviewed inactive candidate](../../qualification/registration-planning-snapshot-20260915.md).
 
-- [ ] На текущей паре воспроизвести absent → authored → CAS-revised: Console видит/валидирует план; registration view не должна утверждать его отсутствие.
-- [ ] Перенести только маркировку registration snapshot и указатель на существующие reader/schema, согласованно в оба места генерации. Не выводить live plan contents через новый synchronizer.
-- [ ] Проверить focused blueprint и vertical fixture; отсутствие плана остаётся корректным отдельным состоянием.
-- [ ] Проверить старые workspace на совместимость без их перезаписи; несовместимость означает frozen historical runtime, не автоматическую миграцию.
-- [ ] После review доставить новую точную пару и qualification; прежние V0 plan bytes сохранять отдельно до CAS revision и читать назад неизменно.
+- [x] На текущей паре воспроизвести absent → authored → CAS-revised: Console видит/валидирует план; registration view не должна утверждать его отсутствие.
+- [x] Перенести только маркировку registration snapshot и указатель на существующие reader/schema, согласованно в оба места генерации. Не выводить live plan contents через новый synchronizer.
+- [x] Проверить focused blueprint и vertical fixture; отсутствие плана остаётся корректным отдельным состоянием.
+- [x] Проверить старые workspace на совместимость без их перезаписи; несовместимость означает frozen historical runtime, не автоматическую миграцию.
+- [x] После review доставить новую точную пару и qualification; прежние V0 plan bytes сохранять отдельно до CAS revision и читать назад неизменно.
+
+**24 September source checkpoint:** [W2a bounded adoption](../../qualification/w2a-registration-snapshot-adoption-20260924.md)
+retains the exact new pair, source-only gates and old-workspace read-only
+incompatibility. Independent root delivery review returned conditional GO;
+the exact pair and qualification are committed. Full Kernel `npm run verify` is not green; the reported
+timeout and exit 130 are not reclassified by focused passes. Live W1/T7 remains
+pending through its separate owner.
 
 **Exit:** view больше не вводит в заблуждение, authoritative readback и история сохранены. Старые `a9378b2/d272f31` не выбираются вместо текущих successors целиком.
 

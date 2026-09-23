@@ -1,6 +1,6 @@
 # Current QA-agent source and execution entry
 
-Updated 24 September 2026 (Bali); selected source pins unchanged. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
+Updated 24 September 2026 (Bali); the committed manifest selects the bounded W2a source pair after independent delivery review. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
 
 ## Selected source
 
@@ -8,8 +8,8 @@ This is a dated projection of the manifest, not a second version registry. If it
 
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
-| Kernel | `aa5d2d188606cbcf7e3111c130347a36970ec786` | Active; paired [observation implementation](agent-observations-20260920.md) |
-| Console | `a94571175ca893a5a66eafb5c3d06801238ad04d` | Active; [observation readback reference](observation-readback-reference-20260923.md), documentation only. Prior [API semantic assertions](api-oracles-20260922.md), [ordinary status repair](ordinary-campaign-status-20260921.md) and [reference correction](observation-skill-reference-20260920.md) retain their attribution. |
+| Kernel | `a0a20e65b3290e6bbf5afe91d0e45ed372389adb` | W2a [registration snapshot repair](w2a-registration-snapshot-adoption-20260924.md), source-only; full `npm run verify` **not green**. Prior [observation implementation](agent-observations-20260920.md) retains attribution. |
+| Console | `f75d9630edd599d9fd9bfbfbf5faf195e25db685` | Exact-pin W2a [plan lifecycle regression](w2a-registration-snapshot-adoption-20260924.md). Prior [observation readback reference](observation-readback-reference-20260923.md), [API semantic assertions](api-oracles-20260922.md), [ordinary status repair](ordinary-campaign-status-20260921.md) and [reference correction](observation-skill-reference-20260920.md) retain attribution. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
@@ -22,7 +22,12 @@ is the one current global queue. Its [comparison](../reviews/2026-09-23-global-p
 preserves all prior P0–P7/97-item obligations and distinguishes adopted bounded work,
 remaining acceptance and owner-deferred work.
 
-**Current checkpoint, 24 September:** the owner-approved inline
+**Current checkpoint, 24 September:** the bounded W2a
+[source adoption](w2a-registration-snapshot-adoption-20260924.md)
+corrects the false generated-plan absence claim on the exact Kernel/Console
+pair after independent delivery review. It does not synchronize live
+plans or migrate retained workspaces; the full Kernel suite is not green.
+Separately, the owner-approved inline
 [W0 + W1 package](../superpowers/plans/2026-09-23-w0-w1-outcome-completion-tasks.md)
 produced [six passing local controls and four actor trials](../../evals/outcome-completion/runs/w0-w1-first/README.md)
 in an isolated normal clone. Independent final AQA accepted that bounded controlled
@@ -51,9 +56,9 @@ supports using the existing observation writer/readback without a new helper now
 it does not close all W2b or live W1. The separate
 [D13-479 authoring probe](d13-479-authoring-probe-20260924.md) permits only a
 bounded typed-helper design; runtime implementation is deferred pending its own
-approved design, controls and measurement. W2a registration snapshot may proceed
-as a separate narrow current-pair repair. P2-B remains deferred/unaccepted.
-Source pins, installed skills and live campaign owners remain unchanged. No
+approved design, controls and measurement. The W2a source pair is separate
+from that work and from live W1. P2-B remains deferred/unaccepted.
+Installed skills and live campaign owners remain unchanged. No
 install, product mutation, monitor or cloud authority follows. W8 Jev routing
 is optional after a quality baseline; W9 cloud requires separate decisions.
 
@@ -83,8 +88,9 @@ This can mislead continuation; no failed agent continuation is claimed by this
 readback alone. The proposed narrow port labels the registration snapshot and
 points to the existing authoritative plan reader/validator; it does not invent
 a live-plan synchronizer, change verdicts or rewrite retained workspaces.
-Implementation/adoption still needs the bounded design approval and current-pair
-qualification; the historical candidate is not selected automatically.
+That was the historical proposal; the newer bounded pair and its incomplete
+full-suite qualification are recorded in the W2a adoption record above. The
+historical candidate is not selected automatically.
 
 **22 September checkpoint: owner resumed universal development and approved the
 cross-product priority refinement after independent Lead AQA review with conditions.**
