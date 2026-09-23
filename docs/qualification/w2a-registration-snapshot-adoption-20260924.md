@@ -116,7 +116,7 @@ remain as recorded in [current qualification](current.md).
 From the root with the W2a manifest and new bundles, the implementer ran
 `npm run sources:verify` (exit 0, `sources_verified`) and `npm test` (**61/61**,
 0 failed/skipped, 39.77 s). A later implementer repeat after documentation
-documentation passed `sources:verify` and **61/61** again (32.01 s). The
+updates passed `sources:verify` and **61/61** again (32.01 s). The
 independent delivery reviewer repeated the bundle/source/pair checks and root
 **61/61** (32.45 s); coordinator source verification also passed for the exact
 Kernel `a0a20e6`, Console `f75d963`, unchanged Freeland `0ea2df1`, and
