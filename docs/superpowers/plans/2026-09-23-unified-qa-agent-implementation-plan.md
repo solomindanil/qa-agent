@@ -137,6 +137,8 @@ Source на входе: root `7aa1b2498875b498c4370c513065b4fe265d1fd6`, вет�
 
 **Exit:** три класса наблюдений читаются свежим consumer, история/знаменатель не теряются, выполненное не дублируется. Новая обёртка необязательна; no-new-code с измерениями — принятый исход. Отдельное graph/catalog/coverage authoring decision имеет собственный record и controls; evidence-write результат не подменяет его.
 
+**Контрольная точка 23 сентября:** [синтетическая browser/API/MCP серия](../../qualification/w2b-evidence-friction-series-20260923.md) записана существующим Kernel writer и прочитана новым процессом 3/3; один `not_observed` target и blockers сохранены, idempotent/conflict/wrong-binding/artifact-only recovery проверены. Новый observation helper пока не нужен. Это закрывает ограниченный evidence-write срез, но не отдельный D13-479 authoring decision, точную декомпозицию внутреннего authority cost, live product acceptance или весь W2b автоматически.
+
 ### W3. Расширить содержательные регрессии там, где есть доказанный пропуск (P2/P5)
 
 **Ownership:** Freeland `tests/freeland/desktop-content-contracts.ts`, `purchase.spec.ts` и существующий `card-sbp.spec.ts` как reference request/quote pattern; Console — нынешние adapter/reader assertions только при реальном недостатке; agent-native controls — существующие root evals/product pack, не Freeland money rules.
