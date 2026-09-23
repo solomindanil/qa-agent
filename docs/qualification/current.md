@@ -24,8 +24,9 @@ remaining acceptance and owner-deferred work.
 
 **Current task boundary, 23 September:** the owner approved inline execution of
 [W0 + W1](../superpowers/plans/2026-09-23-w0-w1-outcome-completion-tasks.md), with
-independent AQA review. Local outcome controls are in progress in an isolated
-normal clone; source pins, installed skills and live campaign owners remain
+independent AQA review. [Local outcome controls and four actor trials](../../evals/outcome-completion/runs/w0-w1-first/README.md)
+have executed in an isolated normal clone; final review is pending and live W1
+remains pending authenticated owner-browser capability. Source pins, installed skills and live campaign owners remain
 unchanged. No install, product mutation, monitor or cloud authority follows.
 
 **Active package:** short W0 source/owner/control

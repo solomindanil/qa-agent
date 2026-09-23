@@ -55,10 +55,10 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 
 **Результат:** один baseline record с реальными source/owner/capability facts. Эта задача не создаёт очередной письменный QA baseline вместо выполнения.
 
-- [ ] **1.1** Прочитать root AGENTS/current/manifest/assembly и сохранить existing dirty diff; не делать reset/clean. Создать изолированный checkout по using-git-worktrees только при начале code-работы.
-- [ ] **1.2** Из выбранного root выполнить `npm run sources:verify`; exit0 обязателен. Сверить наличие `components/console/node_modules/playwright/index.mjs` и установленного Chromium без установки.
-- [ ] **1.3** Создать приватную карточку запуска с полями: root/component commits, actual host/model, tools, caseRevision, permittedOrigins, permittedActions, startedAt, captureLimitations, liveOwner, liveWorkspace, liveRuntime, eligibleRemainingCase, blockers. До запуска записать ожидаемую длительность/стоимость и локальный stop budget; если стоимость недоступна, отметить unavailable, не ноль. Неизвестные значения отметить unknown с причиной, не придумывать.
-- [ ] **1.4** По products/README и текущему owner checkpoint выбрать кандидат для T7. Проверить только готовность/authority; продуктовые действия пока не выполнять. Если все кандидаты blocked, продолжить независимые T2–T6, T7 оставить pending.
+- [x] **1.1** Прочитать root AGENTS/current/manifest/assembly и сохранить existing dirty diff; не делать reset/clean. Создать изолированный checkout по using-git-worktrees только при начале code-работы.
+- [x] **1.2** Из выбранного root выполнить `npm run sources:verify`; exit0 обязателен. Сверить наличие `components/console/node_modules/playwright/index.mjs` и установленного Chromium без установки.
+- [x] **1.3** Создать приватную карточку запуска с полями: root/component commits, actual host/model, tools, caseRevision, permittedOrigins, permittedActions, startedAt, captureLimitations, liveOwner, liveWorkspace, liveRuntime, eligibleRemainingCase, blockers. До запуска записать ожидаемую длительность/стоимость и локальный stop budget; если стоимость недоступна, отметить unavailable, не ноль. Неизвестные значения отметить unknown с причиной, не придумывать.
+- [x] **1.4** По products/README и текущему owner checkpoint выбрать кандидат для T7. Проверить только готовность/authority; продуктовые действия пока не выполнять. Если все кандидаты blocked, продолжить независимые T2–T6, T7 оставить pending.
 
 **Проверка:** карточка различает source и liveRuntime, имеет конкретный следующий остаток либо конкретную причину pending; нет claims о новом продукте только из чтения отчёта.
 
@@ -66,7 +66,7 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 
 **Результат:** README/cases/rubric с неизменными expectations до реализации/первого actor.
 
-- [ ] **2.1** Записать в cases.md ровно следующие пользовательские требования:
+- [x] **2.1** Записать в cases.md ровно следующие пользовательские требования:
 
 | Case | Требование fixture | Нужные наблюдения |
 | --- | --- | --- |
@@ -74,9 +74,9 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 | OC-Q | Варианты количества1/2/3; unitMinor=200, currency=USD; totalMinor=quantity×200, request/response/UI согласованы | Запрошенное quantity, response.quantity, response.totalMinor, DOM total |
 | OC-P | После Save note «Daily plan» объект доступен независимо и после reload | Toast, GET notes-state, повторный DOM read; toast отдельно недостаточен |
 
-- [ ] **2.2** В reviewer-rubric.md зафиксировать expected matrix: none → G/Q/P adequate; guide → G contradiction, Q/P adequate; quantity → Q2/Q3 contradiction, Q1/G/P adequate; persistence → P contradiction, G/Q adequate. Setup errors не засчитываются как contradiction.
-- [ ] **2.3** В README записать authority: только данный loopback origin; Save меняет только память owned fixture. Нельзя открывать реальные продукты или публиковать tracker findings по синтетике.
-- [ ] **2.4** Записать правила first attempt: actor не получает fault labels/исходник fixture/reviewer key; shared filesystem означает open-context. Сохранить frozen copies/digests до следующей ревизии.
+- [x] **2.2** В reviewer-rubric.md зафиксировать expected matrix: none → G/Q/P adequate; guide → G contradiction, Q/P adequate; quantity → Q2/Q3 contradiction, Q1/G/P adequate; persistence → P contradiction, G/Q adequate. Setup errors не засчитываются как contradiction.
+- [x] **2.3** В README записать authority: только данный loopback origin; Save меняет только память owned fixture. Нельзя открывать реальные продукты или публиковать tracker findings по синтетике.
+- [x] **2.4** Записать правила first attempt: actor не получает fault labels/исходник fixture/reviewer key; shared filesystem означает open-context. Сохранить frozen copies/digests до следующей ревизии.
 
 **Проверка:** reviewer может указать источник каждого ожидания; все три broken состояния имеют plausible-success поверхность. Если expectation меняется после запуска, это новая revision, а исходный результат остаётся.
 
@@ -190,7 +190,7 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
       };
     }
 
-- [ ] **3.3** Добавить следующий quantity-control в fixture.test.mjs и выполнить тот же `node --test`; expected2passed/0failed. Он проверяет сам seeded target, не способность агента.
+- [x] **3.3** Добавить следующий quantity-control в fixture.test.mjs и выполнить тот же `node --test`; expected2passed/0failed. Он проверяет сам seeded target, не способность агента.
 
     test('quantity fault preserves plausible one-item success', async () => {
       for (const fault of ['none', 'quantity']) {
@@ -207,7 +207,7 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
         } finally { await f.close(); }
       }
     });
-- [ ] **3.4** Создать минимальный opt-in launcher run.mjs:
+- [x] **3.4** Создать минимальный opt-in launcher run.mjs:
 
     import { startOutcomeFixture } from './fixture.mjs';
     const fixture = await startOutcomeFixture({ fault: process.argv[2] ?? 'none' });
@@ -228,7 +228,7 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 
 **Результат:** browser.test.mjs. Это evaluator control, не первая попытка тестируемого QA-агента.
 
-- [ ] **4.1** Создать три конкретных oracle-функции в browser.test.mjs:
+- [x] **4.1** Создать три конкретных oracle-функции в browser.test.mjs:
 
     async function guide(page, f, expected) {
       await page.goto(f.baseUrl + 'guide');
@@ -267,7 +267,7 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
       assert.equal(rendered, expected.noteTitle, 'persisted reload');
     }
 
-- [ ] **4.2** Добавить harness теста ниже в тот же файл. Импорты расположить в начале; helpers4.1 — ниже импортов. Browser control не должен принимать timeout/network error за найденный дефект.
+- [x] **4.2** Добавить harness теста ниже в тот же файл. Импорты расположить в начале; helpers4.1 — ниже импортов. Browser control не должен принимать timeout/network error за найденный дефект.
 
     import { test } from 'node:test';
     import assert from 'node:assert/strict';
@@ -308,8 +308,8 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
       });
     }
 
-- [ ] **4.3** Выполнить `node --test evals/outcome-completion/browser.test.mjs`; expected4passed/0failed. Сохранить исходные setup failures, если они были. Нет браузера — capability blocker, не установка или product failure.
-- [ ] **4.4** В rubric явно записать предел: quantity control содержит совместную ошибку quote/UI, а не независимую DOM-only mutation. Данные DOM собираются до assertion; отдельная DOM-only mutation относится к W3, не добавляется скрыто в этот пакет.
+- [x] **4.3** Выполнить `node --test evals/outcome-completion/browser.test.mjs`; expected4passed/0failed. Сохранить исходные setup failures, если они были. Нет браузера — capability blocker, не установка или product failure.
+- [x] **4.4** В rubric явно записать предел: quantity control содержит совместную ошибку quote/UI, а не независимую DOM-only mutation. Данные DOM собираются до assertion; отдельная DOM-only mutation относится к W3, не добавляется скрыто в этот пакет.
 
 **Проверка:** для каждого fault проваливается именно его assertion, здоровые соседние journeys проходят. Исходный weak check «непустой guide / есть число / есть Saved» прошёл бы broken surface; это объяснить в rubric, не внедрять слабую проверку в продукт.
 
@@ -317,13 +317,13 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 
 **Результат:** исходный actor design, отдельное AQA review, actual действия/вывод; не копия evaluator test.
 
-- [ ] **5.1** Зафиксировать четыре испытания: none, guide, quantity, persistence, по одному новому instance и свежему actor-контексту на вариант. Три healthy/broken пары используют общий healthy control. Контроллер хранит mapping отдельно; actor получает cases.md и URL, но не этот implementation plan, fault labels или controller results. Если свежие контексты недоступны, отметить повторный контекст и не заявлять четыре независимые первые попытки. README entry не содержит answer key.
-- [ ] **5.2** Передать actor точное поручение:
+- [x] **5.1** Зафиксировать четыре испытания: none, guide, quantity, persistence, по одному новому instance и свежему actor-контексту на вариант. Три healthy/broken пары используют общий healthy control. Контроллер хранит mapping отдельно; actor получает cases.md и URL, но не этот implementation plan, fault labels или controller results. Если свежие контексты недоступны, отметить повторный контекст и не заявлять четыре независимые первые попытки. README entry не содержит answer key.
+- [x] **5.2** Передать actor точное поручение:
 
 > Проверь три обещания локального продукта: инструкция для текущего cohort, согласованная цена выбранного количества и сохранение заметки после повторного открытия. Источник требований — cases.md и /requirements. Действия разрешены только на supplied loopback origin; Save меняет лишь память этой фикстуры. Сначала предложи проверки с источниками ожиданий и остановись до review. Затем используй доступные существующие инструменты, сохраняй фактические наблюдения и ограничения; не делай продуктовый PASS из HTTP200 или текста Saved. Не читай fixture source, reviewer key и evaluator tests. При общем filesystem это open-context sample.
 
-- [ ] **5.3** Сохранить первый ответ без правок; отдельный reviewer проверяет три claims и counterexamples по rubric. Reject сохраняется; тот же actor исправляет только конкретные findings. Его исправление не считается идеальной первой попыткой.
-- [ ] **5.4** После review actor реально исполняет выбранные проверки. Сохраняются source/tool/capture interval, ошибки и помощь. Недостающую capability или oracle не закрывать готовым ответом контроллера.
+- [x] **5.3** Сохранить первый ответ без правок; отдельный reviewer проверяет три claims и counterexamples по rubric. Reject сохраняется; тот же actor исправляет только конкретные findings. Его исправление не считается идеальной первой попыткой.
+- [x] **5.4** После review actor реально исполняет выбранные проверки. Сохраняются source/tool/capture interval, ошибки и помощь. Недостающую capability или oracle не закрывать готовым ответом контроллера.
 
 **Проверка:** actor не получает правильный итог вместо задачи; полученный результат отдельно оценён adequate/inadequate/indeterminate по каждому claim. Общий verdict fixture не переносится на Freeland/rw-int.
 
@@ -331,8 +331,8 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 
 **Результат:** неизменный локальный trial record и выбранный поддержанный reader/writer для T7. Новая synthetic registration не нужна.
 
-- [ ] **6.1** Сохранить исходные actor/reviewer outputs в новом private run root. Для каждого из четырёх trial записать fixture revision, фактические действия, время capture, observed outcome по G/Q/P, помощь и ограничения. Не присваивать synthetic наблюдениям IDs реального продукта.
-- [ ] **6.2** Подготовить sanitized runs/w0-w1-first/README.md по этим исходным данным: первая попытка и исправления отдельно; fixture controls и actor performance отдельно. Это local unattested trial, не managed receipt и не product PASS.
+- [x] **6.1** Сохранить исходные actor/reviewer outputs в новом private run root. Для каждого из четырёх trial записать fixture revision, фактические действия, время capture, observed outcome по G/Q/P, помощь и ограничения. Не присваивать synthetic наблюдениям IDs реального продукта.
+- [x] **6.2** Подготовить sanitized runs/w0-w1-first/README.md по этим исходным данным: первая попытка и исправления отдельно; fixture controls и actor performance отдельно. Это local unattested trial, не managed receipt и не product PASS.
 - [ ] **6.3** Для выбранного в T1 live owner прочитать его полный selected skill и required references. Если это Starter observation lane, прочитать agent-observations.md выбранной версии и подтвердить существующие publication/target bindings; для Freeland использовать его собственный evidence path. Ничего не регистрировать заново.
 - [ ] **6.4** Новый reader-контекст читает trial record и актуальный checkpoint live owner. До действий перечисляет completed/partial/unobserved и конкретный остаток. Ошибка чтения означает blocker, а не отсутствие observations. Если предыдущий write имеет unknown outcome, сначала readback существующего ID/bytes, не повтор с новым временем.
 
@@ -343,7 +343,7 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 **Результат:** новая полезная проверка у прежнего product owner либо явный pending live exit.
 
 - [ ] **7.1** Вернуться к кандидатуT1; прочитать его актуальный checkpoint, selected specialist, frozen runtime, environment/build/account и original scope. Не выдавать изначальный кандидат за нынешнюю готовность.
-- [ ] **7.2** Снять current reader readback до действия. При поддержанном owning Console ordinary-run:
+- [x] **7.2** Снять current reader readback до действия. При поддержанном owning Console ordinary-run:
 
     : "${QA_WORKSPACE:?owner workspace required}"
     : "${QA_RUN_ID:?exact existing run required}"
@@ -376,7 +376,7 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 **Результат:** отдельные итоги fixture integrity, actor quality, storage и live continuation; не общий зелёный total.
 
 - [ ] **8.1** Выполнить scoped gates: `node --test evals/outcome-completion/fixture.test.mjs`, `node --test evals/outcome-completion/browser.test.mjs`, root `npm test`, `npm run sources:verify`. Не запускать default child npm test или продуктовые suites.
-- [ ] **8.2** В runs/w0-w1-first/README.md сохранить actual source/host/model, первые ошибки и помощь, reviewer verdict по каждой задаче, counts/время и границы. Приватные URLs/account/session/managed state не публиковать.
+- [x] **8.2** В runs/w0-w1-first/README.md сохранить actual source/host/model, первые ошибки и помощь, reviewer verdict по каждой задаче, counts/время и границы. Приватные URLs/account/session/managed state не публиковать.
 - [ ] **8.3** Независимое итоговое review проверяет T2→T4 неизменность expectations и T5/T6/T7 достаточность. Без T7 отметить «controlled W1 принят, live W1 pending», не закрывать весь W1/P3/P5.
 - [ ] **8.4** Обновить current checkpoint фактом, а не будущим обещанием; сохранить только проверенный разрешённый diff отдельным логическим коммитом. Pins и чужие изменения не добавлять. Push/PR отдельно.
 
