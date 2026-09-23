@@ -1,6 +1,6 @@
 # Current QA-agent source and execution entry
 
-Updated 22 September 2026 (Bali). This page is the active entry, not a history of every former priority. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
+Updated 23 September 2026 (Bali), documentation only; selected source pins unchanged. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
 
 ## Selected source
 
@@ -16,6 +16,31 @@ This is a dated projection of the manifest, not a second version registry. If it
 Those sources and their complete source skill bundles are delivered through local Git bundles. Source adoption did not install host skills, update registrations, migrate product campaigns or attest a live product build. An existing runtime may deliberately be older.
 
 ## Active plan and next action
+
+The [unified implementation plan](../superpowers/plans/2026-09-23-unified-qa-agent-implementation-plan.md)
+is the one current global queue. Its [comparison](../reviews/2026-09-23-global-plan-reconciliation.md)
+preserves all prior P0–P7/97-item obligations and distinguishes adopted bounded work,
+remaining acceptance and owner-deferred work.
+
+**Current task boundary:** the owner requested comparison and a consolidated
+implementation plan. No code, source adoption, campaign continuation, install,
+monitor or cloud work starts from this documentation request. The preceding
+development freeze is not silently lifted.
+
+**First package when implementation is assigned:** short W0 source/owner/control
+baseline + W1 meaningful outcome and actual remaining-only consumer. Use the
+existing queues/readers and already available field products, not a fourth pilot
+or another capture-only baseline. W2a registration snapshot may proceed as a
+separate narrow current-pair repair; W2b helper changes require measured friction.
+P2-B remains deferred/unaccepted. Existing source, runtime and product authorities
+are unchanged. W8 Jev routing is optional after quality baseline; W9 cloud requires
+separate experiment and operational decisions.
+
+## Retained execution record and former queue through 22 September
+
+The dated paragraphs below retain accepted results and limitations. Their
+“next”, “resumed” and historical product-status phrases do not override the active
+plan above and are not a fresh claim about a product's current deployment.
 
 **Owner priority decision, 22 September:** defer the P2-B report-confidentiality
 repair and further privacy experiments; continue independent work that improves

@@ -4,7 +4,9 @@ Use [current source and execution entry](../qualification/current.md) for accept
 
 ## Current plan
 
-Follow the [P0–P7 cross-product plan](../superpowers/plans/2026-09-16-cross-product-qa-global-plan.md) and [no-loss reconciliation](../reviews/2026-09-16-global-plan-reconciliation.md). The owner resumed the global plan, not a replacement documentation project. The current document correction is a bounded P6 entry slice alongside substantive P2 work.
+Follow the [unified implementation plan, 23 September](../superpowers/plans/2026-09-23-unified-qa-agent-implementation-plan.md) and its [no-loss comparison](../reviews/2026-09-23-global-plan-reconciliation.md). It consolidates the P0–P7 obligations with the MagicPay/rw-int/Nuanu/Freeland quality audit. W0–W9 are execution packages, not replacement acceptance stages.
+
+Next proposed implementation package: short W0 baseline + W1 meaningful-outcome/remaining-only execution. W2a registration snapshot and measured W2b evidence friction may run independently; existing accepted repairs are not reopened. The current user request authorizes preparing this plan, not starting code, campaigns, installations or cloud.
 
 | Slice | Required result, not a completion claim |
 | --- | --- |
@@ -21,6 +23,7 @@ P0/P1 have accepted bounded slices; P2–P6 have existing mechanisms and remaini
 
 ## Preserved history
 
+- [16 September P0–P7 plan with later clarifications](../superpowers/plans/2026-09-16-cross-product-qa-global-plan.md), SHA-256 `df4377415fa90ac9b3d6232d1fe2c6e3e298ed880463ac2fe5d358f75e963a70`, and [97-item reconciliation](../reviews/2026-09-16-global-plan-reconciliation.md) remain unchanged. Their requirements/limits are carried forward; their historical “next” paragraphs do not override the unified queue.
 - [Exact 10 September reconciliation input](../superpowers/plans/2026-09-10-universal-qa-next-plan.f49e739.snapshot.md), SHA-256 `f49e7397774763d6c6062a64705fa83be4b9cb6a7ea43aad59e18672738a3ed9`. The mutable original is not silently substituted for these bytes.
 - [13 September predecessor](../superpowers/plans/2026-09-13-universal-qa-global-plan.md), SHA-256 `072bea250ed35fe304710cdfd76ec5de2814865a2bc9b466bfa6262e066e31db`.
 - [16 September plan before this entry correction](../superpowers/plans/2026-09-16-cross-product-qa-global-plan.3accb18.snapshot.md), SHA-256 `3accb1874a1bfa9354236efc1077d71d329ec0c658fa262d5287490942849525`. Its dated implementation claims are not current source selection.
