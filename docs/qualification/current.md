@@ -22,12 +22,15 @@ is the one current global queue. Its [comparison](../reviews/2026-09-23-global-p
 preserves all prior P0–P7/97-item obligations and distinguishes adopted bounded work,
 remaining acceptance and owner-deferred work.
 
-**Current task boundary:** the owner requested comparison and a consolidated
-implementation plan. No code, source adoption, campaign continuation, install,
-monitor or cloud work starts from this documentation request. The preceding
-development freeze is not silently lifted.
+**Current task boundary, 23 September:** the owner approved inline execution of
+[W0 + W1](../superpowers/plans/2026-09-23-w0-w1-outcome-completion-tasks.md), with
+independent AQA review. [Local outcome controls and four actor trials](../../evals/outcome-completion/runs/w0-w1-first/README.md)
+have executed in an isolated normal clone; independent final AQA accepted the
+bounded controlled slice (no code blockers), while live W1
+remains pending authenticated owner-browser capability. Source pins, installed skills and live campaign owners remain
+unchanged. No install, product mutation, monitor or cloud authority follows.
 
-**First package when implementation is assigned:** short W0 source/owner/control
+**Active package:** short W0 source/owner/control
 baseline + W1 meaningful outcome and actual remaining-only consumer. Use the
 existing queues/readers and already available field products, not a fourth pilot
 or another capture-only baseline. W2a registration snapshot may proceed as a

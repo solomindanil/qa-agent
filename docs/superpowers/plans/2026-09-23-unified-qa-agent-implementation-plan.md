@@ -84,7 +84,7 @@ Source на входе: root `7aa1b2498875b498c4370c513065b4fe265d1fd6`, вет�
 
 ### W0. Зафиксировать рабочий baseline и конечный scope (P0/P5/P6)
 
-Ближайший W0+W1 разложен на [восемь задач T1–T8](2026-09-23-w0-w1-outcome-completion-tasks.md) с контрактами, файлами, проверками и отдельными fixture/live exits. Это детализация, не выполнение пакета.
+Ближайший W0+W1 разложен на [восемь задач T1–T8](2026-09-23-w0-w1-outcome-completion-tasks.md) с контрактами, файлами, проверками и отдельными fixture/live exits. [Исполненный локальный срез 23 сентября](../../../evals/outcome-completion/runs/w0-w1-first/README.md): controls6/6, четыре actor trials с сохранённой помощью и независимым AQA GO. Live remaining-only T7 не выполнен; весь W1 не закрыт. Это не реализация W2–W9.
 
 **Owners/files:** `sources/manifest.v1.json`, `docs/qualification/current.md`, `products/README.md`, `evals/dialogue-quality/README.md`, `cases.md`, `reviewer-rubric.md`. Использовать существующие trial/qualification records; не создавать runtime registry.
 
