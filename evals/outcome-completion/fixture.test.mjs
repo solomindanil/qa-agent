@@ -11,6 +11,7 @@ test('loopback contract, isolation and rejection', async () => {
       assert.equal(r.status, 200);
       assert.deepEqual(await r.json(), {
         cohort: 'nebula', guide: 'Nebula setup',
+        guideDetail: 'Import the Nebula profile, then connect in Nebula.',
         unitMinor: 200, currency: 'USD', noteTitle: 'Daily plan'
       });
       assert.equal((await fetch(f.baseUrl + 'quote?quantity=0')).status, 400);

@@ -4,6 +4,7 @@ export async function startOutcomeFixture({ fault = 'none' } = {}) {
     throw new Error('Unknown fault');
   const requirements = {
     cohort: 'nebula', guide: 'Nebula setup',
+    guideDetail: 'Import the Nebula profile, then connect in Nebula.',
     unitMinor: 200, currency: 'USD', noteTitle: 'Daily plan'
   };
   let title = null;
@@ -30,7 +31,8 @@ export async function startOutcomeFixture({ fault = 'none' } = {}) {
     if (url.pathname === '/requirements') { json(200, requirements); return; }
     if (url.pathname === '/guide') {
       html('<h1 data-testid="guide">' +
-        (fault === 'guide' ? 'Atlas setup' : requirements.guide) + '</h1>'); return;
+        (fault === 'guide' ? 'Atlas setup' : requirements.guide) + '</h1>' +
+        '<p data-testid="guide-detail">' + requirements.guideDetail + '</p>'); return;
     }
     if (url.pathname === '/quote') {
       const input = url.searchParams.get('quantity');

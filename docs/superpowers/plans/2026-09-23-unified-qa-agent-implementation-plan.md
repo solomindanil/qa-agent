@@ -10,7 +10,9 @@
 
 **Spec:** [P0–P7 с принятыми уточнениями](2026-09-16-cross-product-qa-global-plan.md), [матрица преемственности 10/13 сентября](../../reviews/2026-09-16-global-plan-reconciliation.md), [сверка и перенос выводов 23 сентября](../../reviews/2026-09-23-global-plan-reconciliation.md). Последний документ переносит согласованное предложение из cross-product анализа в tracked, переносимую форму; приватные чаты не обязательны для понимания задачи.
 
-**Status, 23 сентября:** пользователь заказал объединение и оформление плана. Этот документ — единая текущая очередь; P0–P7 остаются стабильными именами требований, W0–W9 ниже — пакеты исполнения. Код, pins, installed skills и кампании этой записью не изменены. Разработка после прежнего freeze не запускается в рамках задачи оформления; выполнение пакета требует отдельного следующего поручения/согласования его дизайна. Документ не объявляет P0–P6 завершёнными.
+**Статус при создании, 23 сентября:** пользователь заказал объединение и оформление плана. Этот документ — единая текущая очередь; P0–P7 остаются стабильными именами требований, W0–W9 ниже — пакеты исполнения. Сама запись плана не меняла код, pins, installed skills или кампании и не запускала разработку после прежнего freeze. Это историческая граница задачи оформления, не текущий запрет уже разрешённого исполнения. Документ не объявляет P0–P6 завершёнными.
+
+**Текущий checkpoint, 24 сентября:** [локальный W0/W1 срез](../../../evals/outcome-completion/runs/w0-w1-first/README.md) прошёл 6/6 controls и независимый AQA review, но live remaining-only T7 остаётся pending. [Свежий owner readback](../../qualification/outcome-visible-content-20260924.md#live-remaining-only-w1-t7) нашёл authenticated browser; 20 targets содержат 8 recorded / 12 `not_observed` и 15 blockers, причём у всех 12 нет разрешённого oracle/binding для принятого assertion. Следующий live W1 gate — owner-reviewed knowledge revision для одного остатка, затем только разрешённое исполнение и persisted readback; неизвестный terminal outcome не повторять. Это не live PASS и не закрытие W1/P3/P5. Отдельный [локальный ремонт visible-content oracle](../../qualification/outcome-visible-content-20260924.md) прошёл независимый AQA для bounded synthetic controls; он не переписывает четыре исторических actor trials и не доказывает полную human-perception корректность. [W2b evidence series](../../qualification/w2b-evidence-friction-series-20260923.md) не обосновала новый observation helper. Отдельное [решение D13-479](../../qualification/d13-479-authoring-probe-20260924.md) допускает bounded typed-helper design, но откладывает runtime implementation до отдельного одобренного дизайна, controls и замера. W2a остаётся самостоятельным узким ремонтом. Новых полномочий на продукт, кампанию, установку или cloud нет.
 
 ## Global Constraints
 
@@ -84,7 +86,7 @@ Source на входе: root `7aa1b2498875b498c4370c513065b4fe265d1fd6`, вет�
 
 ### W0. Зафиксировать рабочий baseline и конечный scope (P0/P5/P6)
 
-Ближайший W0+W1 разложен на [восемь задач T1–T8](2026-09-23-w0-w1-outcome-completion-tasks.md) с контрактами, файлами, проверками и отдельными fixture/live exits. [Исполненный локальный срез 23 сентября](../../../evals/outcome-completion/runs/w0-w1-first/README.md): controls6/6, четыре actor trials с сохранённой помощью и независимым AQA GO. Live remaining-only T7 не выполнен; весь W1 не закрыт. Это не реализация W2–W9.
+W0+W1 разложен на [восемь задач T1–T8](2026-09-23-w0-w1-outcome-completion-tasks.md) с контрактами, файлами, проверками и отдельными fixture/live exits. [Исполненный локальный срез 23 сентября](../../../evals/outcome-completion/runs/w0-w1-first/README.md): controls6/6, четыре actor trials с сохранённой помощью и независимым AQA GO. Live remaining-only T7 не выполнен; весь W1 не закрыт. Это не реализация W2–W9.
 
 **Owners/files:** `sources/manifest.v1.json`, `docs/qualification/current.md`, `products/README.md`, `evals/dialogue-quality/README.md`, `cases.md`, `reviewer-rubric.md`. Использовать существующие trial/qualification records; не создавать runtime registry.
 
@@ -254,7 +256,7 @@ Console/Freeland default `npm test`, Android `--execute`, product runners, provi
 - [ ] Отдельным логическим коммитом сохранить разрешённые source/документы после verification; live/private records и секреты не включать. Push/PR/skills install/product adoption требуют своего scope.
 - [ ] Обновить существующий current checkpoint и точный remaining gate. Не закрывать P целиком по количеству W или тестов.
 
-**Первый пакет к исполнению:** W0 + W1; W2a допустим параллельно как малый независимый ремонт, W2b только по замеру. Переход на W3 определяется реально отсутствующим oracle, не намерением построить библиотеку заранее.
+**Следующий live W1 gate:** разрешить oracle/binding одного оставшегося assertion через reviewed owner knowledge revision, затем завершить T7 с persisted readback либо сохранить точный blocker; принятый локальный W0/W1 срез не повторять и весь W1 не закрывать без T7. W2a допустим отдельно как малый независимый ремонт. W2b observation helper пока не требуется по замеру; D13-479 оставляет только bounded design, не выбранный runtime-код. Переход на W3 определяется реально отсутствующим oracle, не намерением построить библиотеку заранее.
 
 **Итог pre-cloud:** новая сессия в заявленном scope понимает продукт, делает существенные проверки, сохраняет evidence и остаток, продолжает после реальной помощи/смены контекста, применяет reviewed lesson и выдаёт ограниченный, но законченный QA-вывод. Не обещается отсутствие любых будущих багов, всех провайдеров или поддержка любого устройства.
 

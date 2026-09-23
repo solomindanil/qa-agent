@@ -1,6 +1,6 @@
 # Current QA-agent source and execution entry
 
-Updated 23 September 2026 (Bali), documentation only; selected source pins unchanged. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
+Updated 24 September 2026 (Bali); selected source pins unchanged. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
 
 ## Selected source
 
@@ -22,22 +22,40 @@ is the one current global queue. Its [comparison](../reviews/2026-09-23-global-p
 preserves all prior P0–P7/97-item obligations and distinguishes adopted bounded work,
 remaining acceptance and owner-deferred work.
 
-**Current task boundary, 23 September:** the owner approved inline execution of
-[W0 + W1](../superpowers/plans/2026-09-23-w0-w1-outcome-completion-tasks.md), with
-independent AQA review. [Local outcome controls and four actor trials](../../evals/outcome-completion/runs/w0-w1-first/README.md)
-have executed in an isolated normal clone; independent final AQA accepted the
-bounded controlled slice (no code blockers), while live W1
-remains pending authenticated owner-browser capability. Source pins, installed skills and live campaign owners remain
-unchanged. No install, product mutation, monitor or cloud authority follows.
+**Current checkpoint, 24 September:** the owner-approved inline
+[W0 + W1 package](../superpowers/plans/2026-09-23-w0-w1-outcome-completion-tasks.md)
+produced [six passing local controls and four actor trials](../../evals/outcome-completion/runs/w0-w1-first/README.md)
+in an isolated normal clone. Independent final AQA accepted that bounded controlled
+slice, not all of W1/P3/P5: only one of four first test designs was accepted
+without correction, and live remaining-only T7 was not executed. The owning
+rw-int reader reported 20 original targets, 8 recorded, 12 `not_observed` and
+15 global blockers; recorded is not PASS. A fresh authenticated owner browser
+is available, but all 12 remaining targets still have unresolved oracles, so
+there is no accepted bound assertion to execute without an owner-reviewed
+knowledge revision. An existing AI run displayed a stopped state in the UI;
+its persisted terminal state was not independently read back, and no retry
+was attempted. No new live W1 assertion or PASS is claimed. The separate
+[24 September local oracle-control repair and live-gate readback](outcome-visible-content-20260924.md)
+do not alter the historical actor trials or close T7. Independent AQA accepted
+the bounded local repair, not a complete human-perception or live-product oracle.
 
-**Active package:** short W0 source/owner/control
-baseline + W1 meaningful outcome and actual remaining-only consumer. Use the
-existing queues/readers and already available field products, not a fourth pilot
-or another capture-only baseline. W2a registration snapshot may proceed as a
-separate narrow current-pair repair; W2b helper changes require measured friction.
-P2-B remains deferred/unaccepted. Existing source, runtime and product authorities
-are unchanged. W8 Jev routing is optional after quality baseline; W9 cloud requires
-separate experiment and operational decisions.
+**Next live W1 gate:** resume T7 through the existing product owner, not a
+fourth pilot or another capture-only baseline. Recheck its current checkpoint,
+frozen runtime, environment/build/account and authorized scope; resolve one
+remaining oracle/binding through the reviewed owner process before any action.
+Only then select and execute its authorized assertion and persist/read back the
+result through its accepted lane. Until then T7 stays pending, with completed
+subsets unrepeated, unknown effects unretried and no replacement registration.
+The [W2b browser/API/MCP evidence series](w2b-evidence-friction-series-20260923.md)
+supports using the existing observation writer/readback without a new helper now;
+it does not close all W2b or live W1. The separate
+[D13-479 authoring probe](d13-479-authoring-probe-20260924.md) permits only a
+bounded typed-helper design; runtime implementation is deferred pending its own
+approved design, controls and measurement. W2a registration snapshot may proceed
+as a separate narrow current-pair repair. P2-B remains deferred/unaccepted.
+Source pins, installed skills and live campaign owners remain unchanged. No
+install, product mutation, monitor or cloud authority follows. W8 Jev routing
+is optional after a quality baseline; W9 cloud requires separate decisions.
 
 ## Retained execution record and former queue through 22 September
 

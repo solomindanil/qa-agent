@@ -1,6 +1,6 @@
 # Outcome completion — opt-in local qualification
 
-Three journeys: applicable instructions, selected quantity, persistence beyond success copy. See [cases](cases.md) before design. A tiny owned loopback target, not a new product runner/verdict/storage system.
+Three journeys: applicable instructions, selected quantity, persistence beyond success copy. The [first-trial cases](cases.md) are frozen for the recorded actor runs; [visible-content extension](cases-visible-content.md) defines the later local regression controls. A tiny owned loopback target, not a new product runner/verdict/storage system.
 
 Commands from root after source restoration, using existing Playwright/Chromium:
 If this isolated checkout has no dependencies, set `QA_PLAYWRIGHT_MODULE` to the absolute existing Playwright `index.mjs` path; no implicit install or sibling lookup occurs. That is warm dependency reuse, not cold qualification.
