@@ -1,0 +1,263 @@
+# Универсальный qa-agent — единый глобальный план реализации
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Это программа самостоятельных пакетов, не разрешение начать все пакеты, product execution или cloud. Для code-среза сначала прочитать его owning source и составить точный bounded RED/GREEN-план; не угадывать будущие API.
+
+**Goal:** новый диалог на незнакомом продукте выбирает существенные проверки, подтверждает пользовательский результат, сохраняет весь известный scope и evidence, продолжает остаток без повторов и выдаёт обоснованное решение; затем тот же процесс переносится на отдельно разрешённый worker.
+
+**Architecture:** сохраняем рассуждение агента, product packs/графы, Console/Kernel и самостоятельный Freeland harness/verdict. Исправляем конкретные ожидания, выбор следующей работы и стыки evidence; используем существующие browser/API/MCP/native возможности. Новые helper/adapter/model route вводятся только после измеренного ограничения.
+
+**Tech Stack:** выбранные Node.js/TypeScript, Playwright, существующие схемы/файловые API, Git bundle/manifest delivery, source skills Codex/Claude и официальные host plugins. Минимум root Node `>=22.12.0`; lockfile каждого компонента сохраняется.
+
+**Spec:** [P0–P7 с принятыми уточнениями](2026-09-16-cross-product-qa-global-plan.md), [матрица преемственности 10/13 сентября](../../reviews/2026-09-16-global-plan-reconciliation.md), [сверка и перенос выводов 23 сентября](../../reviews/2026-09-23-global-plan-reconciliation.md). Последний документ переносит согласованное предложение из cross-product анализа в tracked, переносимую форму; приватные чаты не обязательны для понимания задачи.
+
+**Status, 23 сентября:** пользователь заказал объединение и оформление плана. Этот документ — единая текущая очередь; P0–P7 остаются стабильными именами требований, W0–W9 ниже — пакеты исполнения. Код, pins, installed skills и кампании этой записью не изменены. Разработка после прежнего freeze не запускается в рамках задачи оформления; выполнение пакета требует отдельного следующего поручения/согласования его дизайна. Документ не объявляет P0–P6 завершёнными.
+
+## Global Constraints
+
+- Manifest выбирает source bytes; существующий product owner — frozen runtime кампании. Новая версия source не мигрирует старую кампанию.
+- Один владелец shared source/state. Не менять registrations, старые receipts, исходные ответы, исторические планы или финансовые операции ради зелёного результата.
+- Freeland product repository read-only: без push/deploy/migration. Live backend-проверки, оплаты, AI/provider mutations, tracker/Buzz writes и установки не разрешаются этим планом.
+- Product-specific правила и права не переносятся между продуктами. Неизвестный эффект сверяется до retry; один неизменный operation ID не означает сам по себе допустимость повтора.
+- Verified/failed/partial/blocked/unassessed, evidence lane и версия различаются. Source tests, agent evals и product acceptance имеют разные знаменатели.
+- Принятые writer/reader, ordinary status, intermediate assertions, API media-type/JSON assertions и fee-caption repair не разрабатываются заново.
+- P2-B confidentiality repair и дальнейшие privacy-only эксперименты отложены владельцем. Существующие ограничения не отключаются; непринятая затронутая lane не становится пригодной.
+- M6 generic manual receipt остаётся непригодным shortcut для observations; reporting Kernel10d не активируется.
+- Нет второго runner/verdict/storage/fixture manager, общей DSL бизнес-приёмки, обязательного router proxy или параллельной ручной базы статусов.
+- Условное улучшение без доказанного выигрыша заканчивается решением no-new-code. Недоступная lane не блокирует независимый разрешённый QA.
+- P7 cloud и actual payment/device qualification имеют отдельные scope/authority. Отсутствующий Claude не блокирует single-host результат, но dual-host claim остаётся открытым.
+
+## Review Focus
+
+1. Правильный статус/текст при неправильном содержимом либо сохранении — W1/W3 проверяют результат и healthy/broken пары.
+2. Смена build/account/fixture между наблюдением и продолжением — W1/W2/W6 проверяют применимость и сохраняют историю.
+3. Частичная запись или неизвестный эффект после прерывания — W1/W2 сохраняют A done/B unknown/C pending без слепого replay.
+4. Новая находка вне исходного mapping или удалённая связь — W4 сохраняет gap, clauses и conservative fallback.
+5. Исправление тестируемого агента контроллером либо неподходящий измеритель — W3/W5/W6 отделяют первую попытку от помощи, измерение от acceptance.
+
+---
+
+## 1. База: что уже есть и что не закрыто
+
+Source на входе: root `7aa1b2498875b498c4370c513065b4fe265d1fd6`, ветка `codex/p2-semantic-source-delivery`; Kernel `aa5d2d1`, Console `8065713`, Freeland `0ea2df1`. Полные SHA и доказательства — в [current entry](../../qualification/current.md) и manifest. `sources:verify` свежо выполнен при оформлении. Эти значения — датированный baseline, не второй registry.
+
+| Уже принято в ограниченном объёме | Остающаяся граница |
+| --- | --- |
+| P0 integrity/findings, PAY01 composition/readiness, local source-only workflow | Не full-stage, не live payment methods, не hosted CI; PAY01 остаётся shadow |
+| P1 immutable text/JSON observation writer/reader и bounded fresh consumer | Caller-authored/unattested, zero attachments; не вся browser/API/MCP completion |
+| P2-A комиссия/decimal parsing; intermediate browser и media_type/json_pointer | Не все варианты UI, quote correlation, lifecycle, агентская выдача или provider drift |
+| Ordinary campaign status и несколько actual API/guest/ticket consumers | Не повторять ремонты/завершённые подмножества; whole-ticket/help-reply/full scope остаются |
+| Controlled graph consumers, docs-render regression | Дополнительный выигрыш выбора в прежних парах — ноль; не весь P4 |
+| Bundled source, cold restore/root gate, общий entry | Не cold dialogue product cycle, actual Claude или cloud parity |
+| Experimental Android pilot | Локальные mock/loopback controls не квалифицируют реальный lifecycle/NFR |
+
+Результаты и limits сохраняются в существующих qualification/eval records. Чекбокс старого плана не переоткрывает уже adopted repair; новый отчёт не превращает старый bounded result в полный exit.
+
+## 2. Сопоставление со старым планом
+
+| Требование | Текущий остаток | Пакеты |
+| --- | --- | --- |
+| P0 execution/source integrity | Вход/совместимость, command classes, claimed hosted CI; готовые repairs защищаем | W0, W2, W7 |
+| P1 пригодное evidence | Удобная серия, реальное capture time, новый reader и остаток без replay | W1, W2 |
+| P2 содержательные проверки | Конечный результат, выбранные параметры, temporal/agent/provider варианты | W1, W3 |
+| P3 full/ticket/help/resume | Полный знаменатель, meaningful remaining execution, настоящий ответ человека | W1, W6 |
+| P4 graph/learning | Mapped-unexecuted/clauses, dependency consumption, supersede/rollback | W4 |
+| P5 качество агента/capabilities | Заранее заданные controls, first attempt/transfer, device/effects отдельно | W0, W1, W3, W5, W6 |
+| P6 dialogue-ready delivery | Короткий entry, source/installed/runtime drift, cold dialogue и host proof | W2, W7 |
+| P7 cloud | Scoped experiment → actual worker/recovery → operational GO | W9 |
+| Новое условное сравнение моделей | Rules baseline → Jev shadow → ограниченный trial; Laya после отдельного решения | W8, не prerequisite W1–W7 |
+
+Все97исторических записей сохраняются через прежнюю поэлементную матрицу и [адресную сверку](../../reviews/2026-09-23-global-plan-reconciliation.md). Это не97новых функций и не метрика готовности.
+
+## 3. Порядок и зависимости
+
+1. W0 — короткий вход в каждый новый существенный срез, не отдельный многодневный проект.
+2. W1 — основной ближайший результат: grounded outcome + одна реальная remaining-only проверка.
+3. W2a snapshot и W2b measured evidence friction — независимые малые ремонты параллельно W1, не prerequisites всего QA.
+4. W3 усиливает те же сценарии; W4 переносит подтверждённую находку в следующий проход.
+5. W5 native/NFR и отдельные effect lanes идут по имеющимся возможностям, не блокируют web/API.
+6. W6 проверяет перенос на трёх уже используемых продуктах; его baseline начинается в W0/W1, а не в конце.
+7. W7 принимает поставку только для объявленного scope. W8 — условная экономия после устойчивого W1/W3 baseline. W9 — отдельное решение после scoped W7.
+
+Параллелить только непересекающиеся изменения. Kernel/Console pin delivery интегрируется одним владельцем после проверки пары. Нельзя двум исполнителям одновременно вести одну продуктовую кампанию или менять общий pack.
+
+## 4. Пакеты реализации
+
+### W0. Зафиксировать рабочий baseline и конечный scope (P0/P5/P6)
+
+Ближайший W0+W1 разложен на [восемь задач T1–T8](2026-09-23-w0-w1-outcome-completion-tasks.md) с контрактами, файлами, проверками и отдельными fixture/live exits. Это детализация, не выполнение пакета.
+
+**Owners/files:** `sources/manifest.v1.json`, `docs/qualification/current.md`, `products/README.md`, `evals/dialogue-quality/README.md`, `cases.md`, `reviewer-rubric.md`. Использовать существующие trial/qualification records; не создавать runtime registry.
+
+- [ ] Прочитать manifest и выбранные source skills целиком; выполнить `npm run sources:verify` из root; отдельно установить owner/runtime разрешённого product consumer.
+- [ ] В одном новом eval record сохранить исходные source/model/host/tools, объявленный scope, первые ответы и ограничения; прошлые field samples не переименовывать в новый запуск.
+- [ ] До исполнения перечислить контрольные случаи W1, допустимые вмешательства, ожидаемые исходы, длительность/стоимость и условие остановки. Недоступный answer key реально изолировать либо назвать sample open-context.
+- [ ] Зафиксировать capability/fixture readiness и действительные запросы помощи; отсутствие source SHA не заменять frontend asset hash.
+
+**Exit:** воспроизводимая первая попытка и известные границы до изменений. Один новый baseline достаточен; существующие capture-only и guidance-only циклы повторно не считаются прогрессом.
+
+### W1. Первый результат: смысл + закрытие реального остатка (P2/P3/P5)
+
+**Files to create:** `evals/outcome-completion/README.md`, `cases.md`, `reviewer-rubric.md` — небольшой контролируемый набор, без нового eval engine. Live evidence остаётся у owner; sanitized trial summary — в существующем формате dated eval/qualification.
+
+**Reuse:** `evals/public-input-agent-cycle/20260921-reviewed/`, `evals/mixed-handoff-agent-cycle/`, `evals/dialogue-quality/`; Console `scripts/qa-campaign.ts` и `src/node/qa-campaign-files.ts` для текущего status/readback. Managed `resume` применять только к поддержанной repeat-safe lane; ручной браузерный путь не выдавать за managed replay.
+
+**Input → output:** текущее требование/fixture/версия + сохранённый owner scope → неизменное ожидание, actual outcome и оставшиеся обязательства через существующие records. Никакой новой функции вычисления PASS.
+
+- [ ] Зафиксировать три пары: (а) VPN guide соответствует явному fixture cohort / показан guide другого cohort; (б) quantity1 и quantity3 правильно передаются/считаются / UI или quote сохраняет quantity1; (в) AI сообщает сохранение и объект существует после reload / текст есть, объекта нет. Цены и cohort в fixture — синтетические, не новые бизнес-требования Freeland.
+- [ ] Независимый AQA проверяет источник каждого ожидания и способность assertions отвергнуть broken control; первая отклонённая версия остаётся в record.
+- [ ] Исполнить controls существующими средствами. Если oracle отсутствует, выделить только owning repair W3; не принимать ручное обнаружение как уже доставленную regression.
+- [ ] Подготовить новому actor доступ к current reader и разрешённому остатку одной существующей кампании. Он выбирает ещё не подтверждённый доступный пункт, проверяет readiness, выполняет его и сохраняет readback; выполненные пункты не повторяет без причины.
+- [ ] В итоговом scope сохранить исходные/добавленные требования и missing assertions внутри PARTIAL. Если реальные lanes недоступны, зафиксировать конкретный blocker; fixture proof не закрывает live exit.
+
+**Exit:** три пары различаются без подгонки ожидаемого ответа; новая первая попытка сохранена; разрешённый remaining consumer фактически выполнен и принят отдельно. Product FAIL допустим, unsupported PASS — нет. Достижение этого результата не требует очередного полного прохода Freeland.
+
+### W2a. Устранить ложное представление плана (P6)
+
+**Owning files:** Kernel `src/kernel/workspace-blueprint.ts`, `tests/workspace/blueprint.test.ts`; Console `src/node/qa-campaign-files.ts` (`readCampaignPlan`) и `src/lib/qa-campaign-v0.ts` (`QaCampaignPlanV0Schema`) остаются authority, не переносятся в Kernel. Точные pin/docs/fixture updates — по текущему source pair и [reviewed inactive candidate](../../qualification/registration-planning-snapshot-20260915.md).
+
+- [ ] На текущей паре воспроизвести absent → authored → CAS-revised: Console видит/валидирует план; registration view не должна утверждать его отсутствие.
+- [ ] Перенести только маркировку registration snapshot и указатель на существующие reader/schema, согласованно в оба места генерации. Не выводить live plan contents через новый synchronizer.
+- [ ] Проверить focused blueprint и vertical fixture; отсутствие плана остаётся корректным отдельным состоянием.
+- [ ] Проверить старые workspace на совместимость без их перезаписи; несовместимость означает frozen historical runtime, не автоматическую миграцию.
+- [ ] После review доставить новую точную пару и qualification; прежние V0 plan bytes сохранять отдельно до CAS revision и читать назад неизменно.
+
+**Exit:** view больше не вводит в заблуждение, authoritative readback и история сохранены. Старые `a9378b2/d272f31` не выбираются вместо текущих successors целиком.
+
+### W2b. Уменьшить стоимость evidence и ошибок вызова (P1/P6)
+
+**Owning seams:** Console `scripts/qa-campaign.ts`, `skills/qa-product-v0/references/agent-observations.md`, `tests/unit/qa-agent-observation-pair.test.ts`, `tests/unit/qa-agent-observation-cli.test.ts`; Kernel `src/contracts/agent-tool-observation.ts`, `src/kernel/agent-tool-observation.ts`, `src/kernel/target-observation-report.ts`.
+
+- [ ] Измерить отдельно подготовку, authority validation, append и readback на одинаковой небольшой browser/API/MCP серии без продуктовых эффектов.
+- [ ] Использовать существующий writer return/readback; убрать только доказанную дублирующую caller-работу. Если достаточно исправить пример вызова, не менять Kernel и не добавлять exporter.
+- [ ] Если ручные schema/binding ошибки повторяются, подготовить bounded constructor/validator поверх нынешних APIs с точной диагностикой поля. Новый helper допускается только после выбора source owner и отдельного RED/GREEN-плана.
+- [ ] Сохранять `author.authoredAt` отдельно от фактического `captureTime`; interval описывать без выдуманной точности. Неизвестное историческое время не заполнять текущим.
+- [ ] Проверить partial append → новый reader → только недостающий append, duplicate/conflicting ID, wrong binding и dropped blocker. Discovery без binding сохраняется proposal/gap.
+- [ ] Повторить замер и описать выигрыш/ограничение. Текст/JSON остаются unattested; attachment support не появляется от ссылки на screenshot.
+- [ ] Отдельно сохранить условное решение D13-479 о graph/catalog/coverage authoring: если callers повторно импортируют test fixtures и вручную синхронизируют граф/каталог, оценить минимальную обёртку existing APIs. Для этой задачи нужны собственные API/browser/manual authoring examples и dropped-blocker/wrong-binding controls; manual example не использует generic manual receipt API. No-new-code допустим. Это не observation append-helper: его приёмка не закрывает authoring-обязательство, и наоборот.
+
+**Exit:** три класса наблюдений читаются свежим consumer, история/знаменатель не теряются, выполненное не дублируется. Новая обёртка необязательна; no-new-code с измерениями — принятый исход. Отдельное graph/catalog/coverage authoring decision имеет собственный record и controls; evidence-write результат не подменяет его.
+
+### W3. Расширить содержательные регрессии там, где есть доказанный пропуск (P2/P5)
+
+**Ownership:** Freeland `tests/freeland/desktop-content-contracts.ts`, `purchase.spec.ts` и существующий `card-sbp.spec.ts` как reference request/quote pattern; Console — нынешние adapter/reader assertions только при реальном недостатке; agent-native controls — существующие root evals/product pack, не Freeland money rules.
+
+- [ ] Для каждой принятой пары W1 найти owning assertion, сохранить counterexample, внести минимальный fix и добавить healthy соседний вариант; релевантный consumer проверяет доставленные bytes.
+- [ ] Коррелировать выбранные plan/quantity/rail/action с request, актуальной quote и UI; фоновые409, stale200 и общий shell не удовлетворяют проверку. Quote/session calls классифицировать продуктовым pack, не общим правилом «любой POST — деньги».
+- [ ] Добавить только требуемые lifecycle controls: delayed healthy против no-op; reload/return; ошибка quote→восстановление; выдача без F5; локализованный empty state и search-clear suffix. Intermediate assertions не реализовывать повторно.
+- [ ] Проверить нужный modal variant, hit target/focus/overlap и disabled/loading/error states, а не только screenshot или отсутствие overflow.
+- [ ] Для agent-native: естественный intent, полный MCP content/attachments, terminal job, MIME/bytes/содержимое, сохранение и доставка отдельно. Контроллер не делает товар за actor; workaround не закрывает исходный FAIL.
+- [ ] Для «год + три дня» запросить подтверждённый контракт и обезличенный stuck-case. Локально/разработчиком проверить обычный срок, разрешённый бонус, неверный/короткий срок, repeat/delay и recovery существующей операции. Нет контракта — unresolved expectation, не универсальный допуск +3 и не фиктивная проверка production.
+
+**Exit:** независимый reviewer принимает test design и фактическое различение контрпримеров; новый consumer использует принятое улучшение. Отсутствующая broken deployment остаётся пределом доказательства, не invented live RED→GREEN.
+
+### W4. Граф, регрессии и знания влияют на следующий проход (P4)
+
+**Reuse:** `evals/graph-consumer-agent-cycle/`, `evals/docs-render-agent-cycle/`, Kernel revisions/preview/apply и Freeland graph/impact/coverage. Product-owned updates не выполняются ручной правкой managed graph.
+
+- [ ] На A/B changed, A tested сделать B явно untested; отдельно проверить requirement clauses и change coverage. BOUND, UNCOMPUTED и computed-zero не смешивать с FIXED.
+- [ ] Для одного подтверждённого пропуска определить причину: selection, fixture, oracle, version, lost evidence или verdict; предложить минимальную regression/dependency.
+- [ ] Проверить коллизию ID разных сценариев (включая исторический TC-VPN-05), dropped clause/edge и unmapped change; сохранить gaps и product-owned fallback.
+- [ ] Опубликовать reviewed revision через existing API и дать новому actor другой вариант. Зафиксировать фактический выбор, исполнение и результат.
+- [ ] Проверить supersede/rollback без переписи старого outcome, quarantine owner/срок пересмотра и производный Obsidian view.
+- [ ] Сравнить detection/стоимость с control. Одинаковый выбор — честный нулевой прирост; полезное самостоятельное исследование не запрещается ради красивого A/B.
+
+**Exit:** хотя бы один принятый lesson используется в новом фактическом исполнении; known broken найден, healthy не объявлен багом, denominator не уменьшился. Весь historical Freeland graph debt не prerequisite другого продукта.
+
+### W5. Квалифицировать недостающие capabilities по спросу (P5/P6)
+
+**Native files:** `tools/android-pilot/README.md`, `driver.mjs`, `runner.mjs`, `run.mjs`, существующие tests и `wallet-visit.json`. Это экспериментальный opt-in путь, не новая разработка Appium runner с нуля.
+
+- [ ] До расходования device quota проверить один короткий разрешённый сценарий: пригодные screenshot/XML, устройство/build/SSO, useful-screen readiness; запуск Activity не заменяет готовность карты.
+- [ ] Раздельно квалифицировать session create/timeout/unknown outcome/delete/host interruption и фактический functional result. Mock13controls не заменяют device execution.
+- [ ] Для NFR до запуска указать источник порога и метод измерения. Idle/provider FPS не выдавать за compositor FPS; без порога сохранить измерение, не PASS.
+- [ ] Для fixtures проверить ID/owner/role/state/expiry и readback: draft≠approved, похожий alias≠нужный mailbox, stored-active≠неистёкший ресурс.
+- [ ] Для отдельно разрешённой mutation/payment lane сохранить action/budget/one owner, pending/decline/unknown, same-ID recovery и private refund disposition. Существующее достаточное evidence не требует новой покупки.
+- [ ] Применимые accessibility/reliability/security проверки выполнять в доступном scope; неподдержанные GPS/TalkBack/audio/provider/device ветки явно pending. При повторяемой capability gap сравнивать один кандидат с текущим tool.
+
+**Exit:** конкретный заявленный класс получил пригодное средство и healthy/broken result либо точный внешний blocker. Новых полномочий, всех устройств или обязательной financial qualification для read-only QA нет.
+
+### W6. Реальные full/ticket/help и независимый transfer (P3/P5)
+
+**Reuse:** существующие owners MagicPay, rw-int, Nuanu App; `evals/dialogue-quality/`, `evals/mixed-handoff-agent-cycle/` и текущие observation/status tools. Четвёртый продукт не нужен ради формального «новый».
+
+- [ ] Выбрать реальный полный объявленный scope и отдельно реальный mixed-ticket остаток, не только уже завершённый single-ticket subset. Проверить исходный путь, существенные AC и связанные риски.
+- [ ] Сохранять original/additional scope, группы/атомы/observations отдельно; у каждого FAIL/PARTIAL/BLOCKED/UNASSESSED указать основание и следующий ответственный шаг.
+- [ ] На реальной зависимости запросить только недостающий input; выполнить независимую ветку. После настоящего ответа проверить readiness/account/build и продолжить зависимую. Самостоятельно найденный обход не считается human-reply exit.
+- [ ] Controlled «готово, но fixture прежняя» не запускает action; реальный ответ и synthetic control получают отдельные records.
+- [ ] Новый actor выполняет оставшийся объём; A done не повторяет, B unknown сверяет до retry, C pending не теряет. Fresh context, остановка процесса и host restart записываются разными событиями.
+- [ ] Выполнить заранее зафиксированный held-out вариант, эталон реально недоступен actor или sample честно open-context. Сохранить first attempts, подсказки, коррекции, flakes/skips и стоимость.
+- [ ] Отдельно квалифицировать разрешённую tracker delivery: dedupe, template/state, exact target, persisted readback. Без права писать — report-only и delivery unqualified.
+
+**Exit:** полный scope объясним, выбранный live mixed batch и реальный help→resume подтверждены своими evidence, а не реконструкцией отчёта. В малом declared control set нет unsupported PASS, ложного healthy bug и пропущенного critical seeded case. Product FAIL/BLOCKED не мешает честно завершить QA disposition с release NOT_ACCEPTED.
+
+### W7. Принять dialogue-ready поставку в объявленном объёме (P0/P6)
+
+**Files:** `sources/manifest.v1.json`, `sources/candidates/`, `tools/workspace.mjs`, `tests/`, `.github/workflows/qa-source.yml`, `skills/README.md`, `docs/getting-started.md`, `docs/qualification/current.md`. Менять только затронутые delivery/entry bytes, не все компоненты автоматически.
+
+- [ ] Для каждого code-среза сохранить exact reviewed source, complete bundle, соответствующий manifest и scoped gates; пройти cold restoration/readback. Старые результаты не переатрибутировать.
+- [ ] Сверить полный source/installed skill bundle, включая references; adoption/installation отдельно. Не копировать legacy skills массово.
+- [ ] Проверить отсутствующую capability, expired access, смену build и повреждённую соседнюю session; здоровый target не требует переноса чужих state/secrets.
+- [ ] Различить pure/source, local browser/fixture и product command classes. Локальный workflow body не hosted CI; actual hosted execution квалифицировать после отдельной публикации/доступа.
+- [ ] До расширения затронутой lane закрыть её resource/Worker guards (oversized/chunked response, Worker/SharedWorker с/без dependencies). P2-B остаётся deferred; если выбранному scope нужна непринятая privacy lane, исключить её явно или запросить решение, не ослаблять guard.
+- [ ] Cold clone + новый диалог выполняют discovery→проверки→help/resume→результат→learning без авторских доноров. Проверка root61 или наличие файлов не заменяют actual execution.
+- [ ] Actual Codex/Claude результаты записать раздельно; недоступный host — unqualified. AQA принимает тесты/доказательства, operations reviewer — выполнение и заявленные recovery boundaries.
+
+**Exit:** repository + явные prerequisites достаточны для объявленного host/product/action scope; нет известных fail-open в принятых активных путях. QA-вывод, owner risk decision и readiness целевой среды — три разных решения.
+
+### W8. Условная экономия моделей: rules → Jev → trial (P5/P6)
+
+**Status:** optional, не prerequisite полезного QA или W7. Использовать существующие eval/trial records; runtime route и внешняя интеграция выбираются отдельным bounded design после baseline. Handoff Никиты — input для сравнения, не инструкция конфигурации.
+
+- [ ] Разделить подзадачи на рутинное исполнение, реализацию и сложный анализ. Готовый deterministic test не нуждается в новом модельном вызове.
+- [ ] На одинаковых зафиксированных задачах измерить простой rules route: full-result quality, false claims, retries, latency, total cost. Не переносить обязательный xhigh или абсолютный запрет Astra без наших результатов.
+- [ ] После проверки текущей документации, доступа, цены и обработки данных допустить Jev только в shadow: он предлагает route, исполнителя пока не меняет.
+- [ ] При положительном сравнении согласовать ограниченный execution trial, escalation/fallback и stop criteria. Маршрут не меняет scope, authority и критерий QA acceptance.
+- [ ] Принять только подтверждённый выигрыш без ухудшения критичных outcomes. API billing и лимиты аккаунта Codex считать отдельно; Laya — отдельный последующий кандидат, не ещё одна обязательная зависимость.
+
+**Exit:** обоснованное adopt/reject решение по полному результату, а не по скорости классификатора. Router не заменяет test design и release verdict.
+
+### W9. Отдельно разрешённый cloud experiment → operational GO (P7)
+
+- [ ] До setup получить experiment scope: один product/host/actions, budget, доступы, stop criteria; default read-only web/API.
+- [ ] Использовать принятый runtime/skills; проверить фактическую ОС/mounts, containment/locks, resource/network bounds, cancellation, credential lifecycle и durable checkpoints.
+- [ ] Исполнить controlled restart, позднюю помощь и failed/unknown delivery; reconciliation до retry. macOS fixture не доказывает поведение Linux mounts.
+- [ ] Проверить собственную identity и persisted tracker/communication delivery при отдельной authority; сравнить существенные outcomes с dialogue mode.
+- [ ] Получить отдельный operational GO до schedules/always-on/уведомлений или расширения scope.
+
+**Exit:** worker действительно выполняет ограниченную полезную проверку и восстанавливает её без потери/повторения неизвестного эффекта. Поднятый сервер не равен завершению P7.
+
+## 5. Команды и границы проверок
+
+Команды ниже существуют сейчас; это каталог для scoped implementation plan, не приказ запустить всё при чтении. Пути child-relative, если явно указан child. Для новых pins сначала проверить actual embedded authority. Нельзя скрыто установить зависимости/браузеры или fallback в product.
+
+| Место | Команда | Что доказывает / ограничения |
+| --- | --- | --- |
+| root | `npm run sources:verify` | Точные выбранные bytes, не QA продукта |
+| root | `npm test` | Только root packaging; после source restore |
+| root | `node --test tools/android-pilot/*.test.mjs` | Локальные pilot controls, не external session |
+| Kernel child | `npm test -- tests/workspace/blueprint.test.ts` | Focused workspace fixture, не live product |
+| Kernel child | `npm run typecheck` | Типы выбранного source |
+| Console child | `QA_STARTER_REPO=/Users/danilsolomin/projectsnew/qa-agent/components/kernel node --import tsx --test --test-concurrency=1 tests/unit/qa-agent-observation-pair.test.ts tests/unit/qa-agent-observation-cli.test.ts` | На этой машине текущая explicit pair; local fixture/readback, требует dependencies. В isolated реализации передать путь её exact Kernel, не смешивать пары |
+| Freeland child | `node --test tests/freeland-main/desktop-content-contracts.test.mjs` | Локальный browser fixture; нужен уже доступный Chromium. Не pure test и не live VPN acceptance |
+
+Console/Freeland default `npm test`, Android `--execute`, product runners, provider calls и installs не являются offline gate. Qualification wrappers/readback выбираются из актуального owning pack, не придумывается общий `qa full` API.
+
+## 6. Цикл каждого пакета и критерии общего результата
+
+- [ ] Прочитать актуальные source/owner/expectation и составить bounded дизайн с точными файлами, командами и effects.
+- [ ] Сохранить failing control или первую actor attempt до правок; для code — TDD, для диагностики не создавать фиктивный code RED.
+- [ ] Внести минимальное owning изменение, выполнить релевантные controls и здоровый соседний случай.
+- [ ] Получить независимое review; reviewer может отклонить один пакет без остановки принятого соседнего. Ограничить fix-loop конкретными findings, не переписывать всё ради нового ревью.
+- [ ] Для source change: exact-byte delivery и cold check; для behavior change: новый consumer/вариант, не только повтор обучающей пары.
+- [ ] Отдельным логическим коммитом сохранить разрешённые source/документы после verification; live/private records и секреты не включать. Push/PR/skills install/product adoption требуют своего scope.
+- [ ] Обновить существующий current checkpoint и точный remaining gate. Не закрывать P целиком по количеству W или тестов.
+
+**Первый пакет к исполнению:** W0 + W1; W2a допустим параллельно как малый независимый ремонт, W2b только по замеру. Переход на W3 определяется реально отсутствующим oracle, не намерением построить библиотеку заранее.
+
+**Итог pre-cloud:** новая сессия в заявленном scope понимает продукт, делает существенные проверки, сохраняет evidence и остаток, продолжает после реальной помощи/смены контекста, применяет reviewed lesson и выдаёт ограниченный, но законченный QA-вывод. Не обещается отсутствие любых будущих багов, всех провайдеров или поддержка любого устройства.
+
+**Не является завершением:** число коммитов/graph nodes, одна зелёная fixture, source parity, manual workaround, self-recovery вместо human reply, source gate вместо deployed product, другой host только на бумаге.
+
+## 7. История и review
+
+Исходный план16сентября и97-пунктная матрица сохранены byte-for-byte; новая очередь отменяет только их устаревший порядок «что делать следующим», не требования и evidence limits. Реальные принятия source сохраняют свою датировку. Подробная сверка, hashes, deferred obligations и результаты независимого review — в [reconciliation](../../reviews/2026-09-23-global-plan-reconciliation.md).
