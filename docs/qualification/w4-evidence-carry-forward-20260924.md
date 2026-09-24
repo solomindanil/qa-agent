@@ -17,6 +17,21 @@ copy, rehashing 28 receipt-listed artifacts across five actual receipts. This
 proves retained bytes, not a replay or a live product result. The archive is
 gitignored and is not a cold-clone deliverable.
 
+## Separate current-source preparation check
+
+On 24 September, root `52ee6e95647847cade57d44fedd39245bcc5108b`
+with Node `v22.23.1` ran `npm run sources:verify` successfully against the
+manifest-selected Kernel `a0a20e6` and Console `f75d963`. The existing
+`node --test evals/graph-consumer-agent-cycle/fixture.test.mjs` passed 2/2.
+The documented preparation command using the selected Console `tsx` loader
+and `QA_STARTER_REPO` pointing at the selected Kernel passed 1/1
+(105,705.546 ms for the test). It exercised two temporary synthetic
+registrations and the existing test-controller-approved one-edge
+publication/readback path;
+it did not execute a fresh actor or a product campaign. This is a local
+compatibility check for the current source pair, not a replay of the earlier
+docs-render comparison, a W4a failure-control result, or W4 acceptance.
+
 ## Plan-clause readback
 
 | [W4 clause](../superpowers/plans/2026-09-23-unified-qa-agent-implementation-plan.md) | Current evidence | Remaining gate |
