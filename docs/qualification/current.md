@@ -58,6 +58,10 @@ it does not close all W2b or live W1. The separate
 bounded typed-helper design; runtime implementation is deferred pending its own
 approved design, controls and measurement. The W2a source pair is separate
 from that work and from live W1. P2-B remains deferred/unaccepted.
+The [W4 carry-forward audit](w4-evidence-carry-forward-20260924.md) freshly
+verified the retained docs-render experiment and mapped its still-open
+impact/fallback, rollback/quarantine and cost clauses; it is not new execution
+or full W4 acceptance.
 Installed skills and live campaign owners remain unchanged. No
 install, product mutation, monitor or cloud authority follows. W8 Jev routing
 is optional after a quality baseline; W9 cloud requires separate decisions.
