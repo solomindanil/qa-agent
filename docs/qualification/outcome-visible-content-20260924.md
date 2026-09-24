@@ -70,3 +70,17 @@ read-only expectation for a genuinely unobserved target through the existing
 owner's knowledge-publication path, verify its exact binding and current
 account/build, then execute and read back only that remaining assertion. Do
 not repeat the eight recorded targets or infer a whole-product PASS.
+
+A separate 24 September source/owner preflight read the complete
+`qa-product-v0` skill and three required references from the frozen owning
+Console `94083bf55d3237b6e60870211b034bfbc4b9dcc2`, without replacing its
+runtime. The retained rw-int workspace still names publication
+`sha256:2ab1ce25511d94a74cf7ad8c808f9abd1779f79619f11d6d61ad4e8554702cd4`;
+its graph/catalog pair has 20 targets with 8 resolved and 12 unresolved
+oracles. The apparently available resolved Guest and unauthenticated-API
+targets already have current-publication observation records, so selecting
+them would repeat the completed subset. The Direct/Metрика target's catalog
+oracle remains unresolved. This is a read-only file and retained-evidence
+integrity check, not another owning-Kernel reader invocation or a fresh
+product/account/build check. It closes T6.3's source/binding preflight only;
+T7 remains pending.

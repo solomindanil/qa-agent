@@ -97,6 +97,10 @@ at this readback) retains release NOT ACCEPTED.
 Installed skills and live campaign owners remain unchanged. No
 install, product mutation, monitor or cloud authority follows. W8 Jev routing
 is optional after a quality baseline; W9 cloud requires separate decisions.
+The read-only [W7 installed-skill comparison](w7-installed-skill-drift-20260924.md)
+found 30/42 exact source-to-host file slots, 9 differing and 3 missing across
+Codex, Agents and Claude. This is an installation/entry-point gap, not a
+runtime or product failure; no skill was promoted.
 
 ## Retained execution record and former queue through 22 September
 

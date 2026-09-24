@@ -208,7 +208,7 @@ pending through its separate owner.
 **Files:** `sources/manifest.v1.json`, `sources/candidates/`, `tools/workspace.mjs`, `tests/`, `.github/workflows/qa-source.yml`, `skills/README.md`, `docs/getting-started.md`, `docs/qualification/current.md`. Менять только затронутые delivery/entry bytes, не все компоненты автоматически.
 
 - [ ] Для каждого code-среза сохранить exact reviewed source, complete bundle, соответствующий manifest и scoped gates; пройти cold restoration/readback. Старые результаты не переатрибутировать.
-- [ ] Сверить полный source/installed skill bundle, включая references; adoption/installation отдельно. Не копировать legacy skills массово.
+- [x] Сверить полный source/installed skill bundle, включая references; [read-only W7 inventory](../../qualification/w7-installed-skill-drift-20260924.md) нашёл 30/42 exact, 9 drift и 3 missing. Adoption/installation остаётся отдельно, без массового копирования legacy skills.
 - [ ] Проверить отсутствующую capability, expired access, смену build и повреждённую соседнюю session; здоровый target не требует переноса чужих state/secrets.
 - [ ] Различить pure/source, local browser/fixture и product command classes. Локальный workflow body не hosted CI; actual hosted execution квалифицировать после отдельной публикации/доступа.
 - [ ] До расширения затронутой lane закрыть её resource/Worker guards (oversized/chunked response, Worker/SharedWorker с/без dependencies). P2-B остаётся deferred; если выбранному scope нужна непринятая privacy lane, исключить её явно или запросить решение, не ослаблять guard.
