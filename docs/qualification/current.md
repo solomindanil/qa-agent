@@ -29,6 +29,14 @@ The separate [D2 read-only forensic](i06a-d2-forensic-20260924.md) finds its
 missing effect details already in the candidate index. It does not regrade the
 first reply or establish why the actor omitted them; duplicating index text
 is not a demonstrated fix.
+The separate [no-model skill-catalog preflight](i06a-skill-catalog-preflight-20260924.md)
+under CLI App Server 0.154.0 returned 88 entries and zero catalog errors for
+each of the canonical root and both preserved A/B normal clones.
+The ten selected QA entries are enabled user-scope host copies, not paths into
+the differing clone sources; installed `qa-check` bytes match clone A, not B.
+This makes clone-only implicit source-index attribution untenable, while the
+actual model-visible list and fresh implicit trigger remain untested. It does
+not promote I06a, install skills, or regrade historical actors.
 
 **I02 stays owner-gated:** an owner-reviewed cohort/role/lifecycle/rollout → guide/support matrix and Astra review precede any Sol code; the [W3 VPN proposal](w3-freeland-vpn-content-design-20260924.md) is still unapproved and grants no live execution. The I06a held-out decision is recorded; the separate OC-Q wrong-request control may follow its own approved design. A missing retained account interface blocks only I06a.5, not independent OC-Q. Other approved independent local controls may continue. Assess benefit after I00–I05 before extending. A [frozen read-only old/new consumer comparison](../../evals/outcome-completion/runs/i00-queue-consumer-20260924/README.md) routed the old consumer to gated T7 and the new consumer to I00; neither mutated a product. The new route exposed the then-stale I00 status, not a measured QA-quality gain. T7 remains a separate live oracle gate; W2a is adopted source-only, with no product, installed-skill or campaign qualification from this queue update.
 
