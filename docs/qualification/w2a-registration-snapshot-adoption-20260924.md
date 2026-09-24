@@ -91,6 +91,30 @@ there is no portable raw-log archive for those runs. The counts and limits
 above are attributed to that transcript, not independently reproduced by the
 delivery reviewer.
 
+### Targeted timeout diagnostic, 24 September
+
+A later, isolated diagnostic reran only the exact `resumes PUBLISHING over a
+safe prior-authority workspace so the replacement can republish` test with its
+original 120-second limit. The selected W2a Kernel passed in **98.26 s**;
+an otherwise identical temporary clone at the prior `aa5d2d1` commit passed
+in **93.74 s**. Both used the same installed dependencies and Node runtime.
+Neither invocation was the full `npm run verify` gate. The first CPU profile
+captured only the Vitest coordinator and was not used for bottleneck attribution;
+the paired comparison profiled the Vitest worker via `--execArgv`.
+
+The worker profiles covered 99.06 s for W2a (48.32 s active / 50.73 s idle)
+and 94.52 s for the prior commit (46.58 s active / 47.94 s idle). Inclusive
+samples were similar: `registration-store` 26.28 / 25.89 s,
+`registration-replay` 12.43 / 12.25 s, `workspace-blueprint` 8.10 / 7.79 s,
+and `canonical-json` 13.36 / 13.46 s (W2a / prior). These stack categories
+overlap and must not be summed. They support an existing expensive
+replay/validation path; the changed planning-view text was not a measured
+hotspot. One pair does **not** establish the cause of the historical timeout,
+exclude a small W2a cost or contention, or qualify the full suite. No timeout,
+source, configuration, store validation, or acceptance rule was changed.
+Raw profiles were generated in temporary diagnostic directories and are not
+part of this portable source archive.
+
 ## Retained workspace and authority boundary
 
 An isolated workspace published with prior Kernel `aa5d2d1` was validated
