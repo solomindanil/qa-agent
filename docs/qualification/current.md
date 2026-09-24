@@ -56,7 +56,9 @@ result through its accepted lane. Until then T7 stays pending, with completed
 subsets unrepeated, unknown effects unretried and no replacement registration.
 The [W2b browser/API/MCP evidence series](w2b-evidence-friction-series-20260923.md)
 supports using the existing observation writer/readback without a new helper now;
-it does not close all W2b or live W1. The separate
+its [current-source cost readback](w2b-evidence-friction-series-20260923.md#24-september-current-source-cost-boundary)
+defers an exact internal phase split rather than inferring it from a different
+validator. This does not close all W2b or live W1. The separate
 [D13-479 authoring probe](d13-479-authoring-probe-20260924.md) permits only a
 bounded typed-helper design; runtime implementation is deferred pending its own
 approved design, controls and measurement. The W2a source pair is separate

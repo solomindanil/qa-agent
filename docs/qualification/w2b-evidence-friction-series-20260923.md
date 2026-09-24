@@ -27,3 +27,24 @@ For an interruption control, only the exact MCP record's synthetic manifest file
 The earlier API-only diagnostic measured a 12.09–15.04 s separate Console CLI read and showed three repeated provenance checks account for much of that path; its paired Console bridge trial timed out and is **not** retrospectively a PASS. This new direct-Kernel series is not an apples-to-apples CLI-vs-API benchmark, but it verifies the three capture classes can use the existing writer's returned readback, a genuinely fresh reader, and the full-scope report. No recurring schema/binding failure was observed in these three prepared records. **Do not add an observation constructor/exporter or weaken authority checks now.** The delivered Console reference already removes the unnecessary immediate second read for the same caller. The distinct D13-479 graph/catalog/coverage authoring decision still needs its own API/browser/manual examples and controls; evidence-write success does not close it.
 
 W1 live remaining-only remains open. A read-only attempt to bind the known rw-int Chrome owner tab timed out in the browser tool, so this trial did not verify a current signed-in account or execute another product assertion. The existing rw-int owner report already contains same-day observations; no completed product action was replayed. A supported owner-session readback and a selected unobserved assertion are required before any live W1 claim.
+
+## 24 September current-source cost boundary
+
+Read-only inspection of the selected Kernel
+`a0a20e65b3290e6bbf5afe91d0e45ed372389adb` confirms that
+`recordAgentToolObservation` calls its private, untimed `currentAuthority`
+once, then returns its own `readAgentToolObservation` readback. That reader
+checks `currentAuthority` twice more, before and after reading the stored
+record. Thus the writer path includes three authority inspections, but the
+23 September whole-call measurements cannot be divided into exact authority,
+append and returned-readback wall times. `validateWorkspace` follows a
+different path and is not a valid proxy for the writer's private phase.
+
+An exact split would require explicit temporary instrumentation or source
+transformation and its own reviewed measurement design; subtracting separate
+public calls would imply false precision. The prior 1.22–1.30 s writer-return
+and 0.84–1.04 s fresh-reader figures remain the bounded observations. The
+no-new-observation-helper ruling stands. Further synthetic continuation/caller
+cost work is lower priority than owner-reviewed W1 remaining scope and W4
+impact/fallback, and none of this read-only source inspection closes those
+gates or changes an existing receipt.
