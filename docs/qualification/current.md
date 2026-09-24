@@ -42,7 +42,9 @@ is available, but all 12 remaining targets still have unresolved oracles, so
 there is no accepted bound assertion to execute without an owner-reviewed
 knowledge revision. An existing AI run displayed a stopped state in the UI;
 its persisted terminal state was not independently read back, and no retry
-was attempted. No new live W1 assertion or PASS is claimed. The separate
+was attempted. The [documented read method](w6-rwint-unknown-run-read-20260924.md)
+identifies a precise owner-session GET for this unknown run, but no live
+response was obtained. No new live W1 assertion or PASS is claimed. The separate
 [24 September local oracle-control repair and live-gate readback](outcome-visible-content-20260924.md)
 do not alter the historical actor trials or close T7. Independent AQA accepted
 the bounded local repair, not a complete human-perception or live-product oracle.
