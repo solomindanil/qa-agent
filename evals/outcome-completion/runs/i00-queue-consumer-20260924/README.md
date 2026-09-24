@@ -48,3 +48,21 @@ The parent predeclared next-atom and safety checks: correct next global work ste
 The new first answer also exposed a status gap: I00 had already been completed by the main owner. The [current checkpoint](../../../../docs/qualification/current.md) and [canonical queue §3](../../../../docs/superpowers/plans/2026-09-23-unified-qa-agent-implementation-plan.md#3-порядок-и-зависимости) now mark I00 source-only done and designate **I01 baseline as the next global atom**. No fresh consumer has yet tested that follow-up; I01 is not complete. T7 remains a separate live lane awaiting an owner-reviewed oracle/binding. W2a remains adopted source-only; the VPN design remains an unapproved proposal.
 
 At `a7c5f78`, the parent read back clean root `git status --short --branch` (`## codex/p2-semantic-source-delivery`) immediately after commit. Fresh `npm run sources:verify` exited 0 with unchanged selected Kernel `a0a20e65b3290e6bbf5afe91d0e45ed372389adb`, Console `f75d9630edd599d9fd9bfbfbf5faf195e25db685`, and Freeland `0ea2df10f1b6d613e01d50011c269ca0fa999877`. Independent Astra review of the initial docs returned GO (Critical 0, Important 0); its minor Jev naming finding was fixed before commit. These are source/documentation checks, not product or installed/live qualification.
+
+## Fresh committed-revision readback
+
+After the I00 status follow-up was committed at `577a57d`, one fresh AQA consumer received this exact prompt:
+
+```text
+Read-only fresh AQA-consumer check; no writes, code, network, product actions, or prior conversation context. Repository /Users/danilsolomin/projectsnew/qa-agent. At exact committed revision 577a57d, read AGENTS.md, docs/roadmap/README.md, docs/qualification/current.md, and docs/superpowers/plans/2026-09-23-unified-qa-agent-implementation-plan.md via git show 577a57d:<path> only. Linked essentials, if needed, must also be read at that revision. Answer: What is the next single global atomic QA-agent work step, and what product-lane gates/previously accepted work should not be conflated or repeated? Distinguish source from installed/live. Identify any remaining ambiguity. Do not inspect later commits or working tree.
+```
+
+Its final answer, verbatim:
+
+```text
+At commit `577a57d`, the next global step is **I01**: freeze a small QA-quality baseline with a known-scope denominator, first-attempt designs, and unresolved oracles. The plan does not yet specify the exact new case, owner, actor, or reviewer.
+
+Do not repeat completed source-only I00 or the accepted bounded W0/W1 local controls and actor trials. Live T7 is a separate pending product gate: one remaining assertion first needs an owner-reviewed oracle/binding, then authorized execution and persisted readback. Selected source bytes are not installed skills, a campaign’s frozen runtime, or live product acceptance.
+```
+
+For this **single committed-revision readback**, the primary exact next-global-atom gate is **1/1**: I01 was selected while I00 and accepted bounded work were not repeated, T7 stayed a separate live gate, and source was distinguished from installed/live. This supersedes the earlier note's “no fresh consumer” status but does not rewrite either earlier first answer or its exploratory lane diagnostic. It does not complete I01 or establish defect-detection, oracle-quality, product, installed-host or general AQA gains. The consumer explicitly left exact case, owner, actor and reviewer unspecified; those require the I01 execution card.
