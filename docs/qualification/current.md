@@ -80,7 +80,10 @@ sessions. This is bounded live-use evidence for that imported component under
 separate owner orchestration, not qualification of root `runner.mjs`, `run.mjs`
 or their fixed plan. Exact executed Driver-byte attribution, lifecycle failure
 controls and output-privacy qualification remain open; observations are
-unsealed.
+unsealed. The [read-only Driver attribution](w5-android-driver-attribution-20260924.md)
+confirms that present bytes match Git history and the 20 September inventory,
+but the owner run did not record its executed Driver hash or snapshot, so its
+historical exact bytes cannot be proven retroactively.
 The local-only owner evidence directory is
 `.local/products/nuanu-app/qa-20260924/android4-redmi-numeric-retest-01/`.
 Its `REPORT.md`, `run.mjs` and `result.json` have SHA-256 respectively
