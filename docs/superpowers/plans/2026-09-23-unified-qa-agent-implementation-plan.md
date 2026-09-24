@@ -126,8 +126,10 @@ W0+W1 разложен на [восемь задач T1–T8](2026-09-23-w0-w1-o
 **24 September source checkpoint:** [W2a bounded adoption](../../qualification/w2a-registration-snapshot-adoption-20260924.md)
 retains the exact new pair, source-only gates and old-workspace read-only
 incompatibility. Independent root delivery review returned conditional GO;
-the exact pair and qualification are committed. Full Kernel `npm run verify` is not green; the reported
-timeout and exit 130 are not reclassified by focused passes. Live W1/T7 remains
+the exact pair and qualification are committed. A later uninterrupted full
+Kernel `npm run verify` passed 45/45 files and 1788/1788 tests with build;
+the earlier timeout and exit 130 remain historical, not reclassified by
+focused passes. Live W1/T7 remains
 pending through its separate owner.
 
 **Exit:** view больше не вводит в заблуждение, authoritative readback и история сохранены. Старые `a9378b2/d272f31` не выбираются вместо текущих successors целиком.

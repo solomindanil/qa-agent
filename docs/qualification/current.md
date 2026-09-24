@@ -8,7 +8,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
-| Kernel | `a0a20e65b3290e6bbf5afe91d0e45ed372389adb` | W2a [registration snapshot repair](w2a-registration-snapshot-adoption-20260924.md), source-only; full `npm run verify` **not green**. Prior [observation implementation](agent-observations-20260920.md) retains attribution. |
+| Kernel | `a0a20e65b3290e6bbf5afe91d0e45ed372389adb` | W2a [registration snapshot repair](w2a-registration-snapshot-adoption-20260924.md), source-only; later exact full `npm run verify` **passed once** (45/45 files, 1788/1788 tests, build), with the earlier timeout retained. Prior [observation implementation](agent-observations-20260920.md) retains attribution. |
 | Console | `f75d9630edd599d9fd9bfbfbf5faf195e25db685` | Exact-pin W2a [plan lifecycle regression](w2a-registration-snapshot-adoption-20260924.md). Prior [observation readback reference](observation-readback-reference-20260923.md), [API semantic assertions](api-oracles-20260922.md), [ordinary status repair](ordinary-campaign-status-20260921.md) and [reference correction](observation-skill-reference-20260920.md) retain attribution. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
@@ -26,7 +26,10 @@ remaining acceptance and owner-deferred work.
 [source adoption](w2a-registration-snapshot-adoption-20260924.md)
 corrects the false generated-plan absence claim on the exact Kernel/Console
 pair after independent delivery review. It does not synchronize live
-plans or migrate retained workspaces; the full Kernel suite is not green.
+plans or migrate retained workspaces; a later uninterrupted full Kernel
+`npm run verify` passed, while its earlier interrupted attempt remains in the
+W2a record with unproven timeout cause. This source gate does not qualify live
+campaigns.
 Separately, the owner-approved inline
 [W0 + W1 package](../superpowers/plans/2026-09-23-w0-w1-outcome-completion-tasks.md)
 produced [six passing local controls and four actor trials](../../evals/outcome-completion/runs/w0-w1-first/README.md)
@@ -119,9 +122,9 @@ This can mislead continuation; no failed agent continuation is claimed by this
 readback alone. The proposed narrow port labels the registration snapshot and
 points to the existing authoritative plan reader/validator; it does not invent
 a live-plan synchronizer, change verdicts or rewrite retained workspaces.
-That was the historical proposal; the newer bounded pair and its incomplete
-full-suite qualification are recorded in the W2a adoption record above. The
-historical candidate is not selected automatically.
+That was the historical proposal; the newer bounded pair, subsequent local
+full-suite pass and retained historical failure are recorded in the W2a
+adoption record above. The historical candidate is not selected automatically.
 
 **22 September checkpoint: owner resumed universal development and approved the
 cross-product priority refinement after independent Lead AQA review with conditions.**

@@ -57,7 +57,7 @@ the full Kernel suite.
   views, then the focused blueprint suite passed **40/40**. The expanded
   blueprint/knowledge-revision/validation gate passed **149/149** in 280.76 s;
   `npm run typecheck` and `npm run build` exited 0.
-- Kernel `npm run verify` is **not green**. The full Vitest run reported a
+- The first Kernel `npm run verify` attempt was **not green**. The full Vitest run reported a
   120-second timeout in `tests/registration/service.test.ts` for “resumes
   PUBLISHING over a safe prior-authority workspace so the replacement can
   republish.” It continued without a complete result and was interrupted at
@@ -65,8 +65,9 @@ the full Kernel suite.
   also timed out and is not a clean discriminator. A later non-overlapping
   single-case rerun passed on W2a in 118.58 s and on the prior Kernel in
   111.61 s; both are near the test's 120-second bound. No cause for the
-  timeout is proven, and these single-case results do not turn the full gate
-  green or justify increasing the timeout.
+  timeout is proven, and those single-case results did not turn that full gate
+  green or justify increasing the timeout. A later exact full pass is recorded
+  below; it does not erase this failed diagnostic attempt.
 - Console vertical regression failed **0/1** against a clean isolated prior
   Kernel because the generated view still said `No CampaignPlan exists`; it
   passed **1/1** on the W2a pair. The final-pin authority/lifecycle/stalled-Git
@@ -115,6 +116,25 @@ source, configuration, store validation, or acceptance rule was changed.
 Raw profiles were generated in temporary diagnostic directories and are not
 part of this portable source archive.
 
+### Exact full Kernel gate, 24 September
+
+A later uninterrupted `npm run verify` on the clean selected Kernel HEAD
+`a0a20e65b3290e6bbf5afe91d0e45ed372389adb` with Node `v22.23.1`
+exited **0**. Typecheck completed, Vitest reported **45/45 files** and
+**1788/1788 tests** passing (test duration 2285.31 s; Vitest total 2297.95 s),
+and the subsequent `tsc -p tsconfig.build.json` build completed. Kernel and
+root working trees were clean after the run. The coordinator transcript for
+execution session `88954` is the evidence for this pass; the independent
+documentation reviewer did not rerun the suite. Vitest started at 08:12:40
+Bali. The installed Vitest `4.1.11` selected its agent-host
+`MinimalReporter`, which intentionally suppresses successful-file progress;
+the lack of intermediate stdout was not used as pass or hang evidence. This
+run supplies one complete local Kernel gate on the selected W2a source. It
+does not prove the earlier timeout cause was fixed or exclude intermittent
+failure, independently rerun Console, prove hosted CI, alter frozen campaigns
+or close product/W1 acceptance. The earlier 120-second timeout and 20-minute
+interruption remain retained above as historical attempts.
+
 ## Retained workspace and authority boundary
 
 An isolated workspace published with prior Kernel `aa5d2d1` was validated
@@ -128,7 +148,7 @@ Existing campaigns remain bound to their original selected owner/runtime;
 incompatibility is not a reason to republish them automatically.
 
 W2a removes one misleading generated claim. It is not a live-plan
-synchronizer, product acceptance, managed PASS/GO, full Kernel-suite pass,
+synchronizer, product acceptance, managed PASS/GO,
 hosted CI, installed-skill promotion, browser/payment/tracker work, cloud
 qualification or live W1/T7 closure. T7 still requires an owner-reviewed
 remaining oracle/binding, authorized execution and persisted readback through
@@ -146,5 +166,9 @@ independent delivery reviewer repeated the bundle/source/pair checks and root
 Kernel `a0a20e6`, Console `f75d963`, unchanged Freeland `0ea2df1`, and
 inactive reporting reference `10d398d`. The root suite includes the exact
 Console–Kernel manifest pair control and cold source restore/verify controls.
-Neither command runs product checks. These results prove bounded local source
-packaging, not a complete Kernel full-suite pass or product acceptance.
+After the full Kernel gate, a fresh root
+`npm run sources:verify` exited 0 for the same selected pair and `npm test`
+passed **61/61** (33.64 s).
+Neither command runs product checks. These root results alone prove bounded
+local source packaging, not the separate full Kernel-suite pass above or
+product acceptance.
