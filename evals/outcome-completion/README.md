@@ -35,6 +35,8 @@ Current synthetic controls are `none` healthy; `guide`, `quantity`, `quantity-do
 
 The first [OC-Q DOM-only controller run](runs/ocq-dom-only-controller-20260924/README.md) preserves its test-first RED and focused GREEN outputs. Independent AQA review gave GO for this bounded controller slice (Critical/Important/Minor 0/0/0); it adds no actor trial, live-product evidence or historical score.
 
+A separate [fresh OC-Q actor trial](runs/ocq-dom-only-actor-20260924/README.md) had a 1/1 accepted first design but an incomplete first execution (0/2 origins, 0/6 verdicts); after one reviewed correction and one retry per origin, AQA accepted 2/2 origins and 6/6 verdicts: five PASS and the single DOM-only Q2 FAIL. It does not change the historical 1/4 first-design denominator or qualify a live product.
+
 ### Read-only Freeland VPN flow cross-check — not a live verdict
 
 - **Requirement:** the 24 September read of the original FREEL-443 ticket, attributed in the [W3 proposal](../../docs/qualification/w3-freeland-vpn-content-design-20260924.md), establishes Happ primary/Incy fallback, Global Store/install fallback and return, clipboard/QR import, Connect plus OS permissions, provider-specific support and retained legacy Karing. Full acceptance requires an agreed real QA key. It does **not** authorize exact RU literals, current rollout/cohort binding or a claim that an import/connect succeeded.
