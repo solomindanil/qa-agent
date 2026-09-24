@@ -22,6 +22,8 @@ is the one current global queue. Its [comparison](../reviews/2026-09-23-global-p
 preserves all prior P0–P7/97-item obligations and distinguishes adopted bounded work,
 remaining acceptance and owner-deferred work.
 
+**Queue reconciliation, 24 September:** [§3 of the same plan](../superpowers/plans/2026-09-23-unified-qa-agent-implementation-plan.md#3-порядок-и-зависимости) now sequences quality-first I00–I11 against existing W/P IDs; I IDs are order, not acceptance stages. Start with checkpoint/baseline I00–I01, preserve the live T7 oracle gate and already adopted W2a, and assess benefit after I00–I05 before extending the programme. This is a documentation priority change, not source, installed-skill or campaign adoption.
+
 **Current checkpoint, 24 September:** the bounded W2a
 [source adoption](w2a-registration-snapshot-adoption-20260924.md)
 corrects the false generated-plan absence claim on the exact Kernel/Console
@@ -111,8 +113,11 @@ root. The separate local-only owner checkpoint
 (SHA-256 `eb491817130d4084ba8e2ae3530ab5e060bf40aa529bb055e1868d826b82082c`
 at this readback) retains release NOT ACCEPTED.
 Installed skills and live campaign owners remain unchanged. No
-install, product mutation, monitor or cloud authority follows. W8 Jev routing
-is optional after a quality baseline; W9 cloud requires separate decisions.
+install, product mutation, monitor or cloud authority follows. W8
+`browser-use/jev-ultrafast` is an optional browser-executor comparison after
+a quality baseline; TypeSafe Jev is a structured-decision model potentially
+relevant to a separate model-routing investigation, not that executor.
+W9 cloud requires separate decisions.
 The read-only [W7 installed-skill comparison](w7-installed-skill-drift-20260924.md)
 found 30/42 exact source-to-host file slots, 9 differing and 3 missing across
 Codex, Agents and Claude. This is an installation/entry-point gap, not a

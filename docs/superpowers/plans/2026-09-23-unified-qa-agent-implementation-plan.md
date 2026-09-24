@@ -12,7 +12,7 @@
 
 **Статус при создании, 23 сентября:** пользователь заказал объединение и оформление плана. Этот документ — единая текущая очередь; P0–P7 остаются стабильными именами требований, W0–W9 ниже — пакеты исполнения. Сама запись плана не меняла код, pins, installed skills или кампании и не запускала разработку после прежнего freeze. Это историческая граница задачи оформления, не текущий запрет уже разрешённого исполнения. Документ не объявляет P0–P6 завершёнными.
 
-**Текущий checkpoint, 24 сентября:** [локальный W0/W1 срез](../../../evals/outcome-completion/runs/w0-w1-first/README.md) прошёл 6/6 controls и независимый AQA review, но live remaining-only T7 остаётся pending. [Свежий owner readback](../../qualification/outcome-visible-content-20260924.md#live-remaining-only-w1-t7) нашёл authenticated browser; 20 targets содержат 8 recorded / 12 `not_observed` и 15 blockers, причём у всех 12 нет разрешённого oracle/binding для принятого assertion. Следующий live W1 gate — owner-reviewed knowledge revision для одного остатка, затем только разрешённое исполнение и persisted readback. Позднее [точное чтение run](../../qualification/w6-rwint-unknown-run-read-20260924.md) установило `cancelled` и отсутствие `media_plan` среди четырёх текущих артефактов проекта; оно не доказало отсутствия внешних эффектов и не разрешило новый AI turn. Это не live PASS и не закрытие W1/P3/P5. Отдельный [локальный ремонт visible-content oracle](../../qualification/outcome-visible-content-20260924.md) прошёл независимый AQA для bounded synthetic controls; он не переписывает четыре исторических actor trials и не доказывает полную human-perception корректность. [W2b evidence series](../../qualification/w2b-evidence-friction-series-20260923.md) не обосновала новый observation helper. Отдельное [решение D13-479](../../qualification/d13-479-authoring-probe-20260924.md) допускает bounded typed-helper design, но откладывает runtime implementation до отдельного одобренного дизайна, controls и замера. W2a остаётся самостоятельным узким ремонтом. Новых полномочий на продукт, кампанию, установку или cloud нет.
+**Текущий checkpoint, 24 сентября:** [локальный W0/W1 срез](../../../evals/outcome-completion/runs/w0-w1-first/README.md) прошёл 6/6 controls и независимый AQA review, но live remaining-only T7 остаётся pending. [Свежий owner readback](../../qualification/outcome-visible-content-20260924.md#live-remaining-only-w1-t7) нашёл authenticated browser; 20 targets содержат 8 recorded / 12 `not_observed` и 15 blockers, причём у всех 12 нет разрешённого oracle/binding для принятого assertion. Следующий live W1 gate — owner-reviewed knowledge revision для одного остатка, затем только разрешённое исполнение и persisted readback. Позднее [точное чтение run](../../qualification/w6-rwint-unknown-run-read-20260924.md) установило `cancelled` и отсутствие `media_plan` среди четырёх текущих артефактов проекта; оно не доказало отсутствия внешних эффектов и не разрешило новый AI turn. Это не live PASS и не закрытие W1/P3/P5. Отдельный [локальный ремонт visible-content oracle](../../qualification/outcome-visible-content-20260924.md) прошёл независимый AQA для bounded synthetic controls; он не переписывает четыре исторических actor trials и не доказывает полную human-perception корректность. [W2b evidence series](../../qualification/w2b-evidence-friction-series-20260923.md) не обосновала новый observation helper. Отдельное [решение D13-479](../../qualification/d13-479-authoring-probe-20260924.md) допускает bounded typed-helper design, но откладывает runtime implementation до отдельного одобренного дизайна, controls и замера. [W2a source pair](../../qualification/w2a-registration-snapshot-adoption-20260924.md) уже принят в ограниченном source-only объёме; не переоткрывать его как следующий ремонт. Новых полномочий на продукт, кампанию, установку или cloud нет.
 
 ## Global Constraints
 
@@ -66,19 +66,31 @@ Source на входе: root `7aa1b2498875b498c4370c513065b4fe265d1fd6`, вет�
 | P5 качество агента/capabilities | Заранее заданные controls, first attempt/transfer, device/effects отдельно | W0, W1, W3, W5, W6 |
 | P6 dialogue-ready delivery | Короткий entry, source/installed/runtime drift, cold dialogue и host proof | W2, W7 |
 | P7 cloud | Scoped experiment → actual worker/recovery → operational GO | W9 |
-| Новое условное сравнение моделей | Rules baseline → Jev shadow → ограниченный trial; Laya после отдельного решения | W8, не prerequisite W1–W7 |
+| Новое условное сравнение исполнителя | `browser-use/jev-ultrafast` — кандидат browser executor для равного A/B после quality baseline; TypeSafe Jev — structured-decision model, потенциальный input для отдельного исследования model routing, не этот executor | W8, не prerequisite W1–W7 |
 
 Все97исторических записей сохраняются через прежнюю поэлементную матрицу и [адресную сверку](../../reviews/2026-09-23-global-plan-reconciliation.md). Это не97новых функций и не метрика готовности.
 
 ## 3. Порядок и зависимости
 
-1. W0 — короткий вход в каждый новый существенный срез, не отдельный многодневный проект.
-2. W1 — основной ближайший результат: grounded outcome + одна реальная remaining-only проверка.
-3. W2a snapshot и W2b measured evidence friction — независимые малые ремонты параллельно W1, не prerequisites всего QA.
-4. W3 усиливает те же сценарии; W4 переносит подтверждённую находку в следующий проход.
-5. W5 native/NFR и отдельные effect lanes идут по имеющимся возможностям, не блокируют web/API.
-6. W6 проверяет перенос на трёх уже используемых продуктах; его baseline начинается в W0/W1, а не в конце.
-7. W7 принимает поставку только для объявленного scope. W8 — условная экономия после устойчивого W1/W3 baseline. W9 — отдельное решение после scoped W7.
+Принятый 24 сентября quality-first порядок ниже — **одна очередь в этом плане**, а не новый registry. I-ID обозначает последовательность итераций, **не** новую стадию приёмки: требования P0–P7, пакеты W0–W9, их exits и [97-пунктная матрица](../../reviews/2026-09-16-global-plan-reconciliation.md) сохраняют смысл. После I00–I05 оценить измеримую пользу прежде, чем подтверждать расширение. W0 сопровождает каждый срез; независимые безопасные ветки могут идти при блокере конкретного oracle, но не два владельца одной кампании.
+
+| Порядок | Существующие W/P | Ближайший результат и граница |
+| --- | --- | --- |
+| I00 | W0/W7; P0/P6 | Сверить checkpoint, source/owner/runtime и сохранить уже принятое. W2a принят source-only; не повторять. |
+| I01 | W0/W1/W6; P2/P3/P5 | Заморозить маленький quality baseline, known-scope denominator, первые designs и unresolved oracles. Исторические 1/4 не становятся новым trial. |
+| I02 | W1/W3; P2/P5 | Принять конкретный VPN semantic contract с независимым cohort/oracle; [W3 proposal](../../qualification/w3-freeland-vpn-content-design-20260924.md) и точные RU literals пока не приняты как нормативные. |
+| I03 | W1/W3; P2/P5 | Bounded healthy/broken VPN regression по принятому contract; local GREEN не live PASS. |
+| I04 | W7; P0/P6 | Проверить exact-byte delivery и свежего consumer; source, installed skill и campaign runtime различать. |
+| I05 | W4; P4 | Проверить, изменяет ли reviewed graph relation следующий выбор/исполнение, сохранив gaps и честный нулевой прирост. |
+| I06 | W5/W6; P3/P5/P6 | Закрывать capability/access gaps по спросу; native/NFR и effect lanes остаются самостоятельными residuals, не prerequisite web/API. |
+| I07 | W1/W3; P2/P5 | Перенести grounded assertions на quantity/quote, persistence/async и отдельно подтверждённый provider contract. |
+| I08 | W1/W6; P3/P5 | Выполнить один разрешённый remaining-only flow и help/resume; live T7 ждёт owner-reviewed oracle/binding, unknown effects — readback до retry. |
+| I09 | W3/W4; P2/P4 | Доставить подтверждённый bug как regression и проверить change-impact/retest без переписи истории. |
+| I10 | W0/W5–W7; P0/P3/P5/P6 | Независимо измерить first-design качество, переносимость и dialogue-ready scope; W5/W7 exits не закрываются автоматически. |
+| I11 | W8; P5/P6 | Лишь после quality baseline — опциональный Jev browser-executor A/B с independent assertions и полной стоимостью; adopt/no-adopt. |
+| Позже | W9; P7 | Cloud только по отдельному scope и operational GO, не следующий автоматический commit. |
+
+W2b evidence-write замер не требует нового observation helper сейчас; D13-479 graph/catalog/coverage authoring остаётся отдельным design/runtime решением. P2-B confidentiality owner-deferred и unaccepted; M6 generic manual receipt, Worker-guard и отдельные effect lanes не исчезли и не ослаблены, но не блокируют независимый первый quality-срез. Исторические W/P результаты и exits ниже не переписываются этим порядком.
 
 Параллелить только непересекающиеся изменения. Kernel/Console pin delivery интегрируется одним владельцем после проверки пары. Нельзя двум исполнителям одновременно вести одну продуктовую кампанию или менять общий pack.
 
@@ -217,17 +229,17 @@ pending through its separate owner.
 
 **Exit:** repository + явные prerequisites достаточны для объявленного host/product/action scope; нет известных fail-open в принятых активных путях. QA-вывод, owner risk decision и readiness целевой среды — три разных решения.
 
-### W8. Условная экономия моделей: rules → Jev → trial (P5/P6)
+### W8. Условный Jev browser-executor A/B после quality baseline (P5/P6)
 
-**Status:** optional, не prerequisite полезного QA или W7. Использовать существующие eval/trial records; runtime route и внешняя интеграция выбираются отдельным bounded design после baseline. Handoff Никиты — input для сравнения, не инструкция конфигурации.
+**Status:** optional, не prerequisite полезного QA или W7. Jev-ultrafast — кандидат browser executor, не model router, AQA planner или verdict engine. Использовать существующие eval/trial records; возможная внешняя интеграция требует отдельного bounded design и разрешения после quality baseline. Handoff Никиты — input для сравнения, не инструкция конфигурации.
 
-- [ ] Разделить подзадачи на рутинное исполнение, реализацию и сложный анализ. Готовый deterministic test не нуждается в новом модельном вызове.
-- [ ] На одинаковых зафиксированных задачах измерить простой rules route: full-result quality, false claims, retries, latency, total cost. Не переносить обязательный xhigh или абсолютный запрет Astra без наших результатов.
-- [ ] После проверки текущей документации, доступа, цены и обработки данных допустить Jev только в shadow: он предлагает route, исполнителя пока не меняет.
-- [ ] При положительном сравнении согласовать ограниченный execution trial, escalation/fallback и stop criteria. Маршрут не меняет scope, authority и критерий QA acceptance.
-- [ ] Принять только подтверждённый выигрыш без ухудшения критичных outcomes. API billing и лимиты аккаунта Codex считать отдельно; Laya — отдельный последующий кандидат, не ещё одна обязательная зависимость.
+- [ ] После I10 проверить текущую документацию Jev, доступ, цену, обработку данных и разрешение на изолированную установку/API; не переносить реальные профили или токены внешнему кандидату.
+- [ ] На одинаковых локальных/разрешённых browser-задачах удержать planner, requirements, independent assertions, scope и budget; менять только executor. Существующий deterministic Playwright — baseline там, где он уже работает.
+- [ ] Сравнить полный setup→navigation/actions→postcondition, retries, false claims, model/browser расходы и стоимость полезного QA-результата. `done` Jev и screenshot не являются PASS.
+- [ ] При доказанной пользе согласовать с Astra только узкий adapter к existing executor boundary с fallback и stop criteria; иначе no-adopt. Никакого второго runtime или default installation.
+- [ ] Общий model routing/rules/Laya остаётся отдельной гипотезой, не Jev shadow route и не частью приёмки I11. Не навязывать xhigh или запрет Astra без собственных данных; API billing и лимиты Codex считать отдельно.
 
-**Exit:** обоснованное adopt/reject решение по полному результату, а не по скорости классификатора. Router не заменяет test design и release verdict.
+**Exit:** обоснованное adopt/no-adopt решение по качеству и полному времени/стоимости в объявленном browser scope. Executor не заменяет test design, независимый postcondition и release verdict.
 
 ### W9. Отдельно разрешённый cloud experiment → operational GO (P7)
 
@@ -265,7 +277,7 @@ Console/Freeland default `npm test`, Android `--execute`, product runners, provi
 - [ ] Отдельным логическим коммитом сохранить разрешённые source/документы после verification; live/private records и секреты не включать. Push/PR/skills install/product adoption требуют своего scope.
 - [ ] Обновить существующий current checkpoint и точный remaining gate. Не закрывать P целиком по количеству W или тестов.
 
-**Следующий live W1 gate:** разрешить oracle/binding одного оставшегося assertion через reviewed owner knowledge revision, затем завершить T7 с persisted readback либо сохранить точный blocker; принятый локальный W0/W1 срез не повторять и весь W1 не закрывать без T7. W2a допустим отдельно как малый независимый ремонт. W2b observation helper пока не требуется по замеру; D13-479 оставляет только bounded design, не выбранный runtime-код. Переход на W3 определяется реально отсутствующим oracle, не намерением построить библиотеку заранее.
+**Следующий live W1 gate:** разрешить oracle/binding одного оставшегося assertion через reviewed owner knowledge revision, затем завершить T7 с persisted readback либо сохранить точный blocker; принятый локальный W0/W1 срез не повторять и весь W1 не закрывать без T7. W2a уже принят в bounded source-only объёме и не является следующим ремонтом. W2b observation helper пока не требуется по замеру; D13-479 оставляет только bounded design, не выбранный runtime-код. Переход на W3 определяется реально отсутствующим oracle, не намерением построить библиотеку заранее.
 
 **Итог pre-cloud:** новая сессия в заявленном scope понимает продукт, делает существенные проверки, сохраняет evidence и остаток, продолжает после реальной помощи/смены контекста, применяет reviewed lesson и выдаёт ограниченный, но законченный QA-вывод. Не обещается отсутствие любых будущих багов, всех провайдеров или поддержка любого устройства.
 
