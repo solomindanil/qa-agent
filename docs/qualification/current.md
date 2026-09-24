@@ -67,6 +67,11 @@ validator. This does not close all W2b or live W1. The separate
 bounded typed-helper design; runtime implementation is deferred pending its own
 approved design, controls and measurement. The W2a source pair is separate
 from that work and from live W1. P2-B remains deferred/unaccepted.
+The [W3 VPN content proposal](w3-freeland-vpn-content-design-20260924.md) remains
+**PROPOSAL ONLY**, pending explicit user confirmation. A direct read of the
+original FREEL-443 ticket on 24 September establishes semantic Happ/Incy intent
+with retained legacy Karing, not exact RU literals, production rollout/cohort
+binding or live acceptance. No code or product changes were made for W3.
 The [W4 carry-forward audit](w4-evidence-carry-forward-20260924.md) freshly
 verified the retained docs-render experiment and mapped its still-open
 impact/fallback, rollback/quarantine and cost clauses; it is not new execution
