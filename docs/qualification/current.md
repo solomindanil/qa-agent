@@ -139,9 +139,16 @@ The [W7 declared family inventory](w7-capability-family-inventory-20260924.md)
 received [independent AQA GO](reviews/w7-capability-family-inventory-aqa-20260924.md)
 for its source-only candidate grouping, not a complete denominator or accepted
 index/graph change. It exposes ordinary exact-run status, Console integrity
-operations and Freeland controlled recovery as concrete discovery questions;
-the latter still needs an exact authority/effect audit. The current account
-router remains experimental and installed/live scope remains unqualified.
+operations and Freeland controlled recovery as concrete discovery questions.
+The later [public-interface reconciliation](w7-capability-family-inventory-20260924.md#pinned-public-interface-reconciliation)
+classified their source effects without adding a thirteenth family; it is
+still not a complete fresh-dialogue denominator. The frozen
+[S1–S3 first-answer baseline](../../evals/dialogue-quality/20260924-w7-first-route/baseline-aqa-review.md)
+is **NO-GO for clean source-only qualification**: S1/S2 inadequate, S3
+adequate under its rubric, and all three actors consulted installed host
+skills despite the clone-only instruction. Their first answers and native
+log hashes are retained, not tuned into a PASS. The current account router
+remains experimental and installed/live scope remains unqualified.
 The separate [W7 static Worker-guard audit](w7-worker-guard-audit-20260924.md)
 records the no-dependencies guard gap; implementation is deferred pending an
 approved bounded design under the quality-first priority, not completed W7.
