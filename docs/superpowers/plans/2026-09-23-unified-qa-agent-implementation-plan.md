@@ -77,8 +77,8 @@ Source на входе: root `7aa1b2498875b498c4370c513065b4fe265d1fd6`, вет�
 | Порядок | Существующие W/P | Ближайший результат и граница |
 | --- | --- | --- |
 | I00 — done, source-only 24 сентября | W0/W7; P0/P6 | Checkpoint и одна очередь сверены в `a7c5f78`; root/вложенные sources чисты при readback, `sources:verify` exit 0. W2a принят source-only; не повторять. Не product/installed/live acceptance. |
-| I01 — next global atom | W0/W1/W6; P2/P3/P5 | Заморозить маленький quality baseline, known-scope denominator, первые designs и unresolved oracles. Исторические 1/4 не становятся новым trial. |
-| I02 | W1/W3; P2/P5 | Принять конкретный VPN semantic contract с независимым cohort/oracle; [W3 proposal](../../qualification/w3-freeland-vpn-content-design-20260924.md) и точные RU literals пока не приняты как нормативные. |
+| I01 — done documentary, 24 сентября | W0/W1/W6; P2/P3/P5 | [Quality baseline](../../../evals/outcome-completion/README.md) и Freeland flow map получили независимый AQA GO; исторические 1/4 сохранены, нового actor/live результата нет. |
+| I02 — next gated semantic design | W1/W3; P2/P5 | Сначала owner-reviewed cohort/role/lifecycle/rollout → guide/support matrix и Astra review semantic contract; только затем отдельный Sol code slice. [W3 proposal](../../qualification/w3-freeland-vpn-content-design-20260924.md) и точные RU literals пока не приняты как нормативные; live execution не разрешено. |
 | I03 | W1/W3; P2/P5 | Bounded healthy/broken VPN regression по принятому contract; local GREEN не live PASS. |
 | I04 | W7; P0/P6 | Проверить exact-byte delivery и свежего consumer; source, installed skill и campaign runtime различать. |
 | I05 | W4; P4 | Проверить, изменяет ли reviewed graph relation следующий выбор/исполнение, сохранив gaps и честный нулевой прирост. |
