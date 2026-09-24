@@ -57,3 +57,21 @@ test('quantity-dom-only fault keeps every quote response correct', async () => {
     }
   } finally { await f.close(); }
 });
+
+test('quantity-response-only fault changes only the Q2 quote total', async () => {
+  for (const [fault, totals] of [
+    ['none', [200, 400, 600]],
+    ['quantity-response-only', [200, 200, 600]]
+  ]) {
+    const f = await startOutcomeFixture({ fault });
+    try {
+      for (const [index, requested] of [1, 2, 3].entries()) {
+        const response = await fetch(f.baseUrl + 'quote?quantity=' + requested);
+        assert.equal(response.status, 200, fault + ' Q' + requested + ' status');
+        assert.deepEqual(await response.json(), {
+          quantity: requested, unitMinor: 200, currency: 'USD', totalMinor: totals[index]
+        }, fault + ' Q' + requested + ' body');
+      }
+    } finally { await f.close(); }
+  }
+});

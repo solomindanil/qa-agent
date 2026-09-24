@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 export async function startOutcomeFixture({ fault = 'none' } = {}) {
-  if (!['none', 'guide', 'quantity', 'quantity-dom-only', 'persistence'].includes(fault))
+  if (!['none', 'guide', 'quantity', 'quantity-dom-only',
+    'quantity-response-only', 'persistence'].includes(fault))
     throw new Error('Unknown fault');
   const requirements = {
     cohort: 'nebula', guide: 'Nebula setup',
@@ -38,12 +39,15 @@ export async function startOutcomeFixture({ fault = 'none' } = {}) {
       const input = url.searchParams.get('quantity');
       if (!['1', '2', '3'].includes(input)) { json(400, { error: 'quantity' }); return; }
       const quantity = fault === 'quantity' ? 1 : Number(input);
-      json(200, { quantity, unitMinor: 200, currency: 'USD', totalMinor: quantity * 200 });
+      const totalMinor = fault === 'quantity-response-only' && quantity === 2
+        ? 200 : quantity * 200;
+      json(200, { quantity, unitMinor: 200, currency: 'USD', totalMinor });
       return;
     }
     if (url.pathname === '/quantity') {
       const displayedTotal = fault === 'quantity-dom-only'
-        ? 'n==="2"?200:j.totalMinor' : 'j.totalMinor';
+        ? 'n==="2"?200:j.totalMinor'
+        : fault === 'quantity-response-only' ? 'Number(n)*200' : 'j.totalMinor';
       html('<label>Quantity<select id="q"><option>1</option><option>2</option>' +
         '<option>3</option></select></label><output id="total" data-testid="total"></output>' +
         '<script>const q=document.querySelector("#q"),t=document.querySelector("#total");' +
