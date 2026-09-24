@@ -135,6 +135,13 @@ runtime or product failure; no skill was promoted.
 The [I04 current-source delta](i04-installed-skill-delta-20260924.md) records
 27/42 exact after a root `qa-check` source edit; installed skills and host
 trigger behavior remain unqualified.
+The [W7 declared family inventory](w7-capability-family-inventory-20260924.md)
+received [independent AQA GO](reviews/w7-capability-family-inventory-aqa-20260924.md)
+for its source-only candidate grouping, not a complete denominator or accepted
+index/graph change. It exposes ordinary exact-run status, Console integrity
+operations and Freeland controlled recovery as concrete discovery questions;
+the latter still needs an exact authority/effect audit. The current account
+router remains experimental and installed/live scope remains unqualified.
 The separate [W7 static Worker-guard audit](w7-worker-guard-audit-20260924.md)
 records the no-dependencies guard gap; implementation is deferred pending an
 approved bounded design under the quality-first priority, not completed W7.
