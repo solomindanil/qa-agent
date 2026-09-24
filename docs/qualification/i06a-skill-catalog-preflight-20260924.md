@@ -146,3 +146,48 @@ installed-host first-route baseline can measure the actual host if its normal
 catalog/context and actor protocol are frozen, but cannot prove a source-index
 causal benefit. No install, product, provider, tracker or production action
 occurred in this follow-up.
+
+## Pinned-schema and additive extra-roots follow-up
+
+The optional schema gate was performed against the same local `codex-cli
+0.154.0`, generating its standard and experimental App Server JSON schemas
+in an isolated temporary directory (`/tmp/i06a-schema-MVN05v/`). This was a
+no-model inspection, not an actor run or source adoption. In both variants,
+`v2/SkillsListParams.json` declares optional `cwds` and `forceReload`;
+it has **no** `perCwdExtraUserRoots` field. Both variants contain
+`v2/SkillsExtraRootsSetParams.json` with required `extraRoots` (an array of
+absolute paths), and the `skills/extraRoots/set` request is present in the
+generated protocol. This is consistent with the previous extra-root attempts
+not demonstrating source discovery: their requested field is not declared in
+this pinned `skills/list` schema. Because it does not forbid additional
+properties, the schema alone does not establish how the runtime handled that
+field. The previous `errors: []` never proved it was applied. The generated
+`SkillsConfigWriteParams` allows a nullable absolute `path`, but does not by
+itself establish the configured
+folder-versus-`SKILL.md` semantics observed in the earlier runtime probe.
+
+After this schema read, **one** fresh CLI App Server process sent
+`initialize`, `initialized`, `skills/list` for the untouched clone A,
+`skills/extraRoots/set` with clone A's existing `skills/` directory, and a
+second `skills/list` for clone A. It did not start a thread/turn, call a
+model, write skill config, install skills or touch a product. The predeclared
+narrow criterion was whether that process's second catalog exposed a
+source-path `qa-check`. The filtered values and call sequence below are
+parent-reported from the live tool transcript; no independent full raw JSONL
+artifact was saved for this probe.
+
+| Same process | Total entries | `qa-check` source path | Two installed-host `qa-check` paths | Catalog errors |
+| --- | ---: | --- | --- | ---: |
+| Before `skills/extraRoots/set` | 67 | Absent | Both enabled | 0 |
+| After `skills/extraRoots/set` | 69 | `.local/i06a-heldout-cold-a/skills/qa-check/SKILL.md`, enabled | Both still enabled | 0 |
+
+The method response was `{}`. The clone stayed clean at `8f40e6e`; clone B
+stayed clean at `ee04085`. Thus the supported process-level method did
+surface clone A source **additively** under this CLI. It did not suppress or
+replace either host copy, isolate A from B for a causal implicit-trigger
+comparison, show model-visible metadata, establish a first route, or qualify
+the source-index candidate. No B-arm probe or actor followed. The 67-entry
+baseline still must not be reconciled by guesswork with the earlier 88-entry
+process. Further I06a provenance probing is deferred while the independent
+I07a quantity-control slice is considered; this is a priority decision, not
+I06a acceptance.

@@ -42,6 +42,14 @@ disabled the two host `qa-check` entries, while folder-path overrides did not;
 neither attempted extra root surfaced clone source. The later catalog count was
 67 rather than 88 for an unresolved reason. Source-only implicit A/B remains
 NO-GO at preflight, with no new actor result.
+The subsequent [pinned-schema and supported extra-roots readback](i06a-skill-catalog-preflight-20260924.md#pinned-schema-and-additive-extra-roots-follow-up)
+found that this CLI's `skills/list` schema does not declare a
+`perCwdExtraUserRoots` field (it does not forbid additional properties).
+One no-model `skills/extraRoots/set` process surfaced clone A's source
+`qa-check` additively (67→69 catalog entries) while both installed-host copies
+remained enabled. This closes only source-path discovery for that process; it
+does not isolate a source-only implicit A/B or qualify I06a. No model actor,
+installation, product action or source adoption followed.
 
 **I02 stays owner-gated:** an owner-reviewed cohort/role/lifecycle/rollout → guide/support matrix and Astra review precede any Sol code; the [W3 VPN proposal](w3-freeland-vpn-content-design-20260924.md) is still unapproved and grants no live execution. The I06a held-out decision is recorded; the separate OC-Q wrong-request control may follow its own approved design. A missing retained account interface blocks only I06a.5, not independent OC-Q. Other approved independent local controls may continue. Assess benefit after I00–I05 before extending. A [frozen read-only old/new consumer comparison](../../evals/outcome-completion/runs/i00-queue-consumer-20260924/README.md) routed the old consumer to gated T7 and the new consumer to I00; neither mutated a product. The new route exposed the then-stale I00 status, not a measured QA-quality gain. T7 remains a separate live oracle gate; W2a is adopted source-only, with no product, installed-skill or campaign qualification from this queue update.
 
