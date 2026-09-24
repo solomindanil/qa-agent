@@ -44,3 +44,16 @@ test('quantity fault preserves plausible one-item success', async () => {
     } finally { await f.close(); }
   }
 });
+
+test('quantity-dom-only fault keeps every quote response correct', async () => {
+  const f = await startOutcomeFixture({ fault: 'quantity-dom-only' });
+  try {
+    for (const [requested, totalMinor] of [[1, 200], [2, 400], [3, 600]]) {
+      const response = await fetch(f.baseUrl + 'quote?quantity=' + requested);
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), {
+        quantity: requested, unitMinor: 200, currency: 'USD', totalMinor
+      });
+    }
+  } finally { await f.close(); }
+});

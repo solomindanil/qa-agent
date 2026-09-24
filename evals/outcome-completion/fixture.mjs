@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 export async function startOutcomeFixture({ fault = 'none' } = {}) {
-  if (!['none', 'guide', 'quantity', 'persistence'].includes(fault))
+  if (!['none', 'guide', 'quantity', 'quantity-dom-only', 'persistence'].includes(fault))
     throw new Error('Unknown fault');
   const requirements = {
     cohort: 'nebula', guide: 'Nebula setup',
@@ -42,11 +42,14 @@ export async function startOutcomeFixture({ fault = 'none' } = {}) {
       return;
     }
     if (url.pathname === '/quantity') {
+      const displayedTotal = fault === 'quantity-dom-only'
+        ? 'n==="2"?200:j.totalMinor' : 'j.totalMinor';
       html('<label>Quantity<select id="q"><option>1</option><option>2</option>' +
         '<option>3</option></select></label><output id="total" data-testid="total"></output>' +
         '<script>const q=document.querySelector("#q"),t=document.querySelector("#total");' +
         'async function update(){const n=q.value;const r=await fetch("/quote?quantity="+n);' +
-        'const j=await r.json();t.textContent=String(j.totalMinor);t.dataset.request=n;}' +
+        'const j=await r.json();t.textContent=String(' + displayedTotal +
+        ');t.dataset.request=n;}' +
         'q.addEventListener("change",update);update();</script>'); return;
     }
     if (url.pathname === '/notes-state') { json(200, { title }); return; }

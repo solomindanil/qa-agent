@@ -55,7 +55,7 @@ async function checkPersisted(page, f, expected) {
   assert.equal(rendered, expected.noteTitle, 'persisted reload');
 }
 
-for (const fault of ['none', 'guide', 'quantity', 'persistence']) {
+for (const fault of ['none', 'guide', 'quantity', 'quantity-dom-only', 'persistence']) {
   test('outcome controls: ' + fault, async () => {
     const f = await startOutcomeFixture({ fault });
     let browser;
@@ -76,12 +76,19 @@ for (const fault of ['none', 'guide', 'quantity', 'persistence']) {
       else await checkGuide(page, f, expected);
 
       const quantities = await captureQuantities(page, f);
+      if (fault === 'quantity-dom-only') {
+        assert.equal(quantities.length, 3, 'captured all quantity choices');
+        assert.deepEqual(quantities[1], {
+          requested: 2, quantity: 2, totalMinor: 400, currency: 'USD', rendered: 200
+        }, 'Q2 DOM-only contradiction');
+      }
       for (const row of quantities) {
         const n = row.requested;
         const check = () => assert.deepEqual(row, { requested: n, quantity: n,
           totalMinor: n * expected.unitMinor, currency: expected.currency,
           rendered: n * expected.unitMinor }, 'quantity result ' + n);
-        if (fault === 'quantity' && n > 1) assert.throws(check,
+        if ((fault === 'quantity' && n > 1) ||
+            (fault === 'quantity-dom-only' && n === 2)) assert.throws(check,
           { name: 'AssertionError', message: new RegExp('quantity result ' + n) });
         else check();
       }
