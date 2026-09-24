@@ -62,6 +62,33 @@ The [W4 carry-forward audit](w4-evidence-carry-forward-20260924.md) freshly
 verified the retained docs-render experiment and mapped its still-open
 impact/fallback, rollback/quarantine and cost clauses; it is not new execution
 or full W4 acceptance.
+W5 retains separately attributed native field evidence from the Nuanu App
+owner: a real Redmi Note 11 / Android 11 run of Android 1.0.0 (4) scoped-passed
+numeric Gboard dismissal and checkout-sheet removal after X, while Wallet visual usability remained
+unresolved because the base surface was white before and after. This does not
+qualify the root [Android pilot](../../tools/android-pilot/README.md) end-to-end: its
+13 local controls cover `Driver`/`runSteps`, not live session lifecycle or
+output privacy, and its chooser/Back plan is not the owner's numeric flow.
+The owner's retained script imports the root `Driver` and records a scoped
+live run with provider `done`, session DELETE HTTP 200 and zero remaining
+sessions. This is bounded live-use evidence for that imported component under
+separate owner orchestration, not qualification of root `runner.mjs`, `run.mjs`
+or their fixed plan. Exact executed Driver-byte attribution, lifecycle failure
+controls and output-privacy qualification remain open; observations are
+unsealed.
+The local-only owner evidence directory is
+`.local/products/nuanu-app/qa-20260924/android4-redmi-numeric-retest-01/`.
+Its `REPORT.md`, `run.mjs` and `result.json` have SHA-256 respectively
+`6c70f454c92c00866618a3ae63816d2d8ead5e7532cc1fed0348a3bb3576532e`,
+`2dd7f14dfc9b3ba96d39524636c3a677da8033b55fa38321d3dcfb3bc0d1287e`,
+`9a33d8e660e5841457cf207a3efa9a4c3ddaa5fa96728230a88f7810661e6bcc`
+at this readback. These are not bundled in this source delivery. Reuse the owner
+evidence and reconcile exact source attribution before selecting remaining W5
+controls; do not repeat the completed numeric branch merely to qualify the
+root. The separate local-only owner checkpoint
+`.local/products/nuanu-app/qa-20260923/current-checkpoint-01/REPORT.md`
+(SHA-256 `eb491817130d4084ba8e2ae3530ab5e060bf40aa529bb055e1868d826b82082c`
+at this readback) retains release NOT ACCEPTED.
 Installed skills and live campaign owners remain unchanged. No
 install, product mutation, monitor or cloud authority follows. W8 Jev routing
 is optional after a quality baseline; W9 cloud requires separate decisions.
