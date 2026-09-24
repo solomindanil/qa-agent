@@ -108,6 +108,9 @@ The read-only [W7 installed-skill comparison](w7-installed-skill-drift-20260924.
 found 30/42 exact source-to-host file slots, 9 differing and 3 missing across
 Codex, Agents and Claude. This is an installation/entry-point gap, not a
 runtime or product failure; no skill was promoted.
+The separate [W7 static Worker-guard audit](w7-worker-guard-audit-20260924.md)
+records the no-dependencies guard gap; implementation is deferred pending an
+approved bounded design under the quality-first priority, not completed W7.
 
 ## Retained execution record and former queue through 22 September
 
