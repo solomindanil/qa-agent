@@ -40,11 +40,13 @@ rw-int reader reported 20 original targets, 8 recorded, 12 `not_observed` and
 15 global blockers; recorded is not PASS. A fresh authenticated owner browser
 is available, but all 12 remaining targets still have unresolved oracles, so
 there is no accepted bound assertion to execute without an owner-reviewed
-knowledge revision. An existing AI run displayed a stopped state in the UI;
-its persisted terminal state was not independently read back, and no retry
-was attempted. The [documented read method](w6-rwint-unknown-run-read-20260924.md)
-identifies a precise owner-session GET for this unknown run, but no live
-response was obtained. No new live W1 assertion or PASS is claimed. The separate
+knowledge revision. An existing AI run displayed a stopped state in the UI. A
+subsequent exact [owner-session readback](w6-rwint-unknown-run-read-20260924.md)
+returned HTTP 200 and matching run/project IDs with persisted `cancelled`;
+no retry was attempted. A separate project-artifact list returned four rows
+and no `media_plan`, so the project currently has no listed Media Plan. This
+does not prove absence of transient/external effects or permission for a new
+AI turn. No new live W1 assertion or PASS is claimed. The separate
 [24 September local oracle-control repair and live-gate readback](outcome-visible-content-20260924.md)
 do not alter the historical actor trials or close T7. Independent AQA accepted
 the bounded local repair, not a complete human-perception or live-product oracle.
