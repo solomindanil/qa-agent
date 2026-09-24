@@ -98,11 +98,51 @@ do not explicitly name ordinary completed-run status or workspace integrity.
 No source-index routing, product account readiness, I06a acceptance, graph
 benefit, or live QA result follows.
 
-Next gate: independently review this attribution. Before any fresh actor,
-freeze whether the experiment measures **explicit source-selected invocation**
-or **actual installed-host implicit discovery**; these are different claims.
-For a source-only implicit A/B, demonstrate a real supported isolation boundary
-that excludes the host skills rather than assuming a clone or extra roots do
-so. Predeclare exact prompt, model/effort, tool/context inputs, numeric budget,
-stop conditions and first-route rubric, then preserve first answer and raw
-tool reads. Do not rerun or regrade historical D/H/S actors.
+This first attribution received independent documentary AQA GO before commit
+`1da2047`, not I06a acceptance. Before any fresh actor, freeze whether the
+experiment measures **explicit source-selected invocation** or **actual
+installed-host implicit discovery**; these are different claims. For a
+source-only implicit A/B, demonstrate a real supported isolation boundary that
+excludes the host skills rather than assuming a clone or extra roots do so.
+Predeclare exact prompt, model/effort, tool/context inputs, numeric budget,
+stop conditions and first-route rubric, then preserve first answer and raw tool
+reads. Do not rerun or regrade historical D/H/S actors.
+
+## Transient-config follow-up: unsuccessful source-root preflight
+
+After the first documentary commit (`1da2047`), three fresh CLI App Server
+0.154.0 processes were used for no-model diagnosis. Each sent only
+`initialize`, `initialized` and `skills/list`; no thread/turn was started and
+no persistent `skills/config/write` request was made. The filtered JSONL
+readbacks, rather than full catalogs, are retained in the parent tool
+transcript. The two normal clones remained clean and detached at their frozen
+commits.
+
+| Single-process probe | Returned clone catalog | `qa-check` host entries | Source `qa-check` |
+| --- | --- | --- | --- |
+| One-off `-c skills.config` with both host **folder** paths; then `perCwdExtraUserRoots` at each clone's `skills/` parent | 67 per clone, `errors: []` | Both `enabled: true` | Not returned |
+| One-off `-c skills.config` with both exact host **`SKILL.md` file** paths, no extra root | 67 for clone A, `errors: []` | Both `enabled: false` | Not requested |
+| Normal config, `perCwdExtraUserRoots` at clone A's direct `skills/qa-check/` directory | 67 for clone A, `errors: []` | Both `enabled: true` | Not returned |
+
+The first probe failed its predeclared assertion and stopped before model
+work. The narrower file-path probe confirms effective temporary disablement
+for those two entries on this pinned CLI, despite the current
+[configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
+describing a folder path; the separate
+[App Server method example](https://learn.chatgpt.com/docs/app-server#skills)
+uses a `SKILL.md` path. Neither form of the extra-root request demonstrated
+source discovery. `errors: []` does not establish that this optional field was
+recognized or applied. The 88→67 total-catalog delta between the first and
+follow-up processes is unresolved; it is **not** attributed to disabling two
+entries, since the folder-path probe also returned 67 with both still enabled.
+
+Independent Astra architecture review therefore kept source-only implicit A/B
+at preflight **NO-GO**, not a failed actor comparison. Do not claim any source
+candidate quality result from these reads. The next optional isolation gate is
+a separately scoped version-matched protocol-schema inspection before trying
+`skills/extraRoots/set`; even source discovery would still leave other skills,
+repo `AGENTS.md`, readable history and tool context to isolate. A separate
+installed-host first-route baseline can measure the actual host if its normal
+catalog/context and actor protocol are frozen, but cannot prove a source-index
+causal benefit. No install, product, provider, tracker or production action
+occurred in this follow-up.

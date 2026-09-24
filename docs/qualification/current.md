@@ -37,6 +37,11 @@ the differing clone sources; installed `qa-check` bytes match clone A, not B.
 This makes clone-only implicit source-index attribution untenable, while the
 actual model-visible list and fresh implicit trigger remain untested. It does
 not promote I06a, install skills, or regrade historical actors.
+In a later no-model transient-config probe, exact `SKILL.md` file-path overrides
+disabled the two host `qa-check` entries, while folder-path overrides did not;
+neither attempted extra root surfaced clone source. The later catalog count was
+67 rather than 88 for an unresolved reason. Source-only implicit A/B remains
+NO-GO at preflight, with no new actor result.
 
 **I02 stays owner-gated:** an owner-reviewed cohort/role/lifecycle/rollout → guide/support matrix and Astra review precede any Sol code; the [W3 VPN proposal](w3-freeland-vpn-content-design-20260924.md) is still unapproved and grants no live execution. The I06a held-out decision is recorded; the separate OC-Q wrong-request control may follow its own approved design. A missing retained account interface blocks only I06a.5, not independent OC-Q. Other approved independent local controls may continue. Assess benefit after I00–I05 before extending. A [frozen read-only old/new consumer comparison](../../evals/outcome-completion/runs/i00-queue-consumer-20260924/README.md) routed the old consumer to gated T7 and the new consumer to I00; neither mutated a product. The new route exposed the then-stale I00 status, not a measured QA-quality gain. T7 remains a separate live oracle gate; W2a is adopted source-only, with no product, installed-skill or campaign qualification from this queue update.
 
