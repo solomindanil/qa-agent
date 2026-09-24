@@ -115,6 +115,18 @@ selling provider. Support has its own mapping and is outside this slice.
 
 ## Proposed static RU instruction checks
 
+The original [FREEL-443](https://flow.nuanu.com/freeland/projects/f77caf18-5812-4c6b-9317-519473dac804/issues/e90963cb-6971-4cb9-a48d-b19635be04e4)
+description and comments were independently read through Nuanu Flow on
+24 September. The 17 September requirement specifies Happ primary/Incy
+alternative, Global Store and installation fallback, return after installation,
+clipboard/QR import, Connect and OS permissions, provider-specific support,
+RU/EN/mobile/accessibility/security coverage, and retained legacy Karing. Final
+manual acceptance requires an agreed real QA key. The sole comment, dated
+`2026-09-17T10:03:38Z`, reports a staging deployment, production unchanged/no Go,
+and no real-key import. This original ticket supports semantic intent, not the
+exact RU literals below, current rollout/cohort binding, or live acceptance.
+It does not change this proposal's pending-approval status.
+
 These literal expectations are grounded in the inspected source and historical
 product acceptance context, not generated from the currently rendered page.
 Do not import runtime product translations into the test oracle: identical
