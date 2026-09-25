@@ -30,6 +30,8 @@ remaining acceptance and owner-deferred work.
 
 The separate [two-pair material-clause self-check diagnostic](i10-clause-selfcheck-diagnostic-20260925.md) was run on fresh synthetic UI and API/agent-native dossiers after independent pre-run NO-GO repair and GO. Blind Astra grade found baseline **0/2 adequate**, treatment **1/2 adequate**, omissions **3→1**, and **zero unsupported material normative propositions in either arm**. The predeclared benefit criterion failed because API treatment remained inadequate; the targeted unsupported-strengthening error did not arise in either arm. This is mixed/no demonstrated benefit, not reason to change the skill or runner. Its first answers/key/grades are retained only under ignored `.local/i10-clause-selfcheck-20260925/`; native input/history and actual token/cost attestation were unavailable. I10 remains partial; no product, installed-host or full-universality qualification follows.
 
+The subsequent [real-product field-transfer admission check](i10-field-transfer-admission-20260925.md) is **design-only GO / live NO-GO** after independent Astra review. The bounded existing-owner scan did not establish a currently admitted, genuinely untouched read-only sample: Realweb T7 still lacks an independent oracle/binding and now also has a managed-journal publication blocker; the last retained MagicPay owner checkpoint gives C12 a narrow read-only expectation but does not establish a current owner slot, authenticated connection or environment. No first-design actor or product call was run in this check, and no live result or skill adoption follows. Resume one existing owner lane only after its current scope and evidence gate are resolved; do not start another campaign merely to manufacture transfer.
+
 The separate [D2 read-only forensic](i06a-d2-forensic-20260924.md) finds its
 missing effect details already in the candidate index. It does not regrade the
 first reply or establish why the actor omitted them; duplicating index text
@@ -95,8 +97,12 @@ the bounded local repair, not a complete human-perception or live-product oracle
 fourth pilot or another capture-only baseline. Recheck its current checkpoint,
 frozen runtime, environment/build/account and authorized scope; resolve one
 remaining oracle/binding through the reviewed owner process before any action.
-Only then select and execute its authorized assertion and persist/read back the
-result through its accepted lane. Until then T7 stays pending, with completed
+The newer owner managed-workspace recovery audit
+(`.local/products/realweb/qa-20260924/recovery-a0a20e6-20260924/README.md`)
+also blocks accepted observation publication until an owning recovery path
+validates the historical journals; do not bypass with an older pin. Only after
+both gates may the owner execute an authorized assertion and persist/read back
+the result through its accepted lane. Until then T7 stays pending, with completed
 subsets unrepeated, unknown effects unretried and no replacement registration.
 The [W2b browser/API/MCP evidence series](w2b-evidence-friction-series-20260923.md)
 supports using the existing observation writer/readback without a new helper now;
