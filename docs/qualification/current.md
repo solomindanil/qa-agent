@@ -187,6 +187,7 @@ adequate under its rubric, and all three actors consulted installed host
 skills despite the clone-only instruction. Their first answers and native
 log hashes are retained, not tuned into a PASS. The current account router
 remains experimental and installed/live scope remains unqualified.
+The later [fresh Codex-host bugfix-route probe](w7-fresh-installed-bugfix-20260925.md) used one new fictional product with an evidenced issue and an incomplete report. After pre-run AQA correction/GO, the first Sol/medium response read the byte-matched installed `qa-bugfix` skill/reference and independently graded adequate (0/0/0), preparing only the evidenced handoff. Native tool calls show no product or tracker action. This is one open-context installed-route observation, not causal improvement, Claude parity, live QA or W7 exit; the material index and installed-drift gaps above remain.
 The separate [W7 static Worker-guard audit](w7-worker-guard-audit-20260924.md)
 records the no-dependencies guard gap; implementation is deferred pending an
 approved bounded design under the quality-first priority, not completed W7.
