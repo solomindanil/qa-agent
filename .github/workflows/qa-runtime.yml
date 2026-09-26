@@ -81,5 +81,21 @@ jobs:
               tests/unit/campaign-continuation-source-authority.test.ts \
               tests/unit/campaign-continuation-readback.test.mjs \
               tests/unit/campaign-continuation-readback-faults.test.mjs
+      - name: Install isolated Chromium for local fixture checks
+        working-directory: components/console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/qa-release-browsers
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+      - name: Browser healthy and broken fixture controls
+        working-directory: components/console
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-browser.XXXXXX")"
+          env -i \
+            PATH="${PATH}" \
+            TMPDIR="${qa_tmp}" \
+            PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \
+            node --import tsx --test tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts
       - name: Verify source integrity after runtime checks
         run: node tools/workspace.mjs verify
