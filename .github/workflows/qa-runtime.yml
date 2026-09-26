@@ -99,3 +99,40 @@ jobs:
             node --import tsx --test tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts
       - name: Verify source integrity after runtime checks
         run: node tools/workspace.mjs verify
+
+  kernel-regression:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.1
+          package-manager-cache: false
+      - name: Restore and verify pinned components
+        run: |
+          node tools/workspace.mjs restore
+          node tools/workspace.mjs verify
+      - name: Install exact Kernel dependencies
+        working-directory: components/kernel
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Full Kernel regression and build
+        working-directory: components/kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-kernel.XXXXXX")"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            npm run verify
+      - name: Verify source integrity after full regression
+        run: node tools/workspace.mjs verify
