@@ -19,6 +19,8 @@ Those sources and their complete source skill bundles are delivered through loca
 
 ## Active plan and next action
 
+**Latest continuation, 26 September:** [Development continuation after the public release](development-continuation-20260926.md) makes this published stable branch the moving development base while the release tag stays fixed. The user-approved next lane is a bounded W7 cold public-source agent cycle with pre-run Astra AQA GO and actor execution pending. The older W4 checkout and its private evidence remain historical; the [I10 stop decision](i10-final-compound-20260926.md) rules out another local microdiagnostic. This routing supersedes older “next” wording below without changing its results or authorizing product execution, installed-skill migration or live T7.
+
 The [unified implementation plan](../superpowers/plans/2026-09-23-unified-qa-agent-implementation-plan.md)
 is the one current global queue. Its [comparison](../reviews/2026-09-23-global-plan-reconciliation.md)
 preserves all prior P0–P7/97-item obligations and distinguishes adopted bounded work,

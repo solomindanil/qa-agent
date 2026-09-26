@@ -7,6 +7,8 @@ One portable workspace for the existing agent-first QA tools. The agent chooses 
 Use the `codex/stable-20260926` branch for this release. The immutable source
 snapshot is tagged `qa-agent-2026.09.26`. The selected
 Kernel/Console/Freeland revisions are pinned in `sources/manifest.v1.json`.
+Reviewed development continues on the stable branch while that release tag
+stays fixed; see the [continuation checkpoint](docs/qualification/development-continuation-20260926.md).
 [Release scope and verification](docs/releases/2026-09-26.md) describe what is
 supported and what remains experimental. Existing product campaigns retain
 their own checkout and state; a release never migrates them automatically.
