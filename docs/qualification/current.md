@@ -1,6 +1,6 @@
 # Current QA-agent source and execution entry
 
-Updated 27 September 2026 (Bali), after source review of both external assessments. This page is the current qualification projection, **not** a run log or a second task queue.
+Updated 27 September 2026 (Bali), after bounded A1 source delivery and cold-clone readback. This page is the current qualification projection, **not** a run log or a second task queue.
 
 The [manifest](../../sources/manifest.v1.json) selects delivered source; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. The published [26 September release](../releases/2026-09-26.md) remains a dated source-delivery result, not product acceptance. Development continues on `codex/stable-20260926`; the release tag is not moved. Source, installed host skills and campaign runtime may differ and must not be conflated.
 
@@ -11,7 +11,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `ece24e865f7ea37cff32c24c7e3739c9d0059f81` | Public-release repair: durable claim-receipt stage ownership, portable deleted-inode fixture and scoped integration budgets. [Release evidence](../releases/2026-09-26.md): full Linux collection passes 1,787 with one native case-alias skip; that case passes on macOS. Prior W2a results retain their original source attribution. |
-| Console | `a8f66792f8053f125bf8ffc758f543f25a2b95a1` | Exact-pin companion to the public-release Kernel. [Release evidence](../releases/2026-09-26.md): hosted 163 Console and 19 browser controls pass; earlier Console qualifications apply to their recorded pins. |
+| Console | `5634b7f456999a967cc64704c58f7d6e040f0e57` | [A1 legacy CLI source-authority repair](a1-cli-source-authority-20260927.md), paired with unchanged Kernel. The [26 September release](../releases/2026-09-26.md) retains its 163 Console / 19 browser counts at the earlier `a8f6679` source; those are not retagged to A1. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
@@ -19,7 +19,7 @@ Those sources and their complete source skill bundles are delivered through loca
 
 ## Active plan and next action
 
-Use the [single canonical implementation plan](../superpowers/plans/2026-09-23-unified-qa-agent-implementation-plan.md#3-порядок-и-зависимости) for the ordered queue and precise first card. The external-review reconciliation reprioritizes concrete result-integrity defects; it does not reopen accepted controls or authorize product work.
+Use the [single canonical implementation plan](../superpowers/plans/2026-09-23-unified-qa-agent-implementation-plan.md#3-порядок-и-зависимости) for the ordered queue. A1 is now a bounded source-only result. The next universal-QA design decision is one existing Console/Kernel status→continuation/recovery route contract, with an exact negative control before code. Safe source/CI work and a genuinely fresh, ready agent-quality field task may proceed independently. Freeland-owned A3 fee semantics and A4 publisher integrity remain visible separate residuals, not universal prerequisites. None authorizes product work.
 
 Read the [complete claim audit](../reviews/2026-09-27-external-review-reconciliation.md) for source-confirmed, conditional, unreproduced and inaccurate report statements. “Every item assessed” does not mean every reported runtime reproduction was rerun.
 
@@ -31,7 +31,8 @@ Read the [complete claim audit](../reviews/2026-09-27-external-review-reconcilia
 | P0 integrity/findings and local source delivery: [Console](console-p0-adoption-20260920.md), [Freeland](freeland-source-adoption-20260920.md), later [public release](../releases/2026-09-26.md) | Earlier local-only gates and later hosted gates keep their own revisions and denominators. These do not establish every route's execution identity or every product's acceptance. |
 | P1 immutable text/JSON observation writer/reader and [fresh consumer](observation-skill-reference-20260920.md#real-consumer-and-plan-boundary) | Caller-authored/unattested, zero attachments; not a managed PASS, generic manual-receipt acceptance or release GO. |
 | [P2-A fee-caption helper](p2-semantic-repair-20260920.md), [intermediate browser assertions](browser-journey-adoption-20260914.md), media-type/JSON assertions | Preserve adopted repairs. A separate composite-fee assertion in `card-sbp.spec.ts` remains a source-backed gap; helper acceptance did not cover it. |
-| [W2a registration snapshot source pair](w2a-registration-snapshot-adoption-20260924.md) | No live-plan synchronization, retained-workspace migration or blanket legacy CLI guard. Do not reimplement W2a. |
+| [W2a registration snapshot source pair](w2a-registration-snapshot-adoption-20260924.md) | No live-plan synchronization or retained-workspace migration. W2a itself supplied no blanket legacy CLI guard; A1 below is a later separate repair. Do not reimplement W2a. |
+| [A1 legacy CLI selected-source authority](a1-cli-source-authority-20260927.md) | All six shared CLI routes refuse wrong/dirty Kernel source before preparation and recheck immediately before spawn. Focused 4/4, related 21/21, fresh source consumer 4/4, root and cold-clone packaging 61/61; independent Astra AQA GO. This is not dependency/build attestation, immutable execution or product PASS. Five existing GET artifact tests remain non-green on a historical Kernel fixture path; unchanged-baseline reproduction was not performed. |
 | [W2b evidence-write series](w2b-evidence-friction-series-20260923.md) | No new observation helper justified. [D13-479 authoring](d13-479-authoring-probe-20260924.md) is a separate bounded design decision, not adopted runtime code. |
 | Ordinary status, [bounded continuation](campaign-continuation-20260914.md), [mixed handoff](mixed-handoff-execution-20260914.md), [graph consumer](graph-consumer-20260914.md) | Not full live mixed-ticket/help→reply→resume, process/host recovery, or demonstrated incremental graph-selection benefit. |
 | [W7 installed-skill inventory](w7-installed-skill-drift-20260924.md) and source delivery | Inventory is not installation or fresh-host qualification. Full W7 and actual Claude execution remain open. |
@@ -42,14 +43,14 @@ Overall P0–P6 and universal QA reliability remain open. Freeland stays a **pro
 
 | Source-backed gap or limitation | Current disposition |
 | --- | --- |
-| Legacy Console `/api/cli/*` uses a configured Kernel path without the registration/campaign exact-pin guard | Repair queued in the canonical plan. Do not claim that legacy mutation/recovery routes have selected-source identity enforcement. |
+| Legacy Console CLI now checks selected Kernel source before preparation and spawn | [A1 qualifies this narrow guard](a1-cli-source-authority-20260927.md). It does not attest dependencies/build, prevent external source changes after the final check or migrate frozen campaigns. |
 | Composite fixed-fee caption can evade the Freeland assertion; publisher uses weaker verdict/outbox validation than the strict reader | Narrow owning repairs queued. A passing current assertion does not validate the skipped fee clause; strict-reader acceptance does not qualify publisher consumption of a mutable outbox. |
 | Console response-header oracle can persist actual `Set-Cookie`; generic OpenAPI handling does not prove Basic-credential redaction | Known artifact confidentiality gaps. Do not widen collection/export of sensitive artifacts on affected lanes. Record the exact owner decision if that lane is needed; independent public/synthetic work may continue. |
 | Broker DNS/IP policy, browser route policy and Freeland Node/API requests have different enforcement | Do not claim one universal network/effect boundary. Qualify only the route actually used. Route-specific resource/worker guards remain required before expanding an affected lane. |
 | V0/V1 recovery differs; watcher admission handoff is not implemented; HTTP approval digest is not authenticated human identity | Declared contracts must reflect actual routes. Historical reader or persisted receipt availability does not prove arbitrary recovery, concurrency safety or human approval. |
 | CI selects subsets; code coverage and flake/agent-quality trends are not established as repository-wide metrics | Inventory exact test/command classes before adding unattended CI. Local full-suite results, hosted subsets and agent-quality trials have distinct denominators. |
 
-[P2-B](p2-topup-ui-20260921.md) remains an **unaccepted, owner-deferred** candidate; the new header/OpenAPI findings do not silently revive that work. Existing restrictions remain in force. The present documentation change fixes none of these runtime gaps.
+[P2-B](p2-topup-ui-20260921.md) remains an **unaccepted, owner-deferred** candidate; the new header/OpenAPI findings do not silently revive that work. Existing restrictions remain in force. A1 fixes only the legacy CLI source check described above, not the other runtime gaps in this table.
 
 <a id="retained-execution-record-and-former-queue-through-22-september"></a>
 

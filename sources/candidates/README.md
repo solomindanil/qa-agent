@@ -9,9 +9,8 @@ retains historical bb9b739/510e08a/0644108 archives and two explicitly
 **inactive/unqualified** candidates: failed→skip seven-file patch and committed
 auth diagnostic43b025c bundle. Exact bases, hashes, effects and acceptance gaps
 are recorded there. Neither archival retention nor passing root tests selects
-a candidate. The committed manifest selects Freeland0ea2df1 and the
-W2a Console/Kernel pair below after independent root delivery review; old
-dated selection labels below do not override the manifest.
+a candidate. The committed manifest now selects later Console/Kernel successors
+and Freeland source; old dated selection labels below do not override it.
 
 ## W2a registration snapshot pair, 24 September 2026
 
