@@ -221,3 +221,48 @@ test('hidden persisted note after reload is rejected', async () => {
       { name: 'AssertionError', message: /^visible persisted note\n/ });
   });
 });
+
+for (const [fault, noteId, statePass, visiblePass, disabledPass] of [
+  ['v2-healthy', 'v2-a', true, true, true],
+  ['v2-all-broken', 'v2-b', false, false, false],
+  ['v2-control-open', 'v2-c', true, true, false],
+  ['v2-state-missing', 'v2-d', false, true, true],
+  ['v2-healthy', 'v2-e', true, null, null]
+]) {
+  test('v2 browser Save clause outcomes: ' + noteId, async () => {
+    const f = await startOutcomeFixture({ fault, noteId });
+    let browser;
+    try {
+      browser = await chromium.launch({ headless: true });
+      const page = await browser.newPage();
+      await page.goto(f.baseUrl + 'notes');
+      const responsePromise = page.waitForResponse(r =>
+        r.url() === f.baseUrl + 'notes' && r.request().method() === 'POST');
+      await page.getByRole('button', { name: 'Save note' }).click();
+      const save = await responsePromise;
+      assert.equal(save.status(), 202);
+      assert.deepEqual(await save.json(), { message: 'Saved' });
+      const state = await (await fetch(f.baseUrl + 'notes-state')).json();
+      const observedState = state.note?.noteId === noteId &&
+        state.note?.revision === 1 && state.note?.title === 'Shift log';
+      let observedVisible = null;
+      let observedDisabled = null;
+      if (visiblePass !== null) {
+        await page.reload();
+        const note = page.getByTestId('persisted');
+        observedVisible = (await note.isVisible()) &&
+          (await note.innerText()) === `${noteId} · Revision 1 · Shift log`;
+        observedDisabled = await page.getByRole('button', { name: 'Save note' }).isDisabled();
+      }
+      assert.deepEqual([observedState, observedVisible, observedDisabled],
+        [statePass, visiblePass, disabledPass], 'independent C1/C2/C3 outcomes');
+      const paths = f.hits.map(hit => `${hit.method} ${hit.path}`);
+      assert.equal(paths.filter(path => path === 'POST /notes').length, 1);
+      assert.equal(paths.filter(path => path === 'GET /notes-state').length, 1);
+      assert.equal(paths.filter(path => path === 'GET /notes').length,
+        visiblePass === null ? 1 : 2);
+    } finally {
+      await Promise.allSettled([browser?.close(), f.close()]);
+    }
+  });
+}

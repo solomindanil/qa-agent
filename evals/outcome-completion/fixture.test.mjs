@@ -75,3 +75,53 @@ test('quantity-response-only fault changes only the Q2 quote total', async () =>
     } finally { await f.close(); }
   }
 });
+
+test('v2 committed-note projections are independent for four conditions', async () => {
+  const cases = [
+    ['v2-healthy', { noteId: 'case-a', revision: 1, title: 'Shift log' }, true, true],
+    ['v2-all-broken', null, false, false],
+    ['v2-control-open', { noteId: 'case-c', revision: 1, title: 'Shift log' }, true, false],
+    ['v2-state-missing', null, true, true]
+  ];
+  for (const [fault, expectedNote, rendered, disabled] of cases) {
+    const noteId = 'case-' + fault;
+    const expected = expectedNote && { ...expectedNote, noteId };
+    const f = await startOutcomeFixture({ fault, noteId });
+    try {
+      const requirements = await (await fetch(f.baseUrl + 'requirements')).json();
+      assert.equal(requirements.noteTitle, 'Shift log', 'v2 metadata matches normative title');
+      assert.deepEqual(await (await fetch(f.baseUrl + 'notes-state')).json(), { note: null });
+      const before = await (await fetch(f.baseUrl + 'notes')).text();
+      assert.doesNotMatch(before, /Shift log/);
+      assert.match(before, /id="save"/);
+      const save = await fetch(f.baseUrl + 'notes', { method: 'POST' });
+      assert.equal(save.status, 202);
+      assert.deepEqual(await save.json(), { message: 'Saved' });
+      assert.deepEqual(await (await fetch(f.baseUrl + 'notes-state')).json(), { note: expected });
+      const after = await (await fetch(f.baseUrl + 'notes')).text();
+      if (rendered) {
+        assert.match(after, new RegExp(noteId));
+        assert.match(after, /Shift log/);
+        assert.match(after, /Revision 1/);
+      } else {
+        assert.doesNotMatch(after, new RegExp(noteId));
+        assert.doesNotMatch(after, /Shift log/);
+      }
+      assert.equal(/id="save" disabled/.test(after), disabled);
+    } finally { await f.close(); }
+  }
+});
+
+test('v2 requires a safe supplied note identity and isolates instances', async () => {
+  await assert.rejects(startOutcomeFixture({ fault: 'v2-healthy' }), /noteId/);
+  await assert.rejects(startOutcomeFixture({ fault: 'v2-healthy', noteId: '<script>' }), /noteId/);
+  const a = await startOutcomeFixture({ fault: 'v2-healthy', noteId: 'alpha-1' });
+  const b = await startOutcomeFixture({ fault: 'v2-healthy', noteId: 'beta-2' });
+  try {
+    await fetch(a.baseUrl + 'notes', { method: 'POST' });
+    assert.deepEqual(await (await fetch(a.baseUrl + 'notes-state')).json(), {
+      note: { noteId: 'alpha-1', revision: 1, title: 'Shift log' }
+    });
+    assert.deepEqual(await (await fetch(b.baseUrl + 'notes-state')).json(), { note: null });
+  } finally { await Promise.all([a.close(), b.close()]); }
+});
