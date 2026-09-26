@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "a8f66792f8053f125bf8ffc758f543f25a2b95a1",
-      "tree": "2600287306e54eefe51be07410df555eecb6fbbc",
-      "bundle": "sources/candidates/console-public-release-a8f6679.bundle",
-      "sha256": "6ad3c177dd3f1d70e98e8d3def56be7a5bf6e5d1db5d9bfd498e1dcfc4c7e980",
+      "commit": "5634b7f456999a967cc64704c58f7d6e040f0e57",
+      "tree": "44dc31187f593a096fa9892fb566931bc5e44eeb",
+      "bundle": "sources/candidates/console-a1-cli-authority-5634b7f.bundle",
+      "sha256": "a705556469669b9695ecb4cffd7d7a2b6b034076de9b6b04463709ebeef30fed",
       "runtimeAuthority": true,
-      "qualification": "Stable public source release 2026-09-26: exact-pin companion to Kernel ece24e865f7ea37cff32c24c7e3739c9d0059f81. Hosted 163/163 selected Console controls, 19/19 actual Chromium fixture controls, nonincremental typecheck and production build pass; public cold-clone root61 and source integrity pass. Earlier local timing failures retain their attribution. Evidence: docs/releases/2026-09-26.md. Not a full product-facing Console suite or live-product acceptance; no existing campaign or installed-skill migration."
+      "qualification": "A1 bounded successor to the 2026-09-26 Console release, paired with unchanged Kernel ece24e865f7ea37cff32c24c7e3739c9d0059f81: all six legacy CLI routes check selected Kernel source before preparation and immediately before spawn. New focused 4/4 and relevant existing 21/21 local controls pass; independent Astra AQA GO 0 Critical / 0 Important / 0 Minor. Earlier release results keep their original source attribution. Evidence: docs/qualification/a1-cli-source-authority-20260927.md and docs/releases/2026-09-26.md. This attests selected source only, not dependencies/build immutability, live-product acceptance, existing campaign migration or installed-skill promotion."
     },
     {
       "id": "freeland",
