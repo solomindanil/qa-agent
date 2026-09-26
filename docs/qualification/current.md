@@ -2,7 +2,7 @@
 
 > Stable delivery snapshot, 26 September 2026: see the [release record](../releases/2026-09-26.md). The queue below describes ongoing development, not completed release features. This branch freezes the selected component pins and excludes the unfinished W4 change-scope experiment. Existing campaign owners keep their own working copies. Earlier statements that GitHub publication is blocked are historical; consult the release record for this delivery.
 
-Updated 26 September 2026 (Bali); the manifest selects the qualified public-release repair on top of the bounded W2a source pair. Exact results and platform limits are in the release record. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
+Updated 27 September 2026 (Bali); the manifest still selects the 26 September qualified public-release repair on top of the bounded W2a source pair. Exact results and platform limits are in the release record. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
 
 ## Selected source
 
@@ -18,6 +18,8 @@ This is a dated projection of the manifest, not a second version registry. If it
 Those sources and their complete source skill bundles are delivered through local Git bundles. Source adoption did not install host skills, update registrations, migrate product campaigns or attest a live product build. An existing runtime may deliberately be older.
 
 ## Active plan and next action
+
+**Current W1 checkpoint, 27 September:** [bounded W1 synthesis](w1-outcome-and-remaining-consumer-20260927.md) joins the independently accepted 23 September three-pair controlled trial to the separately accepted Agentify T7 remaining-only consumer. The latter preserved its original 21-target owner scope and added exactly one current `PARTIAL`, `agent_authored_unattested` observation with independent owning record/full-scope readback; 20 targets and 15 blockers remain. The **bounded W1 package exit is accepted**, but whole W0, W6/W7/I10, P2/P3/P5, product acceptance and measured universal QA reliability are not. The earlier rw-int 20/8/12 owner readback and its oracle/publication blockers remain a different campaign's historical facts, not the current T7 denominator. No further T7 product action is nominated. Next: reconcile the remaining W0 evidence rows read-only; a later field task needs its own normative oracle, exact binding, safe authority and evidence destination. This paragraph supersedes dated “T7 pending / next live W1 gate” directions below without altering their original results.
 
 **Agentify W0 record item, 26 September:** the [portable first-use field record](../../evals/dialogue-quality/20260926-agentify-public-first-use/README.md) preserves the source-directed first design and two original **BLOCKED** episodes separately from the same consumer's later owner-authorized, assisted **3/3 public-docs content/navigation observation**. One local reader used the frozen record without product execution; independent semantic AQA allowed the exact **W0 second record checkbox** to close (0 Critical / 0 Important / 1 Minor). The reader met four frozen criteria and only partially articulated one: browser authentication remained unknown but was not explicitly restated in its answer. This is an unsealed report/readback, not first-attempt success, whole W0/I10/W1/W6/W7 completion or Agentify product PASS. Execution source was `3fc276771e637ad4f6069ca6ac2ef26ba334472a`; the later documentation commit is not its runtime. No further Agentify assertion is nominated; future product work needs a new owner-selected scope and authority.
 
@@ -105,7 +107,7 @@ AI turn. No new live W1 assertion or PASS is claimed. The separate
 do not alter the historical actor trials or close T7. Independent AQA accepted
 the bounded local repair, not a complete human-perception or live-product oracle.
 
-**Next live W1 gate:** resume T7 through the existing product owner, not a
+**Historical 24 September live W1 gate (superseded for T7):** resume T7 through the existing product owner, not a
 fourth pilot or another capture-only baseline. Recheck its current checkpoint,
 frozen runtime, environment/build/account and authorized scope; resolve one
 remaining oracle/binding through the reviewed owner process before any action.
@@ -114,7 +116,7 @@ The newer owner managed-workspace recovery audit
 also blocks accepted observation publication until an owning recovery path
 validates the historical journals; do not bypass with an older pin. Only after
 both gates may the owner execute an authorized assertion and persist/read back
-the result through its accepted lane. Until then T7 stays pending, with completed
+the result through its accepted lane. At that checkpoint T7 stayed pending, with completed
 subsets unrepeated, unknown effects unretried and no replacement registration.
 The [W2b browser/API/MCP evidence series](w2b-evidence-friction-series-20260923.md)
 supports using the existing observation writer/readback without a new helper now;

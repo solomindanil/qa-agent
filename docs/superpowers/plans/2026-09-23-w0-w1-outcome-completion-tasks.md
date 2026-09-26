@@ -342,7 +342,7 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 
 **Результат:** новая полезная проверка у прежнего product owner либо явный pending live exit.
 
-- [ ] **7.1** Вернуться к кандидатуT1; прочитать его актуальный checkpoint, selected specialist, frozen runtime, environment/build/account и original scope. Не выдавать изначальный кандидат за нынешнюю готовность.
+- [x] **7.1** Вернуться к кандидатуT1; прочитать его актуальный checkpoint, selected specialist, frozen runtime, environment/build/account и original scope. Не выдавать изначальный кандидат за нынешнюю готовность.
 - [x] **7.2** Снять current reader readback до действия. При поддержанном owning Console ordinary-run:
 
     : "${QA_WORKSPACE:?owner workspace required}"
@@ -351,8 +351,8 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 
 Команда работает из runtime владельца, не обязательно текущего canonical Console. Unsupported runtime — его documented reader/fallback; не обновлять campaign pin ради команды.
 
-- [ ] **7.3** Новый actor называет один готовый незавершённый case, оставшуюся assertion, основание expectation, разрешённое действие и stop condition. A done не повторяется без drift; B unknown сверяется до retry; независимый C выполняется.
-- [ ] **7.4** Выполнить только разрешённый остаток, сохранить actual outcome/limitations через owning lane и повторить scope readback. Нет authority/fixture — точный blocker и независимая работа, не новая покупка/черновик/AI-запуск.
+- [x] **7.3** Новый actor называет один готовый незавершённый case, оставшуюся assertion, основание expectation, разрешённое действие и stop condition. A done не повторяется без drift; B unknown сверяется до retry; независимый C выполняется.
+- [x] **7.4** Выполнить только разрешённый остаток, сохранить actual outcome/limitations через owning lane и повторить scope readback. Нет authority/fixture — точный blocker и независимая работа, не новая покупка/черновик/AI-запуск.
 
 Для уже выбранной Starter observation lane подготовить exact `{manifest, artifact}` envelope ≤65536байт по agent-observations.md: реальные target/publication bindings, captureTime, author.authoredAt, limitations и attachments=[]. Сохранить исходные bytes в private run root, не создавать новую JSON-схему. Из фактического owning Console с явно установленными переменными выполнить:
 
@@ -367,7 +367,9 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 
 Этот рецепт не применяется к Freeland или другому неподдержанному runtime. В принятой lane новый reader сверяет hash, binding и полный scope; caller-authored/unattested не превращается в sealed PASS. При unknown append сначала reconciliation сохранённых bytes, не повторная запись.
 
-- [ ] **7.5** Reviewer сравнивает до/после: какой исходный пункт получил новое evidence, что осталось, не потеряны ли clauses и original/additional denominator. Реального ответа человека не было — help→reply→resume остаётся отдельным W6 exit.
+- [x] **7.5** Reviewer сравнивает до/после: какой исходный пункт получил новое evidence, что осталось, не потеряны ли clauses и original/additional denominator. Реального ответа человека не было — help→reply→resume остаётся отдельным W6 exit.
+
+**27 September acceptance:** пользователь разрешил заменить ранее выбранный rw-int кандидат на существующего Agentify owner. Новый consumer сохранил первый reader/plan, выбрал прежний незакрытый audience target из полного знаменателя 21, прошёл отдельно рассмотренный публичный owner → store → owner маршрут и записал через owning lane один `PARTIAL`, `agent_authored_unattested` result. Независимый readback: 21 targets / 1 current recorded / 20 `not_observed`, три прежних historical observations и 15 blockers сохранены. [Отдельный T7 AQA и W1 synthesis](../../qualification/w1-outcome-and-remaining-consumer-20260927.md) принимают §§7.1–7.5, не весь продукт и не W6 help→resume; исходные BLOCKED/STOPPED попытки не переписаны.
 
 **Проверка:** сохранённый отчёт или fixture continuation не засчитываются вместо реального действия. FAIL/PARTIAL полезны при достаточном evidence; необоснованный PASS недопустим.
 
@@ -385,6 +387,6 @@ Execution correction, 23 September: original design review NO-GO for aggregate Q
 - Восемь задач имеют отдельные результаты; шаги внутри — отдельные действия. Нельзя принять fixture unit tests за самостоятельный QA.
 - T1/T2 покрываютW0; T3/T4/T5/T6/T7 покрывают три пары и actual remaining consumerW1; T8 фиксирует предел принятия.
 - Будущие fixture API определены здесь; существующие status/observation команды сверены с selected Console. Это не обещание одинаковых CLI у всех historical owners.
-- T3/T4 реализованы и проверены (fixture2/2, browser4/4); исходный предложенный код выше сохранён как история дизайна. Исполняемые файлы и execution correction в Review Focus — актуальный результат; повторная реализация не требуется. Live T7 остаётся pending.
-- Дополнительные quote/UI mutation, live fixture и owner gaps не маскируются новой инфраструктурой. Нет точного будущего live caseID, пока он не разрешён актуальным owner; T1/T7 имеют явную процедуру выбора, а не вымышленную запись.
+- T3/T4 реализованы и проверены (fixture2/2, browser4/4); исходный предложенный код выше сохранён как история дизайна. Исполняемые файлы и execution correction в Review Focus — актуальный результат; повторная реализация не требуется. На 23 сентября live T7 был pending; 27 сентября он принят отдельно на разрешённом Agentify owner с `PARTIAL` и полным readback, без повторения локального среза.
+- Дополнительные quote/UI mutation, live fixture и owner gaps не маскируются новой инфраструктурой. На момент первоначального плана точного будущего live caseID не было; позднее конкретный existing Agentify target был выбран через актуальный owner reader и принят отдельно, без вымышленной записи или замены исторического rw-int scope.
 - Для исполнения этого связанного небольшого пакета достаточно inline implementer + отдельные test-design/final reviews; свежий actor T5/T7 нужен именно для оценки поведения. Режим исполнения подтверждается при передаче к реализации.
