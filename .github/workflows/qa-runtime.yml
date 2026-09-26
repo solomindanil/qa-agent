@@ -47,9 +47,14 @@ jobs:
         run: |
           set -euo pipefail
           qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-runtime.XXXXXX")"
+          # Keep the fail-closed helper guard; remove runner-global Git helpers
+          # only from this owned test environment, never from the host config.
+          git config --show-origin --name-only --get-regexp '^(core\.(fsmonitor|hooksPath|sshCommand)|filter\.|include\.|includeIf\.|extensions\.|alias\.)' || test "$?" = 1
           env -i \
             PATH="${PATH}" \
             CI=true \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
             TSX_DISABLE_CACHE=1 \
             NODE_DISABLE_COMPILE_CACHE=1 \
             LANG=C.UTF-8 \
