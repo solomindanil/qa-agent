@@ -1,6 +1,6 @@
 # Getting started from a fresh clone
 
-This repository delivers the current reusable QA harness source, not a ready-made product session. Keep it private: the Freeland component includes project-scoped knowledge.
+This public repository delivers reusable QA harness source, including Freeland-specific knowledge and historical records. It does not deliver a ready-made product session. Keep your own credentials, account data, registrations and run evidence private.
 
 ## 1. Restore and verify the delivered source
 
@@ -15,6 +15,24 @@ npm test
 `sources/` contains complete Git bundles. Restore materializes independent repositories under `components/` without donor repositories, network access, dependency installation or old machine paths. The outer repository intentionally ignores `components/`; never use outer ignore/status output alone to decide that source is missing. `sources:verify` checks the manifest-selected commits, bundle bytes, child source bytes and clean authority state.
 
 The root `npm test` covers packaging, restore/verify safety and bundled root skills. It is not a Console/Kernel runtime test, browser test, product test, deployment check or release verdict. Do not run a component's `npm test` as a bootstrap shortcut: Console and Freeland may start browser or product work.
+
+## Agent entry without changing installed skills
+
+Open this clone as the project in Codex or Claude. Ask the agent to read this
+clone's `AGENTS.md`, `docs/qualification/current.md` and the complete selected
+source skill from `skills/README.md` before testing. For example:
+
+> Read this checkout's AGENTS.md and the complete qa-check source skill. Analyze
+> my product at the URL I provide, select the appropriate specialist, and use
+> this checkout's pinned sources. Start with read-only work; report evidence,
+> failures and unassessed scope separately.
+
+Do not assume a `$qa-check` installed in a home directory has the same bytes.
+Source-directed use needs no global skill installation and leaves other chats'
+installed skills alone. If you later install skills, copy the full reviewed
+skill directories including references into your host's supported skill location,
+back up collisions and verify bytes. Installation and host routing need their
+own validation; bootstrap does not perform either.
 
 ## 2. Choose new work or an existing campaign
 
@@ -86,3 +104,13 @@ Dependencies, browser binaries, debug/E2E helpers, credentials, test data, accou
 If no asynchronous human-input tool exists, normal dialogue is valid for a focused help request. Continue independent safe work while dependent scope remains blocked. Never inherit credentials, account identity, payment permission or mutation authority from historical evidence. A prior registration, oracle approval or browser session does not authorize a current run or external write.
 
 Source restoration does not promise full product readiness, whole-product coverage, live deployment identity, product acceptance, campaign migration or integration of every historical commit. Report verified, failed, blocked and unassessed scope separately, and follow the [current checkpoint](qualification/current.md) and [maintenance backlog](qualification/maintenance-backlog-20260913.md) for known limitations.
+
+## Release verification without touching existing campaigns
+
+Run release checks in a separate normal clone. Use a private temporary directory
+whose path is canonical (`pwd -P`), especially on macOS where `/var` and `/tmp`
+may be symlinks. Point `TMPDIR`, `QA_STARTER_REPO`, Console state and registration
+stores into that clone. Never inherit a live `QA_WORKSPACE` for harness checks.
+The public runtime CI file lists the exact bounded smoke commands; the existing
+source-safety job deliberately remains dependency-free. Neither job runs a live
+product campaign. See the release record for wider local test results and limits.

@@ -1,0 +1,80 @@
+name: QA runtime smoke
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.1
+          package-manager-cache: false
+      - name: Restore and verify pinned components
+        run: |
+          node tools/workspace.mjs restore
+          node tools/workspace.mjs verify
+      - name: Install locked dependencies without lifecycle scripts
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund --prefix components/kernel
+          npm ci --ignore-scripts --no-audit --no-fund --prefix components/console
+      - name: Kernel build and contract controls
+        working-directory: components/kernel
+        run: |
+          npm run typecheck
+          npm run build
+          ./node_modules/.bin/vitest run tests/contracts
+      - name: Console typecheck and production build
+        working-directory: components/console
+        run: |
+          ./node_modules/.bin/tsc --noEmit --incremental false
+          ./node_modules/.bin/vite build
+      - name: Isolated Console runtime controls
+        working-directory: components/console
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-runtime.XXXXXX")"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            TSX_DISABLE_CACHE=1 \
+            NODE_DISABLE_COMPILE_CACHE=1 \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel" \
+            QA_CONSOLE_STATE="${qa_tmp}/receipts.json" \
+            QA_CONSOLE_PRIVATE_ROOT="${qa_tmp}/private" \
+            QA_REGISTRATION_STORE="${qa_tmp}/store" \
+            QA_REGISTRATION_TARGET_REGISTRY="${qa_tmp}/targets.json" \
+            node --import tsx --test --test-concurrency=1 \
+              tests/unit/portable-entrypoints.test.ts \
+              tests/unit/runtime-paths.test.ts \
+              tests/unit/qa-product-skill.test.ts \
+              tests/unit/kernel-fixture-authority.test.ts \
+              tests/unit/api-semantic-assertions.test.ts \
+              tests/unit/qa-campaign-files-umask.test.ts \
+              tests/unit/campaign-plan-concurrency.test.ts \
+              tests/unit/agent-observation-bridge.test.ts \
+              tests/unit/agent-observation-view.test.ts \
+              tests/unit/qa-agent-observation-cli.test.ts \
+              tests/unit/qa-agent-observation-pair.test.ts \
+              tests/unit/campaign-outcomes.test.ts \
+              tests/unit/campaign-verdict-copy.test.ts \
+              tests/unit/campaign-continuation-source-authority.test.ts \
+              tests/unit/campaign-continuation-readback.test.mjs \
+              tests/unit/campaign-continuation-readback-faults.test.mjs
+      - name: Verify source integrity after runtime checks
+        run: node tools/workspace.mjs verify

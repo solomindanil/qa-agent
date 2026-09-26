@@ -4,7 +4,18 @@ One portable workspace for the existing agent-first QA tools. The agent chooses 
 
 ## Start here
 
-Prerequisites: Node.js >=22.12 and Git. From a normal Git clone of this private repository:
+Use the frozen `codex/stable-20260926` branch for this release. The selected
+Kernel/Console/Freeland revisions are pinned in `sources/manifest.v1.json`.
+[Release scope and verification](docs/releases/2026-09-26.md) describe what is
+supported and what remains experimental. Existing product campaigns retain
+their own checkout and state; a release never migrates them automatically.
+
+```sh
+git clone --branch codex/stable-20260926 https://github.com/solomindanil/qa-agent.git
+cd qa-agent
+```
+
+Prerequisites: Node.js >=22.12 and Git. From a normal Git clone of this public repository:
 
 ```sh
 npm run sources:restore

@@ -9,6 +9,6 @@ This directory contains self-contained Git bundles, not build outputs or install
 
 `runtimeAuthority: true` means eligible to be selected as a source owner, not proof that a product passed QA or permission to execute writes. The reporting reference cannot be substituted for the active Kernel. Existing component LICENSE/attribution files remain in their original history.
 
-These sources were reviewed for this user's **private** qa-agent repository. Do not make this repository public: the Freeland child contains project-scoped private knowledge. Credentials, installed plugins, browser sessions, raw product-run evidence, generated dependencies and managed workspace registrations are not supplied.
+The owner has selected public distribution of this source repository. It includes Freeland-specific knowledge and historical qualification material; these are not generic product rules or current execution authority. Earlier private-delivery reviews retain their original scope. The [public release record](../docs/releases/2026-09-26.md) records the additional delivery checks and their limits. Credentials, installed plugins, browser sessions, live campaign stores, generated dependencies and managed workspace registrations are not supplied by restore.
 
 See [source qualification](../docs/qualification/source-delivery.md) and [exact bundle results](../docs/qualification/source-bundles.v1.json). Audits are heuristic/semantic reviews, not a guarantee that no unknown secret encoding exists.

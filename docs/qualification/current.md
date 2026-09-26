@@ -1,5 +1,7 @@
 # Current QA-agent source and execution entry
 
+> Stable delivery snapshot, 26 September 2026: see the [release record](../releases/2026-09-26.md). The queue below describes ongoing development, not completed release features. This branch freezes the selected component pins and excludes the unfinished W4 change-scope experiment. Existing campaign owners keep their own working copies. Earlier statements that GitHub publication is blocked are historical; consult the release record for this delivery.
+
 Updated 25 September 2026 (Bali); the committed manifest selects the bounded W2a source pair after independent delivery review. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
 
 ## Selected source
