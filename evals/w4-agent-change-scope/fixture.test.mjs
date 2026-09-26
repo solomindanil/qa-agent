@@ -17,6 +17,10 @@ async function getJson(baseUrl, path, init) {
   return { status: response.status, body: await response.json() };
 }
 
+function journalWithoutPayload(fixture) {
+  return fixture.getJournal().map(({ body: _body, timestamp: _timestamp, ...entry }) => entry);
+}
+
 test("one loopback origin survives revision and world switches", async () => {
   const fixture = await startFixture();
   try {
@@ -128,7 +132,7 @@ test("v1 A observation precedes an actual v2 environment identity GET", async ()
       status: 200,
       body: { candidateRevision: "v2" },
     });
-    assert.deepEqual(fixture.getJournal(), [
+    assert.deepEqual(journalWithoutPayload(fixture), [
       { method: "GET", path: "/api/catalog", status: 200, candidateRevision: "v1", worldMode: "healthy" },
       { method: "GET", path: "/api/environment", status: 200, candidateRevision: "v2", worldMode: "healthy" },
     ]);
@@ -166,7 +170,7 @@ test("unsupported methods and paths are refused without changing controls", asyn
       status: 200,
       body: { unlabeledItemCount: 0 },
     });
-    assert.deepEqual(fixture.getJournal(), [
+    assert.deepEqual(journalWithoutPayload(fixture), [
       { method: "POST", path: "/api/catalog", status: 405, candidateRevision: "v1", worldMode: "healthy" },
       { method: "GET", path: "/api/catalog?alternate=1", status: 404, candidateRevision: "v1", worldMode: "healthy" },
       { method: "GET", path: "/control/world-mode", status: 404, candidateRevision: "v1", worldMode: "healthy" },
@@ -186,13 +190,38 @@ test("journal is a read-only snapshot and close is idempotent", async (t) => {
   const snapshot = fixture.getJournal();
   snapshot[0].path = "/forged";
   snapshot.push({ method: "GET", path: "/forged" });
-  assert.deepEqual(fixture.getJournal(), [
+  assert.deepEqual(journalWithoutPayload(fixture), [
     { method: "GET", path: "/api/catalog", status: 200, candidateRevision: "v1", worldMode: "healthy" },
   ]);
   await fixture.close();
   await fixture.close();
-  assert.deepEqual(fixture.getJournal(), [
+  assert.deepEqual(journalWithoutPayload(fixture), [
     { method: "GET", path: "/api/catalog", status: 200, candidateRevision: "v1", worldMode: "healthy" },
   ]);
   await assert.rejects(fetch(new URL("/api/catalog", fixture.baseUrl)));
+});
+
+test("journal preserves actual response bodies and timestamps across modes as deep snapshots", async () => {
+  const fixture = await startFixture();
+  try {
+    fixture.setCandidateRevision("v2");
+    fixture.setWorldMode("mapped_broken");
+    assert.deepEqual(await getJson(fixture.baseUrl, "/api/catalog-integrity"), { status: 200, body: { unlabeledItemCount: 1 } });
+    fixture.setWorldMode("unmapped_broken");
+    assert.deepEqual(await getJson(fixture.baseUrl, "/api/catalog-publication"), { status: 200, body: { staleItemCount: 1 } });
+    assert.deepEqual(await getJson(fixture.baseUrl, "/missing"), { status: 404, body: { error: "not_found" } });
+    const journal = fixture.getJournal();
+    assert.deepEqual(journal.map(({ method, path, status, body, candidateRevision, worldMode }) => ({ method, path, status, body, candidateRevision, worldMode })), [
+      { method: "GET", path: "/api/catalog-integrity", status: 200, body: { unlabeledItemCount: 1 }, candidateRevision: "v2", worldMode: "mapped_broken" },
+      { method: "GET", path: "/api/catalog-publication", status: 200, body: { staleItemCount: 1 }, candidateRevision: "v2", worldMode: "unmapped_broken" },
+      { method: "GET", path: "/missing", status: 404, body: { error: "not_found" }, candidateRevision: "v2", worldMode: "unmapped_broken" },
+    ]);
+    assert.ok(journal.every(({ timestamp }) => !Number.isNaN(Date.parse(timestamp))));
+    journal[0].body.unlabeledItemCount = 99;
+    journal[0].worldMode = "forged";
+    assert.deepEqual(fixture.getJournal()[0].body, { unlabeledItemCount: 1 });
+    assert.equal(fixture.getJournal()[0].worldMode, "mapped_broken");
+  } finally {
+    await fixture.close();
+  }
 });

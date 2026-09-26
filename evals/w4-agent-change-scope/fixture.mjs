@@ -37,7 +37,7 @@ export async function startW4AgentChangeScopeFixture() {
       body = { error: "not_found" };
     }
 
-    journal.push({ method, path, status, candidateRevision, worldMode });
+    journal.push({ method, path, status, body: structuredClone(body), candidateRevision, worldMode, timestamp: new Date().toISOString() });
     sendJson(response, status, body);
   });
 
@@ -70,7 +70,7 @@ export async function startW4AgentChangeScopeFixture() {
       worldMode = mode;
     },
     getJournal() {
-      return journal.map((entry) => ({ ...entry }));
+      return structuredClone(journal);
     },
     close() {
       closePromise ??= new Promise((resolve, reject) => {
