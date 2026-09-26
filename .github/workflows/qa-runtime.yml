@@ -101,22 +101,13 @@ jobs:
         run: node tools/workspace.mjs verify
 
   kernel-regression:
-    name: Kernel failure diagnostics (${{ matrix.group }})
+    name: Full Kernel regression (${{ matrix.group }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - group: workspace
-            file: tests/workspace/regeneration.test.ts
-            pattern: 'restores an applied delete from proven absence|applies B atomically|omits the state entry when publication semantics change'
-          - group: job
-            file: tests/registration/job.test.ts
-            pattern: 'fails closed without deleting hostile phase selection fences|fails closed without deleting a substituted claim-receipt repair temp'
-          - group: service
-            file: tests/registration/service.test.ts
-            pattern: 'retains a fenced validation output|retains a pre-existing init stage|resumes PUBLISHING over a safe prior-authority workspace'
+        group: [workspace, service, remaining]
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -134,12 +125,19 @@ jobs:
       - name: Install exact Kernel dependencies
         working-directory: components/kernel
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Diagnose failures from the incomplete full regression
+      - name: Complete disjoint Kernel test group
         working-directory: components/kernel
         shell: bash
         run: |
           set -euo pipefail
           qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-kernel.XXXXXX")"
+          # These three groups are disjoint and exhaust the normal collection.
+          case "${{ matrix.group }}" in
+            workspace) set -- tests/workspace/regeneration.test.ts ;;
+            service) set -- tests/registration/service.test.ts ;;
+            remaining) set -- --exclude tests/workspace/regeneration.test.ts --exclude tests/registration/service.test.ts ;;
+            *) exit 1 ;;
+          esac
           env -i \
             PATH="${PATH}" \
             CI=true \
@@ -147,7 +145,7 @@ jobs:
             TMPDIR="${qa_tmp}" \
             GIT_CONFIG_NOSYSTEM=1 \
             GIT_CONFIG_GLOBAL=/dev/null \
-            ./node_modules/.bin/vitest run "${{ matrix.file }}" -t "${{ matrix.pattern }}" --reporter=verbose
-      - name: Verify source integrity after diagnostics
+            npm test -- "$@" --reporter=verbose
+      - name: Verify source integrity after full regression
         if: always()
         run: node tools/workspace.mjs verify

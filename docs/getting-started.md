@@ -114,3 +114,18 @@ stores into that clone. Never inherit a live `QA_WORKSPACE` for harness checks.
 The public runtime CI file lists the exact bounded smoke commands; the existing
 source-safety job deliberately remains dependency-free. Neither job runs a live
 product campaign. See the release record for wider local test results and limits.
+
+The continuation source-integrity guard refuses executable Git helper settings
+(for example system-wide Git LFS filters). For an isolated local QA invocation,
+you can exclude inherited system/global settings without editing the host:
+
+```sh
+GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null node tools/workspace.mjs verify
+```
+
+The example runs source verification from the repository root; apply the same
+process-scoped variables to the selected continuation command. Repository-local helper
+settings still fail the existing guard. This is process-scoped environment
+isolation, not permission to disable source checks or change another campaign's
+configuration. The release CI uses the same isolation and records helper key
+names without exposing configuration values.

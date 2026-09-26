@@ -2,7 +2,7 @@
 
 > Stable delivery snapshot, 26 September 2026: see the [release record](../releases/2026-09-26.md). The queue below describes ongoing development, not completed release features. This branch freezes the selected component pins and excludes the unfinished W4 change-scope experiment. Existing campaign owners keep their own working copies. Earlier statements that GitHub publication is blocked are historical; consult the release record for this delivery.
 
-Updated 25 September 2026 (Bali); the committed manifest selects the bounded W2a source pair after independent delivery review. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
+Updated 26 September 2026 (Bali); the manifest selects the public-release repair candidate on top of the bounded W2a source pair. Qualification is pending in the release record. The [manifest](../../sources/manifest.v1.json) selects source bytes; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. Neither the latest source nor this page authorizes product actions.
 
 ## Selected source
 
@@ -10,8 +10,8 @@ This is a dated projection of the manifest, not a second version registry. If it
 
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
-| Kernel | `a0a20e65b3290e6bbf5afe91d0e45ed372389adb` | W2a [registration snapshot repair](w2a-registration-snapshot-adoption-20260924.md), source-only; later exact full `npm run verify` **passed once** (45/45 files, 1788/1788 tests, build), with the earlier timeout retained. Prior [observation implementation](agent-observations-20260920.md) retains attribution. |
-| Console | `f75d9630edd599d9fd9bfbfbf5faf195e25db685` | Exact-pin W2a [plan lifecycle regression](w2a-registration-snapshot-adoption-20260924.md). Prior [observation readback reference](observation-readback-reference-20260923.md), [API semantic assertions](api-oracles-20260922.md), [ordinary status repair](ordinary-campaign-status-20260921.md) and [reference correction](observation-skill-reference-20260920.md) retain attribution. |
+| Kernel | `ece24e865f7ea37cff32c24c7e3739c9d0059f81` | Public-release candidate: durable claim-receipt stage ownership, portable deleted-inode fixture and scoped integration budgets. [Release evidence](../releases/2026-09-26.md) is pending. Prior W2a results retain their original source attribution. |
+| Console | `a8f66792f8053f125bf8ffc758f543f25a2b95a1` | Exact-pin companion to the public-release Kernel candidate. [Release evidence](../releases/2026-09-26.md) is pending; earlier Console qualifications apply to their recorded pins. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
