@@ -1,0 +1,3 @@
+# Candidate v2 behavioral change dossier — unmapped case
+
+The owner identifies candidate `v2` at the registered staging origin. The prior public catalog observation was made against candidate `v1`; its product identity is historical for this change. In v2, shared public response-publication handling changed, while all source-stated public GET contracts remain in force. The owner has no trusted mapping from this behavioral delta to any known registered target and no authoritative no-impact disposition. Apply the product pack's owner-approved fallback while preserving the mapping gap and unsupported obligations. Only read-only public GET activity is authorized; do not treat a local publication binding as deployed-product freshness.

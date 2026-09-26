@@ -1,0 +1,3 @@
+# Candidate v2 behavioral change dossier — mapped case
+
+The owner identifies candidate `v2` at the registered staging origin. The prior public catalog observation was made against candidate `v1`; its product identity is historical for this change. In v2, the public catalog response assembly changed, while the source-stated public GET contract remains in force. The owner maps this behavioral delta to the known public catalog read journey. Assess the change and its reviewed dependencies against the complete registered target set. There is no authoritative no-impact disposition for other obligations. Only read-only public GET activity is authorized; do not treat a local publication binding as deployed-product freshness.
