@@ -1,45 +1,39 @@
 # QA agent workspace
 
-One portable workspace for the existing agent-first QA tools. The agent chooses test design, explores and triages; the existing tools validate inputs, execute bounded checks and retain evidence. This repository does not introduce another runner or verdict engine.
+This repository delivers source and guidance for agent-led product QA. An agent designs and investigates checks; the selected product pack and existing tools execute bounded work, retain evidence and apply their own verdict rules. It is a source workspace, not a universal runner or a ready-made product session.
 
-## Start here
+## Start from a clone
 
-Use the `codex/stable-20260926` branch for this release. The immutable source
-snapshot is tagged `qa-agent-2026.09.26`. The selected
-Kernel/Console/Freeland revisions are pinned in `sources/manifest.v1.json`.
-Reviewed development continues on the stable branch while that release tag
-stays fixed; see the [continuation checkpoint](docs/qualification/development-continuation-20260926.md).
-[Release scope and verification](docs/releases/2026-09-26.md) describe what is
-supported and what remains experimental. Existing product campaigns retain
-their own checkout and state; a release never migrates them automatically.
+Prerequisites: Git and Node.js >=22.12. The stable release branch is `codex/stable-20260926`; the immutable source snapshot is tagged `qa-agent-2026.09.26`. Reviewed work may continue on the branch without changing that tag. See the [release record](docs/releases/2026-09-26.md) for the exact verified scope.
 
 ```sh
 git clone --branch codex/stable-20260926 https://github.com/solomindanil/qa-agent.git
 cd qa-agent
-```
-
-Prerequisites: Node.js >=22.12 and Git. From a normal Git clone of this public repository:
-
-```sh
 npm run sources:restore
 npm run sources:verify
 npm test
 ```
 
-Restore uses only the local reviewed bundles. It does not install dependencies, contact a product, install skills or acquire credentials. Conflicting/dirty destinations are refused, not repaired or deleted. Each child keeps its own Git history and lockfile; do not share writable node_modules. See [source inventory](sources/manifest.v1.json), [source proof](docs/qualification/source-delivery.md) and [assembly qualification](docs/qualification/assembly.md).
+Restore uses local reviewed Git bundles. It creates independent component repositories under ignored `components/` and refuses conflicting or dirty destinations; it does not install dependencies, skills or plugins, contact a product, or acquire credentials. The root test checks source delivery and packaging only. It does not establish browser, component-runtime, product or deployment readiness. Do not infer a component's status from the outer `git status`; use `sources:verify` and its own Git status. Child dependencies and commands are separate, and a child's default `npm test` may start product/browser work.
 
-The root commands restore and verify complete component Git repositories and test only this delivery/packaging boundary; they do not prove that Console, Kernel, a browser lane or any product is ready. `components/` is deliberately ignored by the outer repository, so outer `git status` is not evidence that a component is absent. Use `sources:verify` and the component's own Git status instead. For a fresh operator walkthrough, including explicit private runtime paths, read [Getting started](docs/getting-started.md).
+## Choose the work
 
-| Need | Entry point |
+| Need | Read first |
 | --- | --- |
-| Codex or Claude session | Read [AGENTS.md](AGENTS.md); Claude starts at [CLAUDE.md](CLAUDE.md) |
-| New product / existing Starter workspace | [Product routing](products/README.md), then the full [qa-product-v0](components/console/skills/qa-product-v0/SKILL.md) skill; use [qa-init](components/console/skills/qa-init/SKILL.md) only when registration, registration recovery or a separately authorized I2 review is needed |
-| Freeland release, QA column, sprint or ticket | [Freeland skill](components/freeland/skills/freeland-release-qa/SKILL.md), resolving an existing campaign's frozen owner runtime before commands |
-| Bug backlog / developer fix prompts | [qa-bugfix](skills/qa-bugfix/SKILL.md), using the product-selected tracker and exact state roles |
-| Agent skills / host prerequisites | [Skills index](skills/README.md) |
-| Reusable tests and report contracts | [Evals](evals/README.md), [templates](templates/README.md) |
-| Current checkpoint and remaining work | [Roadmap](docs/roadmap/README.md) |
+| Agent session | [AGENTS.md](AGENTS.md) (or [CLAUDE.md](CLAUDE.md)), then the [current checkpoint](docs/qualification/current.md) |
+| New or existing product QA | [Product routing](products/README.md), [source skills](skills/README.md), then the selected complete specialist skill |
+| Fresh operator setup | [Getting started](docs/getting-started.md) |
+| Architecture and supported boundaries | [Architecture](docs/architecture.md) and [documentation index](docs/README.md) |
+| Bug backlog and fix prompts | [qa-bugfix](skills/qa-bugfix/SKILL.md), using the product-selected tracker |
+| Current improvement queue | [Roadmap pointer](docs/roadmap/README.md) |
 
-Component links resolve after restore. `runtimeAuthority: true` means selected source ownership, not permission to execute or proof that a runtime works. Reporting reference10d is deliberately **not active**. No product accounts, managed registrations or current campaigns are transferred by restore.
+For an unfamiliar product, the general route is `qa-check` → product owner/specialist → product analysis and an authorized plan. Console/Kernel provide the Starter lane; Freeland retains a specialized harness. Other products may have their own frozen pack and campaign owner. No product account, registration, campaign, browser session or execution permission transfers with this repository. Source selection is in the [manifest](sources/manifest.v1.json); an existing campaign's owner selects its runtime. `runtimeAuthority: true` is source ownership, not action authority.
 
-Start with [current source and qualification](docs/qualification/current.md). The [cross-repository reconciliation](docs/qualification/reconciliation-20260911.md) explains what was adopted, already integrated, preserved inactive or left with its product owner. The existing product-analysis workflow, receipt-bound agent reviews, interruption fixtures and trace metadata are reused. Source delivery, product coverage, live deployment identity, plugin authentication and release readiness remain distinct qualifications. Earlier results remain attached to their original revisions.
+The present source and release evidence qualify bounded capabilities, not every stack, device, journey or product. Report verified, failed, blocked and unassessed scope separately. Historical plans, evaluations and qualifications remain available through the [documentation index](docs/README.md); their dated “next” instructions do not override the current checkpoint.
+
+| Capability | Present boundary |
+| --- | --- |
+| Source restore/verification and root packaging tests | Supported from a normal Git clone with Node.js >=22.12; no product verdict. |
+| Starter Console/Kernel campaign | Local macOS/Linux setup is documented; actual product execution additionally requires the selected pack, private state, dependencies, candidate and authority. No general Windows or cloud claim. |
+| Freeland QA | Specialized source and instructions are delivered; existing campaigns retain their frozen owner/runtime and staging/payment restrictions. No live product acceptance follows from restore. |
+| Other products, devices and integrations | Analyze and qualify the selected capabilities per product. No blanket support or coverage claim. |

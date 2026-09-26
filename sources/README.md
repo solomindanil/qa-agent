@@ -1,14 +1,16 @@
 # Reviewed source delivery
 
-This directory contains self-contained Git bundles, not build outputs or installed environments. `manifest.v1.json` selects exact commits and SHA-256 digests. Restore them with the root bootstrap; do not replace a child with a directory copied from an old worktree.
+`manifest.v1.json` is the sole selector for exact delivered component commits, trees, bundle paths and SHA-256 digests. The root bootstrap restores self-contained Git bundles into independent repositories under ignored `components/`; these are source, not build output or an installed product environment. Do not replace a child with a copy of an old worktree. Verify the selected bytes and child status before source-dependent work.
 
-- `kernel` is the selected reusable Starter Kernel.
-- `console` is the existing Starter interface/adapters and integrated skills. The authored-fixture repair is included at b38a8b4; its selected22-record local gate passed. See [qualification](../docs/qualification/authored-fixture.md); this is not live-product acceptance.
-- `freeland` is the existing Freeland-specific QA harness, graph, tests, skills, provenance and scoped knowledge. It is not the Freeland product repository.
-- `kernel-reporting-reference` preserves useful observation/report work from a sibling branch. It is **not** the active Kernel and does not include Kernel393's reviewed journey/invariant admission.
+| Component | Role |
+| --- | --- |
+| `kernel` | Reusable Starter contracts and execution/evidence boundaries. |
+| `console` | Starter interface, adapters and integrated product-analysis skills; selected as a pair with Kernel. |
+| `freeland` | Freeland-specific QA harness, graph, tests, skills and scoped knowledge; **not** the Freeland product repository. |
+| `kernel-reporting-reference` | Inactive sibling source retained for review; never substitute it for the selected Kernel. |
 
-`runtimeAuthority: true` means eligible to be selected as a source owner, not proof that a product passed QA or permission to execute writes. The reporting reference cannot be substituted for the active Kernel. Existing component LICENSE/attribution files remain in their original history.
+Restore currently materializes all components named in the manifest. Choosing a Starter, Freeland or another product workflow is a *logical* choice after restore, not an optional partial-restore feature. `runtimeAuthority: true` is eligibility as a source owner; it is neither proof that a runtime or product passed nor permission to execute actions. Existing campaigns keep their owner-selected frozen runtime, which may differ from this manifest. Each child retains its own Git history, lockfile, license/attribution and dependencies; do not share writable `node_modules`.
 
-The owner has selected public distribution of this source repository. It includes Freeland-specific knowledge and historical qualification material; these are not generic product rules or current execution authority. Earlier private-delivery reviews retain their original scope. The [public release record](../docs/releases/2026-09-26.md) records the additional delivery checks and their limits. Credentials, installed plugins, browser sessions, live campaign stores, generated dependencies and managed workspace registrations are not supplied by restore.
+The public source delivery includes Freeland-specific knowledge and dated qualification material. Those are not generic rules or current execution authority. Credentials, installed plugins/skills, browser sessions, live campaign stores, generated dependencies and managed registrations are not supplied. The [release record](../docs/releases/2026-09-26.md) states public-delivery checks and limits; [source qualification](../docs/qualification/source-delivery.md) and [bundle results](../docs/qualification/source-bundles.v1.json) retain exact evidence. Audits are heuristic/semantic reviews, not a guarantee that no unknown secret encoding exists.
 
-See [source qualification](../docs/qualification/source-delivery.md) and [exact bundle results](../docs/qualification/source-bundles.v1.json). Audits are heuristic/semantic reviews, not a guarantee that no unknown secret encoding exists.
+[Development archives](candidates/README.md) retain earlier and experimental bundles with their original claims. They are provenance, not a second selection registry. No archive is safely disposable solely because its status is historical.

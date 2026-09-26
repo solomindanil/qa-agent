@@ -1,5 +1,7 @@
 # Development source archives
 
+> Historical provenance only. Every status label below (including “MANIFEST-SELECTED,” “canonical,” and “current”) describes its dated review, **not today's selection**. The sole current source selector is [manifest.v1.json](../manifest.v1.json); consult the [current checkpoint](../../docs/qualification/current.md) for present qualification and the product owner for an existing campaign's frozen runtime. These bundles and reports are retained evidence, not optional runtime replacements or authorization for product action. Do not delete or rewrite them without a separate provenance and dependency review.
+
 ## Local consolidation, 20 September 2026
 
 The [consolidation index](../../docs/qualification/local-consolidation-20260920.md)

@@ -1,6 +1,6 @@
 # Getting started from a fresh clone
 
-This public repository delivers reusable QA harness source, including Freeland-specific knowledge and historical records. It does not deliver a ready-made product session. Keep your own credentials, account data, registrations and run evidence private.
+This public repository delivers reusable QA harness source, specialist product knowledge and historical records. It does not deliver a ready-made product session. Keep your own credentials, account data, registrations and run evidence private. See the [architecture](architecture.md) for the distinction between general Starter and specialist lanes.
 
 ## 1. Restore and verify the delivered source
 
@@ -36,7 +36,7 @@ own validation; bootstrap does not perform either.
 
 ## 2. Choose new work or an existing campaign
 
-For an unfamiliar or separately authorized new product, read [product routing](../products/README.md), then the complete [qa-product-v0 skill](../components/console/skills/qa-product-v0/SKILL.md) and its required references. Product analysis can happen before registration and does not require Nuanu Flow.
+For an unfamiliar or separately authorized new product, read [product routing](../products/README.md). The generic [qa-check source](../skills/qa-check/SKILL.md) routes to the selected specialist; where no product pack is already selected, read the complete [qa-product-v0 skill](../components/console/skills/qa-product-v0/SKILL.md) and its required references. Product analysis can happen before registration and does not require Nuanu Flow.
 
 Use [qa-init](../components/console/skills/qa-init/SKILL.md) only when a new managed workspace, recovery of a known registration, or a separately authorized I2 first-evidence review is needed. After a registration is read back successfully, return to `qa-product-v0` to choose or author the applicable plan. I2 is a separate lane, not a universal prerequisite.
 
@@ -44,7 +44,9 @@ The selected Console README still contains legacy wording that makes I2 sound ma
 
 For an existing live campaign, resolve its current owner checkpoint and keep its frozen source, workspace, registration, evidence, permissions and unknown outcomes. Historical task IDs or paths can help that owner but are not required for first use. Missing owner state blocks continuation of that exact campaign, not separately authorized new analysis or registration. Existing frozen campaigns are not migrated by this repository.
 
-## 3. Configure Console and Kernel explicitly
+<a id="3-configure-console-and-kernel-explicitly"></a>
+
+## 3. Configure Console and Kernel explicitly (Starter lane only)
 
 Full Console campaign execution is currently supported only on macOS and Linux. This guide makes no Windows or cloud-execution claim. Before any permitted local operation, choose an existing absolute workspace-parent directory and a separate absolute private-state location. The workspace parent is an allowlist root, not a managed workspace. Do not create the target workspace yourself; registration owns that path and its durable readback.
 
@@ -63,11 +65,11 @@ export QA_REGISTRATION_TARGET_REGISTRY=/absolute/path/to/private-qa-state/regist
 unset QA_WORKSPACE
 ```
 
-The optional `QA_STARTER_EXPECTED_SHA` above is derived from the current manifest rather than copied from historical guidance. Confirm that manifest selection, the restored Kernel `HEAD` and the Console's embedded Kernel authority agree; the Console runtime performs its own exact revision/source-integrity check.
+The optional `QA_STARTER_EXPECTED_SHA` above is derived from the current manifest rather than copied from historical guidance. Confirm that manifest selection, the restored Kernel `HEAD` and the Console's embedded Kernel authority agree. Use the selected registration/campaign commands and their current guards; do not infer that every legacy Console CLI command independently enforces the same exact-pin/source-integrity check. A legacy CLI bypass needs its own owning repair and qualification; it is not permission to bypass a guard.
 
 `QA_WORKSPACE_ROOTS` is a colon-separated allowlist of parent directories on the supported platforms; every registration target must resolve below one. `QA_CONSOLE_STATE` is the Console receipt file. `QA_CONSOLE_PRIVATE_ROOT`, `QA_REGISTRATION_STORE` and `QA_REGISTRATION_TARGET_REGISTRY` keep oracle approvals, registration events/receipts and target ownership outside product workspaces. These explicit values avoid selecting home-directory defaults. Never put credentials in these examples or in the tracked repository.
 
-Install each restored child's locked dependencies separately and build the exact Kernel before starting the loopback-only Console:
+Only if this Starter runtime is selected and the operator approves local dependency installation, install each restored child's locked dependencies separately and build the exact Kernel before starting the loopback-only Console:
 
 ```sh
 (cd "$QA_STARTER_REPO" && npm ci --ignore-scripts && npm run build)
