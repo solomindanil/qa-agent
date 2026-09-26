@@ -118,7 +118,7 @@ W0+W1 разложен на [восемь задач T1–T8](2026-09-23-w0-w1-o
 **Owners/files:** `sources/manifest.v1.json`, `docs/qualification/current.md`, `products/README.md`, `evals/dialogue-quality/README.md`, `cases.md`, `reviewer-rubric.md`. Использовать существующие trial/qualification records; не создавать runtime registry.
 
 - [ ] Прочитать manifest и выбранные source skills целиком; выполнить `npm run sources:verify` из root; отдельно установить owner/runtime разрешённого product consumer.
-- [ ] В одном новом eval record сохранить исходные source/model/host/tools, объявленный scope, первые ответы и ограничения; прошлые field samples не переименовывать в новый запуск.
+- [x] В одном новом eval record сохранить исходные source/model/host/tools, объявленный scope, первые ответы и ограничения; прошлые field samples не переименовывать в новый запуск. [Agentify, 26 сентября](../../../evals/dialogue-quality/20260926-agentify-public-first-use/README.md): исходные BLOCKED попытка/восстановление и отдельно разрешённое 3/3 наблюдение сохранены; один локальный reader и независимый AQA GO 0 Critical / 0 Important / 1 Minor (4 критерия соблюдены, 1 частично явный). Только этот документальный пункт W0 закрыт; весь W0, I10, W1/W6 и W7 остаются открытыми.
 - [ ] До исполнения перечислить контрольные случаи W1, допустимые вмешательства, ожидаемые исходы, длительность/стоимость и условие остановки. Недоступный answer key реально изолировать либо назвать sample open-context.
 - [ ] Зафиксировать capability/fixture readiness и действительные запросы помощи; отсутствие source SHA не заменять frontend asset hash.
 
