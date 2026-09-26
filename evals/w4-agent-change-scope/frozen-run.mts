@@ -16,7 +16,6 @@ import { assertPinnedKernelRevision } from "../../components/console/server/kern
 type CaseId = "M" | "U";
 type Mode = "healthy" | "mapped_broken" | "unmapped_broken";
 type Json = Record<string, any>;
-const sourceRoot = path.resolve(import.meta.dirname, "../..");
 const sha = (bytes: Uint8Array) => `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 const strictUrl = (value: string) => new URL(value).href;
 
@@ -25,6 +24,7 @@ export interface FreezeInput {
   workspacePath: string;
   archiveRoot: string;
   firstPlanPath: string;
+  expectedFirstPlanSha256: string;
   originalBaseUrl: string;
   expectedProductSlug: string;
   expectedAuthorityDigest: string;
@@ -86,10 +86,12 @@ export async function freezeFirstPlan(input: FreezeInput, override: Partial<type
   const deps = { ...production, ...override };
   if (input.caseId !== "M" && input.caseId !== "U") throw new Error("Case must be M or U");
   assertAbsolute(input.firstPlanPath, "First plan");
+  if (input.firstPlanPath !== path.join(input.archiveRoot, "first-attempt", input.caseId, "plan.original.json")) throw new Error("First plan must be the exact archived original under the approved attempt root");
   const recordPath = path.join(input.archiveRoot, `${input.caseId}-frozen.json`);
   try { await lstat(recordPath); throw new Error("Frozen case already exists"); } catch (error: any) { if (error.code !== "ENOENT") throw error; }
   const workspace = await assertWorkspace(input, deps);
   const firstBytes = await readFile(input.firstPlanPath);
+  if (sha(firstBytes) !== input.expectedFirstPlanSha256) throw new Error("Archived first plan SHA does not match independently graded SHA");
   const plan = deps.parsePlan(JSON.parse(firstBytes.toString("utf8")));
   if (plan.productSlug !== input.expectedProductSlug || strictUrl(plan.baseUrl) !== strictUrl(input.originalBaseUrl)) throw new Error("First plan product/origin differs from frozen identity");
   if (plan.graphDigest !== input.expectedGraphDigest) throw new Error("First plan graph digest differs from frozen identity");
@@ -97,23 +99,27 @@ export async function freezeFirstPlan(input: FreezeInput, override: Partial<type
   if (closure.plan.checks.length === 0) throw new Error("First plan has no safe executable checks");
   const planPath = path.join(input.workspacePath, "tests/qa-campaign.v0.json");
   const expectedBytes = Buffer.from(deps.canonicalJson(closure.plan));
-  let writeOutcome = "created";
   try {
     await deps.writeNewCampaignPlan(input.workspacePath, planPath, closure.plan);
-  } catch (error: any) {
-    if (error?.outcome !== "unknown") throw error;
-    writeOutcome = "uncertain-reconciled-by-readback";
+  } catch (error) {
+    let leafState: "matching" | "absent" | "mismatching" | "unreadable";
+    try {
+      leafState = (await readFile(planPath)).equals(expectedBytes) ? "matching" : "mismatching";
+    } catch (readError: any) {
+      leafState = readError?.code === "ENOENT" ? "absent" : "unreadable";
+    }
+    throw new Error(`Campaign plan writer failed; canonical leaf ${leafState}; outcome remains uncertain and must not be retried automatically`, { cause: error });
   }
   const readback = deps.parsePlan(await deps.readCampaignPlan(input.workspacePath, planPath));
   const actualBytes = await readFile(planPath);
   if (!actualBytes.equals(expectedBytes) || deps.canonicalJson(readback) !== expectedBytes.toString("utf8")) throw new Error("Canonical plan readback differs from frozen first submission");
   const record = {
-    caseId: input.caseId, workspacePath: input.workspacePath, originalBaseUrl: input.originalBaseUrl,
+    caseId: input.caseId, workspacePath: input.workspacePath, archiveRoot: input.archiveRoot, originalBaseUrl: input.originalBaseUrl,
     expectedProductSlug: input.expectedProductSlug, expectedAuthorityDigest: input.expectedAuthorityDigest,
     expectedGraphDigest: input.expectedGraphDigest, expectedCatalogDigest: input.expectedCatalogDigest,
     expectedStrategyDigest: input.expectedStrategyDigest,
-    planPath, firstPlanPath: input.firstPlanPath, firstPlanSha256: sha(firstBytes),
-    planDigest: deps.digestCanonical(readback), writeOutcome, readyToRun: closure.readyToRun,
+    planPath, firstPlanPath: input.firstPlanPath, firstPlanSha256: sha(firstBytes), expectedFirstPlanSha256: input.expectedFirstPlanSha256,
+    planDigest: deps.digestCanonical(readback), writeOutcome: "created", readyToRun: closure.readyToRun,
     executableTargetIds: closure.executableTargetIds, blockedTargetIds: closure.blockedTargetIds,
   };
   await writeFile(recordPath, JSON.stringify(record, null, 2) + "\n", { flag: "wx", mode: 0o600 });
@@ -149,7 +155,16 @@ export async function runFrozenMode(input: RunInput, override: Partial<typeof pr
   if (!["healthy", "mapped_broken", "unmapped_broken"].includes(input.mode)) throw new Error("Unsupported run mode");
   const record = JSON.parse(await readFile(input.recordPath, "utf8")) as FreezeInput & { planPath: string; planDigest: string; firstPlanSha256: string };
   if (record.caseId !== "M" && record.caseId !== "U") throw new Error("Frozen case identity is invalid");
+  if (record.archiveRoot !== input.archiveRoot || input.recordPath !== path.join(record.archiveRoot, `${record.caseId}-frozen.json`)) throw new Error("Frozen record/archive root binding changed");
+  if (record.firstPlanPath !== path.join(record.archiveRoot, "first-attempt", record.caseId, "plan.original.json")
+    || record.firstPlanSha256 !== record.expectedFirstPlanSha256) throw new Error("Frozen graded first plan binding changed");
   if ((record.caseId === "M" && input.mode === "unmapped_broken") || (record.caseId === "U" && input.mode === "mapped_broken")) throw new Error("Mode does not match frozen case");
+  if (input.mode === "healthy" && input.priorHealthyRunId !== undefined) throw new Error("Healthy run must not specify priorHealthyRunId");
+  if (input.mode !== "healthy") {
+    if (!input.priorHealthyRunId) throw new Error("Broken run requires priorHealthyRunId");
+    const previous = JSON.parse(await readFile(path.join(input.archiveRoot, "runs", record.caseId, "healthy", "run-boundaries.json"), "utf8"));
+    if (previous.runId !== input.priorHealthyRunId || previous.caseId !== record.caseId || previous.mode !== "healthy") throw new Error("priorHealthyRunId does not match this case's archived healthy run");
+  }
   if (input.controllerStatus.event !== "status" || input.controllerStatus.alive !== true
     || input.controllerStatus.candidateRevision !== "v2" || input.controllerStatus.mode !== input.mode
     || strictUrl(input.controllerStatus.baseUrl) !== strictUrl(record.originalBaseUrl)) throw new Error("Controller status is not the selected same-origin v2 mode");
@@ -160,10 +175,10 @@ export async function runFrozenMode(input: RunInput, override: Partial<typeof pr
   if (deps.digestCanonical(closure.plan) !== record.planDigest || closure.plan.checks.length === 0) throw new Error("Persisted frozen plan changed or has no executable checks");
   const environment = await deps.probeEnvironment(record.originalBaseUrl);
   if (environment.status !== 200 || environment.body?.candidateRevision !== "v2") throw new Error("Live origin is not candidate v2");
-  const caseRoot = path.join(input.archiveRoot, record.caseId);
+  const caseRoot = path.join(input.archiveRoot, "runs", record.caseId);
   await mkdir(caseRoot, { recursive: true, mode: 0o700 });
   if (await realpath(caseRoot) !== caseRoot) throw new Error("Archive case directory is not canonical");
-  const modeRoot = path.join(caseRoot, input.mode);
+  const modeRoot = path.join(caseRoot, input.mode === "healthy" ? "healthy" : "broken");
   await mkdir(modeRoot, { mode: 0o700 }); // durable one-shot admission; no automatic retry after uncertain runner outcome
   const startedAt = new Date().toISOString();
   const returned = await deps.runCampaign({ workspacePath: record.workspacePath, graph: workspace.graph, catalog: workspace.catalog,
@@ -178,28 +193,29 @@ export async function runFrozenMode(input: RunInput, override: Partial<typeof pr
   if (receipt.runDirectory !== `tests/campaign-runs/${receipt.runId}`) throw new Error("Receipt run directory is not canonical");
   const receiptBytes = await originalBytes(record.workspacePath, `${receipt.runDirectory}/receipt.json`);
   if (sha(receiptBytes) !== evidence.receiptDigest || JSON.stringify(JSON.parse(receiptBytes.toString("utf8"))) !== JSON.stringify(receipt)) throw new Error("Original receipt bytes differ from explicit reader output");
-  const originals: Array<{ path: string; sha256: string; bytes: number; content: Buffer }> = [];
+  const originals: Array<{ sourcePath: string; archiveRelativePath: string; sha256: string; bytes: number; content: Buffer }> = [];
   for (const artifact of receipt.artifacts) {
     const relative = safeRunPath(receipt.runDirectory, artifact.path);
     const bytes = await originalBytes(record.workspacePath, relative);
     if (bytes.length !== artifact.bytes || sha(bytes) !== artifact.sha256) throw new Error(`Original artifact changed after reader validation: ${relative}`);
-    originals.push({ path: relative, sha256: artifact.sha256, bytes: artifact.bytes, content: bytes });
+    originals.push({ sourcePath: relative, archiveRelativePath: relative.slice(receipt.runDirectory.length + 1), sha256: artifact.sha256, bytes: artifact.bytes, content: bytes });
   }
-  const archivePath = path.join(modeRoot, receipt.runId);
-  await mkdir(archivePath, { mode: 0o700 });
-  await createArchiveFile(archivePath, "original/receipt.json", receiptBytes);
-  for (const artifact of originals) await createArchiveFile(archivePath, `original/${artifact.path}`, artifact.content);
-  const packet = { caseId: record.caseId, mode: input.mode, baseUrl: record.originalBaseUrl, candidate: environment,
-    startedAt, endedAt, runId: receipt.runId, planDigest: record.planDigest, receiptDigest: evidence.receiptDigest,
-    reader: evidence, originals: originals.map(({ content: _content, ...reference }) => reference),
-    journalSegment: null, journalStatus: "awaiting-controller-close-and-reconciliation" };
-  await createArchiveFile(archivePath, "readback.json", JSON.stringify(packet, null, 2) + "\n");
+  let priorHealthy: { runId: string; receiptDigest: string } | undefined;
   if (input.priorHealthyRunId) {
     const prior = await deps.readEvidence({ workspaceDir: record.workspacePath, workspaceRoots: [record.workspacePath], productSlug: record.expectedProductSlug,
       project: workspace.project, graph: workspace.graph, catalog: workspace.catalog, allowedBaseUrls: [record.originalBaseUrl], runId: input.priorHealthyRunId });
     if (!prior || prior.kind === "invalid" || prior.receipt?.runId !== input.priorHealthyRunId || deps.digestCanonical(prior.plan) !== record.planDigest) throw new Error("Earlier healthy receipt no longer validates by explicit run ID");
-    await createArchiveFile(archivePath, "prior-healthy-readback.json", JSON.stringify({ runId: input.priorHealthyRunId, receiptDigest: prior.receiptDigest }, null, 2) + "\n");
+    priorHealthy = { runId: input.priorHealthyRunId, receiptDigest: prior.receiptDigest };
   }
+  const archivePath = modeRoot;
+  await createArchiveFile(archivePath, "receipt.original.json", receiptBytes);
+  await createArchiveFile(archivePath, "reader.original.json", JSON.stringify(evidence, null, 2) + "\n");
+  await createArchiveFile(archivePath, "artifact-inventory.json", JSON.stringify(originals.map(({ content: _content, ...reference }) => reference), null, 2) + "\n");
+  await createArchiveFile(archivePath, "candidate-readback.json", JSON.stringify(environment, null, 2) + "\n");
+  for (const artifact of originals) await createArchiveFile(archivePath, `artifacts/${artifact.archiveRelativePath}`, artifact.content);
+  await createArchiveFile(archivePath, "run-boundaries.json", JSON.stringify({ caseId: record.caseId, mode: input.mode, baseUrl: record.originalBaseUrl,
+    startedAt, endedAt, runId: receipt.runId, planDigest: record.planDigest, receiptDigest: evidence.receiptDigest,
+    ...(priorHealthy === undefined ? {} : { priorHealthy }), journalStatus: "awaiting-controller-close-and-reconciliation" }, null, 2) + "\n");
   return { archivePath, runId: receipt.runId, receiptDigest: evidence.receiptDigest, startedAt, endedAt };
 }
 
