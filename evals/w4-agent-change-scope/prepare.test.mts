@@ -60,15 +60,58 @@ test("prepares two identical four-target managed workspaces with historical v1 e
       assert.equal(a.observations[0].payload.expectedBehavior, "GET /api/catalog returns HTTP 200 with catalogName Cedar and ready true.");
       assert.ok(actor.report.targets.filter((row: any) => row.targetId !== prepared.targets.A).every((row: any) => row.observationState === "not_observed" && row.observations.length === 0));
       const packet = JSON.parse(await readFile(actor.packetPath, "utf8"));
-      assert.deepEqual(Object.keys(packet).sort(), ["baseUrl", "briefPath", "catalogPath", "dossierPath", "graphPath", "observationReportPath", "outputPath", "planPath", "skillPath"].sort());
+      assert.deepEqual(Object.keys(packet).sort(), ["baseUrl", "briefPath", "campaignApiPath", "campaignGuidePath", "catalogPath", "coveragePath", "currentAuthorityPath", "currentCompilationPath", "dossierPath", "graphPath", "initialAuthorityPath", "initialCompilationPath", "observationReportPath", "outputPath", "planPath", "publicationPreviewPath", "publicationReceiptPath", "skillPath", "strategyPath", "toolingNotePath", "v1IdentityPath", "v2IdentityPath", "validationPath"].sort());
       assert.equal(packet.baseUrl, prepared.baseUrl);
       assert.equal(packet.skillPath, path.join(path.resolve(import.meta.dirname, "../.."), "components/console/skills/qa-product-v0/SKILL.md"));
-      for (const key of ["briefPath", "dossierPath", "observationReportPath", "outputPath", "planPath"]) assert.equal(path.dirname(packet[key]), actor.actorRoot);
-      for (const key of ["graphPath", "catalogPath"]) assert.equal(path.dirname(path.dirname(packet[key])), actor.workspacePath);
+      assert.equal(packet.campaignApiPath, path.join(path.resolve(import.meta.dirname, "../.."), "components/console/src/lib/qa-campaign-v0.ts"));
+      assert.equal(packet.campaignGuidePath, path.join(path.resolve(import.meta.dirname, "../.."), "components/console/skills/qa-product-v0/references/declarative-campaign.md"));
+      for (const key of ["briefPath", "dossierPath", "observationReportPath", "outputPath", "planPath", "initialAuthorityPath", "initialCompilationPath", "currentAuthorityPath", "currentCompilationPath", "publicationPreviewPath", "publicationReceiptPath", "validationPath", "toolingNotePath", "v1IdentityPath", "v2IdentityPath"]) assert.equal(path.dirname(packet[key]), actor.actorRoot);
+      for (const key of ["graphPath", "coveragePath", "catalogPath", "strategyPath"]) assert.equal(path.dirname(path.dirname(packet[key])), actor.workspacePath);
       assert.equal(packet.dossierPath, actor.dossierPath);
       const packetBytes = await readFile(actor.packetPath, "utf8");
       assert.doesNotMatch(packetBytes, /controller|worldMode|mapped_broken|unmapped_broken|fixture\.mjs/);
       assert.ok(!packetBytes.includes(prepared.actors.find((other: any) => other !== actor).actorRoot));
+      const parse = async (key: string) => JSON.parse(await readFile(packet[key], "utf8"));
+      assert.deepEqual(await parse("initialAuthorityPath"), actor.registration.authority);
+      assert.deepEqual(await parse("initialCompilationPath"), actor.registration.authority.compilation);
+      assert.deepEqual(await parse("currentAuthorityPath"), actor.authority);
+      assert.deepEqual(await parse("currentCompilationPath"), actor.authority.compilation);
+      const controllerPublication = JSON.parse(await readFile(path.join(prepared.exerciseRoot, "controller", `${path.basename(actor.actorRoot)}-publication.json`), "utf8"));
+      assert.deepEqual(await parse("publicationPreviewPath"), controllerPublication.preview);
+      assert.deepEqual(await parse("publicationReceiptPath"), controllerPublication.receipt);
+      assert.deepEqual(await parse("validationPath"), actor.validation);
+      for (const [key, component] of [["graphPath", "graph"], ["coveragePath", "coverage"], ["catalogPath", "catalog"], ["strategyPath", "strategy"]] as const) {
+        const actual = await parse(key);
+        assert.equal(actor.registration.kernel.canonicalJson(actual), actor.registration.kernel.canonicalJson(actor.authority.compilation[component]));
+        assert.equal(actual.semanticDigest, actor.authority.compilation[component].semanticDigest);
+      }
+      assert.deepEqual(await parse("observationReportPath"), actor.report);
+      assert.deepEqual(await parse("v1IdentityPath"), { environment: prepared.v1Environment, catalog: prepared.v1Catalog });
+      assert.deepEqual(await parse("v2IdentityPath"), { environment: prepared.v2Environment });
+      const aUnresolvedId = actor.registration.kernel.stableId("graph-unresolved", { targetId: prepared.targets.A, kind: "COVERAGE_GAP" });
+      const initialLimitation = actor.registration.authority.compilation.graph.unresolved.find((item: any) => item.id === aUnresolvedId && item.description === "No honest runnable check can be generated from current inputs");
+      assert.ok(initialLimitation);
+      const initialBlocker = actor.registration.authority.compilation.strategy.blockers.find((item: any) => item.reason === initialLimitation.description);
+      assert.ok(initialBlocker);
+      assert.deepEqual(actor.authority.compilation.graph.unresolved.find((item: any) => item.id === initialLimitation.id), initialLimitation);
+      assert.deepEqual(actor.authority.compilation.strategy.blockers.find((item: any) => item.blockerId === initialBlocker.blockerId), initialBlocker);
+      assert.deepEqual(actor.report.globalBlockers.find((item: any) => item.blockerId === initialBlocker.blockerId), initialBlocker);
+      assert.deepEqual(actor.report.globalBlockers, actor.authority.compilation.strategy.blockers);
+      const note = await readFile(packet.toolingNotePath, "utf8");
+      assert.ok(note.includes("The initial generated strategy describes what could be generated from its inputs. A later authored publication can add resolved executable checks while retaining earlier strategy blockers. Current catalog/coverage, initial/current publication provenance, current capabilities and execution validation answer different questions. Preserve all reported blockers; compare their source and scope before deciding whether they prohibit a particular current check. Successful validation or execution does not clear a strategy blocker."));
+      assert.doesNotMatch(note, /urn:qa:|GET \/api\/|mapped|unmapped/);
+      for (const sourceName of ["registration-compiler.ts", "test-catalog.ts", "knowledge-revision.ts", "target-observation-report.ts"]) {
+        assert.ok(note.includes(sourceName));
+        const referencedSource = await readFile(path.join(path.resolve(import.meta.dirname, "../.."), "components/kernel/src/kernel", sourceName), "utf8");
+        assert.doesNotMatch(referencedSource, /mapped_broken|unmapped_broken|worldMode|fixture\.mjs|fixture\.test\.mjs|answerKey|controller\/(?!read-only-http\b)/);
+        assert.ok(!referencedSource.includes(prepared.actors.find((other: any) => other !== actor).actorRoot));
+      }
+      for (const key of ["briefPath", "dossierPath", "observationReportPath", "initialAuthorityPath", "initialCompilationPath", "currentAuthorityPath", "currentCompilationPath", "publicationPreviewPath", "publicationReceiptPath", "validationPath", "toolingNotePath", "v1IdentityPath", "v2IdentityPath", "graphPath", "coveragePath", "catalogPath", "strategyPath", "skillPath", "campaignApiPath", "campaignGuidePath"]) {
+        const bytes = await readFile(packet[key], "utf8");
+        assert.doesNotMatch(bytes, /mapped_broken|unmapped_broken|worldMode|fixture\.mjs|fixture\.test\.mjs|answerKey|controller\/(?!read-only-http\b)/);
+        assert.ok(!bytes.includes(prepared.actors.find((other: any) => other !== actor).actorRoot));
+        assert.ok(!bytes.includes(prepared.exerciseRoot + "/controller"));
+      }
       assert.ok((await readFile(packet.briefPath, "utf8")).includes("unmapped"));
       await assert.rejects(access(packet.planPath), { code: "ENOENT" });
       assert.equal(path.dirname(packet.planPath), actor.actorRoot);

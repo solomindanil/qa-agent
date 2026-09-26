@@ -114,7 +114,7 @@ export async function startW4AgentChangeScopePreparation() {
       const validation = await kernel.validateWorkspace(registration.workspacePath, registration.workspaceDependencies);
       if (validation.valid !== true || validation.publicationAuthorityDigest !== authority.semanticDigest || validation.workspaceDigest !== receipt.workspaceDigestAfter) throw new Error("Managed publication failed exact validateWorkspace readback");
       await createOnly(path.join(exerciseRoot, "controller", `actor-${index + 1}-publication.json`), { initial: registration.authority, authority, preview, receipt, validation });
-      actors.push({ actorRoot, workspacePath: registration.workspacePath, baseUrl: fixture.baseUrl, dossier, registration, authority, validation, targets: built.targets, checks: built.checks });
+      actors.push({ actorRoot, workspacePath: registration.workspacePath, baseUrl: fixture.baseUrl, dossier, registration, authority, preview, receipt, validation, targets: built.targets, checks: built.checks });
     }
     const kernel = actors[0].registration.kernel;
     if (kernel.canonicalJson(actors[0].authority.compilation) !== kernel.canonicalJson(actors[1].authority.compilation)) throw new Error("Actor graph/catalog/strategy semantic bytes differ");
@@ -139,15 +139,69 @@ export async function startW4AgentChangeScopePreparation() {
       if (direct.currentBinding !== "current" || report.targets.length !== 4 || report.diagnostics.length !== 0 || report.publicationAuthorityDigest !== actor.authority.semanticDigest || report.strategyDigest !== actor.authority.compilation.strategy.semanticDigest) throw new Error("Post-v2 observation readback failed exact current publication binding");
       const observed = report.targets.find((row: RecordValue) => row.targetId === actor.targets.A);
       if (observed?.observations.length !== 1 || observed.observations[0].identity.candidate.value.candidateRevision !== "v1" || report.targets.filter((row: RecordValue) => row.targetId !== actor.targets.A).some((row: RecordValue) => row.observationState !== "not_observed")) throw new Error("Observation report lost v1/complete-denominator distinction");
+      const compilation = actor.authority.compilation;
+      const initial = actor.registration.authority.compilation;
+      const aUnresolvedId = kernel.stableId("graph-unresolved", { targetId: actor.targets.A, kind: "COVERAGE_GAP" });
+      const aLimitation = initial.graph.unresolved.find((item: RecordValue) => item.id === aUnresolvedId && item.description === "No honest runnable check can be generated from current inputs");
+      if (!aLimitation) throw new Error("Initial A generation limitation is absent");
+      const aBlockerId = kernel.stableId("draft-blocker", { unresolvedId: aLimitation.id, code: aLimitation.kind, reason: aLimitation.description, recovery: ["Resolve the discovery item and recompile registration"] });
+      const aBlocker = initial.strategy.blockers.find((item: RecordValue) => item.blockerId === aBlockerId);
+      if (!aBlocker || kernel.canonicalJson(compilation.graph.unresolved.find((item: RecordValue) => item.id === aLimitation.id)) !== kernel.canonicalJson(aLimitation) || kernel.canonicalJson(compilation.strategy.blockers.find((item: RecordValue) => item.blockerId === aBlockerId)) !== kernel.canonicalJson(aBlocker)) throw new Error("A generation limitation/blocker lineage changed");
+      const dEntry = compilation.catalog.entries.find((entry: RecordValue) => entry.targetIds.includes(actor.targets.D) && entry.oracle.state === "unresolved");
+      if (!dEntry || !compilation.strategy.unresolvedOracles.some((item: RecordValue) => item.targetId === actor.targets.D && item.catalogEntryId === dEntry.entryId)) throw new Error("D unresolved generated catalog obligation missing");
+      if (compilation.coverage.items.length !== 4 || kernel.canonicalJson(report.globalBlockers) !== kernel.canonicalJson(compilation.strategy.blockers) || kernel.canonicalJson(compilation.strategy.blockers) !== kernel.canonicalJson(initial.strategy.blockers)) throw new Error("Current denominator or retained blockers changed");
+      if (actor.validation.valid !== true || actor.validation.publicationAuthorityDigest !== actor.authority.semanticDigest || actor.validation.workspaceDigest !== actor.receipt.workspaceDigestAfter) throw new Error("Accepted publication provenance failed validation");
+      const artifactPaths = {
+        graphPath: path.join(actor.workspacePath, "model/product.graph.json"),
+        coveragePath: path.join(actor.workspacePath, "model/coverage.json"),
+        catalogPath: path.join(actor.workspacePath, "model/test-catalog.json"),
+        strategyPath: path.join(actor.workspacePath, "model/test-strategy.draft.json"),
+      };
+      for (const [name, file] of Object.entries(artifactPaths)) {
+        const component = { graphPath: "graph", coveragePath: "coverage", catalogPath: "catalog", strategyPath: "strategy" }[name] as string;
+        const readback = JSON.parse(await readFile(file, "utf8"));
+        if (kernel.canonicalJson(readback) !== kernel.canonicalJson(compilation[component]) || readback.semanticDigest !== compilation[component].semanticDigest) throw new Error(`Current managed ${component} artifact disagrees with accepted publication`);
+      }
       const actorNumber = path.basename(actor.actorRoot);
       await createOnly(path.join(exerciseRoot, "controller", `${actorNumber}-observation-readback.json`), { direct: { currentBinding: direct.currentBinding, payload: direct.payload, manifest: direct.manifest }, report });
       const briefPath = path.join(actor.actorRoot, "product-brief.md");
       const dossierPath = path.join(actor.actorRoot, actor.dossier);
       const observationReportPath = path.join(actor.actorRoot, "observation-report.json");
+      const initialAuthorityPath = path.join(actor.actorRoot, "initial-publication-authority.json");
+      const initialCompilationPath = path.join(actor.actorRoot, "initial-compilation.json");
+      const currentAuthorityPath = path.join(actor.actorRoot, "current-publication-authority.json");
+      const currentCompilationPath = path.join(actor.actorRoot, "current-compilation.json");
+      const publicationPreviewPath = path.join(actor.actorRoot, "accepted-publication-preview.json");
+      const publicationReceiptPath = path.join(actor.actorRoot, "accepted-publication-receipt.json");
+      const validationPath = path.join(actor.actorRoot, "current-workspace-validation.json");
+      const v1IdentityPath = path.join(actor.actorRoot, "v1-identity-readback.json");
+      const v2IdentityPath = path.join(actor.actorRoot, "v2-identity-readback.json");
+      const toolingNotePath = path.join(actor.actorRoot, "tooling-semantics.md");
       await createOnly(briefPath, await readFile(new URL("./product-brief.md", import.meta.url)));
       await createOnly(dossierPath, await readFile(new URL(`./${actor.dossier}`, import.meta.url)));
       await createOnly(observationReportPath, report);
-      const packet = { skillPath: path.join(sourceRoot, "components/console/skills/qa-product-v0/SKILL.md"), graphPath: path.join(actor.workspacePath, "model/product.graph.json"), catalogPath: path.join(actor.workspacePath, "model/test-catalog.json"), observationReportPath, briefPath, dossierPath, baseUrl: fixture.baseUrl, planPath: path.join(actor.actorRoot, "qa-campaign.v0.json"), outputPath: path.join(actor.actorRoot, "first-answer.md") };
+      await createOnly(initialAuthorityPath, actor.registration.authority);
+      await createOnly(initialCompilationPath, initial);
+      await createOnly(currentAuthorityPath, actor.authority);
+      await createOnly(currentCompilationPath, compilation);
+      await createOnly(publicationPreviewPath, actor.preview);
+      await createOnly(publicationReceiptPath, actor.receipt);
+      await createOnly(validationPath, actor.validation);
+      await createOnly(v1IdentityPath, { environment: v1Environment, catalog: v1Catalog });
+      await createOnly(v2IdentityPath, { environment: v2Environment });
+      await createOnly(toolingNotePath, [
+        "# Tooling semantics and publication provenance",
+        "",
+        "The initial generated strategy describes what could be generated from its inputs. A later authored publication can add resolved executable checks while retaining earlier strategy blockers. Current catalog/coverage, initial/current publication provenance, current capabilities and execution validation answer different questions. Preserve all reported blockers; compare their source and scope before deciding whether they prohibit a particular current check. Successful validation or execution does not clear a strategy blocker.",
+        "",
+        "Selected source references:",
+        "- components/kernel/src/kernel/registration-compiler.ts",
+        "- components/kernel/src/kernel/test-catalog.ts",
+        "- components/kernel/src/kernel/knowledge-revision.ts",
+        "- components/kernel/src/kernel/target-observation-report.ts",
+        "",
+      ].join("\n"));
+      const packet = { skillPath: path.join(sourceRoot, "components/console/skills/qa-product-v0/SKILL.md"), campaignApiPath: path.join(sourceRoot, "components/console/src/lib/qa-campaign-v0.ts"), campaignGuidePath: path.join(sourceRoot, "components/console/skills/qa-product-v0/references/declarative-campaign.md"), ...artifactPaths, observationReportPath, briefPath, dossierPath, initialAuthorityPath, initialCompilationPath, currentAuthorityPath, currentCompilationPath, publicationPreviewPath, publicationReceiptPath, validationPath, v1IdentityPath, v2IdentityPath, toolingNotePath, baseUrl: fixture.baseUrl, planPath: path.join(actor.actorRoot, "qa-campaign.v0.json"), outputPath: path.join(actor.actorRoot, "first-answer.md") };
       const packetPath = path.join(actor.actorRoot, "actor-context.json");
       await createOnly(packetPath, packet);
       Object.assign(actor, { report, packetPath, dossierPath });
