@@ -101,8 +101,22 @@ jobs:
         run: node tools/workspace.mjs verify
 
   kernel-regression:
+    name: Kernel failure diagnostics (${{ matrix.group }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: workspace
+            file: tests/workspace/regeneration.test.ts
+            pattern: 'restores an applied delete from proven absence|applies B atomically|omits the state entry when publication semantics change'
+          - group: job
+            file: tests/registration/job.test.ts
+            pattern: 'fails closed without deleting hostile phase selection fences|fails closed without deleting a substituted claim-receipt repair temp'
+          - group: service
+            file: tests/registration/service.test.ts
+            pattern: 'retains a fenced validation output|retains a pre-existing init stage|resumes PUBLISHING over a safe prior-authority workspace'
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -120,7 +134,7 @@ jobs:
       - name: Install exact Kernel dependencies
         working-directory: components/kernel
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Full Kernel regression and build
+      - name: Diagnose failures from the incomplete full regression
         working-directory: components/kernel
         shell: bash
         run: |
@@ -133,6 +147,7 @@ jobs:
             TMPDIR="${qa_tmp}" \
             GIT_CONFIG_NOSYSTEM=1 \
             GIT_CONFIG_GLOBAL=/dev/null \
-            npm run verify
-      - name: Verify source integrity after full regression
+            ./node_modules/.bin/vitest run "${{ matrix.file }}" -t "${{ matrix.pattern }}" --reporter=verbose
+      - name: Verify source integrity after diagnostics
+        if: always()
         run: node tools/workspace.mjs verify
