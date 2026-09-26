@@ -9,7 +9,7 @@
       "bundle": "sources/candidates/kernel-public-release-ece24e8.bundle",
       "sha256": "e4dd7e68c3737bc465b30f198d87bda84c1a1a62c435e96bee1e90383253f92f",
       "runtimeAuthority": true,
-      "qualification": "Public release repair candidate, qualification pending. Kernel retains claim-receipt stage descriptor through publication and cleanup to prevent reused-inode ownership confusion; restoration fixture reserves the removed inode; six heavy integration tests have explicit measured-run budgets with all assertions retained. Console pins this exact Kernel. Full selected-source CI must complete before stable publication. See docs/releases/2026-09-26.md. No existing campaign or host skill is migrated."
+      "qualification": "Stable public source release 2026-09-26, successor to a0a20e6. Retains claim-receipt staging descriptor through publication and cleanup to prevent reused-inode ownership confusion; portable deleted-inode fixture; six explicit integration budgets with every assertion retained. Full Linux CI: 45 files, 1787 passed and one native case-alias capability skip; that exact case passes separately on macOS at this source. Typecheck/build and public cold-clone root61 pass. Earlier failures remain recorded; no full new macOS suite or universal scheduling guarantee. Evidence: docs/releases/2026-09-26.md. No product execution or existing campaign/installed-skill migration."
     },
     {
       "id": "console",
@@ -19,7 +19,7 @@
       "bundle": "sources/candidates/console-public-release-a8f6679.bundle",
       "sha256": "6ad3c177dd3f1d70e98e8d3def56be7a5bf6e5d1db5d9bfd498e1dcfc4c7e980",
       "runtimeAuthority": true,
-      "qualification": "Public release repair candidate, qualification pending. Kernel retains claim-receipt stage descriptor through publication and cleanup to prevent reused-inode ownership confusion; restoration fixture reserves the removed inode; six heavy integration tests have explicit measured-run budgets with all assertions retained. Console pins this exact Kernel. Full selected-source CI must complete before stable publication. See docs/releases/2026-09-26.md. No existing campaign or host skill is migrated."
+      "qualification": "Stable public source release 2026-09-26: exact-pin companion to Kernel ece24e865f7ea37cff32c24c7e3739c9d0059f81. Hosted 163/163 selected Console controls, 19/19 actual Chromium fixture controls, nonincremental typecheck and production build pass; public cold-clone root61 and source integrity pass. Earlier local timing failures retain their attribution. Evidence: docs/releases/2026-09-26.md. Not a full product-facing Console suite or live-product acceptance; no existing campaign or installed-skill migration."
     },
     {
       "id": "freeland",
