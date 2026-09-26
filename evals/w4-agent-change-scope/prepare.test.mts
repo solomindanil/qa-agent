@@ -14,6 +14,7 @@ test("prepares two identical four-target managed workspaces with historical v1 e
     assert.deepEqual(prepared.v1Catalog.body, { catalogName: "Cedar", ready: true });
     assert.deepEqual(prepared.v2Environment.body, { candidateRevision: "v2" });
     assert.deepEqual(prepared.actors[0].authority.compilation, prepared.actors[1].authority.compilation);
+    assert.equal(typeof prepared.setWorldMode, "function", "controller retains a mode switch without publishing it to actors");
 
     for (const actor of prepared.actors) {
       const compilation = actor.authority.compilation;
@@ -40,6 +41,11 @@ test("prepares two identical four-target managed workspaces with historical v1 e
         assert.deepEqual(compilation.coverage.items.find((item: any) => item.targetId === targetId).checkIds, [checkId]);
         assert.equal(compilation.graph.edges.filter((edge: any) => edge.kind === "verifies" && edge.from === checkId && edge.to === targetId && edge.reviewStatus === "reviewed").length, 1);
       }
+      assert.deepEqual(Object.fromEntries(["A", "B", "C"].map((name) => [name, compilation.catalog.entries.find((entry: any) => entry.checkId === prepared.checks[name]).oracle.description])), {
+        A: "GET /api/catalog returns HTTP 200 with catalogName Cedar and ready true.",
+        B: "GET /api/catalog-integrity returns HTTP 200 with unlabeledItemCount 0.",
+        C: "GET /api/catalog-publication returns HTTP 200 with staleItemCount 0.",
+      });
       const d = compilation.coverage.items.find((item: any) => item.targetId === prepared.targets.D);
       assert.notEqual(d.status, "automated");
       assert.ok(compilation.catalog.entries.some((entry: any) => entry.targetIds.includes(prepared.targets.D) && entry.oracle.state !== "resolved"));
@@ -56,6 +62,13 @@ test("prepares two identical four-target managed workspaces with historical v1 e
       const packet = JSON.parse(await readFile(actor.packetPath, "utf8"));
       assert.deepEqual(Object.keys(packet).sort(), ["baseUrl", "briefPath", "catalogPath", "dossierPath", "graphPath", "observationReportPath", "outputPath", "planPath", "skillPath"].sort());
       assert.equal(packet.baseUrl, prepared.baseUrl);
+      assert.equal(packet.skillPath, path.join(path.resolve(import.meta.dirname, "../.."), "components/console/skills/qa-product-v0/SKILL.md"));
+      for (const key of ["briefPath", "dossierPath", "observationReportPath", "outputPath", "planPath"]) assert.equal(path.dirname(packet[key]), actor.actorRoot);
+      for (const key of ["graphPath", "catalogPath"]) assert.equal(path.dirname(path.dirname(packet[key])), actor.workspacePath);
+      assert.equal(packet.dossierPath, actor.dossierPath);
+      const packetBytes = await readFile(actor.packetPath, "utf8");
+      assert.doesNotMatch(packetBytes, /controller|worldMode|mapped_broken|unmapped_broken|fixture\.mjs/);
+      assert.ok(!packetBytes.includes(prepared.actors.find((other: any) => other !== actor).actorRoot));
       assert.ok((await readFile(packet.briefPath, "utf8")).includes("unmapped"));
       await assert.rejects(access(packet.planPath), { code: "ENOENT" });
       assert.equal(path.dirname(packet.planPath), actor.actorRoot);
@@ -70,12 +83,34 @@ test("prepares two identical four-target managed workspaces with historical v1 e
       assert.match(sourceBrief.product.description, /unmapped behavioral change/);
     }
     assert.notEqual(prepared.actors[0].dossierPath, prepared.actors[1].dossierPath);
+    const routes = ["/api/catalog", "/api/catalog-integrity", "/api/catalog-publication"];
+    const expected = [
+      { mode: "healthy", bodies: [{ catalogName: "Cedar", ready: true }, { unlabeledItemCount: 0 }, { staleItemCount: 0 }] },
+      { mode: "mapped_broken", bodies: [{ catalogName: "Cedar", ready: true }, { unlabeledItemCount: 1 }, { staleItemCount: 0 }] },
+      { mode: "unmapped_broken", bodies: [{ catalogName: "Cedar", ready: true }, { unlabeledItemCount: 0 }, { staleItemCount: 1 }] },
+      { mode: "healthy", bodies: [{ catalogName: "Cedar", ready: true }, { unlabeledItemCount: 0 }, { staleItemCount: 0 }] },
+    ] as const;
+    for (const world of expected) {
+      prepared.setWorldMode(world.mode);
+      assert.equal(prepared.baseUrl, prepared.actors[0].baseUrl);
+      for (const [index, route] of routes.entries()) {
+        const response = await fetch(new URL(route, prepared.baseUrl));
+        assert.equal(response.status, 200);
+        assert.deepEqual(await response.json(), world.bodies[index]);
+      }
+      const identity = await fetch(new URL("/api/environment", prepared.baseUrl));
+      assert.equal(identity.status, 200);
+      assert.deepEqual(await identity.json(), { candidateRevision: "v2" });
+    }
   } finally {
     await prepared.close();
     await prepared.close();
   }
   const journal = JSON.parse(await readFile(prepared.journalPath, "utf8"));
   assert.deepEqual(journal.slice(0, 2).map((hit: any) => [hit.path, hit.candidateRevision]), [["/api/environment", "v1"], ["/api/catalog", "v1"]]);
+  assert.deepEqual(journal.slice(-16).map((hit: any) => [hit.path, hit.worldMode, hit.candidateRevision]), [
+    ...["healthy", "mapped_broken", "unmapped_broken", "healthy"].flatMap((mode) => ["/api/catalog", "/api/catalog-integrity", "/api/catalog-publication", "/api/environment"].map((route) => [route, mode, "v2"])),
+  ]);
   assert.deepEqual(journal.at(-1).path, "/api/environment");
   assert.equal(journal.at(-1).candidateRevision, "v2");
 });

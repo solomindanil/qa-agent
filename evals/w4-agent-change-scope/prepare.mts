@@ -154,6 +154,6 @@ export async function startW4AgentChangeScopePreparation() {
     }
     const preparationPath = path.join(exerciseRoot, "controller", "preparation.json");
     await createOnly(preparationPath, { schemaVersion: "w4-preparation.v1", baseUrl: fixture.baseUrl, targets: actors[0].targets, checks: actors[0].checks, publicationDigest: actors[0].authority.semanticDigest, strategyDigest: actors[0].authority.compilation.strategy.semanticDigest, v1Environment, v1Catalog, v2Environment, actorPacketPaths: actors.map(actor => actor.packetPath) });
-    return { exerciseRoot, baseUrl: fixture.baseUrl, actors, targets: actors[0].targets, checks: actors[0].checks, v1Environment, v1Catalog, v2Environment, preparationPath, journalPath, close };
+    return { exerciseRoot, baseUrl: fixture.baseUrl, actors, targets: actors[0].targets, checks: actors[0].checks, v1Environment, v1Catalog, v2Environment, preparationPath, journalPath, setWorldMode: (mode: "healthy" | "mapped_broken" | "unmapped_broken") => fixture!.setWorldMode(mode), close };
   } catch (error) { await close(); throw error; }
 }
