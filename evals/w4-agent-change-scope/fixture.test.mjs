@@ -179,8 +179,9 @@ test("unsupported methods and paths are refused without changing controls", asyn
   }
 });
 
-test("journal is a read-only snapshot and close is idempotent", async () => {
+test("journal is a read-only snapshot and close is idempotent", async (t) => {
   const fixture = await startFixture();
+  t.after(() => fixture.close());
   await getJson(fixture.baseUrl, "/api/catalog");
   const snapshot = fixture.getJournal();
   snapshot[0].path = "/forged";
