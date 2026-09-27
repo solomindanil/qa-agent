@@ -99,11 +99,11 @@ A3/A4 могут идти отдельно после своих designs и sour
 
 - [x] Зафиксировать bounded npm и NWS field observations с first-attempt/reader/AQA границами; NWS deviation (полные тела ответов не сохранены) и strict future-only remainder не скрывать.
 - [x] Сверить selected Console source с двумя first attempts: [trace](../../qualification/two-case-instruction-trace-20260927.md) принята bounded AQA, no selected-skill repair; attribution NWS dispatch опирается на coordinator-supplied prompt history, не полный независимый transcript.
-- [ ] На следующем **естественном**, отдельно допущенном consumer использовать evaluator card: actor получает полный applicable scope с точным sanitized-retention требованием; frozen design сверяется со scope до исполнения; continuation не сужает evidence; closeout сверяет promised/retained и выносит caveat в headline. Controls/key отдельно. Не создавать новую live task или повтор NWS только ради correction.
+- [ ] На следующем **естественном**, отдельно допущенном consumer использовать evaluator card с заранее объявленными критериями: сохранить sanitized exact bytes фактического actor dispatch и continuations; actor получает полный applicable scope с точным retention требованием; после frozen design сверять scope/authority/budget/retention, не подсказывая существенные checks или oracle (если подсказаны — отметить execution assisted). Continuation не сужает evidence; closeout сверяет promised/retained и выносит caveat в headline. Controls/key отдельно. Не создавать новую live task или повтор NWS только ради correction.
 - [ ] По этому будущему independent consumer отдельно оценить, улучшила ли correction handoff/reporting; до наблюдения effectiveness unqualified. Сохранить first attempt, полный остаток, reader/AQA и собственные healthy/broken denominators; synthetic reader controls не переносить в actor rate.
 - [ ] Только при повторяемом наблюдаемом gap выбрать owning seam, минимальный repair, regression и другой consumer; для текущих двух field cases — no-new-code/no-skill-repair. Не запускать 20–30 случайных eval, prompt loops или остановленные I07a/I10 ветки.
 - [x] CI: один bounded Freeland offline regression получил первый успешный hosted source readback на точном root `8c70e6d`; отдельный same-root runtime завершился SUCCESS (4/4 jobs, без прочитанных per-group test counts). Это не upgrade product/agent claims и не repeatability proof.
-- [ ] Продолжить scoped inventory команд/effects, учитывать skips, retries, duration и безопасные артефакты; не выдавать source gate за QA результата продукта.
+- [x] [Scoped inventory команд/effects](../../qualification/ci-command-effect-inventory-20260927.md) зафиксировал выбранные root/component commands, skips/retries/duration, безопасную artifact policy и границу first-run на точных roots `0cdc6ef`/`8c70e6d`. Решение **NO-NEW-CODE** до наблюдаемого consumer gap; неизвестные same-root runtime denominators и repeatability не закрыты, source gate не является QA результатом продукта.
 
 **Отдельно confidentiality / P2-B:** известные `Set-Cookie` и OpenAPI Basic gaps зарегистрированы, affected sensitive-artifact collection/export не расширяется. P2-B/privacy-only repair остаётся отложенным владельцем. Если выбранному следующему сценарию нужна эта lane, запросить конкретное решение или выбрать допустимую альтернативу. Не скрывать дефект и не подменять quality-first очередь общим security-проектом.
 
@@ -190,8 +190,10 @@ incompatibility. Independent root delivery review returned conditional GO;
 the exact pair and qualification are committed. A later uninterrupted full
 Kernel `npm run verify` passed 45/45 files and 1788/1788 tests with build;
 the earlier timeout and exit 130 remain historical, not reclassified by
-focused passes. Live W1/T7 remains
-pending through its separate owner.
+focused passes. At that dated checkpoint live W1/T7 remained pending through
+its separate owner; the later [bounded W1 outcome and remaining-only consumer](../../qualification/w1-outcome-and-remaining-consumer-20260927.md)
+accepted the bounded T7 remaining-only gate. Complete Agentify coverage,
+W6/W7/I10 and product acceptance remain open.
 
 **Exit:** view больше не вводит в заблуждение, authoritative readback и история сохранены. Старые `a9378b2/d272f31` не выбираются вместо текущих successors целиком.
 
