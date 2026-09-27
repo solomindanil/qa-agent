@@ -120,3 +120,23 @@ jobs:
             LANG=C.UTF-8 \
             TMPDIR="${qa_tmp}" \
             node --test tests/product-graph/freeland-pay-01-oracle.test.mjs
+
+      - name: Run selected Freeland verdict generation snapshot tests
+        working-directory: components/freeland
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_umask="$(umask)"
+          umask 077
+          case "${RUNNER_TEMP}" in
+            /*) ;;
+            *) echo "RUNNER_TEMP must be absolute" >&2; exit 1 ;;
+          esac
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-freeland-verdict-snapshots.XXXXXX")"
+          umask "${qa_umask}"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            node --test tests/freeland-main/verdict-generation-snapshots.test.mjs

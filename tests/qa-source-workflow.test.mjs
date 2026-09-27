@@ -82,6 +82,7 @@ const expectedSteps = [
   expectedRunStep('Run root packaging tests', 'qa-root-tests', 'node --test tests/*.test.mjs'),
   expectedRunStep('Verify selected Freeland provenance', 'qa-freeland-provenance', 'node tools/freeland-main/provenance.mjs --verify .', 'components/freeland'),
   expectedRunStep('Run selected Freeland PAY01 pure oracle tests', 'qa-freeland-oracles', 'node --test tests/product-graph/freeland-pay-01-oracle.test.mjs', 'components/freeland'),
+  expectedRunStep('Run selected Freeland verdict generation snapshot tests', 'qa-freeland-verdict-snapshots', 'node --test tests/freeland-main/verdict-generation-snapshots.test.mjs', 'components/freeland'),
 ];
 
 function validateWorkflow(workflow) {
