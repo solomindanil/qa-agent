@@ -111,6 +111,17 @@ documentation review requested correction of stale current/plan projections;
 after the corrections, a separate docs rereview returned **GO, zero findings**.
 The earlier independent Astra whole-slice GO covered Kernel candidate bytes;
 no new architecture, schema, verdict or lifecycle design was introduced by
-the Console pin change. Cold *root* clone/restore/verify is still a separate
-pending gate at this checkpoint. No push, installed-skill promotion, campaign
+the Console pin change.
+
+The first committed delivery root `07a034f08e7cda6ab334b38572ee296282f35984`
+was cloned with `git clone --no-local --no-hardlinks` into a fresh directory
+without components or dependencies. Its own `npm run sources:restore` and
+`npm run sources:verify` both exited 0 and read back all four manifest pins;
+its root `npm test` passed **62/62**, zero failed/skipped/cancelled (42.87 s).
+Kernel and Console cold children each had the exact selected commit/tree,
+clean detached worktree, child-local `.git`, no `node_modules` or alternates;
+both `git fsck --full --strict` checks exited 0. This is a committed
+source/packaging proof, not a cold dependency/build or product execution.
+The final documentation-only root successor receives its own cold-source
+readback before handoff. No push, installed-skill promotion, campaign
 migration or product call has occurred.
