@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "58b02cd4878eb3a4e9213ade2a9d24af2e97d9a8",
-      "tree": "c68e9a627620a71116bb86eadfb2d4c5ad6539a3",
-      "bundle": "sources/candidates/console-d13-479-kernel-pair-58b02cd.bundle",
-      "sha256": "5ea906f00a7ac2959bb6d1cb939124051f400a458d411c5016c77028c1a3319f",
+      "commit": "b1afb011b90492d2048df6449cdd47ef8be33dcf",
+      "tree": "e027e5176b8a51a6635f7f88dfbaa4c8385df3c3",
+      "bundle": "sources/candidates/console-d13-479-check-authoring-reference-b1afb01.bundle",
+      "sha256": "8f0e0188cf15bd068f6702cb43ef88f2b6cd197ddb1b12c23ed98385f59da9e7",
       "runtimeAuthority": true,
-      "qualification": "D13-479 paired Console successor to A1, pinned to exact Kernel 7dd9265f846676d925cc084f3dcd8d8883364613. Only the runtime pin and six-file positive test/documentation references advance; the A1 authority logic and negative controls remain unchanged. Focused offline Console authority 25/25, managed-pack/stalled-Git 5/5 and portable-entrypoint 6/6; typecheck/build pass. Earlier A1 and public-release results retain their original source attribution. Evidence: docs/qualification/d13-479-check-authoring-20260927.md and docs/qualification/a1-cli-source-authority-20260927.md. Source selection is not live-product acceptance, an installed-skill update or existing-campaign migration."
+      "qualification": "D13-479 Console documentation-only successor to 58b02cd, still pinned to exact Kernel 7dd9265f846676d925cc084f3dcd8d8883364613. Only the mirrored qa-product-v0 declarative-campaign reference changed, adding a bounded exact-entry helper discovery path and preserving publication/plan authority. Independent Astra AQA GO; reviewed Kernel authoring/consumer 21/21 and Console skill parity 2/2 belong to this narrow reference slice. Prior paired-source, A1 and hosted CI counts retain their original source attribution. Evidence: docs/qualification/d13-479-console-discovery-reference-20260927.md. Source selection is not live-product acceptance, an installed-skill update or existing-campaign migration."
     },
     {
       "id": "freeland",

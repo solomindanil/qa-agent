@@ -2,6 +2,20 @@
 
 > Historical provenance only. Every status label below (including “MANIFEST-SELECTED,” “canonical,” and “current”) describes its dated review, **not today's selection**. The sole current source selector is [manifest.v1.json](../manifest.v1.json); consult the [current checkpoint](../../docs/qualification/current.md) for present qualification and the product owner for an existing campaign's frozen runtime. These bundles and reports are retained evidence, not optional runtime replacements or authorization for product action. Do not delete or rewrite them without a separate provenance and dependency review.
 
+## D13-479 Console helper-discovery reference, 27 September 2026
+
+Console `b1afb011b90492d2048df6449cdd47ef8be33dcf`, tree
+`e027e5176b8a51a6635f7f88dfbaa4c8385df3c3`, is preserved in
+`console-d13-479-check-authoring-reference-b1afb01.bundle` (4,403,836 bytes,
+SHA-256 `8f0e0188cf15bd068f6702cb43ef88f2b6cd197ddb1b12c23ed98385f59da9e7`).
+The complete-history bundle has sole `HEAD`; an independent bundle-only clone
+recovered the exact clean commit/tree and passed strict full fsck. This
+documentation-only successor to `58b02cd` changes only two byte-identical
+`qa-product-v0` declarative-campaign references; Kernel remains `7dd9265`.
+[Exact bounded qualification](../../docs/qualification/d13-479-console-discovery-reference-20260927.md)
+separates discovery evidence from source packaging and retains all product,
+installation and campaign limits. The manifest alone selects current source.
+
 ## D13-479 existing-target check authoring, 27 September 2026
 
 Kernel `7dd9265f846676d925cc084f3dcd8d8883364613`, tree
