@@ -69,6 +69,7 @@ jobs:
               tests/unit/runtime-paths.test.ts \
               tests/unit/qa-product-skill.test.ts \
               tests/unit/kernel-fixture-authority.test.ts \
+              tests/unit/bridge-cli-authority.test.ts \
               tests/unit/api-semantic-assertions.test.ts \
               tests/unit/qa-campaign-files-umask.test.ts \
               tests/unit/campaign-plan-concurrency.test.ts \
