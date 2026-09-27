@@ -78,6 +78,8 @@
 
 **Маршрут status→continuation/recovery и первый измеримый source/CI gate (W0/W7, P0/P5/P6) приняты в ограниченном объёме.** [W2 route-contract probe](../../qualification/w2-route-contract-probe-20260927.md) сохранил один synthetic host-lost negative control и решение no-new-code/no-skill-adopt; W6/W7 остаются открыты. [A1 CI-selection slice](../../qualification/measured-ci-a1-selection-20260927.md) добавил принятый source-regression в изолированный Console run: на root `0cdc6ef` hosted source safety и весь runtime workflow прошли с точным Kernel 1,787 pass / one skip / 1,788. Два предыдущих same-Kernel run имели разные timeout failures при прежних 30s/10s; причина timing и repeatability не доказаны. Следующий приоритет — новый agent-quality field task с собственным oracle, owner, permitted effects и evidence destination; он не ждёт отдельного timing diagnosis. A3/A4 остаются отдельными Freeland-pack residuals. Ничто здесь не разрешает product actions, installs, tracker writes или production.
 
+На readback 27 сентября ни один действительно свежий owner-qualified field task ещё не прошёл admission по oracle, точной привязке candidate/environment, допустимым эффектам и месту evidence. Приоритет 4 остаётся следующим, но не превращается в разрешение на продуктовый запуск; историческая [запись admission от 26 сентября](../../qualification/field-admission-scope-20260926.md) не является текущим заданием отправить черновой вопрос или повторить исследованный сценарий.
+
 ### Quality-first очередь после внешней сверки
 
 | Приоритет / прежние W/P | Конкретный небольшой результат | Приёмка и польза следующему consumer |
