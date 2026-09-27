@@ -60,7 +60,7 @@ The pure tests cover API, multiple browser checks, manual handoff, exact subset 
 
 Independent Astra Task 1 and Task 2 rereviews were **GO** after their respective bounded repairs; Task 2's exact wording was “GO — Task 2 P2 repair resolves the finding. No remaining actionable issues.” Whole-slice Astra later returned **REVISE P2** for getter side effects in Task 1 capture; its scoped capture rereview is **GO with no remaining actionable finding**. The fresh five-file gate passed on the unchanged current hashes. **Recommendation at candidate review: adopt this exact bounded candidate for separately authorized source delivery**, not as a live-product or campaign result. Bundle/manifest/cold-source delivery has its own gates; the then-dirty checkout was not that delivery.
 
-Remaining limits are explicit: the secret-union fixture is empty because the accepted registration profile projects no secret refs; retained nonempty effects/evidence are exercised. Comparison inputs are synthetic/adapted and omit historical invariant construction and route/operation execution from claimed savings. No blanket Kernel suite, browser, live product, account, tracker, installation, campaign migration, hosted CI, or W4/W6/W7/I10 acceptance is claimed. Agent-led design reliability and real-product blockers remain open in the canonical program plan.
+Remaining limits at that candidate-review checkpoint were explicit: the secret-union fixture was empty because the accepted registration profile projected no secret refs; retained nonempty effects/evidence were exercised. Comparison inputs were synthetic/adapted and omitted historical invariant construction and route/operation execution from claimed savings. At that point no blanket Kernel suite, browser, live product, account, tracker, installation, campaign migration, hosted CI, or W4/W6/W7/I10 acceptance was claimed. The later hosted Kernel suite and local browser fixtures are recorded below without upgrading live-product or agent-quality claims. Agent-led design reliability and real-product blockers remain open in the canonical program plan.
 
 ## Local source-delivery follow-up — 27 September
 
@@ -123,5 +123,26 @@ clean detached worktree, child-local `.git`, no `node_modules` or alternates;
 both `git fsck --full --strict` checks exited 0. This is a committed
 source/packaging proof, not a cold dependency/build or product execution.
 The final documentation-only root successor receives its own cold-source
-readback before handoff. No push, installed-skill promotion, campaign
-migration or product call has occurred.
+readback before handoff. At that local handoff, no push, installed-skill
+promotion, campaign migration or product call had occurred.
+
+## Hosted source/runtime readback — 27 September
+
+The final root `4889cbfdbea6d225407c497159be4dc956f67b77` was pushed to
+`codex/stable-20260926`. The independently checked [source-safety run](https://github.com/solomindanil/qa-agent/actions/runs/36312055598)
+completed successfully on that exact SHA: all four manifest pins verified,
+root packaging **62/62**, selected Freeland PAY01 oracle **36/36**, and
+verdict-generation snapshots **10/10**, each with zero failures/skips.
+
+The separate [runtime run](https://github.com/solomindanil/qa-agent/actions/runs/36312055806)
+also completed successfully on the same SHA with **4/4 jobs** successful.
+Its smoke job passed Kernel contract controls **515/515**, isolated Console
+tests **167/167**, and local browser healthy/broken fixtures **19/19**;
+Console typecheck/build and final source verification succeeded. The three
+disjoint full Kernel groups passed workspace **434/434**, service **14/14**,
+and remaining **1361 passed, one skipped / 1362**: aggregate **1809 passed,
+one skipped / 1810 collected**. The runtime build retained a non-failing
+chunk-size warning. These hosted counts belong to `4889cbf` only; they are
+source/runtime and local-fixture controls, not external-product execution,
+installed-skill or campaign-runtime qualification, unaided agent-design
+evidence, stable-CI proof, or product acceptance.
