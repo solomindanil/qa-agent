@@ -2,6 +2,25 @@
 
 > Historical provenance only. Every status label below (including “MANIFEST-SELECTED,” “canonical,” and “current”) describes its dated review, **not today's selection**. The sole current source selector is [manifest.v1.json](../manifest.v1.json); consult the [current checkpoint](../../docs/qualification/current.md) for present qualification and the product owner for an existing campaign's frozen runtime. These bundles and reports are retained evidence, not optional runtime replacements or authorization for product action. Do not delete or rewrite them without a separate provenance and dependency review.
 
+## D13-479 existing-target check authoring, 27 September 2026
+
+Kernel `7dd9265f846676d925cc084f3dcd8d8883364613`, tree
+`04ccf2050fa651ef96f9772b215f3451c6fc0219`, is preserved in
+`kernel-d13-479-check-authoring-7dd9265.bundle` (961,707 bytes, SHA-256
+`c70da5bbe43a68cd724c61ca07c71041734be32e8458364ce7bf7d57320f3914`).
+Paired Console `58b02cd4878eb3a4e9213ade2a9d24af2e97d9a8`, tree
+`c68e9a627620a71116bb86eadfb2d4c5ad6539a3`, is preserved in
+`console-d13-479-kernel-pair-58b02cd.bundle` (4,402,259 bytes, SHA-256
+`5ea906f00a7ac2959bb6d1cb939124051f400a458d411c5016c77028c1a3319f`).
+Both bundles have complete history and a sole `HEAD` ref. Kernel adds the
+bounded pure check-authoring helper and offline controls; Console advances only
+its exact Kernel pin and positive test/documentation references. The existing
+publication and authority logic is unchanged. [Exact qualification](../../docs/qualification/d13-479-check-authoring-20260927.md)
+records first attempts, the 51/51 Kernel gate, Console pair gates, adapted
+consumer comparison, independent review and source-only limits. The manifest
+alone selects current source; existing campaigns and installed skills do not
+change with these archives.
+
 ## Local consolidation, 20 September 2026
 
 The [consolidation index](../../docs/qualification/local-consolidation-20260920.md)

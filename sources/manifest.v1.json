@@ -4,22 +4,22 @@
     {
       "id": "kernel",
       "path": "components/kernel",
-      "commit": "ece24e865f7ea37cff32c24c7e3739c9d0059f81",
-      "tree": "c1d2b793a92fca024a025ec48b9f72157ce2f995",
-      "bundle": "sources/candidates/kernel-public-release-ece24e8.bundle",
-      "sha256": "e4dd7e68c3737bc465b30f198d87bda84c1a1a62c435e96bee1e90383253f92f",
+      "commit": "7dd9265f846676d925cc084f3dcd8d8883364613",
+      "tree": "04ccf2050fa651ef96f9772b215f3451c6fc0219",
+      "bundle": "sources/candidates/kernel-d13-479-check-authoring-7dd9265.bundle",
+      "sha256": "c70da5bbe43a68cd724c61ca07c71041734be32e8458364ce7bf7d57320f3914",
       "runtimeAuthority": true,
-      "qualification": "Stable public source release 2026-09-26, successor to a0a20e6. Retains claim-receipt staging descriptor through publication and cleanup to prevent reused-inode ownership confusion; portable deleted-inode fixture; six explicit integration budgets with every assertion retained. Full Linux CI: 45 files, 1787 passed and one native case-alias capability skip; that exact case passes separately on macOS at this source. Typecheck/build and public cold-clone root61 pass. Earlier failures remain recorded; no full new macOS suite or universal scheduling guarantee. Evidence: docs/releases/2026-09-26.md. No product execution or existing campaign/installed-skill migration."
+      "qualification": "D13-479 bounded existing-target check-authoring successor to ece24e8. Pure helper over existing publication contracts, with exact entry replacement and preservation guards; adapted API/browser callers have full-authority equality and reduced mechanical assembly (46 to 12 and 47 to 12 units). Fresh five-file offline Kernel gate 51/51, typecheck/build and independent Astra AQA GO on the exact candidate bytes. Earlier public-release Linux CI counts belong to ece24e8, not this commit. Evidence: docs/qualification/d13-479-check-authoring-20260927.md. No full new Kernel suite, live product PASS, installed-skill or existing-campaign migration."
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "5634b7f456999a967cc64704c58f7d6e040f0e57",
-      "tree": "44dc31187f593a096fa9892fb566931bc5e44eeb",
-      "bundle": "sources/candidates/console-a1-cli-authority-5634b7f.bundle",
-      "sha256": "a705556469669b9695ecb4cffd7d7a2b6b034076de9b6b04463709ebeef30fed",
+      "commit": "58b02cd4878eb3a4e9213ade2a9d24af2e97d9a8",
+      "tree": "c68e9a627620a71116bb86eadfb2d4c5ad6539a3",
+      "bundle": "sources/candidates/console-d13-479-kernel-pair-58b02cd.bundle",
+      "sha256": "5ea906f00a7ac2959bb6d1cb939124051f400a458d411c5016c77028c1a3319f",
       "runtimeAuthority": true,
-      "qualification": "A1 bounded successor to the 2026-09-26 Console release, paired with unchanged Kernel ece24e865f7ea37cff32c24c7e3739c9d0059f81: all six legacy CLI routes check selected Kernel source before preparation and immediately before spawn. New focused 4/4 and relevant existing 21/21 local controls pass; independent Astra AQA GO 0 Critical / 0 Important / 0 Minor. Earlier release results keep their original source attribution. Evidence: docs/qualification/a1-cli-source-authority-20260927.md and docs/releases/2026-09-26.md. This attests selected source only, not dependencies/build immutability, live-product acceptance, existing campaign migration or installed-skill promotion."
+      "qualification": "D13-479 paired Console successor to A1, pinned to exact Kernel 7dd9265f846676d925cc084f3dcd8d8883364613. Only the runtime pin and six-file positive test/documentation references advance; the A1 authority logic and negative controls remain unchanged. Focused offline Console authority 25/25, managed-pack/stalled-Git 5/5 and portable-entrypoint 6/6; typecheck/build pass. Earlier A1 and public-release results retain their original source attribution. Evidence: docs/qualification/d13-479-check-authoring-20260927.md and docs/qualification/a1-cli-source-authority-20260927.md. Source selection is not live-product acceptance, an installed-skill update or existing-campaign migration."
     },
     {
       "id": "freeland",
