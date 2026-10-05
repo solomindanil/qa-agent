@@ -1,12 +1,12 @@
 # Source skills and host routing
 
-These are links to **complete delivered directories**, not partial copies or installed skills. Restore first. Read each SKILL.md in full and its required references before acting. No installation is performed by this repository's bootstrap.
+These are links to **complete delivered directories**, not partial copies or installed skills. Root qa-check request capture/read/report needs only Node >=22.12.0 and its own complete bundle, not component restoration or installation. Restore component source before using component instructions. Read each selected SKILL.md in full and its required references before acting. No installation is performed by this repository's bootstrap.
 
 For first use, start with [the portable setup](../docs/getting-started.md). A new user's product analysis is not a continuation of a historical owner's campaign: `qa-product-v0` can analyze before registration, and `qa-init` is selected only when a new managed workspace, registration recovery or a separately authorized I2 review is actually required. After successful registration and typed readback, return to `qa-product-v0`; I2 is not a universal post-registration prerequisite.
 
 | Request | Source instruction |
 | --- | --- |
-| General product/release/ticket QA before a specialist is selected | [qa-check](qa-check/SKILL.md) — root-owned routing only; not another runner |
+| Ordinary new or explicitly amended QA request; product/release/ticket QA before a specialist is selected | [qa-check](qa-check/SKILL.md) — bundled [request capture/report recipe](qa-check/references/request-intake.md), then root-owned routing; not another runner |
 | Product test account, session or fixture needed for QA (not QA-workspace registration) | [qa-check](qa-check/SKILL.md) routes to the product specialist; use the existing-access map below for source discovery, not execution authority |
 | Open bugs / evidenced cause clusters / developer fix prompts | [qa-bugfix](qa-bugfix/SKILL.md) — complete root-owned bundle, product-selected tracker; preparing a prompt is not QA acceptance |
 | Actual setup/registration, registration recovery, separate I2 first-evidence review | [qa-init](../components/console/skills/qa-init/SKILL.md) |
@@ -16,6 +16,21 @@ For first use, start with [the portable setup](../docs/getting-started.md). A ne
 | Agent tools and observation-storage limitations | [agent-observations reference](../components/console/skills/qa-product-v0/references/agent-observations.md) |
 | Read an interrupted run; bounded continuation with original surviving owner | [continuation protocol and qualification](../docs/qualification/campaign-continuation-20260914.md) — source-selected v1 only; not host restart, browser or payment replay |
 | Freeland full/smoke, QA column/current cycle, one ticket or product area | [freeland-release-qa](../components/freeland/skills/freeland-release-qa/SKILL.md) |
+
+Root qa-check's complete portable bundle includes both ordinary Node document
+scripts and its request-intake reference. It preserves no-doc/full input in the
+selected owner's existing private notes, validates readback and hands exact
+request ID/revision/digest and report paths to the unchanged specialist. No
+source installation, child runtime, managed registration or MCP is required for
+capture/analysis. Source-selected, installed/copied and frozen-runtime identities
+remain distinct; installed skills and existing campaigns are untouched.
+
+The intake result is NOT_EVALUATED and caller-authored/unattested, with managed
+binding not_owner_attested. A selected pilot retains full scope and unknowns;
+source tests do not prove final QA, graph completeness, deployment or product
+PASS. This is bounded B00 capture/report and partial I01, not B01/D01/E00/V01 or
+N01/Q1 acceptance. Saved-JSON-only Markdown recovery is explicit render-report;
+read never mutates or repairs documents.
 
 ## Existing product account access — source discovery only
 

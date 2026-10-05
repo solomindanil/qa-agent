@@ -2,6 +2,12 @@
 
 This public repository delivers reusable QA harness source, specialist product knowledge and historical records. It does not deliver a ready-made product session. Keep your own credentials, account data, registrations and run evidence private. See the [architecture](architecture.md) for the distinction between general Starter and specialist lanes.
 
+For ordinary request capture, start at [Agent entry](#agent-entry-without-changing-installed-skills)
+and the complete root qa-check bundle. Node >=22.12.0 is sufficient for its
+local capture/read/report helper; restoring components, installing dependencies
+or starting a managed runtime is not a prerequisite. The bootstrap below is
+for delivered component source when the selected specialist needs it.
+
 ## 1. Restore and verify the delivered source
 
 Install Node.js >=22.12 and Git, then run from a normal Git clone:
@@ -22,10 +28,26 @@ Open this clone as the project in Codex or Claude. Ask the agent to read this
 clone's `AGENTS.md`, `docs/qualification/current.md` and the complete selected
 source skill from `skills/README.md` before testing. For example:
 
-> Read this checkout's AGENTS.md and the complete qa-check source skill. Analyze
-> my product at the URL I provide, select the appropriate specialist, and use
-> this checkout's pinned sources. Start with read-only work; report evidence,
-> failures and unassessed scope separately.
+> Check the whole product at the URL I supply, starting read-only. I have no documentation. Preserve the full request even if you begin with one area. Save an intake report and tell me what remains unknown before dependent execution.
+
+The source [qa-check entry](../skills/qa-check/SKILL.md) discovers the bundled
+[request-intake recipe](../skills/qa-check/references/request-intake.md). The host
+resolves the current specialist, owner checkpoint and permitted existing private
+notes destination, saves the original nonsecret prose, invokes plain-text capture
+and reads it back before handoff. It saves/reads an intake report, adds the exact
+request/report paths and request ID/revision/digest to the existing checkpoint,
+preserving earlier entries, and opens the returned Markdown through its normal
+file-opening mechanism. No managed workspace is created for a demo. Missing
+destination/authority is reported while independent in-chat analysis continues.
+
+This helper needs only Node >=22.12.0 and its complete qa-check bundle, not a
+running child runtime, docs, browser or MCP. The intake result is NOT_EVALUATED,
+caller-authored/unattested, with managed execution binding not_owner_attested;
+it is not the final QA report. A pilot never replaces the original full scope.
+New work receives a new request; explicit continuation names the saved request
+and revision. Reopen using exact saved paths, not an inferred latest request.
+If Markdown is missing, use the recipe's saved-JSON-only `render-report --report`
+operation; `read` never repairs files or changes an intake result.
 
 Do not assume a `$qa-check` installed in a home directory has the same bytes.
 Source-directed use needs no global skill installation and leaves other chats'
@@ -43,6 +65,16 @@ Use [qa-init](../components/console/skills/qa-init/SKILL.md) only when a new man
 The selected Console README still contains legacy wording that makes I2 sound mandatory after every registration. Follow the current `qa-init` skill route above; repairing that owning README requires its own reviewed component change and repin and remains in the [maintenance backlog](qualification/maintenance-backlog-20260913.md).
 
 For an existing live campaign, resolve its current owner checkpoint and keep its frozen source, workspace, registration, evidence, permissions and unknown outcomes. Historical task IDs or paths can help that owner but are not required for first use. Missing owner state blocks continuation of that exact campaign, not separately authorized new analysis or registration. Existing frozen campaigns are not migrated by this repository.
+
+Request capture does not change either route. New Starter registration derives
+only established supported facts into the existing answers and uses qa-init dry
+first; unknown facts stay unknown, and submission needs separate exact authority.
+An existing registration goes to its existing qa-product-v0 plan/evidence path
+without resetting. A full request does not mean an old graph/catalog covers it.
+Every later actual QA conclusion cites the request tuple plus original owner
+run/evidence identity and independent readback, preserving that owner's verdict
+and limits. B00 capture/report is bounded and I01 partial; B01/D01/E00/V01 and
+N01/Q1 are not accepted by source/helper tests.
 
 <a id="3-configure-console-and-kernel-explicitly"></a>
 

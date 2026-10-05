@@ -9,6 +9,10 @@ This is an entrypoint, not another runner or test checklist.
 
 Resolve the requested product using its current registration, project instructions or owner handoff. Identify the active checkpoint, accepted source, executable runtime, environment/candidate and permitted actions. Keep unverified identity explicitly unknown. A working directory, newer file, old receipt or installed skill alone does not establish current authority; preserve an existing campaign's ownership.
 
+## Capture a new or explicitly amended request
+
+For a new ordinary QA request or an explicitly amended one, read [request-intake.md](references/request-intake.md). Preserve the original wording/full scope in the selected owner's existing private notes and read back the request document before the specialist handoff. Do not require documentation or a managed registration to capture/analyze a request. New work gets a new request; continuation names the exact saved request/revision. Capture is not execution, and this helper does not bind managed campaign receipts to requests. Then route once and stop the generic QA workflow.
+
 ## Route once
 
 | Product context | Required workflow |
@@ -19,6 +23,8 @@ Resolve the requested product using its current registration, project instructio
 
 Read the selected skill completely, including its required references, from the current reviewed source or a verified matching installation. Then stop this generic workflow: the specialist owns discovery, test design, graph-based selection, execution, evidence and acceptance. Do not copy a generic suite over its plan or duplicate an existing registration.
 
+Hand off the validated request path and request ID/revision/digest, exact owner, original scope versus selected pilot, intake report paths and remaining unknowns. Add those explicit paths to the existing checkpoint without replacing prior entries. Keep the intake result NOT_EVALUATED and managed binding not_owner_attested; use the specialist's unchanged plan/evidence path for actual QA.
+
 ## When a prerequisite is missing
 
 Name the missing source, access, tool or expectation and keep the dependent case pending. Continue independently authorized, supported checks or analysis; request specific human help where needed. Do not invent a replacement runner, acceptance rule or requirement to make progress look complete. A manual label alone does not require a human. Missing Playwright configuration or tracker access is not a blanket prerequisite for useful read-only discovery/reporting.
@@ -27,6 +33,7 @@ For a product account, session or fixture prerequisite (distinct from `qa-init` 
 
 ## Preserve scope and evidence
 
+- Preserve the full request denominator even when starting with one area; source clauses and selection remain unassessed, not executed coverage. The helper's intake report is not the final QA report. Later QA conclusions cite the request tuple and independently read-back owner run/evidence identity, with original verdict/limits unchanged.
 - Use the product-selected tracker and current integration instructions; Linear is not a universal default. Report-only work makes no tracker writes. Authorized writes follow the actual target/template/state contract, deduplicate where applicable and read back persisted results; reconcile an unknown write outcome before retrying.
 - An unexpected expected-failure PASS prompts inspection of the assertion, fixture, original reproduction and current candidate/environment. It does not by itself prove FIXED or authorize Done/Todo. Follow the selected pack's acceptance requirements.
 - Distinguish verified, failed, blocked and unassessed scope. Tool self-tests and unsupported local observations do not become product acceptance. An API/read error is not evidence that data is absent.
