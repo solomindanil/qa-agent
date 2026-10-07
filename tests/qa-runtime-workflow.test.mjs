@@ -169,3 +169,80 @@ test('runtime workflow executes A1 in the isolated fail-closed Console gate', as
     assert.throws(() => validateRuntimeWorkflow(mutant), assert.AssertionError, name);
   }
 });
+
+function declaredRuntimeEvents(workflow) {
+  assert.equal(workflow.match(/^on:/gmu)?.length, 1, 'exactly one runtime event declaration is required');
+  const block = workflow.match(/^on:\n((?:[ \t][^\n]*\n|\n)*)(?=\S)/mu)?.[1];
+  const declaration = block?.match(
+    /^  (pull_request):\n  (push):\n    branches: \[([^\]\n]*)\]\n    tags: \[([^\]\n]*)\]\n  (workflow_dispatch):\n\n$/u,
+  );
+  assert.ok(declaration, 'runtime events must retain unrestricted PR/manual and only push branch/tag lists');
+  const entries = (list) => list.split(',').map(entry => entry.trim().replace(/^(['"])(.*)\1$/u, '$2'));
+  return {
+    events: new Set([declaration[1], declaration[2], declaration[5]]),
+    branches: entries(declaration[3]),
+    tags: entries(declaration[4]),
+  };
+}
+
+// Finite model of this declared event contract, not GitHub-hosted execution.
+function selectsRuntimeEvent(declared, { name, refType, ref }) {
+  if (!declared.events.has(name)) return false;
+  if (name !== 'push') return true;
+  if (refType === 'branch') return declared.branches.includes(ref);
+  if (refType === 'tag') return declared.tags.includes('**');
+  return false;
+}
+
+function validateRuntimeEventContract(workflow) {
+  const declared = declaredRuntimeEvents(workflow);
+  assert.deepEqual(declared.branches, ['develop', 'codex/stable-20260926'],
+    'runtime push qualification must cover only the established integration/default branches');
+  assert.deepEqual(declared.tags, ['**'], 'all tag pushes must receive runtime qualification');
+  return declared;
+}
+
+test('runtime declaration selects integrated branch/tag pushes and unrestricted PR/manual events', async () => {
+  const declared = validateRuntimeEventContract(await readFile(workflowUrl, 'utf8'));
+  const cases = [
+    [{ name: 'push', refType: 'branch', ref: 'codex/feature-small-change' }, false],
+    [{ name: 'push', refType: 'branch', ref: 'develop' }, true],
+    [{ name: 'push', refType: 'branch', ref: 'codex/stable-20260926' }, true],
+    [{ name: 'push', refType: 'branch', ref: 'release/future-branch' }, false],
+    [{ name: 'push', refType: 'tag', ref: 'v1.2.3' }, true],
+    [{ name: 'push', refType: 'tag', ref: 'release/2026-10' }, true],
+    [{ name: 'pull_request', base: 'develop' }, true],
+    [{ name: 'pull_request', base: 'codex/stable-20260926' }, true],
+    [{ name: 'pull_request', base: 'another-base' }, true],
+    [{ name: 'workflow_dispatch' }, true],
+    [{ name: 'release' }, false],
+  ];
+  for (const [event, expected] of cases) {
+    assert.equal(selectsRuntimeEvent(declared, event), expected, JSON.stringify(event));
+  }
+  // A feature push without a PR is unqualified, not a reused runtime PASS.
+});
+
+test('runtime event contract rejects missing qualification and restricted or widened filters', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  validateRuntimeEventContract(workflow);
+  const mutants = [
+    ['develop omitted', workflow.replace('branches: [develop, codex/stable-20260926]', 'branches: [codex/stable-20260926]')],
+    ['default branch omitted', workflow.replace('branches: [develop, codex/stable-20260926]', 'branches: [develop]')],
+    ['branch list omitted', workflow.replace('    branches: [develop, codex/stable-20260926]\n', '')],
+    ['tag list omitted', workflow.replace("    tags: ['**']\n", '')],
+    ['tags restricted', workflow.replace("tags: ['**']", "tags: ['v*']")],
+    ['PR omitted', workflow.replace('  pull_request:\n', '')],
+    ['manual omitted', workflow.replace('  workflow_dispatch:\n', '')],
+    ['feature wildcard added', workflow.replace('branches: [develop, codex/stable-20260926]', "branches: [develop, codex/stable-20260926, 'codex/**']")],
+    ['PR base restricted', workflow.replace('  pull_request:\n', '  pull_request:\n    branches: [develop]\n')],
+    ['PR activity restricted', workflow.replace('  pull_request:\n', '  pull_request:\n    types: [opened]\n')],
+    ['PR paths restricted', workflow.replace('  pull_request:\n', "  pull_request:\n    paths: ['src/**']\n")],
+    ['push paths restricted', workflow.replace('  push:\n', "  push:\n    paths: ['src/**']\n")],
+    ['unexpected push key', workflow.replace('  push:\n', '  push:\n    branches-ignore: [docs]\n')],
+  ];
+  for (const [name, mutant] of mutants) {
+    assert.notEqual(mutant, workflow, `${name} mutation must change the workflow`);
+    assert.throws(() => validateRuntimeEventContract(mutant), assert.AssertionError, name);
+  }
+});
