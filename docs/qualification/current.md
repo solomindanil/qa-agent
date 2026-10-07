@@ -1,8 +1,8 @@
 # Current QA-agent source and execution entry
 
-Updated 27 September 2026 (Bali), after the bounded Console helper-discovery reference delivery. This page is the current qualification projection, **not** a run log or a second task queue.
+Updated 8 October 2026 (Bali) for bounded local native-outcomes source packaging. This pointer update does not refresh the dated plan/history projections below. This page is a qualification projection, **not** a run log or a second task queue.
 
-The [manifest](../../sources/manifest.v1.json) selects delivered source; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. The published [26 September release](../releases/2026-09-26.md) remains a dated source-delivery result, not product acceptance. Development continues on `codex/stable-20260926`; the release tag is not moved. Source, installed host skills and campaign runtime may differ and must not be conflated.
+The [manifest](../../sources/manifest.v1.json) selects source; the [product owner](../../products/README.md) selects an existing campaign's frozen runtime. The published [26 September release](../releases/2026-09-26.md) remains a dated source-delivery result, not product acceptance. Explicit GitHub `develop` delivery base is `81be096bd218c7932913b84583648a06ff830d56`; local `codex/b01-native-outcomes-export-20261008` packaging awaits its separate review and hosted exact-head gates. The release tag is not moved. Source, installed host skills and campaign runtime may differ and must not be conflated.
 
 ## Selected source
 
@@ -11,11 +11,13 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `847777a7a87c55a7648ac155da2e18d6593aa16a` | [Scoped outcomes source delivery](d01-outcomes-source-delivery-20261007.md): required compatible CLI-entry prerequisite; inherited source/package12/12, help9/9 and compiler/build checks belong to the accepted 30 September847/014 pair. Earlier hosted counts are not reattributed. Preparation is not publication or product acceptance. |
-| Console | `1508138ce948c69b282b35f49c3c59e6433ab7dd` | [Scoped fixture/type source delivery](d01-fixture-repair-source-delivery-20261007.md): accepted D/eleven-file repair, portable roots/declarations and single fixture-loader narrowing; exact Kernel847 retained. First hosted compiler54 then1 diagnostic failures and new32 runtime SKIPPED stay retained. One local F portable TS5.9.3 compiler exited0, not runtime PASS; this follow-up awaits affected final AQA and next exact-head CI. C qualification/initial packaging100 remain inherited. Full E/UI/V01 and live acceptance stay open. |
+| Console | `fd58742298dc6853af34a36542c7a1c798d9dfd9` | [Bounded native outcomes source packaging](b01-native-outcomes-export-20261008.md#first-hosted-gate-and-documentation-mirror-repair): exact documentation-only Claude mirrors atop6b7ca6d; first hosted adapter parity RED230P/1F retained, affected skill2/2 and distinct repair AQA GO. Native-export source/staged proofs unchanged. New packaging/head CI separately pending; not live PASS or owner-attested intake. Full B01/B02/V01 and M1/M2 remain open. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
 Those sources and their complete source skill bundles are delivered through local Git bundles. Source adoption did not install host skills, update registrations, migrate product campaigns or attest a live product build. An existing runtime may deliberately be older.
+
+PR7 initial root2aa6f408 is published but MERGE HELD after genuine hosted Console adapter-parity failure. The manifest now selects a locally reviewed documentation repair; its new package/root head/push/CI are prospective until separately released. Initial bundle and dated qualification stages remain intact.
 
 ## Active plan and next action
 
