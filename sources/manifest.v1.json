@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "4fc217ea39f15885b013ada8b4823fe7277d5ac8",
-      "tree": "23bef22905b7dc09a9393268ddee79e47e9276fe",
-      "bundle": "sources/candidates/console-d01-fixture-compile-fidelity.bundle",
-      "sha256": "6503a967579d340bd0e50c53d1120be8e46040c75bbfe7a639e4e403a65f6988",
+      "commit": "1508138ce948c69b282b35f49c3c59e6433ab7dd",
+      "tree": "f951dd416b95fe2bee0d037c085f305649d3055e",
+      "bundle": "sources/candidates/console-d01-fixture-loader-narrowing.bundle",
+      "sha256": "4e1eca44442101a5b0fd22e288475883d785d37419301c4c12315a5365dc2e68",
       "runtimeAuthority": true,
-      "qualification": "Console4fc217e preserves accepted D aad2020, the eleven-file repair/portable config36884f1 and exact Kernel847. The first PR5 compiler exit2/54 diagnostics and new32 runtime SKIPPED are retained. This eight-path compile-fidelity follow-up adds faithful plain-ESM declarations and fixture-only typing/canary construction; runtime/schema/assertion/eleven-root/strictness/package/lock bytes remain unchanged. No fresh compiler/runtime GREEN is claimed: final source AQA and next exact-head CI are required. Retained C qualification and initial packaging100/100 keep their original source/config attribution. Scope: docs/qualification/d01-fixture-repair-source-delivery-20261007.md. No full E/UI, live/product acceptance, host-skill or campaign migration."
+      "qualification": "Console1508138 preserves accepted D aad2020, eleven-file repair/config36884f1, faithful declarations4fc217e and exact Kernel847. First PR5 compiler exit2/54 diagnostics, next-head exit2/one TS2322 and new32 runtime SKIPPED remain retained. One fixture callback now truthfully narrows the optional loader; declarations/runtime/eleven-root/strictness/package/lock bytes and all existing assertions remain unchanged. One local F portable TypeScript5.9.3 compiler exited0; runtime/new hosted CI remain unqualified. Final affected source AQA and next exact-head CI are required. Retained C qualification and initial packaging100/100 keep original attribution. Scope: docs/qualification/d01-fixture-repair-source-delivery-20261007.md. No full E/UI, live/product acceptance, host-skill or campaign migration."
     },
     {
       "id": "freeland",
