@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "36884f15f4956c4d9753a6f3d8589abcb5d5989f",
-      "tree": "ca9157f436991b05b03e9baf421bccf275d278dd",
-      "bundle": "sources/candidates/console-d01-fixture-repair.bundle",
-      "sha256": "be4fe3dba3334cb9af3d8fd5baa92bf07fe39f359b208f4d2752828aebfa8514",
+      "commit": "4fc217ea39f15885b013ada8b4823fe7277d5ac8",
+      "tree": "23bef22905b7dc09a9393268ddee79e47e9276fe",
+      "bundle": "sources/candidates/console-d01-fixture-compile-fidelity.bundle",
+      "sha256": "6503a967579d340bd0e50c53d1120be8e46040c75bbfe7a639e4e403a65f6988",
       "runtimeAuthority": true,
-      "qualification": "Console36884f1 preserves accepted D aad2020 and exact Kernel847, adding only the independently reviewed eleven-file fixture/type repair and one portable explicit-root compiler config. Retained C fixture controls/compiler/pure consumers keep their original source/config attribution; new selected-source fixture type/runtime checks remain unassessed until actual CI. Scope, inherited results and separate cold packaging checks: docs/qualification/d01-fixture-repair-source-delivery-20261007.md. No full E/UI, live/product acceptance, host-skill or existing-campaign migration."
+      "qualification": "Console4fc217e preserves accepted D aad2020, the eleven-file repair/portable config36884f1 and exact Kernel847. The first PR5 compiler exit2/54 diagnostics and new32 runtime SKIPPED are retained. This eight-path compile-fidelity follow-up adds faithful plain-ESM declarations and fixture-only typing/canary construction; runtime/schema/assertion/eleven-root/strictness/package/lock bytes remain unchanged. No fresh compiler/runtime GREEN is claimed: final source AQA and next exact-head CI are required. Retained C qualification and initial packaging100/100 keep their original source/config attribution. Scope: docs/qualification/d01-fixture-repair-source-delivery-20261007.md. No full E/UI, live/product acceptance, host-skill or campaign migration."
     },
     {
       "id": "freeland",
