@@ -11,7 +11,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `847777a7a87c55a7648ac155da2e18d6593aa16a` | [Scoped outcomes source delivery](d01-outcomes-source-delivery-20261007.md): required compatible CLI-entry prerequisite; inherited source/package12/12, help9/9 and compiler/build checks belong to the accepted 30 September847/014 pair. Earlier hosted counts are not reattributed. Preparation is not publication or product acceptance. |
-| Console | `aad20206a3eb13a1bcf49caeef7ee94c10d84b5a` | [Scoped outcomes source delivery](d01-outcomes-source-delivery-20261007.md): accepted B1/B2/C/D full-trace accounting, strict owner readback and truthful outcomes/Markdown, plus initialization/CLI prerequisites and exact Kernel847 pin. Inherited scoped checks retain their revisions; full E/UI, request completeness and live/runtime acceptance remain open. Preparation is not publication. |
+| Console | `36884f15f4956c4d9753a6f3d8589abcb5d5989f` | [Scoped fixture/type source delivery](d01-fixture-repair-source-delivery-20261007.md): accepted D source plus eleven-file fixture repair and portable explicit-root compiler config; exact Kernel847 retained. Earlier C32/compiler0/pure229 PASS+1 SKIP are inherited, not fresh selected-source runtime/type PASS. Full E/UI, request completeness and live acceptance remain open. Preparation is not publication. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 

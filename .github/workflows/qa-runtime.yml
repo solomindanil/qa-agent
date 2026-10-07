@@ -40,6 +40,7 @@ jobs:
         working-directory: components/console
         run: |
           ./node_modules/.bin/tsc --noEmit --incremental false
+          ./node_modules/.bin/tsc -p tsconfig.fixture-repair.json --noEmit --incremental false
           ./node_modules/.bin/vite build
       - name: Isolated Console runtime controls
         working-directory: components/console
@@ -72,6 +73,7 @@ jobs:
               tests/unit/qa-product-skill.test.ts \
               tests/unit/kernel-fixture-authority.test.ts \
               tests/unit/bridge-cli-authority.test.ts \
+              tests/unit/campaign-fixture-digests.test.ts \
               tests/unit/api-semantic-assertions.test.ts \
               tests/unit/qa-campaign-files-umask.test.ts \
               tests/unit/campaign-plan-concurrency.test.ts \

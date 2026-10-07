@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "aad20206a3eb13a1bcf49caeef7ee94c10d84b5a",
-      "tree": "acc6872de8323a5f2170cb11ac29a6480899e4c5",
-      "bundle": "sources/candidates/console-d01-outcomes-aad2020.bundle",
-      "sha256": "09e7bad015079b1feaf87eda739dbf6b00cb1bb43c2a268b064ff625ee795066",
+      "commit": "36884f15f4956c4d9753a6f3d8589abcb5d5989f",
+      "tree": "ca9157f436991b05b03e9baf421bccf275d278dd",
+      "bundle": "sources/candidates/console-d01-fixture-repair.bundle",
+      "sha256": "be4fe3dba3334cb9af3d8fd5baa92bf07fe39f359b208f4d2752828aebfa8514",
       "runtimeAuthority": true,
-      "qualification": "Accepted B1/B2/C/D assertion-accounting and truthful outcomes sourceaad2020, including required initialization/CLI prerequisites and exact Kernel847 pin. Inherited scoped controls/reviews retain their original revisions/denominators, not a fresh full Console suite. Scope and separate delivery checks: docs/qualification/d01-outcomes-source-delivery-20261007.md. Full E/UI, request completeness, live/product acceptance, host skills and existing-campaign migration remain open."
+      "qualification": "Console36884f1 preserves accepted D aad2020 and exact Kernel847, adding only the independently reviewed eleven-file fixture/type repair and one portable explicit-root compiler config. Retained C fixture controls/compiler/pure consumers keep their original source/config attribution; new selected-source fixture type/runtime checks remain unassessed until actual CI. Scope, inherited results and separate cold packaging checks: docs/qualification/d01-fixture-repair-source-delivery-20261007.md. No full E/UI, live/product acceptance, host-skill or existing-campaign migration."
     },
     {
       "id": "freeland",
