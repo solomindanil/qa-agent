@@ -3,6 +3,8 @@ name: QA runtime smoke
 on:
   pull_request:
   push:
+    branches: [develop, codex/stable-20260926]
+    tags: ['**']
   workflow_dispatch:
 
 permissions:

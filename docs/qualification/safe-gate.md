@@ -66,3 +66,24 @@ runner is isolated from all network access, or that GitHub's service behavior
 matches a local host. Full component suites, Console candidate checks/adoption,
 live products, product endpoints, registrations, secrets, browsers, publishing,
 and deployment remain outside this gate and unqualified by it.
+
+## Runtime event boundary — 8 October 2026
+
+The separate `qa-runtime.yml` retains all existing pull-request and manual
+dispatch semantics, with no PR base, activity or path filters. Runtime pushes
+are selected only for `develop`, the observed default branch
+`codex/stable-20260926`, and all tags (`'**'`), including tags containing `/`.
+`qa-source.yml` is unchanged and continues its source-safety push/PR/manual gate.
+A feature-branch push without a PR has no runtime qualification; it is not PASS
+or reuse of an earlier result. Other future integration/release branches require
+the existing PR/manual runtime gate or an explicit revision of this branch list.
+Every selected runtime event retains runtime-smoke and all three full Kernel
+partitions (workspace/service/remaining), with unchanged commands, assertions and
+failure handling. This reduces duplicate event selection, not regression scope
+or acceptance standards. Root controls extract the declared branch/tag values,
+model finite synthetic events and reject missing, widened or restricted filters;
+they do not prove GitHub service execution or identical PR/push checkout inputs.
+The later normal hosted delivery must observe the exact checkout/base/head and
+applicable required rules. Prior failed, skipped or cancelled results and PR5's
+current applicable gate remain unchanged; no measured time/cost saving, hosted
+runtime result or product acceptance is claimed by this local change.
