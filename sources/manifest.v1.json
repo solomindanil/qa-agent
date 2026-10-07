@@ -4,22 +4,22 @@
     {
       "id": "kernel",
       "path": "components/kernel",
-      "commit": "7dd9265f846676d925cc084f3dcd8d8883364613",
-      "tree": "04ccf2050fa651ef96f9772b215f3451c6fc0219",
-      "bundle": "sources/candidates/kernel-d13-479-check-authoring-7dd9265.bundle",
-      "sha256": "c70da5bbe43a68cd724c61ca07c71041734be32e8458364ce7bf7d57320f3914",
+      "commit": "847777a7a87c55a7648ac155da2e18d6593aa16a",
+      "tree": "883e7607ea753daf6a1d64a4f2c64219eded91af",
+      "bundle": "sources/candidates/kernel-cto-entry-847777a.bundle",
+      "sha256": "2e42b374f91a24ec74b4ed179312d2a3149d67fd3a3e19895478dd2441639f94",
       "runtimeAuthority": true,
-      "qualification": "D13-479 bounded existing-target check-authoring successor to ece24e8. Pure helper over existing publication contracts, with exact entry replacement and preservation guards; adapted API/browser callers have full-authority equality and reduced mechanical assembly (46 to 12 and 47 to 12 units). Fresh five-file offline Kernel gate 51/51, typecheck/build and independent Astra AQA GO on the exact candidate bytes. Earlier public-release Linux CI counts belong to ece24e8, not this commit. Evidence: docs/qualification/d13-479-check-authoring-20260927.md. No full new Kernel suite, live product PASS, installed-skill or existing-campaign migration."
+      "qualification": "Required compatible CLI-entry source847 for Consoleaad2020. Inherited Node22.23.1 typecheck/build/preparation, source/package12/12 and help9/9 belong to the accepted 30 September847/014 pair, not fresh execution here. Node22.12 was unavailable/owner-accepted, not PASS. Scope and separate delivery checks: docs/qualification/d01-outcomes-source-delivery-20261007.md. No full new Kernel suite, product PASS, host-skill or campaign migration."
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "b1afb011b90492d2048df6449cdd47ef8be33dcf",
-      "tree": "e027e5176b8a51a6635f7f88dfbaa4c8385df3c3",
-      "bundle": "sources/candidates/console-d13-479-check-authoring-reference-b1afb01.bundle",
-      "sha256": "8f0e0188cf15bd068f6702cb43ef88f2b6cd197ddb1b12c23ed98385f59da9e7",
+      "commit": "aad20206a3eb13a1bcf49caeef7ee94c10d84b5a",
+      "tree": "acc6872de8323a5f2170cb11ac29a6480899e4c5",
+      "bundle": "sources/candidates/console-d01-outcomes-aad2020.bundle",
+      "sha256": "09e7bad015079b1feaf87eda739dbf6b00cb1bb43c2a268b064ff625ee795066",
       "runtimeAuthority": true,
-      "qualification": "D13-479 Console documentation-only successor to 58b02cd, still pinned to exact Kernel 7dd9265f846676d925cc084f3dcd8d8883364613. Only the mirrored qa-product-v0 declarative-campaign reference changed, adding a bounded exact-entry helper discovery path and preserving publication/plan authority. Independent Astra AQA GO; reviewed Kernel authoring/consumer 21/21 and Console skill parity 2/2 belong to this narrow reference slice. Prior paired-source, A1 and hosted CI counts retain their original source attribution. Evidence: docs/qualification/d13-479-console-discovery-reference-20260927.md. Source selection is not live-product acceptance, an installed-skill update or existing-campaign migration."
+      "qualification": "Accepted B1/B2/C/D assertion-accounting and truthful outcomes sourceaad2020, including required initialization/CLI prerequisites and exact Kernel847 pin. Inherited scoped controls/reviews retain their original revisions/denominators, not a fresh full Console suite. Scope and separate delivery checks: docs/qualification/d01-outcomes-source-delivery-20261007.md. Full E/UI, request completeness, live/product acceptance, host skills and existing-campaign migration remain open."
     },
     {
       "id": "freeland",
