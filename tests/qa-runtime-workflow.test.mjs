@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { dirname } from 'node:path';
+import { tmpdir } from 'node:os';
+import { promisify } from 'node:util';
 
 const workflowUrl = new URL('../.github/workflows/qa-runtime.yml', import.meta.url);
+const execFileAsync = promisify(execFile);
 
 function consoleSteps(workflow) {
   const lines = workflow.split('\n');
@@ -12,6 +17,39 @@ function consoleSteps(workflow) {
   return starts.map((start, index) => lines.slice(start, starts[index + 1] ?? lines.length).join('\n'))
     .filter((step) => /working-directory: components\/console/u.test(step));
 }
+
+async function isolatedConsoleAcquisitionEnv(workflow) {
+  const isolated = consoleSteps(workflow)
+    .find((step) => /- name: Isolated Console runtime controls/u.test(step));
+  assert.ok(isolated, 'isolated Console runtime step must exist');
+  const prefix = isolated.match(/^ {10}env -i \\\n[\s\S]*?(?=^ {12}node --import tsx --test)/mu)?.[0];
+  assert.ok(prefix, 'actual isolated environment prefix must precede the Console command');
+  // Execute that prefix, replacing only the product command with a builtin Node reader.
+  const { stdout } = await execFileAsync('/bin/bash', [
+    '--noprofile', '--norc', '-c',
+    `${prefix}"$1" -e 'process.stdout.write(JSON.stringify({ offline: process.env.npm_config_offline, yes: process.env.npm_config_yes }))'`,
+    'qa-runtime-env-control', process.execPath,
+  ], {
+    env: {
+      PATH: `${dirname(process.execPath)}:/usr/bin:/bin`,
+      qa_tmp: tmpdir(),
+      GITHUB_WORKSPACE: new URL('../', import.meta.url).pathname,
+      npm_config_offline: 'must-not-leak',
+      npm_config_yes: 'must-not-leak',
+    },
+  });
+  return JSON.parse(stdout);
+}
+
+test('isolated Console child refuses npm network acquisition', async () => {
+  const observed = await isolatedConsoleAcquisitionEnv(await readFile(workflowUrl, 'utf8'));
+  assert.equal(observed.offline, 'true', 'isolated child must receive npm_config_offline=true');
+});
+
+test('isolated Console child refuses automatic npm acquisition consent', async () => {
+  const observed = await isolatedConsoleAcquisitionEnv(await readFile(workflowUrl, 'utf8'));
+  assert.equal(observed.yes, 'false', 'isolated child must receive npm_config_yes=false');
+});
 
 function validateRuntimeWorkflow(workflow) {
   const steps = consoleSteps(workflow);
