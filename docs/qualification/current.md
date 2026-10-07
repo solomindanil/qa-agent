@@ -11,11 +11,13 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `847777a7a87c55a7648ac155da2e18d6593aa16a` | [Scoped outcomes source delivery](d01-outcomes-source-delivery-20261007.md): required compatible CLI-entry prerequisite; inherited source/package12/12, help9/9 and compiler/build checks belong to the accepted 30 September847/014 pair. Earlier hosted counts are not reattributed. Preparation is not publication or product acceptance. |
-| Console | `6b7ca6d6f5d7834dd96bde719946bfb80260e3bc` | [Bounded native outcomes source packaging](b01-native-outcomes-export-20261008.md): exact V0 owner snapshot export and offline reconstruction; source AQA GO C0/I0/M0, separately attributed alias8/8, isolation2/2, root1/1 and final portable compiler. Exact Kernel847 and prior history remain. Local packaging/hosted delivery gates are separate; synthetic saved evidence is not live PASS or owner-attested intake. Full B01/B02/V01 and M1/M2 remain open. |
+| Console | `fd58742298dc6853af34a36542c7a1c798d9dfd9` | [Bounded native outcomes source packaging](b01-native-outcomes-export-20261008.md#first-hosted-gate-and-documentation-mirror-repair): exact documentation-only Claude mirrors atop6b7ca6d; first hosted adapter parity RED230P/1F retained, affected skill2/2 and distinct repair AQA GO. Native-export source/staged proofs unchanged. New packaging/head CI separately pending; not live PASS or owner-attested intake. Full B01/B02/V01 and M1/M2 remain open. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
 Those sources and their complete source skill bundles are delivered through local Git bundles. Source adoption did not install host skills, update registrations, migrate product campaigns or attest a live product build. An existing runtime may deliberately be older.
+
+PR7 initial root2aa6f408 is published but MERGE HELD after genuine hosted Console adapter-parity failure. The manifest now selects a locally reviewed documentation repair; its new package/root head/push/CI are prospective until separately released. Initial bundle and dated qualification stages remain intact.
 
 ## Active plan and next action
 
