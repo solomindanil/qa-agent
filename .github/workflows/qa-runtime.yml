@@ -53,6 +53,8 @@ jobs:
           env -i \
             PATH="${PATH}" \
             CI=true \
+            npm_config_offline=true \
+            npm_config_yes=false \
             GIT_CONFIG_NOSYSTEM=1 \
             GIT_CONFIG_GLOBAL=/dev/null \
             TSX_DISABLE_CACHE=1 \
