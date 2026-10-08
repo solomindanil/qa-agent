@@ -83,6 +83,79 @@ test('observation CLI reader executes in the existing isolated runtime argv', as
   assert.equal(argv.filter(arg => arg === 'tests/unit/agent-observation-cli-reader.test.ts').length, 1);
 });
 
+test('U03a literal unit mappings admit added/modified controls without waiving deletion', async context => {
+  const { classifyImpact } = await api();
+  for (const path of [
+    'tests/unit/selected-campaign-readback.test.mjs', 'tests/unit/selected-campaign-http.test.ts',
+    'tests/unit/selected-campaign-projection.test.ts', 'tests/unit/primary-ui-read-client.test.ts',
+    'tests/unit/primary-ui-selection.test.ts', 'tests/unit/primary-ui-projection.test.ts',
+    'tests/unit/primary-ui-report.test.ts', 'tests/unit/selected-campaign-consumer-lifecycle.test.mjs',
+  ]) for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
+    await context.test(`${path} ${status}`, () => {
+      const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+      for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+      assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+      assert.equal(result.selection.kernelFull, status === 'deleted');
+    });
+  }
+});
+
+test('U03a consumer and helper-only deltas select built browser-all compatibility without waiving deletion', async context => {
+  const { classifyImpact } = await api();
+  for (const path of ['tests/e2e/selected-campaign-local.test.mjs', 'tests/fixtures/selected-campaign-consumer-lifecycle.mjs']) {
+    for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
+      await context.test(`${path} ${status}`, () => {
+        const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+        for (const key of ['kernelBuildContracts', 'consoleBuild', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+        assert.equal(result.selection.consoleBrowser, 'all');
+        assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+        assert.equal(result.selection.kernelFull, status === 'deleted');
+      });
+    }
+  }
+});
+
+test('U03a actual runtime argv executes every ruled unit and retains existing readback controls', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
+  const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu);
+  const command = step?.[1].match(/^\s*node --import tsx --test --test-concurrency=1 \\\n((?:\s+tests\/unit\/[^\n]+\n?)+)/mu);
+  assert.ok(command, 'actual isolated runtime command');
+  const argv = command[0].replace(/\\\n/gu, ' ').trim().split(/\s+/u);
+  for (const path of [
+    'tests/unit/selected-campaign-readback.test.mjs', 'tests/unit/selected-campaign-http.test.ts',
+    'tests/unit/selected-campaign-projection.test.ts', 'tests/unit/primary-ui-read-client.test.ts',
+    'tests/unit/primary-ui-selection.test.ts', 'tests/unit/primary-ui-projection.test.ts',
+    'tests/unit/primary-ui-report.test.ts', 'tests/unit/selected-campaign-consumer-lifecycle.test.mjs',
+    'tests/unit/workspace-snapshot.test.ts', 'tests/unit/campaign-continuation-readback.test.mjs',
+    'tests/unit/campaign-continuation-readback-faults.test.mjs',
+  ]) assert.equal(argv.filter(arg => arg === path).length, 1, path);
+  assert.equal(argv.includes('tests/fixtures/selected-campaign-consumer-lifecycle.mjs'), false, 'helper is not executable argv');
+});
+
+test('U03a actual browser-all shell supplies portable installed Chromium and fresh isolated consumer argv/env', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
+  const step = workflow.match(/^      - name: Browser healthy and broken fixture controls\n([\s\S]*?)(?=^      - name:)/mu);
+  assert.ok(step);
+  const block = step[1].split('        run: |\n')[1]?.split('\n').filter(Boolean).map(line => line.replace(/^          /u, '')).join('\n');
+  assert.ok(block);
+  // Execute the real shell boundary with an inert Node recorder: no browser/build/product.
+  const dir = await realpath(await mkdtemp(join(tmpdir(), 'qa-u03a-ci-argv-')));
+  const bin = join(dir, 'bin'); await mkdir(bin);
+  const record = join(dir, 'argv.json'); const installed = join(dir, 'installed-chromium');
+  await writeFile(join(bin, 'node'), `#!${process.execPath}\nconst fs=require('node:fs');\nif(process.argv.includes('--input-type=module')) { if(!process.argv.at(-1).includes('chromium.executablePath()')) process.exit(2); console.log(${JSON.stringify(installed)}); } else fs.writeFileSync(${JSON.stringify(record)},JSON.stringify({argv:process.argv.slice(2),env:process.env}));\n`, { mode: 0o755 });
+  const result = spawnSync('/bin/bash', ['-c', block], { cwd: dir, env: { PATH: `${bin}:/usr/bin:/bin`, RUNNER_TEMP: dir, GITHUB_WORKSPACE: join(dir, 'workspace'), SYNTHETIC_PRIVATE_SENTINEL: 'must-not-reach-child' }, encoding: 'utf8', timeout: 10_000 });
+  assert.equal(result.status, 0, result.stderr);
+  const actual = JSON.parse(await readFile(record, 'utf8'));
+  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/e2e/selected-campaign-local.test.mjs']);
+  assert.equal(actual.env.QA_PRIMARY_UI_CHROMIUM, installed);
+  assert.equal(actual.env.QA_STARTER_REPO, join(dir, 'workspace/components/kernel'));
+  assert.equal(actual.env.PLAYWRIGHT_BROWSERS_PATH, join(dir, 'qa-release-browsers'));
+  assert.ok(actual.env.TMPDIR.startsWith(`${dir}/qa-browser.`));
+  assert.equal(actual.env.QA_SELECTED_RUN_UI_DIR, join(actual.env.TMPDIR, 'selected-run'));
+  assert.equal(actual.env.SYNTHETIC_PRIVATE_SENTINEL, undefined);
+  assert.equal((await readFile(record, 'utf8')).includes('tests/fixtures/selected-campaign-consumer-lifecycle.mjs'), false);
+});
+
 test('full cohorts and unknown inputs dominate every known narrower selection', async () => {
   const { classifyImpact } = await api();
   for (const cohort of ['integration', 'tag', 'manual']) {
