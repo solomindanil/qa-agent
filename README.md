@@ -4,10 +4,10 @@ This repository delivers source and guidance for agent-led product QA. An agent 
 
 ## Start from a clone
 
-Prerequisites: Git and Node.js >=22.12. The stable release branch is `codex/stable-20260926`; the immutable source snapshot is tagged `qa-agent-2026.09.26`. Reviewed work may continue on the branch without changing that tag. See the [release record](docs/releases/2026-09-26.md) for the exact verified scope.
+Prerequisites: Git and Node.js >=22.12. Current reviewed development is on `develop`; read the [current checkpoint](docs/qualification/current.md) and manifest at the revision you actually select. The immutable dated source snapshot is tagged `qa-agent-2026.09.26`, with its own [release record](docs/releases/2026-09-26.md). That tag does not acquire later UI, plan or integration work; the former `codex/stable-20260926` branch is not the current development queue.
 
 ```sh
-git clone --branch codex/stable-20260926 https://github.com/solomindanil/qa-agent.git
+git clone --branch develop https://github.com/solomindanil/qa-agent.git
 cd qa-agent
 npm run sources:restore
 npm run sources:verify
@@ -17,6 +17,8 @@ npm test
 Restore uses local reviewed Git bundles. It creates independent component repositories under ignored `components/` and refuses conflicting or dirty destinations; it does not install dependencies, skills or plugins, contact a product, or acquire credentials. The root test checks source delivery and packaging only. It does not establish browser, component-runtime, product or deployment readiness. Do not infer a component's status from the outer `git status`; use `sources:verify` and its own Git status. Child dependencies and commands are separate, and a child's default `npm test` may start product/browser work.
 
 ## Choose the work
+
+For an ordinary QA request, including a product without documentation, start at [Agent entry](docs/getting-started.md#agent-entry-without-changing-installed-skills). The agent preserves the full request, resolves the product and available capabilities, and reports missing prerequisites before dependent execution. No universal full-product launch command or implicit setup is promised. An existing clone or campaign is not automatically switched, reset or migrated by these instructions.
 
 | Need | Read first |
 | --- | --- |
