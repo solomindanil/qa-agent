@@ -9,7 +9,7 @@ const bounds = { timeout: 30_000, maxBuffer: 16 * 1024 * 1024, encoding: 'utf8',
 const groups = ['rootTests', 'freelandControls', 'kernelBuildContracts', 'kernelFull', 'kernelFocusedTests',
   'consoleBuild', 'consoleRuntime', 'consoleBrowser', 'consoleS01Lifecycle'];
 const runtimeTests = new Set([
-  'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'kernel-fixture-authority', 'bridge-cli-authority',
+  'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'kernel-fixture-authority', 'kernel-replace-authority', 'bridge-cli-authority',
   'campaign-fixture-digests', 'workspace-snapshot', 'qa-outcomes-export', 'request-admission', 'qa-outcomes',
   'api-semantic-assertions', 'qa-campaign-files-umask', 'campaign-plan-concurrency', 'agent-observation-bridge', 'agent-observation-cli-reader',
   'agent-observation-view', 'qa-agent-observation-cli', 'qa-agent-observation-pair', 'campaign-outcomes',

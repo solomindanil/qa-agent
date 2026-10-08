@@ -150,6 +150,7 @@ jobs:
               tests/unit/runtime-paths.test.ts \
               tests/unit/qa-product-skill.test.ts \
               tests/unit/kernel-fixture-authority.test.ts \
+              tests/unit/kernel-replace-authority.test.ts \
               tests/unit/bridge-cli-authority.test.ts \
               tests/unit/campaign-fixture-digests.test.ts \
               tests/unit/workspace-snapshot.test.ts \
