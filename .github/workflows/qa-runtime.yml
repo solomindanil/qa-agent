@@ -160,6 +160,7 @@ jobs:
               tests/unit/qa-campaign-files-umask.test.ts \
               tests/unit/campaign-plan-concurrency.test.ts \
               tests/unit/agent-observation-bridge.test.ts \
+              tests/unit/agent-observation-cli-reader.test.ts \
               tests/unit/agent-observation-view.test.ts \
               tests/unit/qa-agent-observation-cli.test.ts \
               tests/unit/qa-agent-observation-pair.test.ts \
