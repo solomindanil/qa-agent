@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFile } from 'node:fs/promises';
+import { readFile, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 
 const workflowUrl = new URL('../.github/workflows/qa-source.yml', import.meta.url);
 
@@ -38,8 +41,9 @@ env -i \
   ${command}`;
 }
 
-function expectedRunStep(name, tempPrefix, command, workingDirectory = null) {
+function expectedRunStep(name, tempPrefix, command, workingDirectory = null, condition = null) {
   const fields = [`- name: ${name}`];
+  if (condition) fields.push(`  if: ${condition}`);
   if (workingDirectory) fields.push(`  working-directory: ${workingDirectory}`);
   fields.push('  shell: bash', '  run: |');
   fields.push(...expectedRunBody(tempPrefix, command).split('\n').map((line) => `    ${line}`));
@@ -47,7 +51,7 @@ function expectedRunStep(name, tempPrefix, command, workingDirectory = null) {
 }
 
 function assertNoFailureBypass(workflow) {
-  assert.doesNotMatch(workflow, /^\s+(?:continue-on-error|if):/mu);
+  assert.doesNotMatch(workflow, /^\s+continue-on-error:/mu);
 }
 
 const workflowHeader = `name: QA source safety
@@ -59,6 +63,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   source-safety:
@@ -71,7 +76,8 @@ const expectedSteps = [
   `- name: Check out source
   uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
   with:
-    persist-credentials: false`,
+    persist-credentials: false
+    fetch-depth: 0`,
   `- name: Set up Node.js
   uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
   with:
@@ -79,10 +85,10 @@ const expectedSteps = [
     package-manager-cache: false`,
   expectedRunStep('Restore selected bundled sources', 'qa-source-restore', 'node tools/workspace.mjs restore'),
   expectedRunStep('Verify selected sources without repair', 'qa-source-verify', 'node tools/workspace.mjs verify'),
-  expectedRunStep('Run root packaging tests', 'qa-root-tests', 'node --test tests/*.test.mjs'),
-  expectedRunStep('Verify selected Freeland provenance', 'qa-freeland-provenance', 'node tools/freeland-main/provenance.mjs --verify .', 'components/freeland'),
-  expectedRunStep('Run selected Freeland PAY01 pure oracle tests', 'qa-freeland-oracles', 'node --test tests/product-graph/freeland-pay-01-oracle.test.mjs', 'components/freeland'),
-  expectedRunStep('Run selected Freeland verdict generation snapshot tests', 'qa-freeland-verdict-snapshots', 'node --test tests/freeland-main/verdict-generation-snapshots.test.mjs', 'components/freeland'),
+  expectedRunStep('Run root packaging tests', 'qa-root-tests', 'node --test tests/*.test.mjs', null, "steps.impact.outputs.root-tests == 'true'"),
+  expectedRunStep('Verify selected Freeland provenance', 'qa-freeland-provenance', 'node tools/freeland-main/provenance.mjs --verify .', 'components/freeland', "steps.impact.outputs.freeland-controls == 'true'"),
+  expectedRunStep('Run selected Freeland PAY01 pure oracle tests', 'qa-freeland-oracles', 'node --test tests/product-graph/freeland-pay-01-oracle.test.mjs', 'components/freeland', "steps.impact.outputs.freeland-controls == 'true'"),
+  expectedRunStep('Run selected Freeland verdict generation snapshot tests', 'qa-freeland-verdict-snapshots', 'node --test tests/freeland-main/verdict-generation-snapshots.test.mjs', 'components/freeland', "steps.impact.outputs.freeland-controls == 'true'"),
 ];
 
 function validateWorkflow(workflow) {
@@ -92,11 +98,19 @@ function validateWorkflow(workflow) {
   assertNoFailureBypass(workflow);
   assert.match(workflow.slice(headerEnd), /^ {6}- /u, 'the first step must immediately follow the bound header');
   const steps = stepBlocks(workflow);
+  const selection = steps.splice(4, 1)[0];
+  assert.ok(selection, 'one bound selector step must precede selected commands');
+  assert.match(normalizedStep(selection), /^- name: Select verified CI impact\n  id: impact\n  timeout-minutes: 3\n  shell: bash\n  env:\n    GITHUB_TOKEN: \$\{\{ secrets\.GITHUB_TOKEN \}\}\n  run: \|\n    set -euo pipefail\n/u);
+  assert.doesNotMatch(selection, /^\s+(?:if|permissions|uses|continue-on-error):/mu);
+  assert.match(selection, /node tools\/ci-impact\.mjs --root "\$\{GITHUB_WORKSPACE\}" --event-file "\$\{GITHUB_EVENT_PATH\}" --workflow source --output "\$\{qa_tmp\}\/selection\.json"/u);
+  assert.match(selection, /env -i \\\n/u);
+  assert.match(selection, /if \(plan\.unsupportedChanges\.length\) throw Error/u);
+  assert.doesNotMatch(selection, /\|\|\s*true|set \+e|https?:\/\/|fetch\(|exec\(|spawn\(/u);
   assert.deepEqual(steps.map(normalizedStep), expectedSteps);
-
+  const componentWorkflow = steps.join('\n');
   assert.doesNotMatch(workflow, /\b(?:npm|npx|pnpm|yarn|playwright|curl|wget|docker|sudo)\b/u);
-  assert.doesNotMatch(workflow, /\$\{\{\s*secrets\.|https?:\/\/|BASE_URL|PASSWORD|TOKEN|NODE_OPTIONS|NODE_PATH|CODEX_HOME|\bHOME=/u);
-  assert.doesNotMatch(workflow, /publish|deploy|artifact|release|issue|campaign|staging/iu);
+  assert.doesNotMatch(componentWorkflow, /\$\{\{\s*secrets\.|https?:\/\/|BASE_URL|PASSWORD|TOKEN|NODE_OPTIONS|NODE_PATH|CODEX_HOME|\bHOME=/u);
+  assert.doesNotMatch(componentWorkflow, /publish|deploy|artifact|release|issue|campaign|staging/iu);
 }
 
 test('qa-source workflow remains a bounded source-only fail-closed gate', async () => {
@@ -114,6 +128,25 @@ test('qa-source workflow remains a bounded source-only fail-closed gate', async 
   }
   assert.throws(() => validateWorkflow(workflow.replace('shell: bash', 'continue-on-error: true\n        shell: bash')), assert.AssertionError);
   assert.throws(() => validateWorkflow(workflow.replace('shell: bash', 'if: always()\n        shell: bash')), assert.AssertionError);
+});
+
+test('actual source output reader reports duplicate NOT RUN and fails malformed selection', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8'); validateWorkflow(workflow);
+  const selection = stepBlocks(workflow)[4];
+  const script = selection.match(/<<'NODE'\n([\s\S]*?)\n {10}NODE/u)?.[1].split('\n').map(line => line.slice(10)).join('\n');
+  assert.ok(script);
+  const root = await mkdtemp(join(tmpdir(), 'qa-source-output-test-')); const file = join(root, 'plan.json');
+  const plan = { schemaVersion: 1, qualification: 'selection_only', workflow: 'source',
+    selection: { rootTests: false, freelandControls: false }, unsupportedChanges: [],
+    reasons: { rootTests: 'NOT_RUN_DUPLICATE_PR_PENDING', freelandControls: 'NOT_RUN_DUPLICATE_PR_PENDING' }, head: {}, base: {}, components: [], duplicate: { suppressed: true } };
+  await writeFile(file, JSON.stringify(plan));
+  const options = { env: { GITHUB_OUTPUT: join(root, 'outputs'), GITHUB_STEP_SUMMARY: join(root, 'summary') }, encoding: 'utf8' };
+  const good = spawnSync(process.execPath, ['-e', script.replace('process.argv[2]', 'process.argv[1]'), file], options);
+  assert.equal(good.status, 0, good.stderr); assert.match(good.stdout, /NOT_RUN_DUPLICATE_PR_PENDING/u);
+  assert.equal(await readFile(options.env.GITHUB_OUTPUT, 'utf8'), 'root-tests=false\nfreeland-controls=false\n');
+  for (const invalid of [{ ...plan, selection: {} }, { ...plan, unsupportedChanges: ['unmapped Console test'] }, { ...plan, qualification: 'PASS' }]) {
+    await writeFile(file, JSON.stringify(invalid)); assert.notEqual(spawnSync(process.execPath, ['-e', script.replace('process.argv[2]', 'process.argv[1]'), file], options).status, 0);
+  }
 });
 
 test('qa-source validator rejects permission and unnamed-step broadenings', async () => {
