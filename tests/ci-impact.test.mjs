@@ -58,6 +58,31 @@ test('known source deltas select their real prerequisites without unchanged full
   });
 });
 
+test('observation CLI reader mapping admits added and modified controls but refuses removal', async context => {
+  const { classifyImpact } = await api();
+  const path = 'tests/unit/agent-observation-cli-reader.test.ts';
+  for (const [status, baseMode, headMode] of [
+    ['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null],
+  ]) await context.test(status, () => {
+    const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, baseMode, headMode)])] });
+    assert.equal(result.selection.kernelBuildContracts, true);
+    assert.equal(result.selection.consoleRuntime, true);
+    assert.equal(result.selection.consoleS01Lifecycle, true);
+    assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+    if (status === 'deleted') assert.equal(result.selection.kernelFull, true);
+  });
+});
+
+test('observation CLI reader executes in the existing isolated runtime argv', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
+  const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu);
+  assert.ok(step, 'actual isolated runtime step must exist');
+  const command = step[1].match(/^\s*node --import tsx --test --test-concurrency=1 \\\n((?:\s+tests\/unit\/[^\n]+\n?)+)/mu);
+  assert.ok(command, 'actual test command and continuation argv must exist');
+  const argv = command[0].replace(/\\\n/gu, ' ').trim().split(/\s+/u);
+  assert.equal(argv.filter(arg => arg === 'tests/unit/agent-observation-cli-reader.test.ts').length, 1);
+});
+
 test('full cohorts and unknown inputs dominate every known narrower selection', async () => {
   const { classifyImpact } = await api();
   for (const cohort of ['integration', 'tag', 'manual']) {

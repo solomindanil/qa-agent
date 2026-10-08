@@ -11,7 +11,7 @@ const groups = ['rootTests', 'freelandControls', 'kernelBuildContracts', 'kernel
 const runtimeTests = new Set([
   'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'kernel-fixture-authority', 'bridge-cli-authority',
   'campaign-fixture-digests', 'workspace-snapshot', 'qa-outcomes-export', 'request-admission', 'qa-outcomes',
-  'api-semantic-assertions', 'qa-campaign-files-umask', 'campaign-plan-concurrency', 'agent-observation-bridge',
+  'api-semantic-assertions', 'qa-campaign-files-umask', 'campaign-plan-concurrency', 'agent-observation-bridge', 'agent-observation-cli-reader',
   'agent-observation-view', 'qa-agent-observation-cli', 'qa-agent-observation-pair', 'campaign-outcomes',
   'campaign-verdict-copy', 'campaign-continuation-source-authority', 'campaign-continuation-readback',
   'campaign-continuation-readback-faults',
