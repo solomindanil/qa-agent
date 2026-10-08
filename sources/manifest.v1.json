@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "61e798fb3a50dae3a73ec469e5677a105e329097",
-      "tree": "477bf30f4182145abfa80e0396111c57ec9e2aea",
-      "bundle": "sources/candidates/console-semantic-witness-61e798f.bundle",
-      "sha256": "2f2fbfb7f288a43c510146b394e16d3aa2dda8f339107799cb97658043ac90df",
+      "commit": "cdda2b42af3727a1a1467cb81dc0547266afafbb",
+      "tree": "b6291d93191b8bb3dbdaa9b13fd99b585352f9e2",
+      "bundle": "sources/candidates/console-semantic-witness-cdda2b4.bundle",
+      "sha256": "90101aecf5329e030b231139070a524ff57cd51f7abfb6ab445f82a81539d714",
       "runtimeAuthority": true,
-      "qualification": "Semantic capture witness61e798f over accepted1dad9f5; exactly three Console fixture/test/reference paths, unchanged API/render.cards/body relation and dependencies. Genuine OLD screenshot-boundary text drift yielded known PASS; NEW drift UNKNOWN/suffix not_run. Final synthetic TAP28 PASS (three parent tests plus25 subtests, not product checks),39 fixture variants plus closed-stdin healthy child,55.281s; cleanupErrors0. Irrelevant22 empty-style additions healthy, stable wrong completed render failed, same-URL new document and missing/ambiguous evidence UNKNOWN. Focused compiler author/tool exit0; reviewer did not independently rerun it. First fixture/compiler errors and retries retained. ONE independent actual Astra ACCEPT C0/I0/M0. Two-point sampled/partial-render limits and link-oracle boundary remain. Details: docs/qualification/semantic-capture-witness-20261009.md. New carrier own hosted gates/public delivery pending, not waived; prior PR16 f0d71a0 and PR17 72ec6b0 publicly merged after their own successful hosted statuses. Earlier qualification/firsts remain attributed, not rerun or regraded. Full S01/Q07/V01, installed/frozen adoption and product PASS open; zero product/tracker/financial effects."
+      "qualification": "Semantic capture witness61e798f over1dad9f5, then mirror-only repair001 cdda2b4: four Console source paths, original three bytes/API/render.cards/body relation/dependencies unchanged. Genuine OLD screenshot-boundary text drift yielded known PASS; NEW drift UNKNOWN/suffix not_run. Original synthetic TAP28 PASS (three parents plus25 subtests, not product checks),39 variants plus closed-stdin child,55.281s and cleanupErrors0 reused without replay. Original focused compiler author/tool exit0; empty log is not independent exit proof. First fixture/compiler errors retained. Own PR18 head8803a970 attempt1 FAILED: Console297pass/1fail/1skip, required shipped-reference parity mismatch; later compiler/browser/S01 skipped, full Kernel skipped not PASS. Mirror-only local focused RED3pass/1fail exit1 to GREEN4pass exit0; unchanged test, accepted Codex reference copied byte-for-byte to source Claude mirror, no host installation. SAME author-distinct Astra affected addendum ACCEPT C0/I0/M0 reconciles earlier assembly omission; not hosted PASS or failure regrading. Details: docs/qualification/semantic-capture-witness-20261009.md. Successor own hosted checks/normal same-PR delivery pending; no borrowed gate credit. Two-point/partial-render/link-oracle limits, Full S01/Q07/V01, installed/frozen adoption and product PASS remain open; zero product/tracker/financial effects."
     },
     {
       "id": "freeland",
