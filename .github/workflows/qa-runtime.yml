@@ -168,7 +168,15 @@ jobs:
               tests/unit/campaign-verdict-copy.test.ts \
               tests/unit/campaign-continuation-source-authority.test.ts \
               tests/unit/campaign-continuation-readback.test.mjs \
-              tests/unit/campaign-continuation-readback-faults.test.mjs
+              tests/unit/campaign-continuation-readback-faults.test.mjs \
+              tests/unit/selected-campaign-readback.test.mjs \
+              tests/unit/selected-campaign-http.test.ts \
+              tests/unit/selected-campaign-projection.test.ts \
+              tests/unit/primary-ui-read-client.test.ts \
+              tests/unit/primary-ui-selection.test.ts \
+              tests/unit/primary-ui-projection.test.ts \
+              tests/unit/primary-ui-report.test.ts \
+              tests/unit/selected-campaign-consumer-lifecycle.test.mjs
       - name: Console runtime fixture compiler
         if: needs.impact.outputs.console-runtime == 'true' && needs.impact.outputs.console-build != 'true'
         working-directory: components/console
@@ -238,11 +246,15 @@ jobs:
         run: |
           set -euo pipefail
           qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-browser.XXXXXX")"
+          qa_chromium="$(env -i PATH="${PATH}" PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" node --input-type=module -e 'import {chromium} from "@playwright/test"; console.log(chromium.executablePath());')"
           env -i \
             PATH="${PATH}" \
             TMPDIR="${qa_tmp}" \
+            QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel" \
+            QA_SELECTED_RUN_UI_DIR="${qa_tmp}/selected-run" \
+            QA_PRIMARY_UI_CHROMIUM="${qa_chromium}" \
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \
-            node --import tsx --test tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts
+            node --import tsx --test tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/e2e/selected-campaign-local.test.mjs
       - name: Finite browser fixture controls
         if: needs.impact.outputs.console-browser == 'finite'
         working-directory: components/console

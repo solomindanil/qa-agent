@@ -15,7 +15,11 @@ const runtimeTests = new Set([
   'agent-observation-view', 'qa-agent-observation-cli', 'qa-agent-observation-pair', 'campaign-outcomes',
   'campaign-verdict-copy', 'campaign-continuation-source-authority', 'campaign-continuation-readback',
   'campaign-continuation-readback-faults',
-].map(name => `tests/unit/${name}.test.${name.startsWith('campaign-continuation-readback') ? 'mjs' : 'ts'}`));
+  'selected-campaign-readback', 'selected-campaign-http', 'selected-campaign-projection',
+  'primary-ui-read-client', 'primary-ui-selection', 'primary-ui-projection', 'primary-ui-report',
+  'selected-campaign-consumer-lifecycle',
+].map(name => `tests/unit/${name}.test.${name.startsWith('campaign-continuation-readback') ||
+  ['selected-campaign-readback', 'selected-campaign-consumer-lifecycle'].includes(name) ? 'mjs' : 'ts'}`));
 const finitePaths = new Set(['tests/fixtures/browser-action-sequence/check.ts', 'tests/unit/browser-action-sequence.test.ts']);
 const roles = new Set(['kernel', 'console', 'freeland', 'kernel-reporting-reference']);
 const manifestFields = new Set(['id', 'path', 'commit', 'tree', 'bundle', 'sha256', 'runtimeAuthority', 'qualification']);
@@ -88,7 +92,9 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
       if (ordinary(record) && (runtimeTests.has(record.path) || /^(?:skills|\.claude\/skills)\/.+\.md$/u.test(record.path))) {
         for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) enable(key, why); continue;
       }
-      if (ordinary(record) && /^(?:src\/(?:components|primary-ui|styles)\/|src\/(?:App\.tsx|main\.tsx|index\.css)$|public\/|index\.html$)/u.test(record.path)) {
+      if (ordinary(record) && (/^(?:src\/(?:components|primary-ui|styles)\/|src\/(?:App\.tsx|main\.tsx|index\.css)$|public\/|index\.html$)/u.test(record.path) ||
+        record.path === 'tests/e2e/selected-campaign-local.test.mjs' ||
+        record.path === 'tests/fixtures/selected-campaign-consumer-lifecycle.mjs')) {
         compatibility(why); continue;
       }
       enable('kernelFull', why); compatibility(why);
