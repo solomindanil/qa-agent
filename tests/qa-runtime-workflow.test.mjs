@@ -291,7 +291,8 @@ test('the permanent browser command actually receives the accepted finite regres
     `"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`,
     'qa-permanent-browser-argv', process.execPath], { env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` } });
   assert.deepEqual(JSON.parse(stdout), ['tests/unit/browser-journey.test.ts',
-    'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts']);
+    'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts',
+    'tests/e2e/selected-campaign-local.test.mjs']);
 });
 
 function nodeBody(workflow, stepName) {
