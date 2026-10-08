@@ -1,0 +1,343 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { mkdtemp, mkdir, readFile, writeFile, copyFile, realpath, chmod, symlink, rename, unlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+
+const rootUrl = new URL('../', import.meta.url);
+const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') && !/TOKEN/u.test(key)));
+const env = { ...cleanEnv, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null',
+  GIT_AUTHOR_NAME: 'Synthetic CI Test', GIT_AUTHOR_EMAIL: 'ci@example.invalid',
+  GIT_COMMITTER_NAME: 'Synthetic CI Test', GIT_COMMITTER_EMAIL: 'ci@example.invalid' };
+const git = (cwd, ...args) => execFileSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args],
+  { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+const api = () => import('../tools/ci-impact.mjs');
+const change = (path, status = 'modified', baseMode = '100644', headMode = '100644') => ({ path, status, baseMode, headMode });
+const component = (id, paths) => ({ id, verified: true, baseCommit: '1'.repeat(40), headCommit: '2'.repeat(40),
+  baseTree: '3'.repeat(40), headTree: paths.length ? '4'.repeat(40) : '3'.repeat(40), changedPaths: paths });
+
+// Each literal expectation names a policy bug: broad fallback missing, unwanted Kernel,
+// an unselected accepted regression, or unsupported tests silently accepted.
+test('known source deltas select their real prerequisites without unchanged full Kernel', async context => {
+  const { classifyImpact } = await api();
+  const cases = [
+    ['Console finite fixture', 'console', [change('tests/fixtures/browser-action-sequence/check.ts')], { kernelFull: false, kernelBuildContracts: false, consoleBrowser: 'finite', consoleBuild: false }],
+    ['Console finite test', 'console', [change('tests/unit/browser-action-sequence.test.ts')], { kernelFull: false, consoleBrowser: 'finite' }],
+    ['Console UI', 'console', [change('src/components/Card.tsx')], { kernelFull: false, kernelBuildContracts: true, consoleBuild: true, consoleRuntime: true, consoleBrowser: 'all' }],
+    ['Console runtime test', 'console', [change('tests/unit/request-admission.test.ts')], { kernelFull: false, kernelBuildContracts: true, consoleRuntime: true, consoleBuild: false, consoleS01Lifecycle: true }],
+    ['Console skill', 'console', [change('skills/qa-product-v0/references/checks.md')], { kernelFull: false, consoleRuntime: true, consoleBuild: false }],
+    ['Console docs', 'console', [change('docs/readme.md')], { kernelFull: false, consoleRuntime: false, consoleBrowser: 'none' }],
+    ['Console lib', 'console', [change('src/lib/bridge.ts')], { kernelFull: true, consoleBuild: true, consoleBrowser: 'all', freelandControls: false }],
+    ['Console dependency', 'console', [change('package-lock.json')], { kernelFull: true, consoleRuntime: true }],
+    ['Console new test', 'console', [change('tests/unit/unreviewed.test.ts', 'added', null)], { kernelFull: true, consoleRuntime: true, unsupported: true }],
+    ['Console selected removal', 'console', [change('tests/unit/request-admission.test.ts', 'deleted', '100644', null)], { kernelFull: true, unsupported: true }],
+    ['Kernel docs', 'kernel', [change('docs/guide.md')], { kernelFull: false, kernelBuildContracts: false }],
+    ['Kernel ordinary doc deletion', 'kernel', [change('docs/guide.md', 'deleted', '100644', null)], { kernelFull: false, kernelBuildContracts: false }],
+    ['Kernel exact test', 'kernel', [change('tests/contracts/example.test.ts')], { kernelFull: false, kernelBuildContracts: true, kernelFocusedTests: ['tests/contracts/example.test.ts'], consoleRuntime: false }],
+    ['Kernel source', 'kernel', [change('src/service.ts')], { kernelFull: true, consoleRuntime: true, consoleBrowser: 'all', freelandControls: false }],
+    ['Kernel dependency', 'kernel', [change('package.json')], { kernelFull: true, consoleRuntime: true }],
+    ['Kernel helper', 'kernel', [change('tests/fixtures/helper.ts')], { kernelFull: true }],
+    ['Kernel deleted test', 'kernel', [change('tests/contracts/example.test.ts', 'deleted', '100644', null)], { kernelFull: true, kernelFocusedTests: [] }],
+    ['Kernel option-like path', 'kernel', [change('tests/--malicious.test.ts')], { kernelFull: true, kernelFocusedTests: [] }],
+    ['Kernel mode-only', 'kernel', [change('docs/guide.md', 'modified', '100644', '100755')], { kernelFull: true }],
+    ['Kernel source renamed into docs', 'kernel', [change('src/service.ts', 'deleted', '100644', null), change('docs/service.md', 'added', null)], { kernelFull: true }],
+    ['Freeland actual code', 'freeland', [change('tools/freeland-main/check.mjs')], { freelandControls: true, kernelFull: false, consoleRuntime: false }],
+    ['inactive reporting', 'kernel-reporting-reference', [change('src/report.ts')], { freelandControls: false, kernelFull: false, consoleRuntime: false }],
+  ];
+  for (const [name, id, paths, wanted] of cases) await context.test(name, () => {
+    const result = classifyImpact({ cohort: 'pull_request', rootChanges: [], components: [component(id, paths)], unknownReasons: [] });
+    for (const [key, value] of Object.entries(wanted)) {
+      if (key === 'unsupported') assert.equal(result.unsupportedChanges.length > 0, value);
+      else assert.deepEqual(result.selection[key], value, `${name}: ${key}`);
+    }
+    assert.equal(result.selection.rootTests, true);
+    for (const key of Object.keys(result.selection)) assert.equal(typeof result.reasons[key], 'string');
+  });
+});
+
+test('full cohorts and unknown inputs dominate every known narrower selection', async () => {
+  const { classifyImpact } = await api();
+  for (const cohort of ['integration', 'tag', 'manual']) {
+    const result = classifyImpact({ cohort, rootChanges: [], components: [], unknownReasons: [] });
+    assert.equal(result.selection.kernelFull, true); assert.equal(result.selection.freelandControls, true);
+    assert.equal(result.selection.consoleBrowser, 'all');
+  }
+  for (const changes of [[change('tools/ci-impact.mjs')], [change('tests/check.test.mjs')], [change('unknown.json')],
+    [change('docs/guide.md', 'modified', '100644', '120000')]]) {
+    assert.equal(classifyImpact({ cohort: 'pull_request', rootChanges: changes, components: [], unknownReasons: [] }).selection.kernelFull, true);
+  }
+  assert.equal(classifyImpact({ cohort: 'pull_request', rootChanges: [change('docs/guide.md')], components: [], unknownReasons: [] }).selection.kernelFull, false);
+  const mixed = classifyImpact({ cohort: 'pull_request', rootChanges: [], components: [
+    component('console', [change('tests/unit/browser-action-sequence.test.ts')]), component('freeland', [change('src/fee.ts')]),
+  ], unknownReasons: [] });
+  assert.equal(mixed.selection.consoleBrowser, 'finite'); assert.equal(mixed.selection.freelandControls, true);
+  const sameComponentUnion = classifyImpact({ cohort: 'pull_request', rootChanges: [], components: [component('console', [
+    change('tests/unit/browser-action-sequence.test.ts'), change('src/components/Card.tsx'), change('docs/guide.md'),
+  ])], unknownReasons: [] });
+  assert.equal(sameComponentUnion.selection.kernelFull, false); assert.equal(sameComponentUnion.selection.consoleBrowser, 'all');
+  const kernelUnion = classifyImpact({ cohort: 'pull_request', rootChanges: [], components: [component('kernel', [
+    change('tests/contracts/example.test.ts'), change('docs/guide.md'),
+  ])], unknownReasons: [] });
+  assert.equal(kernelUnion.selection.kernelFull, false); assert.deepEqual(kernelUnion.selection.kernelFocusedTests, ['tests/contracts/example.test.ts']);
+  const unknown = classifyImpact({ cohort: 'pull_request', rootChanges: [], components: [component('console', [])], unknownReasons: ['base unavailable'] });
+  assert.equal(unknown.selection.kernelFull, true); assert.match(unknown.reasons.kernelFull, /base unavailable/u);
+});
+
+async function fixture() {
+  const base = await realpath(await mkdtemp(join(tmpdir(), 'qa-ci-impact-test-')));
+  const root = join(base, 'root'); await mkdir(root); git(root, 'init', '--template=');
+  await mkdir(join(root, 'tools/lib'), { recursive: true }); await mkdir(join(root, 'sources'));
+  await writeFile(join(root, '.gitignore'), '/components/\n/.local/\n');
+  for (const path of ['tools/workspace.mjs', 'tools/lib/source-workspace.mjs']) await copyFile(new URL(path, rootUrl), join(root, path));
+  const donors = {};
+  const components = [];
+  for (const id of ['kernel', 'console', 'freeland', 'kernel-reporting-reference']) {
+    const donor = join(base, id); await mkdir(donor); git(donor, 'init', '--template=');
+    await mkdir(join(donor, 'docs')); await writeFile(join(donor, 'docs/guide.md'), 'initial docs\n');
+    await mkdir(join(donor, 'src')); await writeFile(join(donor, 'src/service.ts'), 'export const value = 1;\n');
+    await mkdir(join(donor, 'tests/unit'), { recursive: true });
+    await writeFile(join(donor, 'tests/unit/browser-action-sequence.test.ts'), 'finite initial\n');
+    git(donor, 'add', '.'); git(donor, 'commit', '-m', 'Synthetic initial source'); donors[id] = donor;
+    const entry = { id, path: `components/${id}`, commit: git(donor, 'rev-parse', 'HEAD'), tree: git(donor, 'rev-parse', 'HEAD^{tree}'),
+      bundle: `sources/${id}.bundle`, runtimeAuthority: id !== 'kernel-reporting-reference', qualification: 'synthetic source only' };
+    git(donor, 'bundle', 'create', join(root, entry.bundle), 'HEAD'); entry.sha256 = hash(await readFile(join(root, entry.bundle))); components.push(entry);
+  }
+  const manifest = { schemaVersion: 1, components };
+  const save = async () => writeFile(join(root, 'sources/manifest.v1.json'), JSON.stringify(manifest)); await save();
+  git(root, 'add', '.'); git(root, 'commit', '-m', 'Synthetic base'); const baseCommit = git(root, 'rev-parse', 'HEAD');
+  const publish = async (id, path, content = 'modified\n') => {
+    const donor = donors[id]; await mkdir(join(donor, path, '..'), { recursive: true }); await writeFile(join(donor, path), content);
+    git(donor, 'add', '.'); git(donor, 'commit', '-m', 'Synthetic actual change');
+    const entry = components.find(item => item.id === id); entry.commit = git(donor, 'rev-parse', 'HEAD'); entry.tree = git(donor, 'rev-parse', 'HEAD^{tree}');
+    const bundle = join(root, entry.bundle); await rename(bundle, join(base, `${id}-old-${Date.now()}.bundle`));
+    git(donor, 'bundle', 'create', bundle, 'HEAD'); entry.sha256 = hash(await readFile(bundle)); await save();
+  };
+  const commitHead = () => { git(root, 'add', '.'); git(root, 'commit', '--allow-empty', '-m', 'Synthetic head'); return git(root, 'rev-parse', 'HEAD'); };
+  const restore = () => execFileSync(process.execPath, [new URL('../tools/workspace.mjs', import.meta.url).pathname, 'restore', '--root', root], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  return { base, root, donors, manifest, components, save, publish, commitHead, restore, baseCommit };
+}
+
+async function compute(f, options = {}) {
+  f.restore();
+  const { computeCiImpact } = await api();
+  const head = git(f.root, 'rev-parse', 'HEAD');
+  return computeCiImpact({ root: f.root, eventName: 'pull_request', event: { pull_request: { base: { sha: f.baseCommit }, head: { sha: 'a'.repeat(40) } } },
+    ref: 'refs/pull/1/merge', testedSha: head, repository: 'example/qa', workflow: 'runtime', temporaryRoot: f.base, ...options });
+}
+
+test('real comparator mutation rejects old unconditional Kernel and naive same-name bundle detector', async () => {
+  const f = await fixture(); await f.publish('console', 'tests/unit/browser-action-sequence.test.ts'); f.commitHead(); f.restore();
+  const source = await readFile(new URL('../tools/ci-impact.mjs', import.meta.url), 'utf8');
+  const expression = 'changedPaths: delta(tree(join(baseRoot, prior.path), prior.tree), tree(join(root, entry.path), entry.tree))';
+  assert.ok(source.includes(expression), 'mutation changes the actual tree comparator, not a test expectation');
+  const mutants = [
+    source.replace(expression, 'changedPaths: prior.bundle === entry.bundle ? [] : delta(tree(join(baseRoot, prior.path), prior.tree), tree(join(root, entry.path), entry.tree))'),
+    source.replace("if (ordinary(record) && finitePaths.has(record.path)) {", "if (ordinary(record) && finitePaths.has(record.path)) { enable('kernelFull', 'old unconditional Kernel');"),
+  ];
+  const wanted = plan => { assert.equal(plan.selection.consoleBrowser, 'finite'); assert.equal(plan.selection.kernelFull, false); };
+  wanted(await compute(f));
+  for (let index = 0; index < mutants.length; index++) {
+    assert.notEqual(mutants[index], source); const file = join(f.base, `mutation-${index}.mjs`); await writeFile(file, mutants[index]);
+    const { computeCiImpact } = await import(file);
+    const plan = await computeCiImpact({ root: f.root, eventName: 'pull_request', event: { pull_request: { base: { sha: f.baseCommit } } },
+      testedSha: git(f.root, 'rev-parse', 'HEAD'), repository: 'example/qa', workflow: 'runtime', temporaryRoot: f.base });
+    assert.throws(() => wanted(plan), assert.AssertionError, 'actual policy mutant must fail the literal acceptance assertion');
+  }
+});
+
+test('actual manifests, history and mode boundaries never turn unknown impact into unchanged', async context => {
+  const f = await fixture(); f.commitHead();
+  await context.test('non-ancestor base', async () => {
+    const orphan = git(f.root, 'commit-tree', git(f.root, 'rev-parse', 'HEAD^{tree}'), '-m', 'Synthetic disconnected commit');
+    const plan = await compute(f, { event: { pull_request: { base: { sha: orphan } } } });
+    assert.equal(plan.selection.kernelFull, true); assert.equal(plan.base.status, 'unavailable');
+  });
+  await context.test('authority changes force full', async () => {
+    f.components.find(item => item.id === 'kernel-reporting-reference').runtimeAuthority = true; await f.save(); f.commitHead();
+    const plan = await compute(f); assert.equal(plan.selection.kernelFull, true); assert.match(plan.reasons.kernelFull, /authority/u);
+  });
+  await context.test('unknown component and semantic fields force full', async () => {
+    f.components.find(item => item.id === 'kernel-reporting-reference').id = 'unknown-reporting'; f.manifest.unreviewedSemantics = true; await f.save(); f.commitHead();
+    const plan = await compute(f); assert.equal(plan.selection.kernelFull, true); assert.match(plan.reasons.kernelFull, /unknown/u);
+  });
+  await context.test('head digest mismatch is fatal without a selection', async () => {
+    f.components[0].sha256 = '0'.repeat(64); await f.save(); f.commitHead();
+    const { computeCiImpact } = await api(); await assert.rejects(computeCiImpact({ root: f.root, eventName: 'workflow_dispatch', event: {},
+      testedSha: git(f.root, 'rev-parse', 'HEAD'), repository: 'example/qa', workflow: 'runtime', temporaryRoot: f.base }), /BUNDLE_DIGEST/u);
+  });
+});
+
+test('base tree mismatch is broad; duplicate/overlapping/escape head manifests are fatal', async context => {
+  const f = await fixture(); const original = structuredClone(f.manifest);
+  f.components[0].tree = '0'.repeat(40); await f.save(); f.commitHead(); f.baseCommit = git(f.root, 'rev-parse', 'HEAD');
+  f.components[0].tree = original.components[0].tree; await f.save(); f.commitHead();
+  const plan = await compute(f); assert.equal(plan.selection.kernelFull, true); assert.match(plan.reasons.kernelFull, /SOURCE_TREE/u);
+  const { computeCiImpact } = await api();
+  for (const [name, alter] of [
+    ['duplicate id', value => value.components.push({ ...value.components[0], path: 'components/extra' })],
+    ['overlapping child', value => value.components[1].path = 'components/kernel/nested'],
+    ['escaped child', value => value.components[1].path = 'components/../escape'],
+    ['head tree mismatch', value => value.components[1].tree = '0'.repeat(40)],
+  ]) await context.test(name, async () => {
+    const value = structuredClone(original); alter(value); await writeFile(join(f.root, 'sources/manifest.v1.json'), JSON.stringify(value)); f.commitHead();
+    await assert.rejects(computeCiImpact({ root: f.root, eventName: 'workflow_dispatch', event: {}, testedSha: git(f.root, 'rev-parse', 'HEAD'),
+      repository: 'example/qa', workflow: 'runtime', temporaryRoot: f.base }), /source verification failed/u);
+  });
+});
+
+test('real source modes and symlink blobs are compared instead of treating Markdown names as docs', async () => {
+  const f = await fixture(); const donor = f.donors.kernel;
+  await chmod(join(donor, 'docs/guide.md'), 0o755); await symlink('guide.md', join(donor, 'docs/linked.md'));
+  git(donor, 'add', '.'); git(donor, 'commit', '-m', 'Synthetic mode and symlink delta');
+  const entry = f.components.find(item => item.id === 'kernel'); entry.commit = git(donor, 'rev-parse', 'HEAD'); entry.tree = git(donor, 'rev-parse', 'HEAD^{tree}');
+  await rename(join(f.root, entry.bundle), join(f.base, 'mode-baseline.bundle')); git(donor, 'bundle', 'create', join(f.root, entry.bundle), 'HEAD');
+  entry.sha256 = hash(await readFile(join(f.root, entry.bundle))); await f.save(); f.commitHead();
+  const plan = await compute(f); assert.equal(plan.selection.kernelFull, true);
+  const paths = plan.components.find(item => item.id === 'kernel').changedPaths;
+  assert.ok(paths.some(item => item.path === 'docs/guide.md' && item.baseMode === '100644' && item.headMode === '100755'));
+  assert.ok(paths.some(item => item.path === 'docs/linked.md' && item.headMode === '120000'));
+});
+
+test('sanitized selector children cannot inherit tokens/Git redirects; unsafe local storage fails', async context => {
+  const f = await fixture();
+  const workspaceCli = join(f.root, 'tools/workspace.mjs');
+  await writeFile(workspaceCli, "if (Object.keys(process.env).some(key => /TOKEN/.test(key))) throw Error('token reached child');\n" + await readFile(workspaceCli, 'utf8'));
+  f.commitHead(); f.restore();
+  const previous = Object.fromEntries(['GITHUB_TOKEN','GH_TOKEN','GIT_DIR','GIT_WORK_TREE','GIT_CONFIG_COUNT','GIT_CONFIG_KEY_0','GIT_CONFIG_VALUE_0'].map(key => [key,process.env[key]]));
+  try {
+    Object.assign(process.env, { GITHUB_TOKEN: 'synthetic-never-logged', GH_TOKEN: 'synthetic-never-logged', GIT_DIR: '/definitely/missing',
+      GIT_WORK_TREE: '/definitely/missing', GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'alias.rev-parse', GIT_CONFIG_VALUE_0: '!exit 99' });
+    const plan = await compute(f); assert.equal(plan.base.status, 'verified'); assert.equal(plan.head.commit, git(f.root, 'rev-parse', 'HEAD'));
+  } finally { for (const [key,value] of Object.entries(previous)) if (value === undefined) delete process.env[key]; else process.env[key] = value; }
+  const { computeCiImpact } = await api();
+  const invoke = () => computeCiImpact({ root: f.root, eventName: 'workflow_dispatch', event: {}, testedSha: git(f.root, 'rev-parse', 'HEAD'), repository: 'example/qa', workflow: 'runtime', temporaryRoot: f.base });
+  await context.test('alternates rejected', async () => {
+    const alternate = join(f.root, 'components/kernel/.git/objects/info/alternates'); await writeFile(alternate, join(f.donors.kernel, '.git/objects') + '\n');
+    await assert.rejects(invoke(), /GIT_STORAGE/u); await unlink(alternate);
+  });
+  await context.test('local Git includes rejected before source reads', async () => {
+    git(f.root, 'config', 'include.path', '/definitely/missing'); await assert.rejects(invoke(), /UNSAFE_GIT_CONFIG/u);
+    git(f.root, 'config', '--unset', 'include.path');
+  });
+  await context.test('replacement refs do not replace the tested SHA tree', async () => {
+    const actualTree = git(f.root, 'rev-parse', 'HEAD^{tree}');
+    const different = git(f.root, 'commit-tree', git(f.root, 'rev-parse', `${f.baseCommit}^{tree}`), '-m', 'Synthetic replacement');
+    git(f.root, 'replace', git(f.root, 'rev-parse', 'HEAD'), different);
+    const plan = await invoke(); assert.equal(plan.head.tree, actualTree);
+  });
+  await context.test('root symlink rejected, not canonicalized into permission', async () => {
+    const link = join(f.base, 'linked-root'); await symlink(f.root, link);
+    await assert.rejects(computeCiImpact({ root: link, eventName: 'workflow_dispatch', event: {}, testedSha: git(f.root, 'rev-parse', 'HEAD'), repository: 'example/qa', workflow: 'runtime', temporaryRoot: f.base }), /canonical/u);
+  });
+});
+
+test('real verified bundle rename/repack/qualification changes cannot invent source behavior', async context => {
+  const f = await fixture(); const entry = f.components.find(item => item.id === 'console');
+  await rename(join(f.root, entry.bundle), join(f.root, 'sources/renamed.bundle')); entry.bundle = 'sources/renamed.bundle'; entry.qualification = 'only wording';
+  // An empty child commit changes commit and bundle bytes, not the tree.
+  git(f.donors.console, 'commit', '--allow-empty', '-m', 'Repacked identical tree'); entry.commit = git(f.donors.console, 'rev-parse', 'HEAD');
+  await rename(join(f.root, entry.bundle), join(f.base, 'previous.bundle'));
+  git(f.donors.console, 'bundle', 'create', join(f.root, entry.bundle), 'HEAD'); entry.sha256 = hash(await readFile(join(f.root, entry.bundle)));
+  await f.save(); f.commitHead(); const plan = await compute(f);
+  assert.equal(plan.selection.kernelFull, false); assert.equal(plan.selection.consoleBrowser, 'none');
+  assert.equal(plan.components.find(item => item.id === 'console').changedPaths.length, 0);
+  assert.equal(plan.base.status, 'verified'); assert.equal(plan.qualification, 'selection_only');
+  assert.notEqual(plan.components.find(item => item.id === 'console').baseCommit, entry.commit);
+  const file = join(f.base, 'same-tree-selection.example.json'); await writeFile(file, JSON.stringify(plan, null, 2)); context.diagnostic(`synthetic source identity/selection example: ${file}`);
+});
+
+test('same bundle filename with changed blob actually selects finite behavior without Kernel', async context => {
+  const f = await fixture(); await f.publish('console', 'tests/unit/browser-action-sequence.test.ts'); f.commitHead();
+  const plan = await compute(f); assert.equal(plan.selection.consoleBrowser, 'finite'); assert.equal(plan.selection.kernelFull, false);
+  assert.deepEqual(plan.components.find(item => item.id === 'console').changedPaths.map(item => item.path), ['tests/unit/browser-action-sequence.test.ts']);
+  assert.equal(plan.head.commit, git(f.root, 'rev-parse', 'HEAD')); assert.ok(plan.reasons.event.includes('a'.repeat(40)), 'PR branch head must remain distinct from tested merge identity');
+  const file = join(f.base, 'finite-selection.example.json'); await writeFile(file, JSON.stringify(plan, null, 2)); context.diagnostic(`synthetic source identity/selection example: ${file}`);
+});
+
+test('actual comparator rejects invalid HEAD, but cannot narrow against invalid base', async context => {
+  for (const base of ['0'.repeat(40), 'f'.repeat(40), undefined]) await context.test(`unavailable base ${base ?? 'missing'}`, async () => {
+    const f = await fixture(); f.commitHead(); const plan = await compute(f, { event: { pull_request: { base: { sha: base } } } });
+    assert.equal(plan.selection.kernelFull, true); assert.equal(plan.base.tree, null); assert.equal(plan.base.status, 'unavailable');
+  });
+  await context.test('missing base bundle is not unchanged', async () => {
+    const f = await fixture(); await rename(join(f.root, f.components[0].bundle), join(f.base, 'missing.bundle'));
+    git(f.root, 'add', '.'); git(f.root, 'commit', '-m', 'invalid base'); f.baseCommit = git(f.root, 'rev-parse', 'HEAD');
+    await copyFile(join(f.base, 'missing.bundle'), join(f.root, f.components[0].bundle)); f.commitHead();
+    const plan = await compute(f); assert.equal(plan.selection.kernelFull, true); assert.match(plan.reasons.kernelFull, /base/u);
+  });
+  await context.test('dirty selected child is fatal', async () => {
+    const f = await fixture(); f.commitHead(); f.restore(); await writeFile(join(f.root, 'components/console/docs/guide.md'), 'owner dirt');
+    const { computeCiImpact } = await api(); await assert.rejects(computeCiImpact({ root: f.root, eventName: 'workflow_dispatch', event: {}, testedSha: git(f.root, 'rev-parse', 'HEAD'), temporaryRoot: f.base, repository: 'example/qa', workflow: 'runtime' }), /HEAD|head|SOURCE_DIRTY/u);
+  });
+  await context.test('tested SHA mismatch is fatal', async () => {
+    const f = await fixture(); f.restore(); const { computeCiImpact } = await api();
+    await assert.rejects(computeCiImpact({ root: f.root, eventName: 'workflow_dispatch', event: {}, testedSha: 'f'.repeat(40), temporaryRoot: f.base, repository: 'example/qa', workflow: 'runtime' }), /SHA|HEAD/u);
+  });
+});
+
+test('source dedupe requires exact open same-repository head and both bootstrap diffs', async context => {
+  const f = await fixture(); await f.publish('console', 'tests/unit/browser-action-sequence.test.ts'); f.commitHead();
+  const head = git(f.root, 'rev-parse', 'HEAD'); const originalFetch = globalThis.fetch; const originalToken = process.env.GITHUB_TOKEN;
+  const pr = { number: 12, state: 'open', head: { sha: head, ref: 'feature', repo: { full_name: 'example/qa' } }, base: { sha: f.baseCommit, repo: { full_name: 'example/qa' } } };
+  const push = { eventName: 'push', ref: 'refs/heads/feature', event: { before: f.baseCommit }, workflow: 'source' };
+  try {
+    for (const [name, payload, suppressed, broad] of [
+      ['matching PR', [pr], true, false], ['stale head', [{ ...pr, head: { ...pr.head, sha: 'c'.repeat(40) } }], false, false],
+      ['closed PR', [{ ...pr, state: 'closed' }], false, false], ['fork head', [{ ...pr, head: { ...pr.head, repo: { full_name: 'fork/qa' } } }], false, false],
+      ['ambiguous PR', [pr, { ...pr, number: 13 }], false, true], ['no PR', [], false, false],
+      ['truncated metadata', Array.from({length: 100}, () => pr), false, true], ['malformed metadata', {}, false, true],
+    ]) await context.test(name, async () => {
+      process.env.GITHUB_TOKEN = 'synthetic-never-logged';
+      globalThis.fetch = async (url, options) => {
+        assert.equal(new URL(url).origin, 'https://api.github.com'); assert.equal(new URL(url).searchParams.get('head'), 'example:feature');
+        assert.equal(options.method, 'GET'); return { ok: true, json: async () => payload };
+      };
+      const plan = await compute(f, push); assert.equal(plan.duplicate.suppressed, suppressed);
+      assert.equal(plan.selection.kernelFull, broad); assert.equal(process.env.GITHUB_TOKEN, undefined);
+      if (suppressed) { assert.equal(plan.selection.rootTests, false); assert.match(plan.duplicate.reason, /NOT_RUN_DUPLICATE_PR_PENDING/u); }
+    });
+    await context.test('API failure is conservative, not suppression', async () => {
+      process.env.GITHUB_TOKEN = 'synthetic-never-logged'; globalThis.fetch = async () => { throw new Error('denied'); };
+      const plan = await compute(f, push); assert.equal(plan.selection.kernelFull, true); assert.equal(plan.duplicate.suppressed, false);
+    });
+    await context.test('CI-changing PR remains full even on docs-only follow-up push', async () => {
+      await writeFile(join(f.root, 'tools/policy.mjs'), '// changed policy'); const prior = f.commitHead();
+      await mkdir(join(f.root, 'docs')); await writeFile(join(f.root, 'docs/followup.md'), 'wording'); f.commitHead();
+      process.env.GITHUB_TOKEN = 'synthetic-never-logged';
+      globalThis.fetch = async () => ({ ok: true, json: async () => [{ ...pr, head: { ...pr.head, sha: git(f.root, 'rev-parse', 'HEAD') } }] });
+      const plan = await compute(f, { ...push, event: { before: prior } });
+      assert.equal(plan.selection.kernelFull, true); assert.equal(plan.duplicate.suppressed, false);
+    });
+  } finally { globalThis.fetch = originalFetch; if (originalToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = originalToken; }
+});
+
+test('source push temporary unmapped/bootstrap history cannot hide behind safe PR diff', async context => {
+  const originalFetch = globalThis.fetch; const originalToken = process.env.GITHUB_TOKEN;
+  try {
+    for (const path of ['private-data.bin', 'tools/temporary-policy.mjs']) await context.test(path, async () => {
+      const f = await fixture(); await writeFile(join(f.root, path), 'temporary unknown'); const before = f.commitHead();
+      await rename(join(f.root, path), join(f.base, 'removed-source')); f.commitHead();
+      const head = git(f.root, 'rev-parse', 'HEAD'); process.env.GITHUB_TOKEN = 'synthetic-never-logged';
+      globalThis.fetch = async () => ({ ok: true, json: async () => [{ number: 42, state: 'open', head: { sha: head, ref: 'feature', repo: { full_name: 'example/qa' } }, base: { sha: f.baseCommit, repo: { full_name: 'example/qa' } } }] });
+      const plan = await compute(f, { eventName: 'push', ref: 'refs/heads/feature', event: { before }, workflow: 'source' });
+      assert.equal(plan.duplicate.suppressed, false, 'both PR and push scope must be eligible');
+      assert.equal(plan.selection.kernelFull, true, 'unmapped/bootstrap current push must broaden, not just decline suppression');
+      assert.equal(plan.selection.rootTests, true);
+    });
+  } finally { globalThis.fetch = originalFetch; if (originalToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = originalToken; }
+});
+
+test('actual CLI emits selection-only JSON exclusively and refuses malformed flags/overwrite', async () => {
+  const f = await fixture(); f.commitHead(); f.restore();
+  const eventPath = join(f.base, 'event.json'); const output = join(f.base, 'selection.json'); await writeFile(eventPath, '{}');
+  const cli = new URL('../tools/ci-impact.mjs', import.meta.url).pathname;
+  const args = [cli, '--root', f.root, '--event-file', eventPath, '--workflow', 'runtime', '--output', output];
+  const options = { encoding: 'utf8', env: { ...env, GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_SHA: git(f.root, 'rev-parse', 'HEAD'), GITHUB_REF: 'refs/heads/develop', GITHUB_REPOSITORY: 'example/qa' } };
+  const result = spawnSync(process.execPath, args, options); assert.equal(result.status, 0, result.stderr);
+  const plan = JSON.parse(await readFile(output, 'utf8')); assert.equal(plan.selection.kernelFull, true); assert.equal(plan.qualification, 'selection_only');
+  assert.equal(spawnSync(process.execPath, args, options).status, 1, 'existing caller output is preserved');
+  assert.notEqual(spawnSync(process.execPath, [...args, '--unknown'], options).status, 0);
+});

@@ -11,14 +11,24 @@ permissions:
   contents: read
 
 jobs:
-  runtime-smoke:
+  impact:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 5
+    outputs:
+      kernel-build: ${{ steps.selection.outputs.kernel-build }}
+      kernel-full: ${{ steps.selection.outputs.kernel-full }}
+      kernel-focused: ${{ steps.selection.outputs.kernel-focused }}
+      console-build: ${{ steps.selection.outputs.console-build }}
+      console-runtime: ${{ steps.selection.outputs.console-runtime }}
+      console-browser: ${{ steps.selection.outputs.console-browser }}
+      console-s01: ${{ steps.selection.outputs.console-s01 }}
+      plan: ${{ steps.selection.outputs.plan }}
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -28,23 +38,89 @@ jobs:
         run: |
           node tools/workspace.mjs restore
           node tools/workspace.mjs verify
-      - name: Install locked dependencies without lifecycle scripts
+      - name: Select verified CI impact
+        id: selection
+        timeout-minutes: 3
+        shell: bash
         run: |
-          npm ci --ignore-scripts --no-audit --no-fund --prefix components/kernel
-          npm ci --ignore-scripts --no-audit --no-fund --prefix components/console
+          set -euo pipefail
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-runtime-impact.XXXXXX")"
+          env -i \
+            PATH="${PATH}" \
+            LANG=C.UTF-8 \
+            GITHUB_EVENT_NAME="${GITHUB_EVENT_NAME}" \
+            GITHUB_SHA="${GITHUB_SHA}" \
+            GITHUB_REF="${GITHUB_REF}" \
+            GITHUB_REPOSITORY="${GITHUB_REPOSITORY}" \
+            node tools/ci-impact.mjs --root "${GITHUB_WORKSPACE}" --event-file "${GITHUB_EVENT_PATH}" --workflow runtime --output "${qa_tmp}/selection.json"
+          node - "${qa_tmp}/selection.json" <<'NODE'
+          const fs = require('node:fs');
+          const plan = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const s = plan.selection;
+          const flags = ['rootTests','freelandControls','kernelBuildContracts','kernelFull','consoleBuild','consoleRuntime','consoleS01Lifecycle'];
+          if (plan.schemaVersion !== 1 || plan.qualification !== 'selection_only' || plan.workflow !== 'runtime' ||
+              !s || flags.some(key => typeof s[key] !== 'boolean') || !['none','finite','all'].includes(s.consoleBrowser) ||
+              !Array.isArray(s.kernelFocusedTests) || s.kernelFocusedTests.some(path => typeof path !== 'string' ||
+                !/^tests\/(?:[^/]+\/)*[^/]+\.test\.ts$/.test(path) || /[\x00-\x20\\]/.test(path) ||
+                path.split('/').some(part => part.startsWith('-') || part === '..' || part === '.')) ||
+              !Array.isArray(plan.unsupportedChanges) || !plan.reasons || !plan.head || !plan.base ||
+              [...flags,'kernelFocusedTests','consoleBrowser'].some(key => typeof plan.reasons[key] !== 'string')) throw Error('Invalid runtime selection');
+          const outputs = {
+            'kernel-build': s.kernelBuildContracts, 'kernel-full': s.kernelFull,
+            'kernel-focused': JSON.stringify(s.kernelFocusedTests), 'console-build': s.consoleBuild,
+            'console-runtime': s.consoleRuntime, 'console-browser': s.consoleBrowser,
+            'console-s01': s.consoleS01Lifecycle, plan: JSON.stringify(plan)
+          };
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, Object.entries(outputs).map(([key,value]) => key + '=' + value).join('\n') + '\n');
+          const rows = Object.entries(s).map(([key,value]) => key + ': ' + JSON.stringify(value) + ' — ' + plan.reasons[key]).join('\n');
+          const summary = JSON.stringify({head: plan.head, base: plan.base, components: plan.components}) + '\n' + rows + '\n';
+          console.log(summary);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
+          NODE
+
+  runtime-smoke:
+    needs: impact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    outputs:
+      mode: ${{ steps.runtime-result.outputs.mode }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.1
+          package-manager-cache: false
+      - name: Restore and verify pinned components
+        run: |
+          node tools/workspace.mjs restore
+          node tools/workspace.mjs verify
+      - name: Install selected Kernel dependencies without lifecycle scripts
+        if: needs.impact.outputs.kernel-build == 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix components/kernel
+      - name: Install selected Console dependencies without lifecycle scripts
+        if: needs.impact.outputs.console-build == 'true' || needs.impact.outputs.console-runtime == 'true' || needs.impact.outputs.console-browser != 'none' || needs.impact.outputs.console-s01 == 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix components/console
       - name: Kernel build and contract controls
+        if: needs.impact.outputs.kernel-build == 'true'
         working-directory: components/kernel
         run: |
           npm run typecheck
           npm run build
           ./node_modules/.bin/vitest run tests/contracts
       - name: Console typecheck and production build
+        if: needs.impact.outputs.console-build == 'true'
         working-directory: components/console
         run: |
           ./node_modules/.bin/tsc --noEmit --incremental false
           ./node_modules/.bin/tsc -p tsconfig.fixture-repair.json --noEmit --incremental false
           ./node_modules/.bin/vite build
       - name: Isolated Console runtime controls
+        if: needs.impact.outputs.console-runtime == 'true'
         working-directory: components/console
         shell: bash
         run: |
@@ -92,12 +168,70 @@ jobs:
               tests/unit/campaign-continuation-source-authority.test.ts \
               tests/unit/campaign-continuation-readback.test.mjs \
               tests/unit/campaign-continuation-readback-faults.test.mjs
+      - name: Console runtime fixture compiler
+        if: needs.impact.outputs.console-runtime == 'true' && needs.impact.outputs.console-build != 'true'
+        working-directory: components/console
+        run: ./node_modules/.bin/tsc -p tsconfig.fixture-repair.json --noEmit --incremental false
+      - name: Finite browser no-output compiler
+        if: needs.impact.outputs.console-browser != 'none'
+        working-directory: components/console
+        run: ./node_modules/.bin/tsc --noEmit --incremental false --target ES2022 --module ESNext --moduleResolution bundler --strict --skipLibCheck --lib ES2022,DOM,DOM.Iterable --types node tests/fixtures/browser-action-sequence/check.ts tests/unit/browser-action-sequence.test.ts
+      - name: Exact affected Kernel tests
+        if: needs.impact.outputs.kernel-focused != '[]'
+        working-directory: components/kernel
+        shell: bash
+        env:
+          KERNEL_FOCUSED: ${{ needs.impact.outputs.kernel-focused }}
+        run: |
+          set -euo pipefail
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-kernel-focused.XXXXXX")"
+          env -i PATH="${PATH}" CI=true LANG=C.UTF-8 TMPDIR="${qa_tmp}" GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null KERNEL_FOCUSED="${KERNEL_FOCUSED}" node <<'NODE'
+          const fs = require('node:fs');
+          const { spawnSync } = require('node:child_process');
+          const paths = JSON.parse(process.env.KERNEL_FOCUSED);
+          if (!Array.isArray(paths) || !paths.length || new Set(paths).size !== paths.length || paths.some(path =>
+              typeof path !== 'string' || !/^tests\/(?:[^/]+\/)*[^/]+\.test\.ts$/.test(path) ||
+              /[\x00-\x20\\]/.test(path) || path.split('/').some(part => part.startsWith('-') || part === '..' || part === '.') ||
+              !fs.lstatSync(path).isFile() || fs.lstatSync(path).isSymbolicLink())) throw Error('Invalid exact Kernel test paths');
+          const result = spawnSync('./node_modules/.bin/vitest', ['run', ...paths], { stdio: 'inherit', env: process.env });
+          if (result.error || result.status !== 0) throw Error('Selected Kernel tests failed');
+          NODE
+      - name: Selected S01 owned lifecycle controls
+        if: needs.impact.outputs.console-s01 == 'true'
+        working-directory: components/console
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-s01.XXXXXX")"
+          # Keep the fail-closed helper guard; remove runner-global Git helpers
+          # only from this owned test environment, never from the host config.
+          git config --show-origin --name-only --get-regexp '^(core\.(fsmonitor|hooksPath|sshCommand)|filter\.|include\.|includeIf\.|extensions\.|alias\.)' || test "$?" = 1
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            npm_config_offline=true \
+            npm_config_yes=false \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            TSX_DISABLE_CACHE=1 \
+            NODE_DISABLE_COMPILE_CACHE=1 \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel" \
+            QA_CONSOLE_STATE="${qa_tmp}/receipts.json" \
+            QA_CONSOLE_PRIVATE_ROOT="${qa_tmp}/private" \
+            QA_REGISTRATION_STORE="${qa_tmp}/store" \
+            QA_REGISTRATION_TARGET_REGISTRY="${qa_tmp}/targets.json" \
+            node --import tsx --test --test-concurrency=1 \
+              --test-name-pattern='^S01 owned lifecycle abort' tests/unit/nuanu-authored-revision.test.ts
       - name: Install isolated Chromium for local fixture checks
+        if: needs.impact.outputs.console-browser != 'none'
         working-directory: components/console
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/qa-release-browsers
         run: ./node_modules/.bin/playwright install --with-deps chromium
       - name: Browser healthy and broken fixture controls
+        if: needs.impact.outputs.console-browser == 'all'
         working-directory: components/console
         shell: bash
         run: |
@@ -107,11 +241,40 @@ jobs:
             PATH="${PATH}" \
             TMPDIR="${qa_tmp}" \
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \
-            node --import tsx --test tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts
+            node --import tsx --test tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts
+      - name: Finite browser fixture controls
+        if: needs.impact.outputs.console-browser == 'finite'
+        working-directory: components/console
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-browser.XXXXXX")"
+          env -i \
+            PATH="${PATH}" \
+            TMPDIR="${qa_tmp}" \
+            PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \
+            node --import tsx --test tests/unit/browser-action-sequence.test.ts
+      - name: Explicit unselected runtime result
+        if: needs.impact.outputs.kernel-build != 'true' && needs.impact.outputs.console-build != 'true' && needs.impact.outputs.console-runtime != 'true' && needs.impact.outputs.console-browser == 'none' && needs.impact.outputs.console-s01 != 'true'
+        run: echo 'NOT RUN — no runtime effects selected; root source packaging is qualified separately'
+      - name: Record actual selected runtime completion
+        id: runtime-result
+        env:
+          IMPACT_PLAN: ${{ needs.impact.outputs.plan }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const s = JSON.parse(process.env.IMPACT_PLAN).selection;
+          const selected = s.kernelBuildContracts || s.consoleBuild || s.consoleRuntime || s.consoleBrowser !== 'none' || s.consoleS01Lifecycle || s.kernelFocusedTests.length;
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'mode=' + (selected ? 'selected-complete' : 'explicit-no-tests') + '\n');
+          NODE
       - name: Verify source integrity after runtime checks
+        if: always()
         run: node tools/workspace.mjs verify
 
   kernel-regression:
+    needs: impact
+    if: needs.impact.outputs.kernel-full == 'true'
     name: Full Kernel regression (${{ matrix.group }})
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -124,6 +287,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -160,3 +324,55 @@ jobs:
       - name: Verify source integrity after full regression
         if: always()
         run: node tools/workspace.mjs verify
+
+  runtime-qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    if: always()
+    needs: [impact, runtime-smoke, kernel-regression]
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.1
+          package-manager-cache: false
+      - name: Validate selection and selected job results
+        env:
+          IMPACT_RESULT: ${{ needs.impact.result }}
+          RUNTIME_RESULT: ${{ needs.runtime-smoke.result }}
+          KERNEL_RESULT: ${{ needs.kernel-regression.result }}
+          IMPACT_PLAN: ${{ needs.impact.outputs.plan }}
+          KERNEL_BUILD: ${{ needs.impact.outputs.kernel-build }}
+          KERNEL_FULL: ${{ needs.impact.outputs.kernel-full }}
+          KERNEL_FOCUSED: ${{ needs.impact.outputs.kernel-focused }}
+          CONSOLE_BUILD: ${{ needs.impact.outputs.console-build }}
+          CONSOLE_RUNTIME: ${{ needs.impact.outputs.console-runtime }}
+          CONSOLE_BROWSER: ${{ needs.impact.outputs.console-browser }}
+          CONSOLE_S01: ${{ needs.impact.outputs.console-s01 }}
+          RUNTIME_MODE: ${{ needs.runtime-smoke.outputs.mode }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          if (process.env.IMPACT_RESULT !== 'success') throw Error('Impact selection failed or unavailable');
+          const plan = JSON.parse(process.env.IMPACT_PLAN);
+          const s = plan.selection;
+          const flags = ['rootTests','freelandControls','kernelBuildContracts','kernelFull','consoleBuild','consoleRuntime','consoleS01Lifecycle'];
+          if (plan.schemaVersion !== 1 || plan.qualification !== 'selection_only' || plan.workflow !== 'runtime' ||
+              !s || flags.some(key => typeof s[key] !== 'boolean') || !['none','finite','all'].includes(s.consoleBrowser) ||
+              !Array.isArray(s.kernelFocusedTests) || !Array.isArray(plan.unsupportedChanges) || plan.unsupportedChanges.length ||
+              !plan.head || !plan.base || !plan.reasons || [...flags,'kernelFocusedTests','consoleBrowser'].some(key => typeof plan.reasons[key] !== 'string')) throw Error('Incomplete/unsupported CI selection');
+          if (process.env.RUNTIME_RESULT !== 'success') throw Error('Runtime job failed, cancelled or missing (including required source readback)');
+          const outputs = {KERNEL_BUILD: String(s.kernelBuildContracts), KERNEL_FULL: String(s.kernelFull),
+            KERNEL_FOCUSED: JSON.stringify(s.kernelFocusedTests), CONSOLE_BUILD: String(s.consoleBuild),
+            CONSOLE_RUNTIME: String(s.consoleRuntime), CONSOLE_BROWSER: s.consoleBrowser, CONSOLE_S01: String(s.consoleS01Lifecycle)};
+          if (Object.entries(outputs).some(([key,value]) => process.env[key] !== value)) throw Error('Missing or contradictory selection outputs');
+          const selected = s.kernelBuildContracts || s.consoleBuild || s.consoleRuntime || s.consoleBrowser !== 'none' || s.consoleS01Lifecycle || s.kernelFocusedTests.length;
+          if (process.env.RUNTIME_MODE !== (selected ? 'selected-complete' : 'explicit-no-tests')) throw Error('Missing/contradictory explicit runtime completion');
+          if (s.kernelFull ? process.env.KERNEL_RESULT !== 'success' : process.env.KERNEL_RESULT !== 'skipped') throw Error('Kernel job contradicts selected plan');
+          const rows = Object.entries(s).map(([key,value]) => key + ': ' +
+            (['rootTests','freelandControls'].includes(key) ? 'separate source workflow; not asserted here — ' :
+              value === false || value === 'none' || Array.isArray(value) && !value.length ? 'NOT RUN — ' : 'selected runtime results successful — ') +
+            plan.reasons[key]).join('\n') + '\n';
+          console.log(rows);
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, rows);
+          NODE

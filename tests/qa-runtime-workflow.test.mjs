@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFile } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
-import { dirname } from 'node:path';
+import { readFile, mkdtemp, mkdir, writeFile, chmod, symlink } from 'node:fs/promises';
+import { execFile, spawnSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
 
@@ -137,6 +137,9 @@ function validateRuntimeWorkflow(workflow) {
   assert.ok(isolated, 'isolated Console runtime step must exist');
   assert.match(isolated, /shell: bash\n {8}run: \|\n {10}set -euo pipefail\n/u);
   assert.match(isolated, /env -i \\\n {12}PATH="\$\{PATH\}" \\\n {12}CI=true \\/u);
+  const selector = workflow.slice(workflow.indexOf('      - name: Select verified CI impact')).split(/\n {6}- name: /u)[0];
+  assert.match(selector, /shell: bash\n {8}run: \|\n {10}set -euo pipefail\n/u);
+  assert.match(selector, /env -i \\\n/u, 'selector environment is isolated independently from Console');
   assert.match(isolated, /QA_STARTER_REPO="\$\{GITHUB_WORKSPACE\}\/components\/kernel" \\/u);
   assert.match(isolated, /QA_CONSOLE_STATE="\$\{qa_tmp\}\/receipts\.json" \\/u);
   assert.match(isolated, /QA_CONSOLE_PRIVATE_ROOT="\$\{qa_tmp\}\/private" \\/u);
@@ -167,6 +170,7 @@ function validateRuntimeWorkflow(workflow) {
     assert.doesNotMatch(step, /\bcontinue-on-error\s*:\s*true\b|\bset \+e\b|\|\|\s*true\b/u,
       'Console failures must not be suppressed');
   }
+  assert.doesNotMatch(workflow, /\bset \+e\b|\|\|\s*true\b/u, 'selector and non-Console jobs must also remain fail-closed');
 }
 
 test('runtime workflow executes A1 in the isolated fail-closed Console gate', async () => {
@@ -183,7 +187,7 @@ test('runtime workflow executes A1 in the isolated fail-closed Console gate', as
     ['fixture compiler omitted', workflow.replace('          ./node_modules/.bin/tsc -p tsconfig.fixture-repair.json --noEmit --incremental false\n', '')],
     ['fixture compiler suppression', workflow.replace('tsconfig.fixture-repair.json --noEmit --incremental false', 'tsconfig.fixture-repair.json --noEmit --incremental false || true')],
     ['fixture test suppression', workflow.replace('tests/unit/campaign-fixture-digests.test.ts \\', 'tests/unit/campaign-fixture-digests.test.ts || true \\')],
-    ['isolation removed', workflow.replace('env -i \\', 'env \\')],
+    ['isolation removed', workflow.replaceAll('env -i \\', 'env \\')],
     ['receipt state escapes temp', workflow.replace('QA_CONSOLE_STATE="${qa_tmp}/receipts.json"', 'QA_CONSOLE_STATE="/tmp/receipts.json"')],
     ['private root escapes temp', workflow.replace('QA_CONSOLE_PRIVATE_ROOT="${qa_tmp}/private"', 'QA_CONSOLE_PRIVATE_ROOT="/tmp/private"')],
     ['registration store escapes temp', workflow.replace('QA_REGISTRATION_STORE="${qa_tmp}/store"', 'QA_REGISTRATION_STORE="/tmp/store"')],
@@ -274,5 +278,149 @@ test('runtime event contract rejects missing qualification and restricted or wid
   for (const [name, mutant] of mutants) {
     assert.notEqual(mutant, workflow, `${name} mutation must change the workflow`);
     assert.throws(() => validateRuntimeEventContract(mutant), assert.AssertionError, name);
+  }
+});
+
+test('the permanent browser command actually receives the accepted finite regression argument', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const step = consoleSteps(workflow).find(step => step.includes('- name: Browser healthy and broken fixture controls'));
+  const command = step?.split('\n').find(line => /^ {12}node --import tsx --test /u.test(line));
+  assert.ok(command, 'the all-browser command must be explicit');
+  const args = command.trim().slice('node --import tsx --test'.length);
+  const { stdout } = await execFileAsync('/bin/bash', ['--noprofile', '--norc', '-c',
+    `"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`,
+    'qa-permanent-browser-argv', process.execPath], { env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` } });
+  assert.deepEqual(JSON.parse(stdout), ['tests/unit/browser-journey.test.ts',
+    'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts']);
+});
+
+function nodeBody(workflow, stepName) {
+  const at = workflow.indexOf(`      - name: ${stepName}`);
+  assert.notEqual(at, -1, stepName);
+  const body = workflow.slice(at).match(/<<'NODE'\n([\s\S]*?)\n {10}NODE/u)?.[1];
+  assert.ok(body, stepName);
+  return body.split('\n').map(line => line.slice(10)).join('\n');
+}
+
+test('terminal selected-results checker actually rejects failures and incomplete selection', async () => {
+  const script = nodeBody(await readFile(workflowUrl, 'utf8'), 'Validate selection and selected job results');
+  const root = await mkdtemp(join(tmpdir(), 'qa-runtime-terminal-test-'));
+  const selection = { rootTests: true, freelandControls: false, kernelBuildContracts: false, kernelFull: false,
+    kernelFocusedTests: [], consoleBuild: false, consoleRuntime: false, consoleBrowser: 'finite', consoleS01Lifecycle: false };
+  const plan = { schemaVersion: 1, qualification: 'selection_only', workflow: 'runtime', selection, unsupportedChanges: [], head: {}, base: {},
+    reasons: Object.fromEntries(Object.keys(selection).map(key => [key, 'literal test reason'])) };
+  const run = (changes = {}, changedPlan = plan) => {
+    const s = changedPlan.selection ?? selection;
+    const selected = s.kernelBuildContracts || s.consoleBuild || s.consoleRuntime || s.consoleBrowser !== 'none' || s.consoleS01Lifecycle || s.kernelFocusedTests?.length;
+    return spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', env: {
+      IMPACT_RESULT: 'success', RUNTIME_RESULT: 'success', KERNEL_RESULT: 'skipped', IMPACT_PLAN: JSON.stringify(changedPlan),
+      KERNEL_BUILD: String(s.kernelBuildContracts), KERNEL_FULL: String(s.kernelFull), KERNEL_FOCUSED: JSON.stringify(s.kernelFocusedTests),
+      CONSOLE_BUILD: String(s.consoleBuild), CONSOLE_RUNTIME: String(s.consoleRuntime), CONSOLE_BROWSER: String(s.consoleBrowser), CONSOLE_S01: String(s.consoleS01Lifecycle),
+      RUNTIME_MODE: selected ? 'selected-complete' : 'explicit-no-tests', GITHUB_STEP_SUMMARY: join(root, 'summary'), ...changes } });
+  };
+  assert.equal(run().status, 0); assert.match(run().stdout, /kernelFull: NOT RUN/u);
+  assert.equal(run({ KERNEL_RESULT: 'success' }, { ...plan, selection: { ...selection, kernelFull: true } }).status, 0);
+  for (const result of ['failure', 'cancelled', 'timed_out', 'skipped', '']) {
+    assert.notEqual(run({ IMPACT_RESULT: result }).status, 0);
+    assert.notEqual(run({ RUNTIME_RESULT: result }).status, 0);
+    assert.notEqual(run({ KERNEL_RESULT: result }, { ...plan, selection: { ...selection, kernelFull: true } }).status, 0);
+  }
+  for (const invalid of [{}, { ...plan, qualification: 'PASS' }, { ...plan, unsupportedChanges: ['new test'] },
+    { ...plan, selection: { ...selection, kernelFull: undefined } }, { ...plan, reasons: {} },
+    { ...plan, reasons: { ...plan.reasons, consoleBrowser: undefined } }]) assert.notEqual(run({}, invalid).status, 0);
+  assert.notEqual(run({ KERNEL_RESULT: 'success' }).status, 0, 'an unselected shard cannot be relabelled as selected PASS');
+  for (const key of ['KERNEL_BUILD','KERNEL_FULL','KERNEL_FOCUSED','CONSOLE_BUILD','CONSOLE_RUNTIME','CONSOLE_BROWSER','CONSOLE_S01','RUNTIME_MODE']) assert.notEqual(run({ [key]: '' }).status, 0, `missing ${key}`);
+  assert.equal(run({}, { ...plan, selection: { ...selection, consoleBrowser: 'none' } }).status, 0, 'explicit no-tests is a bounded result, not full runtime PASS');
+  assert.notEqual(run({ RUNTIME_MODE: 'selected-complete' }, { ...plan, selection: { ...selection, consoleBrowser: 'none' } }).status, 0);
+});
+
+test('selected S01 actual argv/env keeps only its accepted lifecycle controls isolated', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const step = consoleSteps(workflow).find(item => item.includes('- name: Selected S01 owned lifecycle controls'));
+  assert.ok(step);
+  const prefix = step.match(/^ {10}env -i \\\n[\s\S]*?(?=^ {12}node --import tsx --test)/mu)?.[0];
+  const commandStart = step.indexOf('            node --import tsx --test --test-concurrency=1 \\\n');
+  assert.ok(prefix); assert.notEqual(commandStart, -1);
+  const args = step.slice(commandStart + '            node --import tsx --test --test-concurrency=1 \\\n'.length);
+  const { stdout } = await execFileAsync('/bin/bash', ['--noprofile', '--norc', '-c',
+    `${prefix}"$1" -e 'process.stdout.write(JSON.stringify({argv:process.argv.slice(1), offline:process.env.npm_config_offline, yes:process.env.npm_config_yes, privateRoot:process.env.QA_CONSOLE_PRIVATE_ROOT, tokenPresent:Boolean(process.env.GITHUB_TOKEN)}))' -- \\\n${args}`,
+    'qa-s01-argv-env', process.execPath], { env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, qa_tmp: tmpdir(), GITHUB_WORKSPACE: new URL('../', import.meta.url).pathname, GITHUB_TOKEN: 'must-not-leak' } });
+  const observed = JSON.parse(stdout);
+  assert.deepEqual(observed.argv, ['--test-name-pattern=^S01 owned lifecycle abort', 'tests/unit/nuanu-authored-revision.test.ts']);
+  assert.equal(observed.offline, 'true'); assert.equal(observed.yes, 'false'); assert.equal(observed.tokenPresent, false);
+  assert.equal(observed.privateRoot, join(tmpdir(), 'private'));
+});
+
+test('impact-dependent workflow wiring preserves bootstrap, shard isolation and failure propagation', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const validate = value => {
+    validateRuntimeWorkflow(value); validateRuntimeEventContract(value);
+    assert.match(value, /kernel-regression:\n    needs: impact\n    if: needs\.impact\.outputs\.kernel-full == 'true'/u);
+    assert.match(value, /runtime-smoke:\n    needs: impact/u);
+    assert.match(value, /runtime-qualification:[\s\S]*?if: always\(\)\n    needs: \[impact, runtime-smoke, kernel-regression\]/u);
+    assert.match(value, /timeout-minutes: 3/u);
+    assert.match(value, /- name: Select verified CI impact[\s\S]*?env -i \\\n/u);
+    assert.match(value, /- name: Install isolated Chromium for local fixture checks\n        if: needs\.impact\.outputs\.console-browser != 'none'\n        working-directory: components\/console/u);
+    assert.match(value, /node tools\/ci-impact\.mjs --root "\$\{GITHUB_WORKSPACE\}" --event-file "\$\{GITHUB_EVENT_PATH\}" --workflow runtime/u);
+    assert.match(value, /--test-name-pattern='\^S01 owned lifecycle abort' tests\/unit\/nuanu-authored-revision\.test\.ts/u);
+    assert.match(value, /node --import tsx --test tests\/unit\/browser-journey\.test\.ts tests\/unit\/public-input-campaign\.test\.ts tests\/unit\/browser-action-sequence\.test\.ts/u);
+    assert.match(value, /fail-fast: false\n      matrix:\n        group: \[workspace, service, remaining\]/u);
+    assert.doesNotMatch(value, /paths(?:-ignore)?:|cancel-in-progress:|continue-on-error:/u);
+    assert.match(value, /^permissions:\n  contents: read\n\njobs:/mu);
+    assert.doesNotMatch(value, /secrets\.|GITHUB_TOKEN|GH_TOKEN|BASE_URL|PASSWORD|\|\|\s*true|set \+e/u);
+    const allowedConditions = new Set([
+      "needs.impact.outputs.kernel-build == 'true'",
+      "needs.impact.outputs.console-build == 'true' || needs.impact.outputs.console-runtime == 'true' || needs.impact.outputs.console-browser != 'none' || needs.impact.outputs.console-s01 == 'true'",
+      "needs.impact.outputs.console-build == 'true'", "needs.impact.outputs.console-runtime == 'true'",
+      "needs.impact.outputs.console-runtime == 'true' && needs.impact.outputs.console-build != 'true'",
+      "needs.impact.outputs.console-browser != 'none'", "needs.impact.outputs.kernel-focused != '[]'",
+      "needs.impact.outputs.console-s01 == 'true'", "needs.impact.outputs.console-browser == 'all'",
+      "needs.impact.outputs.console-browser == 'finite'",
+      "needs.impact.outputs.kernel-build != 'true' && needs.impact.outputs.console-build != 'true' && needs.impact.outputs.console-runtime != 'true' && needs.impact.outputs.console-browser == 'none' && needs.impact.outputs.console-s01 != 'true'",
+      "needs.impact.outputs.kernel-full == 'true'", 'always()',
+    ]);
+    for (const match of value.matchAll(/^\s+if: (.+)$/gmu)) assert.ok(allowedConditions.has(match[1]), `unreviewed condition: ${match[1]}`);
+    for (const match of value.matchAll(/^\s+uses: (.+)$/gmu)) assert.ok([
+      'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1',
+      'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0',
+    ].includes(match[1]), 'only existing pinned actions');
+    assert.equal([...value.matchAll(/^ {6}- /gmu)].length, [...value.matchAll(/^ {6}- name: /gmu)].length, 'no unnamed executable steps');
+  };
+  validate(workflow);
+  for (const mutant of [workflow.replaceAll('tests/unit/browser-action-sequence.test.ts', 'tests/unit/unrelated.test.ts'),
+    workflow.replace("--test-name-pattern='^S01 owned lifecycle abort'", "--test-name-pattern='unrelated'"),
+    workflow.replace("if: needs.impact.outputs.kernel-full == 'true'", 'if: false'),
+    workflow.replace('env -i \\', 'env \\'), workflow.replace('fail-fast: false', 'fail-fast: true'),
+    workflow.replace('runtime-smoke:\n', 'runtime-smoke:\n    continue-on-error: true\n'),
+    workflow.replace("if: needs.impact.outputs.console-browser != 'none'", "if: needs.impact.outputs.console-browser != 'none' unexpected"),
+    workflow.replace('contents: read', 'contents: read\n  id-token: write')]) assert.throws(() => validate(mutant), assert.AssertionError);
+});
+
+test('finite compiler actual argv remains two-file and no-output', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const step = consoleSteps(workflow).find(item => item.includes('- name: Finite browser no-output compiler'));
+  const command = step?.split('\n').find(line => line.startsWith('        run: ./node_modules/.bin/tsc '));
+  assert.ok(command);
+  const args = command.slice('        run: ./node_modules/.bin/tsc'.length);
+  const { stdout } = await execFileAsync('/bin/bash', ['--noprofile','--norc','-c',
+    `"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`, 'qa-finite-compiler-argv',process.execPath],
+    { env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` } });
+  assert.deepEqual(JSON.parse(stdout), ['--noEmit','--incremental','false','--target','ES2022','--module','ESNext',
+    '--moduleResolution','bundler','--strict','--skipLibCheck','--lib','ES2022,DOM,DOM.Iterable','--types','node',
+    'tests/fixtures/browser-action-sequence/check.ts','tests/unit/browser-action-sequence.test.ts']);
+});
+
+test('exact Kernel workflow actually supplies array argv and rejects hostile paths before spawn', async () => {
+  const script = nodeBody(await readFile(workflowUrl, 'utf8'), 'Exact affected Kernel tests');
+  const root = await mkdtemp(join(tmpdir(), 'qa-kernel-argv-control-')); await mkdir(join(root, 'node_modules/.bin'), { recursive: true });
+  await mkdir(join(root, 'tests/unit'), { recursive: true }); await writeFile(join(root, 'tests/unit/safe.test.ts'), '// synthetic');
+  const marker = join(root, 'actual-argv.json'); const executable = join(root, 'node_modules/.bin/vitest');
+  await writeFile(executable, `#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)}, JSON.stringify(process.argv.slice(2)));\n`); await chmod(executable, 0o755);
+  const run = paths => spawnSync(process.execPath, ['-e',script], { cwd: root, encoding:'utf8',env: { KERNEL_FOCUSED: JSON.stringify(paths) } });
+  assert.equal(run(['tests/unit/safe.test.ts']).status, 0);
+  assert.deepEqual(JSON.parse(await readFile(marker, 'utf8')), ['run','tests/unit/safe.test.ts']);
+  await symlink(join(root, 'tests/unit/safe.test.ts'), join(root, 'tests/unit/link.test.ts'));
+  for (const paths of [[],['--run'],['tests/../safe.test.ts'],['tests/unit/safe.test.ts','tests/unit/safe.test.ts'],['tests/unit/link.test.ts'],['tests/unit/-option.test.ts'],['tests/unit/bad\npath.test.ts']]) {
+    await writeFile(marker, 'not spawned'); assert.notEqual(run(paths).status, 0); assert.equal(await readFile(marker, 'utf8'), 'not spawned');
   }
 });
