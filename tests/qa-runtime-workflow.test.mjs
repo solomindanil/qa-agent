@@ -68,6 +68,12 @@ test('isolated Console child receives both native outcomes export control argume
     'native export controls must be passed to the actual isolated child');
 });
 
+test('isolated Console child receives request admission and association projection controls', async () => {
+  const observed = await isolatedConsoleAcquisitionEnv(await readFile(workflowUrl, 'utf8'));
+  assert.ok(observed.argv.includes('tests/unit/request-admission.test.ts'));
+  assert.ok(observed.argv.includes('tests/unit/qa-outcomes.test.ts'));
+});
+
 test('fixture compiler invocation receives a portable project and no-output flags', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const build = consoleSteps(workflow).find(step => /- name: Console typecheck and production build/u.test(step));
@@ -97,6 +103,8 @@ const fixtureRoots = [
   'tests/unit/campaign-fixture-digests.test.ts',
   'tests/unit/workspace-snapshot.test.ts',
   'tests/unit/qa-outcomes-export.test.ts',
+  'tests/unit/request-admission.test.ts',
+  'tests/unit/qa-outcomes.test.ts',
 ];
 
 function validateFixtureConfig(config) {
@@ -143,6 +151,10 @@ function validateRuntimeWorkflow(workflow) {
     'shared owner snapshot controls must be an executed argument');
   assert.match(isolated, / {14}tests\/unit\/qa-outcomes-export\.test\.ts(?: \\)?(?:\n|$)/u,
     'native outcomes export controls must be an executed argument');
+  assert.match(isolated, / {14}tests\/unit\/request-admission\.test\.ts(?: \\)?(?:\n|$)/u,
+    'request admission controls must be an executed argument');
+  assert.match(isolated, / {14}tests\/unit\/qa-outcomes\.test\.ts(?: \\)?(?:\n|$)/u,
+    'association projection controls must be an executed argument');
   const build = steps.find(step => /- name: Console typecheck and production build/u.test(step));
   assert.match(build, /^ {10}\.\/node_modules\/\.bin\/tsc -p tsconfig\.fixture-repair\.json --noEmit --incremental false$/mu,
     'targeted no-output fixture compiler gate must execute');
@@ -166,6 +178,8 @@ test('runtime workflow executes A1 in the isolated fail-closed Console gate', as
     ['fixture unit omitted', workflow.replace('tests/unit/campaign-fixture-digests.test.ts', 'tests/unit/other-fixture.test.ts')],
     ['shared snapshot omitted', workflow.replace('tests/unit/workspace-snapshot.test.ts', 'tests/unit/other-snapshot.test.ts')],
     ['native export omitted', workflow.replace('tests/unit/qa-outcomes-export.test.ts', 'tests/unit/other-export.test.ts')],
+    ['request admission omitted', workflow.replace('tests/unit/request-admission.test.ts', 'tests/unit/other-admission.test.ts')],
+    ['association projection omitted', workflow.replace('tests/unit/qa-outcomes.test.ts', 'tests/unit/other-projection.test.ts')],
     ['fixture compiler omitted', workflow.replace('          ./node_modules/.bin/tsc -p tsconfig.fixture-repair.json --noEmit --incremental false\n', '')],
     ['fixture compiler suppression', workflow.replace('tsconfig.fixture-repair.json --noEmit --incremental false', 'tsconfig.fixture-repair.json --noEmit --incremental false || true')],
     ['fixture test suppression', workflow.replace('tests/unit/campaign-fixture-digests.test.ts \\', 'tests/unit/campaign-fixture-digests.test.ts || true \\')],
