@@ -276,18 +276,86 @@ jobs:
         run: echo 'NOT RUN — no runtime effects selected; root source packaging is qualified separately'
       - name: Record actual selected runtime completion
         id: runtime-result
-        env:
-          IMPACT_PLAN: ${{ needs.impact.outputs.plan }}
         run: |
           node <<'NODE'
           const fs = require('node:fs');
-          const s = JSON.parse(process.env.IMPACT_PLAN).selection;
+          const materializedPlan = ${{ toJSON(needs.impact.outputs.plan) }};
+          if (typeof materializedPlan !== 'string' || Buffer.byteLength(materializedPlan) > 1024 * 1024) throw Error('Selection plan exceeds materialization bound');
+          const s = JSON.parse(materializedPlan).selection;
           const selected = s.kernelBuildContracts || s.consoleBuild || s.consoleRuntime || s.consoleBrowser !== 'none' || s.consoleS01Lifecycle || s.kernelFocusedTests.length;
           fs.appendFileSync(process.env.GITHUB_OUTPUT, 'mode=' + (selected ? 'selected-complete' : 'explicit-no-tests') + '\n');
           NODE
       - name: Verify source integrity after runtime checks
         if: always()
         run: node tools/workspace.mjs verify
+
+  console-dependency-intake:
+    needs: impact
+    if: needs.impact.outputs.console-runtime == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    outputs:
+      mode: ${{ steps.dependency-result.outputs.mode }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.1
+          package-manager-cache: false
+      - name: Restore and verify pinned components
+        run: |
+          node tools/workspace.mjs restore
+          node tools/workspace.mjs verify
+      - name: Install exact dependency intake Kernel dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix components/kernel
+      - name: Install exact dependency intake Console dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix components/console
+      - name: Install dependency intake Chromium
+        working-directory: components/console
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/qa-dependency-browsers
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+      - name: Isolated dependency intake controls
+        working-directory: components/console
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-dependency-intake.XXXXXX")"
+          git config --show-origin --name-only --get-regexp '^(core\.(fsmonitor|hooksPath|sshCommand)|filter\.|include\.|includeIf\.|extensions\.|alias\.)' || test "$?" = 1
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            npm_config_offline=true \
+            npm_config_yes=false \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            TSX_DISABLE_CACHE=1 \
+            NODE_DISABLE_COMPILE_CACHE=1 \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel" \
+            QA_CONSOLE_STATE="${qa_tmp}/receipts.json" \
+            QA_CONSOLE_PRIVATE_ROOT="${qa_tmp}/private" \
+            QA_REGISTRATION_STORE="${qa_tmp}/store" \
+            QA_REGISTRATION_TARGET_REGISTRY="${qa_tmp}/targets.json" \
+            PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-dependency-browsers" \
+            node --import tsx --test --test-concurrency=1 \
+              tests/unit/intake-build.test.ts \
+              tests/unit/qa-init-cli.test.ts \
+              tests/unit/campaign-dependency-scope.test.ts \
+              tests/unit/campaign-dependency-adapter.test.ts \
+              tests/unit/campaign-dependency-cli.test.ts
+      - name: Verify dependency intake source integrity
+        if: always()
+        run: node tools/workspace.mjs verify
+      - name: Record dependency intake completion
+        id: dependency-result
+        run: echo 'mode=selected-complete' >> "$GITHUB_OUTPUT"
 
   kernel-regression:
     needs: impact
@@ -346,7 +414,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: always()
-    needs: [impact, runtime-smoke, kernel-regression]
+    needs: [impact, runtime-smoke, kernel-regression, console-dependency-intake]
     steps:
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -358,7 +426,6 @@ jobs:
           IMPACT_RESULT: ${{ needs.impact.result }}
           RUNTIME_RESULT: ${{ needs.runtime-smoke.result }}
           KERNEL_RESULT: ${{ needs.kernel-regression.result }}
-          IMPACT_PLAN: ${{ needs.impact.outputs.plan }}
           KERNEL_BUILD: ${{ needs.impact.outputs.kernel-build }}
           KERNEL_FULL: ${{ needs.impact.outputs.kernel-full }}
           KERNEL_FOCUSED: ${{ needs.impact.outputs.kernel-focused }}
@@ -367,11 +434,15 @@ jobs:
           CONSOLE_BROWSER: ${{ needs.impact.outputs.console-browser }}
           CONSOLE_S01: ${{ needs.impact.outputs.console-s01 }}
           RUNTIME_MODE: ${{ needs.runtime-smoke.outputs.mode }}
+          DEPENDENCY_RESULT: ${{ needs.console-dependency-intake.result }}
+          DEPENDENCY_MODE: ${{ needs.console-dependency-intake.outputs.mode }}
         run: |
           node <<'NODE'
           const fs = require('node:fs');
           if (process.env.IMPACT_RESULT !== 'success') throw Error('Impact selection failed or unavailable');
-          const plan = JSON.parse(process.env.IMPACT_PLAN);
+          const materializedPlan = ${{ toJSON(needs.impact.outputs.plan) }};
+          if (typeof materializedPlan !== 'string' || Buffer.byteLength(materializedPlan) > 1024 * 1024) throw Error('Selection plan exceeds materialization bound');
+          const plan = JSON.parse(materializedPlan);
           const s = plan.selection;
           const flags = ['rootTests','freelandControls','kernelBuildContracts','kernelFull','consoleBuild','consoleRuntime','consoleS01Lifecycle'];
           if (plan.schemaVersion !== 1 || plan.qualification !== 'selection_only' || plan.workflow !== 'runtime' ||
@@ -386,6 +457,9 @@ jobs:
           const selected = s.kernelBuildContracts || s.consoleBuild || s.consoleRuntime || s.consoleBrowser !== 'none' || s.consoleS01Lifecycle || s.kernelFocusedTests.length;
           if (process.env.RUNTIME_MODE !== (selected ? 'selected-complete' : 'explicit-no-tests')) throw Error('Missing/contradictory explicit runtime completion');
           if (s.kernelFull ? process.env.KERNEL_RESULT !== 'success' : process.env.KERNEL_RESULT !== 'skipped') throw Error('Kernel job contradicts selected plan');
+          if (s.consoleRuntime ? process.env.DEPENDENCY_RESULT !== 'success' || process.env.DEPENDENCY_MODE !== 'selected-complete' :
+              process.env.DEPENDENCY_RESULT !== 'skipped' || Boolean(process.env.DEPENDENCY_MODE)) throw Error('Dependency intake job contradicts selected plan or completion');
+          console.log('dependency intake: ' + (s.consoleRuntime ? 'selected runtime results successful' : 'NOT RUN — unselected job skipped'));
           const rows = Object.entries(s).map(([key,value]) => key + ': ' +
             (['rootTests','freelandControls'].includes(key) ? 'separate source workflow; not asserted here — ' :
               value === false || value === 'none' || Array.isArray(value) && !value.length ? 'NOT RUN — ' : 'selected runtime results successful — ') +
