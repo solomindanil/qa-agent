@@ -14,7 +14,7 @@ let fixtureRoot=fs.existsSync(fixtureFile)?JSON.parse(fs.readFileSync(fixtureFil
 let workspace=fixtureRoot?path.join(fixtureRoot,'nuanu-readonly-qa'):undefined;
 const requestId='a2a42cea-6ea7-4a36-b326-734b81e13903';
 const key={requestId,requestRevision:1};
-const sourceCommit='31ba6949413469260e31f103a2875c52955dfd74';
+const sourceCommit='c43fc0161aa4d22923f2d0badfc4992f4510a611';
 const kernelCommit='794e9fbae372ebf1fe8261556ec1ea0a4bceab26';
 const sha=b=>createHash('sha256').update(b).digest('hex');
 const error=e=>({name:e?.name??'Error',code:typeof e?.code==='string'?e.code:null,message:String(e?.message??e).slice(0,1000)});
@@ -74,9 +74,21 @@ if(process.argv[2]==='child'){
    const {createServer}=await import('node:http');const {createBridge}=await sourceImport('server/bridge.mjs');
    const {listenSelectedCampaignServer,finishSelectedCampaignConsumer}=await sourceImport('tests/fixtures/selected-campaign-consumer-lifecycle.mjs');
    const bridge=createBridge({workspaceDir:workspace,starterRepo:kernelRoot});const server=createServer((req,res)=>{if(!bridge.handleRequest(req,res)){res.writeHead(404);res.end();}});
-   let failure;try{await listenSelectedCampaignServer(server);phase('server-listening',{port:server.address().port});
+   let failure;try{await listenSelectedCampaignServer(server);phase('server-listening',{port:server.address().port,coldStartupElapsedMs:performance.now()});
     const url='http://127.0.0.1:'+server.address().port+'/api/workspace?'+new URLSearchParams({dir:workspace,runKind:'agent_request',run:`agent-request-${requestId}-r1`,checkpoint:'1'});
-    phase('bridge-get-begin');const start=performance.now();const r=await fetch(url);const bytes=Buffer.from(await r.arrayBuffer());if(bytes.length>8*1024*1024)throw Error('Response limit');fs.writeFileSync(path.join(packet,'BRIDGE-RESPONSE.json'),bytes);phase('bridge-get-end',{status:r.status,elapsedMs:performance.now()-start,bytes:bytes.length,sha256:sha(bytes),non200Body:r.status===200?null:bytes.toString('utf8').slice(0,8192)});
+    phase('bridge-get-begin',{handlerReadBudgetMs:15000});const start=performance.now();const r=await fetch(url);const bytes=Buffer.from(await r.arrayBuffer()),elapsedMs=performance.now()-start;if(bytes.length>8*1024*1024)throw Error('Response limit');fs.writeFileSync(path.join(packet,'BRIDGE-RESPONSE.json'),bytes);phase('bridge-get-end',{status:r.status,elapsedMs,bytes:bytes.length,sha256:sha(bytes),non200Body:r.status===200?null:bytes.toString('utf8').slice(0,8192)});
+    assert.equal(r.status,200,'Actual bridge must return200, not a faster unavailable response');assert.ok(elapsedMs<15000,'Late200 is not production15s admission');
+    const body=JSON.parse(bytes),value=body.agentRequest?.value;
+    const {projectOwnerSnapshot}=await sourceImport('src/primary-ui/owner/projection.ts');
+    const projection=projectOwnerSnapshot(body,{source:'live',workspaceDir:workspace,run:{kind:'agent_request',runId:`agent-request-${requestId}-r1`,checkpointRevision:1}});
+    assert.equal(body.agentRequest.kind,'selected');assert.equal(projection.requestModel.kind,'same_basis');assert.equal(value.readback.binding,'current');assert.equal(value.readback.selectedCheckpointRevision,1);
+    const storedBytes=fs.readFileSync(path.join(workspace,'.qa-private/evidence',`agent-request-${requestId}-r1.json`));
+    assert.deepEqual(value.readback.record,JSON.parse(storedBytes));assert.equal(value.readback.fileDigest,`sha256:${sha(storedBytes)}`);
+    assert.equal(value.readback.record.request.clauses.length,6);assert.equal(value.readback.record.revisions.length,1);assert.equal(value.readback.record.revisions[0].definitions.length,6);
+    assert.equal(value.readback.evidenceStatus.length,2);assert.ok(value.readback.evidenceStatus.every(s=>s.state==='verified_current'));
+    assert.deepEqual(value.view.remainderIds,['obligation-1','obligation-2','obligation-3','obligation-4']);assert.deepEqual(value.readback.resumeEligible,[]);
+    assert.equal(body.coverage.items.length,6);assert.equal(body.testStrategyDraft.blockers.length,6);
+    phase('bridge-qualified-current',{status:r.status,elapsedMs,requestModel:projection.requestModel.kind,binding:value.readback.binding,clauses:6,obligations:6,observations:2,coverageTargets:6,blockers:6,checkpoint:1});
    }catch(e){failure=e;phase('bridge-error',{error:error(e)});}finally{await finishSelectedCampaignConsumer({server,primaryFailure:failure,recordEvidence:async(f,attempts)=>phase('server-cleanup',{attempts,serverListening:server.listening,primaryFailure:f?error(f):null})});}
   }else if(probe==='base'){
    const {readWorkspaceSnapshot}=await sourceImport('server/workspace-snapshot.mjs');let forbiddenCalls=0;
@@ -119,10 +131,13 @@ if(process.argv[2]==='child'){
   before=inventory();fs.writeFileSync(path.join(packet,'BEFORE-INVENTORY.json'),JSON.stringify(before,null,2)+'\n');
   const recordBytes=fs.readFileSync(path.join(workspace,'.qa-private/evidence',`agent-request-${requestId}-r1.json`)),record=JSON.parse(recordBytes);
   assert.equal(sha(recordBytes),metadata.recordSha256);assert.deepEqual(record.basis,metadata.basis);assert.equal(record.request.requestId,requestId);assert.equal(record.request.revision,1);assert.deepEqual(record.revisions.map(c=>c.revision),[1]);assert.equal(record.basis.workspaceDir,workspace);
-  for(const probe of ['bridge','base','core']){
-   if(performance.now()+16000>=adminDeadline)throw Error('Administrative remaining budget prevents next probe');
-   const r=await ownedProbe(probe,15000);results.push(r);phase('probe-result',r);if(!r.cleanupConfirmed||r.cleanupWarnings)throw Error('Cleanup unconfirmed; subsequent probe refused');
-  }
+  // Only ONE cold bridge GET. The real handler owns15s and its existing
+  // cleanup; the90s outer administration includes cold startup and closure.
+  // Reserve the existing1s supervisor cleanup inside that administration.
+  const remaining=adminDeadline-performance.now();if(remaining<16000)throw Error('Administrative remaining budget prevents bridge');
+  const r=await ownedProbe('bridge',Math.floor(remaining-1000));results.push(r);phase('probe-result',r);
+  assert.ok(r.cleanupConfirmed&&!r.cleanupWarnings,'Cleanup unconfirmed');assert.equal(r.timedOut,false);assert.equal(r.code,0);
+  assert.ok(performance.now()<=adminDeadline,'Read administration90s exceeded');
  }catch(e){phase('diagnostic-error',{error:error(e)});process.exitCode=1;}
  finally{
   let parity=null,inventoryFiles=null;if(before){const after=inventory();fs.writeFileSync(path.join(packet,'AFTER-INVENTORY.json'),JSON.stringify(after,null,2)+'\n');parity=JSON.stringify(before)===JSON.stringify(after);inventoryFiles=after.length;if(!parity)process.exitCode=1;}

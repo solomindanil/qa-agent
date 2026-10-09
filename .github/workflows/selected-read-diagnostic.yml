@@ -2,7 +2,7 @@ name: Selected request read diagnostic only
 
 on:
   push:
-    branches: [codex/selected-read-diagnostic-31ba]
+    branches: [codex/selected-read-diagnostic-c43]
 
 permissions:
   contents: read
@@ -22,7 +22,7 @@ jobs:
         with:
           node-version: 22.23.1
           package-manager-cache: false
-      - name: Restore and verify unchanged selected sources
+      - name: Restore and verify exact capture candidate sources
         run: |
           node tools/workspace.mjs restore
           node tools/workspace.mjs verify
@@ -33,7 +33,7 @@ jobs:
       - name: Build public Kernel API without test execution
         working-directory: components/kernel
         run: npm run build
-      - name: ONE newly labelled fixture and three finite read probes
+      - name: ONE newly labelled fixture and ONE cold bridge GET
         timeout-minutes: 6
         shell: bash
         run: |
