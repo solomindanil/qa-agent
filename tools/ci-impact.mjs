@@ -22,6 +22,16 @@ const runtimeTests = new Set([
 ].map(name => `tests/unit/${name}.test.${name.startsWith('campaign-continuation-readback') ||
   ['selected-campaign-readback', 'selected-campaign-consumer-lifecycle'].includes(name) ? 'mjs' : 'ts'}`));
 const finitePaths = new Set(['tests/fixtures/browser-action-sequence/check.ts', 'tests/unit/browser-action-sequence.test.ts']);
+const consoleCompatibilityPaths = new Set([
+  'server/agent-observation-cli.mjs', 'server/bridge.mjs', 'server/selected-campaign-readback.mjs',
+  'server/selected-campaign-readback.d.mts', 'server/workspace-snapshot.mjs', 'src/lib/live.ts',
+  'src/lib/selected-agent-request.ts', 'scripts/qa-campaign.ts', 'src/lib/qa-outcomes.ts',
+  'src/node/agent-request-report.ts', 'src/node/qa-outcomes-export.ts',
+]);
+const rootPolicyTestPaths = new Set(['tests/ci-impact.test.mjs', 'tests/qa-runtime-workflow.test.mjs']);
+// Duplicate source routing is distinct from runtime qualification: a workflow
+// edit still needs FULL on its PR. The selector itself cannot dedupe its checks.
+const duplicatePrRootPaths = new Set([...rootPolicyTestPaths, '.github/workflows/qa-runtime.yml']);
 const roles = new Set(['kernel', 'console', 'freeland', 'kernel-reporting-reference']);
 const manifestFields = new Set(['id', 'path', 'commit', 'tree', 'bundle', 'sha256', 'runtimeAuthority', 'qualification']);
 
@@ -44,6 +54,10 @@ function ordinary(change) { return (!change.baseMode || change.baseMode === '100
 function doc(change) { return (!change.baseMode || change.baseMode === '100644') && (!change.headMode || change.headMode === '100644') &&
   /^(?:README\.md|LICENSE(?:\.md|\.txt)?|docs\/.+\.md)$/u.test(change.path); }
 function bootstrap(change) { return /^(?:\.github\/workflows\/|tools\/|tests\/|packages\/|package(?:-lock)?\.json$|[^/]+\.(?:json|[cm]?js|[cm]?ts|ya?ml)$)/u.test(change.path); }
+function duplicateRootRecord(record) {
+  return doc(record) || record.sourceMetadata ||
+    (ordinary(record) && safePath(record.path) && duplicatePrRootPaths.has(record.path));
+}
 function emptySelection() { return { rootTests: true, freelandControls: false, kernelBuildContracts: false, kernelFull: false,
   kernelFocusedTests: [], consoleBuild: false, consoleRuntime: false, consoleBrowser: 'none', consoleS01Lifecycle: false }; }
 
@@ -68,6 +82,9 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
   if (['integration', 'tag', 'manual'].includes(cohort)) { full(`full ${cohort} qualification boundary`); broad = true; }
   if (unknownReasons.length) { full(`unknown impact: ${unknownReasons.join('; ')}`); broad = true; }
   for (const record of rootChanges) if (!doc(record) && !record.sourceMetadata) {
+    if (ordinary(record) && rootPolicyTestPaths.has(record.path)) {
+      enable('rootTests', `root policy assertion delta: ${record.path}`); continue;
+    }
     full(`${bootstrap(record) ? 'bootstrap policy change' : 'unmapped root path'}: ${record.path}`); broad = true;
   }
   for (const item of components) {
@@ -89,6 +106,7 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
       continue;
     }
     for (const record of content) {
+      if (ordinary(record) && consoleCompatibilityPaths.has(record.path)) { compatibility(why); continue; }
       if (ordinary(record) && finitePaths.has(record.path)) { enable('consoleBrowser', why, 'finite'); continue; }
       if (ordinary(record) && (runtimeTests.has(record.path) || /^(?:skills|\.claude\/skills)\/.+\.md$/u.test(record.path))) {
         for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) enable(key, why); continue;
@@ -206,14 +224,15 @@ export async function computeCiImpact({ root, eventName, event, ref = '', tested
   } else unknownReasons.push(`no differential baseline for ${cohort}`);
   const result = classifyImpact({ cohort, rootChanges, components, unknownReasons });
   const duplicate = { suppressed: false, prNumber: observed.pr?.number ?? null, headSha: observed.pr?.head?.sha ?? null, reason: 'not a confirmed eligible duplicate' };
-  if (observed.pr && !unknownReasons.length && rootChanges.every(record => doc(record) || record.sourceMetadata) && !result.unsupportedChanges.length) {
+  if (observed.pr && !unknownReasons.length && rootChanges.every(duplicateRootRecord) && !result.unsupportedChanges.length) {
     try {
       if (!hex.test(event.before ?? '') || event.before === zero) fail('push baseline unavailable for dedupe');
       git(root, 'merge-base', '--is-ancestor', event.before, testedSha);
       const pushChanges = delta(tree(root, git(root, 'rev-parse', `${event.before}^{tree}`).trim()), tree(root, head.tree));
       const pushMetadata = new Set(['sources/manifest.v1.json', ...headManifest.components.map(entry => entry.bundle)]);
-      const unsafePush = pushChanges.filter(record => !doc(record) && !(pushMetadata.has(record.path) &&
-        (!record.baseMode || record.baseMode === '100644') && (!record.headMode || record.headMode === '100644')));
+      const unsafePush = pushChanges.filter(record => !duplicateRootRecord({ ...record,
+        sourceMetadata: pushMetadata.has(record.path) &&
+          (!record.baseMode || record.baseMode === '100644') && (!record.headMode || record.headMode === '100644') }));
       if (unsafePush.length) {
         const broad = classifyImpact({ cohort, rootChanges, components, unknownReasons: [
           `bootstrap/unmapped current push scope: ${unsafePush.map(record => record.path).join(', ')}`] }); Object.assign(result, broad);
