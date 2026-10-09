@@ -510,6 +510,182 @@ test('source push temporary unmapped/bootstrap history cannot hide behind safe P
   } finally { globalThis.fetch = originalFetch; if (originalToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = originalToken; }
 });
 
+// Literal expectations from the accepted policy, independent of selector sets.
+test('bounded Console literals keep complete compatibility and conservative unions', async context => {
+  const { classifyImpact } = await api();
+  const paths = [
+    'server/agent-observation-cli.mjs', 'server/bridge.mjs', 'server/selected-campaign-readback.mjs',
+    'server/selected-campaign-readback.d.mts', 'server/workspace-snapshot.mjs', 'src/lib/live.ts',
+    'src/lib/selected-agent-request.ts', 'scripts/qa-campaign.ts', 'src/lib/qa-outcomes.ts',
+    'src/node/agent-request-report.ts', 'src/node/qa-outcomes-export.ts',
+  ];
+  for (const path of paths) for (const [status, before, after, full] of [
+    ['added', null, '100644', false], ['modified', '100644', '100644', false],
+    ['deleted', '100644', null, true], ['modified', '100644', '100755', true],
+    ['modified', '100644', '120000', true], ['modified', '100755', '100644', true],
+  ]) await context.test(`${path} ${status} ${before}/${after}`, () => {
+    const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+    assert.deepEqual(result.selection, { rootTests: true, freelandControls: false, kernelBuildContracts: true,
+      kernelFull: full, kernelFocusedTests: [], consoleBuild: true, consoleRuntime: true,
+      consoleBrowser: 'all', consoleS01Lifecycle: true });
+    assert.deepEqual(result.unsupportedChanges, []);
+  });
+  for (const extra of [component('kernel', [change('src/service.ts')]),
+    component('console', [change('package-lock.json')]), component('console', [change('server/kernel-authority.mjs')]),
+    component('console', [change('server/request-admission.mjs')]), component('console', [change('src/node/agent-request-checkpoint.ts')]),
+    component('console', [change('src/node/agent-request-runtime.ts')]), component('console', [change('src/lib/unmapped.ts')])]) {
+    for (const components of [[component('console', [change(paths[0])]), extra], [extra, component('console', [change(paths[0])])]]) {
+      assert.equal(classifyImpact({ cohort: 'pull_request', components }).selection.kernelFull, true);
+    }
+  }
+  for (const cohort of ['integration', 'tag', 'manual']) {
+    assert.equal(classifyImpact({ cohort, components: [component('console', [change(paths[0])])] }).selection.kernelFull, true);
+  }
+  assert.equal(classifyImpact({ cohort: 'pull_request', components: [component('console', [change(paths[0])])],
+    unknownReasons: ['unverified baseline'] }).selection.kernelFull, true);
+});
+
+test('bounded root policy tests narrow only ordinary literal changes', async context => {
+  const { classifyImpact } = await api();
+  for (const path of ['tests/ci-impact.test.mjs', 'tests/qa-runtime-workflow.test.mjs']) {
+    for (const [status, before, after, full] of [
+      ['added', null, '100644', false], ['modified', '100644', '100644', false],
+      ['deleted', '100644', null, true], ['modified', '100644', '100755', true], ['modified', '100644', '120000', true],
+      ['modified', '100755', '100644', true],
+    ]) await context.test(`${path} ${status} ${after}`, () => {
+      const result = classifyImpact({ cohort: 'pull_request', rootChanges: [change(path, status, before, after)] });
+      assert.equal(result.selection.rootTests, true);
+      assert.equal(result.selection.kernelFull, full);
+      assert.equal(result.selection.consoleRuntime, full);
+      assert.equal(result.selection.freelandControls, full);
+    });
+  }
+  for (const path of ['.github/workflows/qa-runtime.yml', '.github/workflows/qa-source.yml', 'tools/ci-impact.mjs',
+    'tools/workspace.mjs', 'tools/lib/source-workspace.mjs', 'package-lock.json', 'unknown.json', 'tests/unknown.test.mjs']) {
+    assert.equal(classifyImpact({ cohort: 'pull_request', rootChanges: [change('tests/ci-impact.test.mjs'), change(path)] }).selection.kernelFull, true);
+  }
+});
+
+test('bounded real bundled literal and mixed Kernel delta reject policy mutants', async () => {
+  const f = await fixture(); await f.publish('console', 'src/node/agent-request-report.ts'); f.commitHead();
+  const wanted = plan => {
+    assert.equal(plan.base.status, 'verified'); assert.equal(plan.selection.kernelFull, false);
+    assert.equal(plan.selection.kernelBuildContracts, true); assert.equal(plan.selection.consoleRuntime, true);
+    assert.equal(plan.selection.consoleBuild, true); assert.equal(plan.selection.consoleBrowser, 'all');
+    assert.deepEqual(plan.components.find(item => item.id === 'kernel').changedPaths, []);
+    assert.deepEqual(plan.components.find(item => item.id === 'console').changedPaths.map(item => item.path), ['src/node/agent-request-report.ts']);
+  };
+  wanted(await compute(f));
+  const source = await readFile(new URL('../tools/ci-impact.mjs', import.meta.url), 'utf8');
+  const broad = source.replace('ordinary(record) && consoleCompatibilityPaths.has(record.path)', 'false && consoleCompatibilityPaths.has(record.path)');
+  assert.notEqual(broad, source);
+  const file = join(f.base, 'literal-broad-mutant.mjs'); await writeFile(file, broad);
+  const mutant = await import(file);
+  const args = { root: f.root, eventName: 'pull_request', event: { pull_request: { base: { sha: f.baseCommit } } },
+    testedSha: git(f.root, 'rev-parse', 'HEAD'), repository: 'example/qa', workflow: 'runtime', temporaryRoot: f.base };
+  const awaitResult = await mutant.computeCiImpact(args);
+  assert.throws(() => wanted(awaitResult), assert.AssertionError);
+  // Preserve the prior owned checkout; restore must never overwrite a different pin.
+  await rename(join(f.root, 'components/kernel'), join(f.base, 'kernel-before-mixed-delta'));
+  await f.publish('kernel', 'src/service.ts', 'actual shared implementation change\n'); f.commitHead();
+  const mixed = await compute(f); assert.equal(mixed.selection.kernelFull, true);
+  assert.deepEqual(mixed.selection.kernelFocusedTests, []);
+  const unsafe = source.replace("enable('kernelFull', why); compatibility(why);", "compatibility(why);")
+    .replace('consoleCompatibilityPaths.has(record.path)', "record.path.startsWith('server/') || record.path.startsWith('src/')");
+  assert.notEqual(unsafe, source);
+  const unsafeFile = join(f.base, 'shared-exempt-mutant.mjs'); await writeFile(unsafeFile, unsafe);
+  const unsafeApi = await import(unsafeFile);
+  assert.throws(() => assert.equal(unsafeApi.classifyImpact({ cohort: 'pull_request', components: [
+    component('console', [change('server/kernel-authority.mjs')]) ] }).selection.kernelFull, true), assert.AssertionError);
+  const unsafePlan = await unsafeApi.computeCiImpact({ ...args, testedSha: git(f.root, 'rev-parse', 'HEAD') });
+  assert.throws(() => assert.equal(unsafePlan.selection.kernelFull, true), assert.AssertionError);
+});
+
+// Only external PR discovery is doubled; restoration/comparison/history remain real.
+async function boundedSourcePush(f, { before = f.baseCommit, base = f.baseCommit } = {}) {
+  const originalFetch = globalThis.fetch; const originalToken = process.env.GITHUB_TOKEN;
+  const head = git(f.root, 'rev-parse', 'HEAD');
+  try {
+    process.env.GITHUB_TOKEN = 'synthetic-never-logged';
+    globalThis.fetch = async () => ({ ok: true, json: async () => [{ number: 42, state: 'open',
+      head: { sha: head, ref: 'feature', repo: { full_name: 'example/qa' } }, base: { sha: base, repo: { full_name: 'example/qa' } } }] });
+    const plan = await compute(f, { eventName: 'push', ref: 'refs/heads/feature', event: { before }, workflow: 'source' });
+    assert.equal(process.env.GITHUB_TOKEN, undefined);
+    return plan;
+  } finally { globalThis.fetch = originalFetch; if (originalToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = originalToken; }
+}
+
+test('bounded source dedup admits exact paths on both scopes while retaining PR qualification', async context => {
+  for (const path of ['tests/ci-impact.test.mjs', 'tests/qa-runtime-workflow.test.mjs', '.github/workflows/qa-runtime.yml']) {
+    await context.test(path, async () => {
+      const f = await fixture(); await mkdir(join(f.root, path, '..'), { recursive: true }); await writeFile(join(f.root, path), 'synthetic policy\n');
+      const prior = f.commitHead();
+      const push = await boundedSourcePush(f);
+      assert.equal(push.duplicate.suppressed, true); assert.equal(push.selection.rootTests, false);
+      assert.equal(push.selection.freelandControls, false); assert.match(push.duplicate.reason, /NOT_RUN_DUPLICATE_PR_PENDING/u);
+      assert.equal(push.selection.kernelFull, path === '.github/workflows/qa-runtime.yml');
+      const pr = await compute(f); assert.equal(pr.duplicate.suppressed, false); assert.equal(pr.selection.rootTests, true);
+      assert.equal(pr.selection.kernelFull, path === '.github/workflows/qa-runtime.yml');
+      await mkdir(join(f.root, 'docs'), { recursive: true }); await writeFile(join(f.root, 'docs/followup.md'), 'ordinary docs\n'); f.commitHead();
+      assert.equal((await boundedSourcePush(f, { before: prior })).duplicate.suppressed, true);
+    });
+  }
+  for (const path of ['tools/ci-impact.mjs', '.github/workflows/qa-source.yml']) await context.test(`ineligible ${path}`, async () => {
+    const f = await fixture(); await mkdir(join(f.root, path, '..'), { recursive: true }); await writeFile(join(f.root, path), 'shared policy\n');
+    const prior = f.commitHead();
+    assert.equal((await boundedSourcePush(f)).duplicate.suppressed, false);
+    await mkdir(join(f.root, 'docs'), { recursive: true }); await writeFile(join(f.root, 'docs/followup.md'), 'docs\n'); f.commitHead();
+    const plan = await boundedSourcePush(f, { before: prior });
+    assert.equal(plan.duplicate.suppressed, false); assert.equal(plan.selection.kernelFull, true);
+  });
+});
+
+test('bounded dedup refuses removed unsafe and hidden push policy and changed bases', async context => {
+  for (const kind of ['deleted', 'executable', 'symlink', 'hidden-selector', 'hidden-workflow']) await context.test(kind, async () => {
+    const f = await fixture(); const path = kind === 'hidden-selector' ? 'tools/ci-impact.mjs' :
+      kind === 'hidden-workflow' ? '.github/workflows/qa-runtime.yml' : 'tests/ci-impact.test.mjs';
+    await mkdir(join(f.root, path, '..'), { recursive: true }); await writeFile(join(f.root, path), 'policy\n');
+    const before = f.commitHead(); f.baseCommit = before;
+    if (kind === 'executable') await chmod(join(f.root, path), 0o755);
+    else if (kind === 'symlink') { await unlink(join(f.root, path)); await symlink('../sources/manifest.v1.json', join(f.root, path)); }
+    else await unlink(join(f.root, path));
+    f.commitHead();
+    // PR diff is empty, but event.before includes the removed policy file.
+    if (kind.startsWith('hidden-')) f.baseCommit = git(f.root, 'rev-parse', 'HEAD');
+    const plan = await boundedSourcePush(f, { before });
+    assert.equal(plan.duplicate.suppressed, false); assert.equal(plan.selection.kernelFull, true);
+  });
+  const f = await fixture(); f.commitHead();
+  const disconnected = git(f.root, 'commit-tree', git(f.root, 'rev-parse', 'HEAD^{tree}'), '-m', 'Advanced disconnected base');
+  for (const options of [{ base: disconnected }, { before: disconnected }]) {
+    const plan = await boundedSourcePush(f, options);
+    assert.equal(plan.duplicate.suppressed, false); assert.equal(plan.selection.kernelFull, true);
+  }
+  const originalToken = process.env.GITHUB_TOKEN;
+  try {
+    delete process.env.GITHUB_TOKEN;
+    const plan = await compute(f, { eventName: 'push', ref: 'refs/heads/feature', event: { before: f.baseCommit }, workflow: 'source' });
+    assert.equal(plan.duplicate.suppressed, false); assert.equal(plan.selection.kernelFull, true);
+    assert.match(plan.reasons.kernelFull, /no read-only token/u);
+  } finally { if (originalToken !== undefined) process.env.GITHUB_TOKEN = originalToken; }
+});
+
+test('bounded PR qualifies actual different-tree merge HEAD not its branch candidate', async () => {
+  const f = await fixture(); git(f.root, 'checkout', '-b', 'feature');
+  await mkdir(join(f.root, 'docs'), { recursive: true }); await writeFile(join(f.root, 'docs/feature.md'), 'feature\n');
+  const branch = f.commitHead(); const branchTree = git(f.root, 'rev-parse', 'HEAD^{tree}');
+  git(f.root, 'checkout', '-b', 'integration', f.baseCommit);
+  await mkdir(join(f.root, 'docs'), { recursive: true }); await writeFile(join(f.root, 'docs/integration.md'), 'new base\n');
+  const base = f.commitHead(); git(f.root, 'merge', '--no-ff', 'feature', '-m', 'Actual merged result');
+  const merge = git(f.root, 'rev-parse', 'HEAD'); const mergeTree = git(f.root, 'rev-parse', 'HEAD^{tree}');
+  assert.notEqual(branchTree, mergeTree);
+  const pr = await compute(f, { event: { pull_request: { base: { sha: base }, head: { sha: branch } } } });
+  assert.equal(pr.head.commit, merge); assert.equal(pr.head.tree, mergeTree); assert.equal(pr.base.commit, base);
+  assert.equal(pr.selection.rootTests, true); assert.equal(pr.duplicate.suppressed, false); assert.match(pr.reasons.event, new RegExp(branch, 'u'));
+  const integrated = await compute(f, { eventName: 'push', ref: 'refs/heads/develop', event: { before: base } });
+  assert.equal(integrated.head.commit, merge); assert.equal(integrated.selection.kernelFull, true);
+});
+
 test('actual CLI emits selection-only JSON exclusively and refuses malformed flags/overwrite', async () => {
   const f = await fixture(); f.commitHead(); f.restore();
   const eventPath = join(f.base, 'event.json'); const output = join(f.base, 'selection.json'); await writeFile(eventPath, '{}');
