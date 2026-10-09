@@ -19,6 +19,26 @@ const change = (path, status = 'modified', baseMode = '100644', headMode = '1006
 const component = (id, paths) => ({ id, verified: true, baseCommit: '1'.repeat(40), headCommit: '2'.repeat(40),
   baseTree: '3'.repeat(40), headTree: paths.length ? '4'.repeat(40) : '3'.repeat(40), changedPaths: paths });
 
+test('dependency intake literal mappings select runtime without accepting deleted or unknown tests', async context => {
+  const { classifyImpact } = await api();
+  const paths = ['tests/unit/intake-build.test.ts', 'tests/unit/qa-init-cli.test.ts',
+    'tests/unit/campaign-dependency-scope.test.ts', 'tests/unit/campaign-dependency-adapter.test.ts',
+    'tests/unit/campaign-dependency-cli.test.ts', 'tests/fixtures/nuanu-readonly/fixture.ts',
+    'tests/fixtures/public-auth-readonly/fixture.ts'];
+  for (const path of paths) for (const [status, before, after] of [
+    ['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null],
+  ]) await context.test(`${path} ${status}`, () => {
+    const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+    for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+    assert.equal(result.selection.kernelFull, status === 'deleted');
+    assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+  });
+  const unknown = 'tests/unit/campaign-dependency-unreviewed.test.ts';
+  const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(unknown)])] });
+  assert.equal(result.selection.kernelFull, true);
+  assert.deepEqual(result.unsupportedChanges, [`unmapped or removed Console test: ${unknown}`]);
+});
+
 // Each literal expectation names a policy bug: broad fallback missing, unwanted Kernel,
 // an unselected accepted regression, or unsupported tests silently accepted.
 test('known source deltas select their real prerequisites without unchanged full Kernel', async context => {
