@@ -304,6 +304,47 @@ function nodeBody(workflow, stepName) {
   return body.split('\n').map(line => line.slice(10)).join('\n');
 }
 
+test('materialized selection survives large plans and treats hostile quote data as inert input', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const root = await mkdtemp(join(tmpdir(), 'qa-large-selection-'));
+  const marker = join(root, 'must-not-execute');
+  const selection = { rootTests: true, freelandControls: false, kernelBuildContracts: false, kernelFull: false,
+    kernelFocusedTests: [], consoleBuild: false, consoleRuntime: false, consoleBrowser: 'finite', consoleS01Lifecycle: false };
+  const hostile = `";require('node:fs').writeFileSync(${JSON.stringify(marker)},'unsafe');//\nNODE\n$(touch ${marker})\n\`touch ${marker}\``;
+  const plan = { schemaVersion: 1, qualification: 'selection_only', workflow: 'runtime', selection,
+    unsupportedChanges: [], head: {commit:'1'.repeat(40)}, base: {commit:'2'.repeat(40)},
+    reasons: Object.fromEntries(Object.keys(selection).map(key => [key, `${hostile}${'x'.repeat(150_000)}`])) };
+  // One large reason is sufficient to exceed Linux's single environment-entry limit.
+  for (const key of Object.keys(plan.reasons).slice(1)) plan.reasons[key] = hostile;
+  const encoded = JSON.stringify(plan);
+  assert.ok(Buffer.byteLength(encoded) > 128 * 1024 && Buffer.byteLength(encoded) < 1024 * 1024);
+  for (const step of ['Record actual selected runtime completion', 'Validate selection and selected job results']) {
+    const body = nodeBody(workflow, step);
+    const run = async input => {
+      const file = join(root, 'actual-workflow-script.sh');
+      // GitHub toJSON renders a JSON string literal, never a template or shell expansion.
+      await writeFile(file, `node <<'NODE'\n${body.replace('${{ toJSON(needs.impact.outputs.plan) }}', JSON.stringify(input))}\nNODE\n`);
+      return spawnSync('/bin/bash', ['--noprofile', '--norc', file], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024, env: {
+        PATH: `${dirname(process.execPath)}:/usr/bin:/bin`,
+        IMPACT_RESULT:'success', RUNTIME_RESULT:'success', KERNEL_RESULT:'skipped',
+        KERNEL_BUILD:'false', KERNEL_FULL:'false', KERNEL_FOCUSED:'[]', CONSOLE_BUILD:'false', CONSOLE_RUNTIME:'false',
+        CONSOLE_BROWSER:'finite', CONSOLE_S01:'false', RUNTIME_MODE:'selected-complete',
+        DEPENDENCY_RESULT:'skipped', DEPENDENCY_MODE:'',
+        GITHUB_OUTPUT:join(root,'outputs'), GITHUB_STEP_SUMMARY:join(root,'summary'),
+      } });
+    };
+    const healthy = await run(encoded);
+    assert.equal(healthy.status, 0, `${step}: ${healthy.stderr}`);
+    if (step === 'Validate selection and selected job results') assert.ok(healthy.stdout.includes(hostile), 'full reason data survives');
+    await assert.rejects(readFile(marker), {code:'ENOENT'});
+    assert.notEqual((await run('{broken')).status, 0, step);
+    const oversized = await run(JSON.stringify({...plan,reasons:{...plan.reasons,rootTests:'x'.repeat(1024*1024)}}));
+    assert.notEqual(oversized.status, 0, step);
+    assert.match(oversized.stderr, /Selection plan exceeds materialization bound/u);
+    assert.notEqual((await run(null)).status, 0, step);
+  }
+});
+
 const requestEvidenceFiles = ['command-1.json', 'command-2.json', 'command-3.json', 'consumer-evidence.json',
   'checkpoint1-download.md', 'request-desktop.png', 'graph-shadow.html', 'graph.png', 'coverage-shadow.html', 'coverage.png',
   'opened-blocker-1.png', 'opened-blocker-2.png', 'opened-blocker-3.png', 'opened-blocker-4.png', 'opened-blocker-5.png', 'opened-blocker-6.png',
@@ -420,7 +461,7 @@ test('selected request retention configuration admits only the reviewed staging 
 });
 
 test('terminal selected-results checker actually rejects failures and incomplete selection', async () => {
-  const script = nodeBody(await readFile(workflowUrl, 'utf8'), 'Validate selection and selected job results');
+  const body = nodeBody(await readFile(workflowUrl, 'utf8'), 'Validate selection and selected job results');
   const root = await mkdtemp(join(tmpdir(), 'qa-runtime-terminal-test-'));
   const selection = { rootTests: true, freelandControls: false, kernelBuildContracts: false, kernelFull: false,
     kernelFocusedTests: [], consoleBuild: false, consoleRuntime: false, consoleBrowser: 'finite', consoleS01Lifecycle: false };
@@ -429,6 +470,7 @@ test('terminal selected-results checker actually rejects failures and incomplete
   const run = (changes = {}, changedPlan = plan) => {
     const s = changedPlan.selection ?? selection;
     const selected = s.kernelBuildContracts || s.consoleBuild || s.consoleRuntime || s.consoleBrowser !== 'none' || s.consoleS01Lifecycle || s.kernelFocusedTests?.length;
+    const script = body.replace('${{ toJSON(needs.impact.outputs.plan) }}', JSON.stringify(JSON.stringify(changedPlan)));
     return spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', env: {
       IMPACT_RESULT: 'success', RUNTIME_RESULT: 'success', KERNEL_RESULT: 'skipped', IMPACT_PLAN: JSON.stringify(changedPlan),
       KERNEL_BUILD: String(s.kernelBuildContracts), KERNEL_FULL: String(s.kernelFull), KERNEL_FOCUSED: JSON.stringify(s.kernelFocusedTests),

@@ -375,12 +375,12 @@ jobs:
         run: echo 'NOT RUN — no runtime effects selected; root source packaging is qualified separately'
       - name: Record actual selected runtime completion
         id: runtime-result
-        env:
-          IMPACT_PLAN: ${{ needs.impact.outputs.plan }}
         run: |
           node <<'NODE'
           const fs = require('node:fs');
-          const s = JSON.parse(process.env.IMPACT_PLAN).selection;
+          const materializedPlan = ${{ toJSON(needs.impact.outputs.plan) }};
+          if (typeof materializedPlan !== 'string' || Buffer.byteLength(materializedPlan) > 1024 * 1024) throw Error('Selection plan exceeds materialization bound');
+          const s = JSON.parse(materializedPlan).selection;
           const selected = s.kernelBuildContracts || s.consoleBuild || s.consoleRuntime || s.consoleBrowser !== 'none' || s.consoleS01Lifecycle || s.kernelFocusedTests.length;
           fs.appendFileSync(process.env.GITHUB_OUTPUT, 'mode=' + (selected ? 'selected-complete' : 'explicit-no-tests') + '\n');
           NODE
@@ -457,7 +457,6 @@ jobs:
           IMPACT_RESULT: ${{ needs.impact.result }}
           RUNTIME_RESULT: ${{ needs.runtime-smoke.result }}
           KERNEL_RESULT: ${{ needs.kernel-regression.result }}
-          IMPACT_PLAN: ${{ needs.impact.outputs.plan }}
           KERNEL_BUILD: ${{ needs.impact.outputs.kernel-build }}
           KERNEL_FULL: ${{ needs.impact.outputs.kernel-full }}
           KERNEL_FOCUSED: ${{ needs.impact.outputs.kernel-focused }}
@@ -470,7 +469,9 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
           if (process.env.IMPACT_RESULT !== 'success') throw Error('Impact selection failed or unavailable');
-          const plan = JSON.parse(process.env.IMPACT_PLAN);
+          const materializedPlan = ${{ toJSON(needs.impact.outputs.plan) }};
+          if (typeof materializedPlan !== 'string' || Buffer.byteLength(materializedPlan) > 1024 * 1024) throw Error('Selection plan exceeds materialization bound');
+          const plan = JSON.parse(materializedPlan);
           const s = plan.selection;
           const flags = ['rootTests','freelandControls','kernelBuildContracts','kernelFull','consoleBuild','consoleRuntime','consoleS01Lifecycle'];
           if (plan.schemaVersion !== 1 || plan.qualification !== 'selection_only' || plan.workflow !== 'runtime' ||
