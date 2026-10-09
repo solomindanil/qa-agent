@@ -1,0 +1,30 @@
+# Owning agent-request checkpoint foundation — local serialized source
+
+Console4cc52a4ce0e712a7ae5869a24ade583cfca17bec/tree2f506a94ed4a7edaee67f6e4fb6de2d9a1c38824 is a conflict-free ordinary merge of accepted ebaf06e and529083. Exactly six foundation files are byte-identical529; all452 earlier ebaf tracked paths, including U03a and batching helper/test, are unchanged. Kernel794 and the other two component pins, dependencies/locks, all earlier public bundles and campaign/installed state remain unchanged. This is LOCAL source preparation: SAME independent Astra source/results accepted C0/I0/M0 with I1 resolved; serialized carrier final review PENDING, own new-head hosted/publication NOT RUN.
+
+## Bounded capability and limits
+
+The library persists and explicitly reopens caller-authored request checkpoints through existing public Kernel private CAS/read/observation APIs. Original literal request/all clauses, immutable definitions/history/denominator, pairwise registered evidence relation, qualified historical/unavailable states and unknown-effect global stop barrier are retained. Exact-string sorted JSON plus LF preserves NFC/NFD; request/model/observation digests keep their own algorithms. Missing roots, invalid/unsafe records, bounds and foreign ownership refuse without truncation, write retry or rollback.
+
+The staged-CAS repair permits at most one verified reread after PATH_RACE_DETECTED: a valid changed file digest reconciles identical-last content or reports distinct CONFLICT; unchanged/missing/malformed/unsafe/unverifiable leaves remain STORE_UNAVAILABLE. No blanket conversion, second write, authority cache, new store, Kernel protocol or deadline change.
+
+No CLI/discovery/report/export/UI integration or product action is introduced by these six files. Provenance is agent_authored_unattested, not native PASS, signed authorship, oracle completeness, execution attestation or permission. Basis checks are sampled, not continuous/transactional freshness. Informational remainder never dispatches work. Full B02/L00/V01, request UI15s admission, product utility/deployed acceptance, installed/frozen adoption and measured cost remain outside this foundation delivery.
+
+## Accepted evidence, not renamed as new integration execution
+
+- Frozen2f17 owning controls17 PASS/1 explicit production/fresh-process SKIP,262447.56ms; pure grammar/relation/remainder controls included. Separate actual production factory create147327.59ms and fresh-process explicit-key read43841.65ms succeeded on2f17, same complete readbacks and eleven preexisting files unchanged. Source identity checks cover their successful paths; adapter operations themselves have before/finally authority checks.
+- Frozen2f17 native loader2/2, source types/primary build success7.59s wall; existing chunk warning retained. Original read43.842s exceeded then-existing15s reader budget; it is not UI admission. Subsequent accepted batching measurements are separate instrumented library evidence, not a new foundation UI result.
+- Genuine staged-CAS FIRST on unchanged2f17: both actual public staged losers incorrectly STORE_UNAVAILABLE; five refusal controls lacked the required reread count, not five product bugs. Seven failed children plus failed parent retained. Repair9c99 staged controls8/8 (seven children+parent),39312.25ms; final529 duplicate8/8,40605.95ms, not additional coverage. Four inferred-null test compiler diagnostics were repaired by only two erased annotations; final source and affected test types exited0.
+- Initial capability RED, real240000ms timeout/cancelled local child, moving-source exploratory attribution UNKNOWN and compiler/setup firsts remain retained. No unchanged factory/control/type/build replay for the byte-equivalent six-file composition. Composition/transport proves source fit, not a new runtime PASS.
+
+## Normal carrier and permanent CI obligation
+
+Existing foundation unit test receives a literal entry in the existing runtime group and exactly one real isolated runtime argv argument. Focused mapping/actual shell argv FIRST1PASS/4FAIL became GREEN5/5; added/modified map kernelBuildContracts/consoleRuntime/consoleS01Lifecycle, removal remains unsupported and selects conservative FULL. Unknown/bootstrap/full policy, all prior runtime/browser arguments, source integrity, isolation and budgets remain unchanged. Controls do not set controls-only mode; naturally selected hosted execution must run the unchanged default test, including production factory/fresh-process case. Focused transport/packaging and affected CI policy checks belong to this new root, not component correctness or product checks.
+
+## Previous public delivery reconciled
+
+[PR21](https://github.com/solomindanil/qa-agent/pull/21) delivered unchanged ebaf through root e678 after SAME source/results and affected carrier C0/I0/M0, all eight own SUCCESS attempt1, actual FULL selection and terminal selected-complete. Server mergedAt2026-10-08T23:28:15Z; public merge4e2d8dcddb4cc3cadbd07389b79b2ebfb8184eaf/tree42cbf9dfc10e060bb963dc4e7019619781eea402/parents92f8+e678.
+
+Own PR21 source workflows each ran root221/Freeland36/snapshot10. Runtime424PASS/1SKIP out of425 included actual44 authority controls/six Git processes/bounded stalled-child termination; S01 5/5 and browser-all48/48, source and fixture compiler/build/integrity succeeded. Kernel build/contracts515/515 are distinct from the three full groups:14+434+1397 PASS/1 SKIP =1845 PASS/1 SKIP out of1846. Separate focused Kernel/alternate unselected steps were NOT RUN/SKIP, not PASS. No old PR20 result supplied gate credit; prior FIRST/strict argv correction/umask diagnosis/obsolete cancellation and original consumer HOLD limits remain immutable.
+
+Known PR21 creation→merge33m34s and own runtime creation→terminal31m24s are delivery observations, not the foundation task's full start/wall or model cost. New carrier own gates remain pending; no borrowed PR21 result closes them. No product, tracker, payment, installation or campaign authority is granted.

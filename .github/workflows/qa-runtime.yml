@@ -81,7 +81,7 @@ jobs:
   runtime-smoke:
     needs: impact
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     outputs:
       mode: ${{ steps.runtime-result.outputs.mode }}
     steps:
@@ -156,6 +156,7 @@ jobs:
               tests/unit/workspace-snapshot.test.ts \
               tests/unit/qa-outcomes-export.test.ts \
               tests/unit/request-admission.test.ts \
+              tests/unit/agent-request-checkpoint.test.ts \
               tests/unit/qa-outcomes.test.ts \
               tests/unit/api-semantic-assertions.test.ts \
               tests/unit/qa-campaign-files-umask.test.ts \

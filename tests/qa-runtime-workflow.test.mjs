@@ -352,6 +352,39 @@ test('selected S01 actual argv/env keeps only its accepted lifecycle controls is
   assert.equal(observed.privateRoot, join(tmpdir(), 'private'));
 });
 
+test('workflow job budgets retain the reviewed finite aggregate allowance and independent deadlines', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const validate = value => {
+    const jobsStart = value.indexOf('\njobs:\n');
+    assert.notEqual(jobsStart, -1, 'job budgets must be validated within the actual jobs section');
+    const lines = value.slice(jobsStart + '\njobs:\n'.length).split('\n');
+    const starts = lines.map((line, index) => /^ {2}[a-z][a-z-]*:$/u.test(line) ? index : -1)
+      .filter(index => index >= 0);
+    const budgets = Object.fromEntries(starts.map((start, index) => {
+      const job = lines[start].trim().slice(0, -1);
+      const body = lines.slice(start + 1, starts[index + 1] ?? lines.length).join('\n');
+      const caps = [...body.matchAll(/^ {4}timeout-minutes: (.+)$/gmu)];
+      assert.equal(caps.length, 1, `${job} must have exactly one literal job-level budget`);
+      return [job, caps[0][1]];
+    }));
+    assert.deepEqual(budgets, { impact: '5', 'runtime-smoke': '35', 'kernel-regression': '60', 'runtime-qualification': '5' });
+    assert.deepEqual([...value.matchAll(/^ {8}timeout-minutes: (.+)$/gmu)].map(match => match[1]), ['3'],
+      'independent selector step deadline must remain unchanged');
+  };
+  validate(workflow);
+  for (const mutant of [
+    workflow.replace('    timeout-minutes: 35\n', '    timeout-minutes: 25\n'),
+    workflow.replace('    timeout-minutes: 35\n', ''),
+    workflow.replace('    timeout-minutes: 35\n', '    timeout-minutes: ${{ 35 }}\n'),
+    workflow.replace('    timeout-minutes: 35\n', '    timeout-minutes: 36\n'),
+    workflow.replace('    timeout-minutes: 35\n', '        timeout-minutes: 35\n'),
+    workflow.replace('    timeout-minutes: 60\n', '    timeout-minutes: 61\n'),
+    workflow.replace('    timeout-minutes: 5\n', '    timeout-minutes: 6\n'),
+    workflow.replace('  runtime-qualification:\n', '  runtime-qualification:\n    timeout-minutes: 6\n'),
+    workflow.replace('        timeout-minutes: 3\n', '        timeout-minutes: 4\n'),
+  ]) assert.throws(() => validate(mutant), assert.AssertionError);
+});
+
 test('impact-dependent workflow wiring preserves bootstrap, shard isolation and failure propagation', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const validate = value => {
