@@ -159,6 +159,7 @@ jobs:
               tests/unit/agent-request-checkpoint.test.ts \
               tests/unit/agent-request-report.test.ts \
               tests/unit/agent-request-cli.test.ts \
+              tests/unit/selected-agent-request.test.ts \
               tests/unit/qa-outcomes.test.ts \
               tests/unit/api-semantic-assertions.test.ts \
               tests/unit/qa-campaign-files-umask.test.ts \
@@ -244,21 +245,119 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/qa-release-browsers
         run: ./node_modules/.bin/playwright install --with-deps chromium
       - name: Browser healthy and broken fixture controls
+        id: browser-all
         if: needs.impact.outputs.console-browser == 'all'
         working-directory: components/console
         shell: bash
         run: |
           set -euo pipefail
           qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-browser.XXXXXX")"
+          qa_source="$(git rev-parse HEAD)"
+          qa_kernel="$(git -C "${GITHUB_WORKSPACE}/components/kernel" rev-parse HEAD)"
+          printf 'request-dir=%s\nconsole-commit=%s\nkernel-commit=%s\n' "${qa_tmp}/selected-request" "${qa_source}" "${qa_kernel}" >> "${GITHUB_OUTPUT}"
           qa_chromium="$(env -i PATH="${PATH}" PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" node --input-type=module -e 'import {chromium} from "@playwright/test"; console.log(chromium.executablePath());')"
           env -i \
             PATH="${PATH}" \
             TMPDIR="${qa_tmp}" \
             QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel" \
             QA_SELECTED_RUN_UI_DIR="${qa_tmp}/selected-run" \
+            QA_SELECTED_REQUEST_UI_DIR="${qa_tmp}/selected-request" \
+            QA_CONSUMER_SOURCE_COMMIT="${qa_source}" \
             QA_PRIMARY_UI_CHROMIUM="${qa_chromium}" \
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \
-            node --import tsx --test tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/e2e/selected-campaign-local.test.mjs
+            node --import tsx --test tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs
+      - name: Stage selected request evidence
+        id: request-evidence
+        if: always() && needs.impact.outputs.console-browser == 'all' && steps.browser-all.outcome != 'skipped'
+        timeout-minutes: 1
+        env:
+          SELECTED_REQUEST_DIR: ${{ steps.browser-all.outputs.request-dir }}
+          BROWSER_OUTCOME: ${{ steps.browser-all.outcome }}
+          ROOT_SOURCE_COMMIT: ${{ github.sha }}
+          CONSOLE_SOURCE_COMMIT: ${{ steps.browser-all.outputs.console-commit }}
+          KERNEL_SOURCE_COMMIT: ${{ steps.browser-all.outputs.kernel-commit }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
+          const runner = fs.realpathSync(process.env.RUNNER_TEMP);
+          if (!path.isAbsolute(runner) || /[\x00-\x1f\x7f]/.test(runner) || runner !== process.env.RUNNER_TEMP ||
+              !fs.lstatSync(runner).isDirectory()) throw new Error('invalid runner temp');
+          const stage = fs.mkdtempSync(path.join(runner, 'qa-request-evidence.'));
+          fs.chmodSync(stage, 0o700);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'path=' + stage + '\n');
+          const names = ['command-1.json', 'command-2.json', 'command-3.json', 'consumer-evidence.json',
+            'checkpoint1-download.md', 'request-desktop.png', 'graph-shadow.html', 'graph.png', 'coverage-shadow.html', 'coverage.png',
+            'opened-blocker-1.png', 'opened-blocker-2.png', 'opened-blocker-3.png', 'opened-blocker-4.png', 'opened-blocker-5.png', 'opened-blocker-6.png',
+            'opened-plan.html', 'disclosed-strategy.json', 'opened-plan.png', 'historical-checkpoint1.png', 'injected-failure-unavailable.png'];
+          const manifest = { schemaVersion: 1, syntheticFixtureOnly: true,
+            rootCommit: process.env.ROOT_SOURCE_COMMIT || null, consoleCommit: process.env.CONSOLE_SOURCE_COMMIT || null,
+            kernelCommit: process.env.KERNEL_SOURCE_COMMIT || null, runId: process.env.GITHUB_RUN_ID || null,
+            attempt: process.env.GITHUB_RUN_ATTEMPT || null, browserOutcome: process.env.BROWSER_OUTCOME || 'unknown',
+            directoryStatus: 'refused', consumerLedger: 'missing', files: [], refusals: [] };
+          const refuse = code => { if (!manifest.refusals.includes(code)) manifest.refusals.push(code); };
+          for (const key of ['rootCommit', 'consoleCommit', 'kernelCommit']) if (!/^[a-f0-9]{40}$/.test(manifest[key] || '')) refuse('identity_unavailable');
+          if (!/^[1-9][0-9]*$/.test(manifest.runId || '') || !/^[1-9][0-9]*$/.test(manifest.attempt || '')) refuse('run_identity_unavailable');
+          const same = (a, b) => ['dev', 'ino', 'mode', 'nlink', 'size', 'mtimeMs', 'ctimeMs'].every(key => a[key] === b[key]);
+          const source = process.env.SELECTED_REQUEST_DIR || '';
+          let parent, parentStat, sourceStat, safe = false, total = 0;
+          try {
+            parent = path.dirname(source);
+            if (!path.isAbsolute(source) || path.normalize(source) !== source || path.basename(source) !== 'selected-request' ||
+                path.dirname(parent) !== runner || !/^qa-browser\.[A-Za-z0-9]{6}$/.test(path.basename(parent))) throw new Error('provenance');
+            parentStat = fs.lstatSync(parent); sourceStat = fs.lstatSync(source);
+            if (!parentStat.isDirectory() || !sourceStat.isDirectory() || fs.realpathSync(parent) !== parent || fs.realpathSync(source) !== source ||
+                parent === stage || source === stage) throw new Error('provenance');
+            safe = true; manifest.directoryStatus = 'owned';
+          } catch { refuse('source_directory_unavailable_or_unsafe'); }
+          const stableDirectory = () => {
+            if (!same(parentStat, fs.lstatSync(parent)) || !same(sourceStat, fs.lstatSync(source)) ||
+                fs.realpathSync(parent) !== parent || fs.realpathSync(source) !== source) throw new Error('directory_drift');
+          };
+          for (const name of names) {
+            const entry = { name, status: 'missing' }; manifest.files.push(entry);
+            if (!safe) continue;
+            let fd;
+            try {
+              stableDirectory();
+              const file = path.join(source, name); let before;
+              try { before = fs.lstatSync(file); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+              if (!before.isFile() || before.nlink !== 1 || fs.realpathSync(file) !== file) throw new Error('unsafe_leaf');
+              if (before.size > 16 * 1024 * 1024 || total + before.size > 64 * 1024 * 1024) throw new Error('payload_bound');
+              fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+              if (!same(before, fs.fstatSync(fd))) throw new Error('identity_drift');
+              const buffer = Buffer.alloc(before.size + 1);
+              let used = 0, count;
+              while (used < buffer.length && (count = fs.readSync(fd, buffer, used, buffer.length - used, null)) > 0) used += count;
+              const bytes = buffer.subarray(0, used);
+              if (bytes.length !== before.size || !same(before, fs.fstatSync(fd)) || !same(before, fs.lstatSync(file))) throw new Error('identity_drift');
+              stableDirectory();
+              fs.writeFileSync(path.join(stage, name), bytes, { flag: 'wx', mode: 0o600 });
+              total += bytes.length; entry.status = 'accepted'; entry.bytes = bytes.length;
+              entry.sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+            } catch { entry.status = 'refused'; refuse('unsafe_or_changed_payload'); }
+            finally { if (fd !== undefined) fs.closeSync(fd); }
+          }
+          manifest.consumerLedger = manifest.files.find(entry => entry.name === 'consumer-evidence.json').status;
+          manifest.totalBytes = total;
+          if (manifest.browserOutcome === 'success' && manifest.files.some(entry => entry.status !== 'accepted')) refuse('successful_browser_evidence_incomplete');
+          const encoded = Buffer.from(JSON.stringify(manifest, null, 2) + '\n');
+          if (encoded.length > 1024 * 1024) throw new Error('manifest bound');
+          fs.writeFileSync(path.join(stage, 'manifest.json'), encoded, { flag: 'wx', mode: 0o600 });
+          if (manifest.refusals.length) throw new Error('selected request evidence retention refused');
+          NODE
+      - name: Upload selected request evidence
+        if: always() && steps.request-evidence.outputs.path != ''
+        timeout-minutes: 3
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: selected-request-ui-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.request-evidence.outputs.path }}
+          retention-days: 14
+          compression-level: 0
+          archive: true
+          overwrite: false
+          include-hidden-files: false
+          if-no-files-found: error
       - name: Finite browser fixture controls
         if: needs.impact.outputs.console-browser == 'finite'
         working-directory: components/console

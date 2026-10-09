@@ -185,6 +185,36 @@ test('request report actual isolated runtime argv executes both new units exactl
   }
 });
 
+test('selected request literal mappings admit controls without waiving deletion', async context => {
+  const { classifyImpact } = await api();
+  for (const path of ['tests/unit/selected-agent-request.test.ts', 'tests/e2e/selected-agent-request-local.test.mjs']) {
+    for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
+      await context.test(`${path} ${status}`, () => {
+        const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+        for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+        if (path.includes('/e2e/')) {
+          assert.equal(result.selection.consoleBuild, true); assert.equal(result.selection.consoleBrowser, 'all');
+        }
+        assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+        assert.equal(result.selection.kernelFull, status === 'deleted');
+      });
+    }
+  }
+});
+
+test('selected request actual isolated runtime argv executes its unit exactly once', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
+  const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu);
+  const command = step?.[1].match(/^\s*node --import tsx --test --test-concurrency=1 \\\n((?:\s+tests\/unit\/[^\n]+\n?)+)/mu);
+  assert.ok(command);
+  const args = command[0].replace(/\\\n/gu, ' ').trim().slice('node --import tsx --test --test-concurrency=1'.length);
+  const result = spawnSync('/bin/bash', ['--noprofile', '--norc', '-c',
+    `"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`,
+    'qa-selected-request-runtime-argv', process.execPath], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' } });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).filter(arg => arg === 'tests/unit/selected-agent-request.test.ts').length, 1);
+});
+
 test('U03a literal unit mappings admit added/modified controls without waiving deletion', async context => {
   const { classifyImpact } = await api();
   for (const path of [
@@ -243,17 +273,36 @@ test('U03a actual browser-all shell supplies portable installed Chromium and fre
   // Execute the real shell boundary with an inert Node recorder: no browser/build/product.
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'qa-u03a-ci-argv-')));
   const bin = join(dir, 'bin'); await mkdir(bin);
+  const workspace = join(dir, 'workspace'), consoleRoot = join(workspace, 'components/console');
+  const kernelRoot = join(workspace, 'components/kernel');
+  for (const root of [consoleRoot, kernelRoot]) {
+    await mkdir(root, { recursive: true }); git(root, 'init', '--template=');
+    git(root, 'commit', '--allow-empty', '-m', root === consoleRoot ? 'Synthetic Console identity' : 'Synthetic Kernel identity');
+  }
+  const consoleCommit = git(consoleRoot, 'rev-parse', 'HEAD');
+  assert.notEqual(consoleCommit, git(kernelRoot, 'rev-parse', 'HEAD'), 'fixture identities must differ');
+  const output = join(dir, 'step-output');
   const record = join(dir, 'argv.json'); const installed = join(dir, 'installed-chromium');
   await writeFile(join(bin, 'node'), `#!${process.execPath}\nconst fs=require('node:fs');\nif(process.argv.includes('--input-type=module')) { if(!process.argv.at(-1).includes('chromium.executablePath()')) process.exit(2); console.log(${JSON.stringify(installed)}); } else fs.writeFileSync(${JSON.stringify(record)},JSON.stringify({argv:process.argv.slice(2),env:process.env}));\n`, { mode: 0o755 });
-  const result = spawnSync('/bin/bash', ['-c', block], { cwd: dir, env: { PATH: `${bin}:/usr/bin:/bin`, RUNNER_TEMP: dir, GITHUB_WORKSPACE: join(dir, 'workspace'), SYNTHETIC_PRIVATE_SENTINEL: 'must-not-reach-child' }, encoding: 'utf8', timeout: 10_000 });
+  const result = spawnSync('/bin/bash', ['-c', block], { cwd: consoleRoot, env: { PATH: `${bin}:/usr/bin:/bin`, RUNNER_TEMP: dir,
+    GITHUB_WORKSPACE: workspace, GITHUB_OUTPUT: output, GITHUB_SHA: 'a'.repeat(40), GITHUB_TOKEN: 'must-not-reach-child',
+    ACTIONS_RUNTIME_TOKEN: 'must-not-reach-child', SYNTHETIC_PRIVATE_SENTINEL: 'must-not-reach-child' }, encoding: 'utf8', timeout: 10_000 });
   assert.equal(result.status, 0, result.stderr);
   const actual = JSON.parse(await readFile(record, 'utf8'));
-  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/e2e/selected-campaign-local.test.mjs']);
+  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs']);
   assert.equal(actual.env.QA_PRIMARY_UI_CHROMIUM, installed);
   assert.equal(actual.env.QA_STARTER_REPO, join(dir, 'workspace/components/kernel'));
   assert.equal(actual.env.PLAYWRIGHT_BROWSERS_PATH, join(dir, 'qa-release-browsers'));
   assert.ok(actual.env.TMPDIR.startsWith(`${dir}/qa-browser.`));
   assert.equal(actual.env.QA_SELECTED_RUN_UI_DIR, join(actual.env.TMPDIR, 'selected-run'));
+  assert.equal(actual.env.QA_SELECTED_REQUEST_UI_DIR, join(actual.env.TMPDIR, 'selected-request'));
+  assert.equal(actual.env.QA_CONSUMER_SOURCE_COMMIT, consoleCommit);
+  assert.notEqual(actual.env.QA_CONSUMER_SOURCE_COMMIT, 'a'.repeat(40), 'component not root tested SHA');
+  const emitted = await readFile(output, 'utf8');
+  assert.ok(emitted.includes(`request-dir=${actual.env.QA_SELECTED_REQUEST_UI_DIR}\n`));
+  assert.ok(emitted.includes(`console-commit=${consoleCommit}\n`));
+  assert.ok(emitted.includes(`kernel-commit=${git(kernelRoot, 'rev-parse', 'HEAD')}\n`));
+  assert.equal(actual.env.GITHUB_TOKEN, undefined); assert.equal(actual.env.ACTIONS_RUNTIME_TOKEN, undefined);
   assert.equal(actual.env.SYNTHETIC_PRIVATE_SENTINEL, undefined);
   assert.equal((await readFile(record, 'utf8')).includes('tests/fixtures/selected-campaign-consumer-lifecycle.mjs'), false);
 });
