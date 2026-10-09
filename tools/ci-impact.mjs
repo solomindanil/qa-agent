@@ -9,6 +9,7 @@ const bounds = { timeout: 30_000, maxBuffer: 16 * 1024 * 1024, encoding: 'utf8',
 const groups = ['rootTests', 'freelandControls', 'kernelBuildContracts', 'kernelFull', 'kernelFocusedTests',
   'consoleBuild', 'consoleRuntime', 'consoleBrowser', 'consoleS01Lifecycle'];
 const runtimeTests = new Set([
+  'intake-build', 'qa-init-cli', 'campaign-dependency-scope', 'campaign-dependency-adapter', 'campaign-dependency-cli',
   'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'kernel-fixture-authority', 'kernel-replace-authority', 'bridge-cli-authority',
   'campaign-fixture-digests', 'workspace-snapshot', 'qa-outcomes-export', 'request-admission', 'agent-request-checkpoint', 'qa-outcomes',
   'agent-request-report', 'agent-request-cli', 'selected-agent-request',
@@ -22,6 +23,7 @@ const runtimeTests = new Set([
 ].map(name => `tests/unit/${name}.test.${name.startsWith('campaign-continuation-readback') ||
   ['selected-campaign-readback', 'selected-campaign-consumer-lifecycle'].includes(name) ? 'mjs' : 'ts'}`));
 const finitePaths = new Set(['tests/fixtures/browser-action-sequence/check.ts', 'tests/unit/browser-action-sequence.test.ts']);
+const dependencyIntakeHelpers = new Set(['tests/fixtures/nuanu-readonly/fixture.ts', 'tests/fixtures/public-auth-readonly/fixture.ts']);
 const consoleCompatibilityPaths = new Set([
   'server/agent-observation-cli.mjs', 'server/bridge.mjs', 'server/selected-campaign-readback.mjs',
   'server/selected-campaign-readback.d.mts', 'server/workspace-snapshot.mjs', 'src/lib/live.ts',
@@ -108,7 +110,7 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
     for (const record of content) {
       if (ordinary(record) && consoleCompatibilityPaths.has(record.path)) { compatibility(why); continue; }
       if (ordinary(record) && finitePaths.has(record.path)) { enable('consoleBrowser', why, 'finite'); continue; }
-      if (ordinary(record) && (runtimeTests.has(record.path) || /^(?:skills|\.claude\/skills)\/.+\.md$/u.test(record.path))) {
+      if (ordinary(record) && (runtimeTests.has(record.path) || dependencyIntakeHelpers.has(record.path) || /^(?:skills|\.claude\/skills)\/.+\.md$/u.test(record.path))) {
         for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) enable(key, why); continue;
       }
       if (ordinary(record) && (/^(?:src\/(?:components|primary-ui|styles)\/|src\/(?:App\.tsx|main\.tsx|index\.css)$|public\/|index\.html$)/u.test(record.path) ||
