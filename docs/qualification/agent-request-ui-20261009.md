@@ -1,5 +1,15 @@
 # Selected request in the existing owner UI — local serialized source
 
+## Narrow type repair after PR24 FIRST
+
+LOCAL Console `31ba6949413469260e31f103a2875c52955dfd74`, tree `64af347348611127ef2d1f764af12c909a611991`, sole parent reviewed21a. Exactly two source files/three added lines: declaration accepts the already implemented optional literal `base_only`; existing snapshot test narrows `unknown` to a nonnull object with both asserted fields before retaining every original assertion. Runtime/API behavior, UI, FULL consumer, CI argv/retention/deadlines and all other source bytes unchanged. SAME affected repair review/publication PENDING; own new-head qualification and MAIN artifact/readback confirmation still mandatory before merge.
+
+[PR24](https://github.com/solomindanil/qa-agent/pull/24) published reviewed root8074 at03:35:39Z over actual develop9011; own attempt1 runtime37879992302 job113657327725 FAILED03:37:14Z (66 seconds) in Console fixture typecheck. Native diagnostics TS2353 evidenceMode absent from declaration, two TS18046 unknown result accesses and TS2345 unknown to Object.hasOwn. Runtime/FULL UI/staging/upload were SKIPPED, artifacts0, not product failure or UI PASS. Own source push+PR each root257/Freeland36/snapshot10 and Kernel contracts515 passed independently; remaining natural Kernel jobs pending at this repair boundary, no borrowed gate credit. Original FIRST raw and publication preserved, no rerun/cancel/waiver or cap growth.
+
+Exact old21a affected compiler genuinely reproduced four diagnostics/exit2, then repair compiler exit0 and existing snapshot file5/5,1259.280625ms. First focused invocation failed at import for omitted explicit QA_STARTER_REPO; preserved separately, then corrected isolated invocation used exact clean Kernel794 and existing qualified dependencies, no install/build/full local consumer replay. Original UI77/types/build, failed FULL and separate tail remain attributed below; no concatenated lifecycle PASS. Previous preparation paragraph and pending labels below are historical for21a, not repair readiness or new authority.
+
+## Reviewed21a preparation record retained
+
 Console `21a1e5d72c6bf9949b6c8aa5ac4e1b74dfdf8338`, tree `3f71659d52af8e6f8f4c81349cf2b30642477439`, ordinary parents delivered report0c92+accepted1ab. Complete tree equals accepted1ab; exactly22 UI paths change, all443 prior paths outside the delta unchanged. Kernel794, other two component entries, locks/dependencies and every prior published bundle remain unchanged. SAME source/composed-results C0/I0/M0; affected carrier final, own hosted qualification and publication PENDING.
 
 ## Bounded capability and prior evidence
