@@ -19,6 +19,21 @@ const change = (path, status = 'modified', baseMode = '100644', headMode = '1006
 const component = (id, paths) => ({ id, verified: true, baseCommit: '1'.repeat(40), headCommit: '2'.repeat(40),
   baseTree: '3'.repeat(40), headTree: paths.length ? '4'.repeat(40) : '3'.repeat(40), changedPaths: paths });
 
+test('loopback target existing units have literal owning mappings with deletion fallback', async context => {
+  const { classifyImpact } = await api();
+  for (const name of ['bridge-registration', 'first-evidence', 'i2-registration-http', 'readonly-http-broker', 'registration-runtime']) {
+    const path = `tests/unit/${name}.test.ts`;
+    for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
+      await context.test(`${name} ${status}`, () => {
+        const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+        for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+        assert.equal(result.selection.kernelFull, status === 'deleted');
+        assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+      });
+    }
+  }
+});
+
 test('dependency intake literal mappings select runtime without accepting deleted or unknown tests', async context => {
   const { classifyImpact } = await api();
   const paths = ['tests/unit/intake-build.test.ts', 'tests/unit/qa-init-cli.test.ts',

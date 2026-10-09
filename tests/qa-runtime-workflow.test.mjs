@@ -178,6 +178,23 @@ test('isolated Console child receives request admission and association projecti
   assert.ok(observed.argv.includes('tests/unit/qa-outcomes.test.ts'));
 });
 
+test('loopback target units execute exactly once in the existing actual isolated runtime argv', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const paths = ['bridge-registration', 'first-evidence', 'i2-registration-http', 'readonly-http-broker', 'registration-runtime']
+    .map(name => `tests/unit/${name}.test.ts`);
+  const check = async value => {
+    const observed = await isolatedConsoleAcquisitionEnv(value);
+    for (const path of paths) assert.equal(observed.argv.filter(arg => arg === path).length, 1, path);
+    for (const name of dependencyIntakeTests) assert.equal(observed.argv.includes(name), false, 'dedicated intake units stay in their own job');
+    assert.equal(observed.argv.some(arg => arg.startsWith('--test-name-pattern')), false);
+  };
+  await check(workflow);
+  for (const path of paths) {
+    await assert.rejects(check(workflow.replace(path, 'tests/unit/unreviewed-loopback.test.ts')));
+    await assert.rejects(check(workflow.replace(path, `${path} ${path}`)));
+  }
+});
+
 test('fixture compiler invocation receives a portable project and no-output flags', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const build = consoleSteps(workflow).find(step => /- name: Console typecheck and production build/u.test(step));

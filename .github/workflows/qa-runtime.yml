@@ -152,6 +152,11 @@ jobs:
               tests/unit/kernel-fixture-authority.test.ts \
               tests/unit/kernel-replace-authority.test.ts \
               tests/unit/bridge-cli-authority.test.ts \
+              tests/unit/bridge-registration.test.ts \
+              tests/unit/first-evidence.test.ts \
+              tests/unit/i2-registration-http.test.ts \
+              tests/unit/readonly-http-broker.test.ts \
+              tests/unit/registration-runtime.test.ts \
               tests/unit/campaign-fixture-digests.test.ts \
               tests/unit/workspace-snapshot.test.ts \
               tests/unit/qa-outcomes-export.test.ts \
