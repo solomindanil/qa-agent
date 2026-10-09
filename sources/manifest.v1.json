@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "1802e0380e4ace7b403f66c3067b07f7a8531618",
-      "tree": "a9bd839c5c8b3775938a700cbbcef0f5fb5b0f46",
-      "bundle": "sources/candidates/console-local-target-1802e03.bundle",
-      "sha256": "acdd9637db5d62f41576cdf2acbddefde3aa7e7324712a872bae4f6e1e756a07",
+      "commit": "4f5633cdd614db844d7012f1dbea0fedb0a5f50c",
+      "tree": "d9564993370b8afbcd0e66ff4c4f5c2410b5276a",
+      "bundle": "sources/candidates/console-local-target-compiler-4f5633c.bundle",
+      "sha256": "c37158e67fe21448dfe4d30cf1f85ee417273f6a104486ceb1d1dcf24ade77ce",
       "runtimeAuthority": true,
-      "qualification": "LOCAL ordinary integration1802e03, parents accepted loopbackb632 and delivered PR24 UI/domainsa2ab. Exact loopback-only delta retains UI/recipe/domains and excludes dirty authored-checks work. SAME local-target source/results C0/I0/M0; source transport cookie FIRST0P3F then8P, types0 and mirrors5P. ONE native105.582s consumer remains attributed to956: actual registration/discovery/run/status/export/readback, campaign INCONCLUSIVE with1pass/1needs_review and2blocked targets, not product PASS. Kernel4af exact guarded closure; no consumer replay or implicit local authority. Public HTTP and no-auth loopback GET-only remain distinct; five existing affected units require literal permanent own-CI inclusion, existing dedicated intake controls not duplicated. New paired-head own hosted gates pending. PR24 delivered on nine own SUCCESS and retained21-file FULL/UI proof; those gates do not qualify this head. All FIRSTs, guards, case/job caps, other pins and old bundles preserved. Current status: docs/qualification/current.md."
+      "qualification": "LOCAL compiler-only successor4f5633c of reviewed integration1802e03, whose parents retain accepted loopbackb632 and delivered PR24 UI/domainsa2ab. PR28 first own runtime failed its fixture compiler: unknown project/environments typing in scripts/qa-campaign.ts; runtime/browser controls did not execute. Exact compiler local FIRST2 thenGREEN0 after a structural type assertion only; predicate, API, guards and limits unchanged. SAME local-target source/carrier C0/I0/M0 remains attributed to1802/7db, not regraded as new-head CI. Cookie FIRST0P3F then8P and ONE105.582s nativeconsumer on956 retain their original attribution: INCONCLUSIVE1pass/1needs_review/2blocked, not product PASS. Kernel4af unchanged; five existing units remain literal permanent owning-CI, dedicated intake not duplicated. Fresh paired-head own hosted gates pending; authored-checks source excluded. PR24 delivered nine own SUCCESS and retained21-file FULL/UI proof do not qualify this head. All FIRSTs, guards, caps, other pins and old bundles preserved. Current status: docs/qualification/current.md."
     },
     {
       "id": "freeland",
