@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFile, mkdtemp, mkdir, writeFile, chmod, symlink } from 'node:fs/promises';
+import { readFile, mkdtemp, mkdir, writeFile, chmod, symlink, link, lstat, realpath, truncate, readdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { execFile, spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -292,7 +293,7 @@ test('the permanent browser command actually receives the accepted finite regres
     'qa-permanent-browser-argv', process.execPath], { env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` } });
   assert.deepEqual(JSON.parse(stdout), ['tests/unit/browser-journey.test.ts',
     'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts',
-    'tests/e2e/selected-campaign-local.test.mjs']);
+    'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs']);
 });
 
 function nodeBody(workflow, stepName) {
@@ -302,6 +303,121 @@ function nodeBody(workflow, stepName) {
   assert.ok(body, stepName);
   return body.split('\n').map(line => line.slice(10)).join('\n');
 }
+
+const requestEvidenceFiles = ['command-1.json', 'command-2.json', 'command-3.json', 'consumer-evidence.json',
+  'checkpoint1-download.md', 'request-desktop.png', 'graph-shadow.html', 'graph.png', 'coverage-shadow.html', 'coverage.png',
+  'opened-blocker-1.png', 'opened-blocker-2.png', 'opened-blocker-3.png', 'opened-blocker-4.png', 'opened-blocker-5.png', 'opened-blocker-6.png',
+  'opened-plan.html', 'disclosed-strategy.json', 'opened-plan.png', 'historical-checkpoint1.png', 'injected-failure-unavailable.png'];
+
+test('selected request evidence staging preserves only the literal bounded synthetic payload', async context => {
+  const script = nodeBody(await readFile(workflowUrl, 'utf8'), 'Stage selected request evidence');
+  const fixture = async outcome => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'qa-request-retention-test-')));
+    const source = join(root, 'qa-browser.ABC123', 'selected-request'); await mkdir(source, { recursive: true });
+    const env = { RUNNER_TEMP: root, SELECTED_REQUEST_DIR: source, BROWSER_OUTCOME: outcome,
+      ROOT_SOURCE_COMMIT: 'a'.repeat(40), CONSOLE_SOURCE_COMMIT: 'b'.repeat(40), KERNEL_SOURCE_COMMIT: 'c'.repeat(40),
+      GITHUB_RUN_ID: '123', GITHUB_RUN_ATTEMPT: '1', GITHUB_OUTPUT: join(root, 'output') };
+    return { root, source, env };
+  };
+  const run = async (f, prefix = '') => {
+    const result = spawnSync(process.execPath, ['-e', prefix + script], { env: f.env, encoding: 'utf8', timeout: 10_000 });
+    const output = await readFile(f.env.GITHUB_OUTPUT, 'utf8');
+    const path = output.match(/^path=(.+)$/mu)?.[1]; assert.ok(path); assert.ok(path.startsWith(f.root + '/qa-request-evidence.'));
+    assert.equal((await lstat(path)).mode & 0o777, 0o700);
+    return { result, path, manifest: JSON.parse(await readFile(join(path, 'manifest.json'), 'utf8')) };
+  };
+  await context.test('success requires all21 files and preserves exact bytes hashes and identities', async () => {
+    const f = await fixture('success');
+    for (const name of requestEvidenceFiles) await writeFile(join(f.source, name), Buffer.from([0, 255, 1, 10]));
+    await writeFile(join(f.source, 'private-store.json'), 'must not upload');
+    await writeFile(join(f.source, '.hidden'), 'must not upload');
+    const { result, path, manifest } = await run(f); assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual((await readdir(path)).sort(), [...requestEvidenceFiles, 'manifest.json'].sort());
+    assert.equal(manifest.rootCommit, 'a'.repeat(40)); assert.equal(manifest.consoleCommit, 'b'.repeat(40));
+    assert.equal(manifest.kernelCommit, 'c'.repeat(40)); assert.equal(manifest.runId, '123'); assert.equal(manifest.attempt, '1');
+    assert.equal(manifest.browserOutcome, 'success'); assert.equal(manifest.consumerLedger, 'accepted');
+    assert.deepEqual(manifest.files.map(x => x.name), requestEvidenceFiles);
+    for (const entry of manifest.files) {
+      assert.equal(entry.status, 'accepted'); assert.equal(entry.bytes, 4);
+      assert.equal(entry.sha256, createHash('sha256').update(Buffer.from([0, 255, 1, 10])).digest('hex'));
+      assert.deepEqual(await readFile(join(path, entry.name)), Buffer.from([0, 255, 1, 10]));
+    }
+  });
+  await context.test('ordinary failed browser preserves safe early files and explicit missing entries', async () => {
+    const f = await fixture('failure'); await writeFile(join(f.source, 'command-1.json'), 'first raw');
+    const { result, manifest } = await run(f); assert.equal(result.status, 0, result.stderr);
+    assert.equal(manifest.files[0].status, 'accepted'); assert.equal(manifest.files.filter(x => x.status === 'missing').length, 20);
+    assert.equal(manifest.consumerLedger, 'missing');
+  });
+  await context.test('success with missing captures fails instead of silently losing proof', async () => {
+    const { result, manifest } = await run(await fixture('success'));
+    assert.notEqual(result.status, 0); assert.equal(manifest.files.filter(x => x.status === 'missing').length, 21);
+  });
+  for (const kind of ['symlink', 'hardlink', 'directory', 'directory-symlink', 'oversize', 'broad-root', 'escape', 'identity-drift', 'total-size']) {
+    await context.test(`${kind} refuses unsafe payload but retains owned manifest`, async () => {
+      const f = await fixture('failure'); const leaf = join(f.source, 'command-1.json');
+      let prefix = '';
+      if (kind === 'symlink') { await writeFile(join(f.root, 'outside'), 'private'); await symlink(join(f.root, 'outside'), leaf); }
+      if (kind === 'hardlink') { await writeFile(join(f.root, 'outside'), 'private'); await link(join(f.root, 'outside'), leaf); }
+      if (kind === 'directory') await mkdir(leaf);
+      if (kind === 'directory-symlink') {
+        const alias = join(f.root, 'qa-browser.DEF456'); await symlink(join(f.root, 'qa-browser.ABC123'), alias);
+        f.env.SELECTED_REQUEST_DIR = join(alias, 'selected-request');
+      }
+      if (kind === 'oversize') { await writeFile(leaf, ''); await truncate(leaf, 16 * 1024 * 1024 + 1); }
+      if (kind === 'broad-root') f.env.SELECTED_REQUEST_DIR = f.root;
+      if (kind === 'escape') { f.env.SELECTED_REQUEST_DIR = join(f.root, 'qa-browser.ABC123', '..', '..', 'selected-request'); }
+      if (kind === 'identity-drift') {
+        await writeFile(leaf, 'before');
+        prefix = `const driftFs=require('node:fs');const originalRead=driftFs.readSync;driftFs.readSync=function(fd,...args){const value=originalRead.call(this,fd,...args);driftFs.writeFileSync(${JSON.stringify(leaf)},'after changed');return value;};\n`;
+      }
+      if (kind === 'total-size') for (const [index, name] of requestEvidenceFiles.slice(0, 5).entries()) {
+        await writeFile(join(f.source, name), ''); await truncate(join(f.source, name), index < 4 ? 16 * 1024 * 1024 : 1);
+      }
+      const { result, path, manifest } = await run(f, prefix); assert.notEqual(result.status, 0, kind);
+      assert.ok(manifest.refusals.length, kind); assert.ok((await readFile(join(path, 'manifest.json'))).length <= 1024 * 1024);
+      if (kind !== 'total-size') assert.equal((await readdir(path)).includes('command-1.json'), false);
+    });
+  }
+});
+
+test('selected request retention configuration admits only the reviewed staging upload boundary', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const block = (value, name) => value.match(new RegExp(`^      - name: ${name}\\n([\\s\\S]*?)(?=^      - name:|^  [a-z])`, 'mu'))?.[1];
+  const validate = value => {
+    const browser = block(value, 'Browser healthy and broken fixture controls');
+    const stage = block(value, 'Stage selected request evidence');
+    const upload = block(value, 'Upload selected request evidence');
+    assert.ok(browser && stage && upload);
+    assert.match(browser, /^        id: browser-all$/mu);
+    assert.match(stage, /^        id: request-evidence$/mu);
+    assert.match(stage, /^        if: always\(\) && needs\.impact\.outputs\.console-browser == 'all' && steps\.browser-all\.outcome != 'skipped'$/mu);
+    assert.match(stage, /^        timeout-minutes: 1$/mu);
+    assert.match(upload, /^        if: always\(\) && steps\.request-evidence\.outputs\.path != ''$/mu);
+    assert.match(upload, /^        timeout-minutes: 3$/mu);
+    assert.match(upload, /^        uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7\.0\.2$/mu);
+    const withBlock = upload.split('        with:\n')[1]; assert.ok(withBlock);
+    assert.deepEqual(withBlock.trimEnd().split('\n').map(line => line.trim()), [
+      'name: selected-request-ui-${{ github.run_id }}-${{ github.run_attempt }}',
+      'path: ${{ steps.request-evidence.outputs.path }}', 'retention-days: 14', 'compression-level: 0',
+      'archive: true', 'overwrite: false', 'include-hidden-files: false', 'if-no-files-found: error']);
+    assert.doesNotMatch(value, /continue-on-error:|secrets\.|GITHUB_TOKEN|ACTIONS_RUNTIME_TOKEN|\|\| true/u);
+    assert.match(value, /^permissions:\n  contents: read\n\njobs:/mu);
+  };
+  validate(workflow);
+  for (const [name, mutant] of [
+    ['broad path', workflow.replace('path: ${{ steps.request-evidence.outputs.path }}', 'path: ${{ runner.temp }}')],
+    ['hidden files', workflow.replace('include-hidden-files: false', 'include-hidden-files: true')],
+    ['overwrite', workflow.replace('overwrite: false', 'overwrite: true')],
+    ['floating action', workflow.replace('upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2', 'upload-artifact@v7')],
+    ['success-only', workflow.replace("if: always() && steps.request-evidence.outputs.path != ''", "if: success() && steps.request-evidence.outputs.path != ''")],
+    ['failure suppression', workflow.replace('        id: request-evidence', '        continue-on-error: true\n        id: request-evidence')],
+    ['secret propagation', workflow.replace('            PATH="${PATH}"', '            GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \\\n            PATH="${PATH}"')],
+    ['staging budget', workflow.replace('        timeout-minutes: 1\n', '        timeout-minutes: 2\n')],
+  ]) {
+    assert.notEqual(mutant, workflow, name); assert.throws(() => validate(mutant), assert.AssertionError, name);
+  }
+});
 
 test('terminal selected-results checker actually rejects failures and incomplete selection', async () => {
   const script = nodeBody(await readFile(workflowUrl, 'utf8'), 'Validate selection and selected job results');
@@ -368,8 +484,13 @@ test('workflow job budgets retain the reviewed finite aggregate allowance and in
       return [job, caps[0][1]];
     }));
     assert.deepEqual(budgets, { impact: '5', 'runtime-smoke': '35', 'kernel-regression': '60', 'runtime-qualification': '5' });
-    assert.deepEqual([...value.matchAll(/^ {8}timeout-minutes: (.+)$/gmu)].map(match => match[1]), ['3'],
-      'independent selector step deadline must remain unchanged');
+    const stepBudgets = Object.fromEntries(value.split(/^ {6}- name: /mu).slice(1).flatMap(step => {
+      const caps = [...step.matchAll(/^ {8}timeout-minutes: (.+)$/gmu)];
+      assert.ok(caps.length <= 1, 'at most one literal step deadline');
+      return caps.length ? [[step.split('\n')[0], caps[0][1]]] : [];
+    }));
+    assert.deepEqual(stepBudgets, { 'Select verified CI impact': '3', 'Stage selected request evidence': '1',
+      'Upload selected request evidence': '3' }, 'only the exact named finite step deadlines');
   };
   validate(workflow);
   for (const mutant of [
@@ -412,11 +533,14 @@ test('impact-dependent workflow wiring preserves bootstrap, shard isolation and 
       "needs.impact.outputs.console-browser == 'finite'",
       "needs.impact.outputs.kernel-build != 'true' && needs.impact.outputs.console-build != 'true' && needs.impact.outputs.console-runtime != 'true' && needs.impact.outputs.console-browser == 'none' && needs.impact.outputs.console-s01 != 'true'",
       "needs.impact.outputs.kernel-full == 'true'", 'always()',
+      "always() && needs.impact.outputs.console-browser == 'all' && steps.browser-all.outcome != 'skipped'",
+      "always() && steps.request-evidence.outputs.path != ''",
     ]);
     for (const match of value.matchAll(/^\s+if: (.+)$/gmu)) assert.ok(allowedConditions.has(match[1]), `unreviewed condition: ${match[1]}`);
     for (const match of value.matchAll(/^\s+uses: (.+)$/gmu)) assert.ok([
       'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1',
       'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0',
+      'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2',
     ].includes(match[1]), 'only existing pinned actions');
     assert.equal([...value.matchAll(/^ {6}- /gmu)].length, [...value.matchAll(/^ {6}- name: /gmu)].length, 'no unnamed executable steps');
   };
