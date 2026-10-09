@@ -135,6 +135,36 @@ test('request foundation actual isolated runtime argv executes its unit exactly 
   assert.equal(JSON.parse(result.stdout).filter(arg => arg === 'tests/unit/agent-request-checkpoint.test.ts').length, 1);
 });
 
+test('request report literal unit mappings admit changes without waiving deletion', async context => {
+  const { classifyImpact } = await api();
+  for (const path of ['tests/unit/agent-request-report.test.ts', 'tests/unit/agent-request-cli.test.ts']) {
+    for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
+      await context.test(`${path} ${status}`, () => {
+        const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+        for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+        assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+        assert.equal(result.selection.kernelFull, status === 'deleted');
+      });
+    }
+  }
+});
+
+test('request report actual isolated runtime argv executes both new units exactly once', async () => {
+  const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
+  const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu);
+  const command = step?.[1].match(/^\s*node --import tsx --test --test-concurrency=1 \\\n((?:\s+tests\/unit\/[^\n]+\n?)+)/mu);
+  assert.ok(command, 'actual isolated runtime command');
+  const args = command[0].replace(/\\\n/gu, ' ').trim().slice('node --import tsx --test --test-concurrency=1'.length);
+  const result = spawnSync('/bin/bash', ['--noprofile', '--norc', '-c',
+    `"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`,
+    'qa-request-report-runtime-argv', process.execPath], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' } });
+  assert.equal(result.status, 0, result.stderr);
+  const argv = JSON.parse(result.stdout);
+  for (const path of ['tests/unit/agent-request-report.test.ts', 'tests/unit/agent-request-cli.test.ts']) {
+    assert.equal(argv.filter(arg => arg === path).length, 1, path);
+  }
+});
+
 test('U03a literal unit mappings admit added/modified controls without waiving deletion', async context => {
   const { classifyImpact } = await api();
   for (const path of [

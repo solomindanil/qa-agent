@@ -1,0 +1,32 @@
+# Request discovery, explained report and offline export — local serialized source
+
+Console `0c92a44879a4a0e95ede64594205b95bb5f10125`, tree `c57ce32d8460d97db8d7d09d0e0f173163d9207a`, ordinary parents delivered4cc+accepted5e14. Complete tree equals accepted5e14; exactly six report paths change, all455 prior paths outside that delta remain unchanged. Other three component entries, including Kernel794, dependencies/locks and every earlier public bundle remain unchanged. SAME independent source/results accepted C0/I0/M0 after documentary M1 correction; this serialized carrier final and own hosted/publication remain PENDING.
+
+## Bounded useful capability
+
+Four existing-source CLI commands record, explicitly read, discover and export caller-authored request checkpoints. Discovery is one bounded canonical directory, not product work or live readiness. Explained report includes complete exact original wording/clauses, obligation relationships, selected checkpoint assessments/observations, reasoning, limitations, omitted/blocked/partial/excluded/unknown-effect remainder and explicit stop. Graph/Coverage remains unavailable because the record did not capture a global denominator. Neither unsigned agent_authored_unattested provenance nor informational resume eligibility grants execution authority, completeness or native PASS.
+
+V4 offline export contains exact source record, view, Markdown and manifest, with private exclusive publication, bounded sizes, raw hashes and exact offline reconstruction. It can reopen with original workspace/Kernel unavailable and preserves original at-export statuses; it does not refresh authority. Existing native formatter/projector and v1/v2/v3 export/read contracts remain separate. No foundation API, schema, vendor, deadline, cache, product store or UI change is introduced by this six-path report slice.
+
+## Accepted evidence with exact attribution
+
+- Frozen runtime9305 CLI3/3,157286.913209ms includes ONE actual registered-fixture/public-runtime consumer146864.870084ms using eight fresh source CLI processes: record, discovery from workspace only, explained read, justified append, historical read, checkpoint2 read, explicit checkpoint2 export, offline packet read with source workspace absent and invalid Kernel environment. Independent literal clauses/statuses/remainder and exact NFC/NFD bytes remain; ten existing fixture source/model/observation files unchanged. This is local synthetic integration, not external-product QA.
+- Frozen9305 report/native compatibility84PASS/1explicit optional D01-D reconstruction SKIP out of85,275916.610583ms; native v1/v2/v3 formatter/export and old observation/review CLI boundaries included. The optional skip is not the new production consumer.
+- Final5e14 differs from9305 only by one erased consumer-test type annotation. Final affected source/test types exited0 with empty diagnostics; primary build8.45s wall succeeded, existing chunk warning retained. Runtime results are not claimed as reruns on5e14/0c92.
+- Genuine initial missing-capability two failures, serializer/graph fixture failures and compiler firsts remain distinct. Original self-review overstated executed extra-file v4 coverage: SAME M1 erratum closes that documentary issue. Exact inventory refusal is source-reviewed, not newly executed by an extra-file insertion control. No consumer replay or code repair followed that erratum.
+
+Stage timings for the one consumer (ms):28104.871083/1268.786708/9139.922917/30433.339584/9607.964709/9251.372875/9052.227291/629.831584. These are command-local measurements, not controlled performance gains or future15s UI admission. Full task/review/model usage and cost remain UNKNOWN.
+
+## Permanent affected CI and transport
+
+Both `agent-request-report.test.ts` and `agent-request-cli.test.ts` are added literally to the existing runtime test group and each appears exactly once in the actual isolated Node argv. Genuine missing registration FIRST2PASS/6FAIL→GREEN8/8 includes added/modified mappings, deletion fail-closed and real inert-shell argv recording. Removed tests remain unsupported/FULL; unknown/bootstrap/full selection, existing argv/environment/integrity/cleanup, all individual deadlines and finite35min aggregate runtime allowance remain unchanged. No controls-only exclusion/default, new job or policy narrowing. Focused packaging/policy/restore controls prove carrier fit, not component or product acceptance. This new head requires its own actual selected hosted gates.
+
+## Delivered foundation and preserved FIRST
+
+[PR22](https://github.com/solomindanil/qa-agent/pull/22) actually delivered foundation4cc through root13e after SAME source/carrier and affected budget repair reviews C0/I0/M0, eight own SUCCESS and normal match-head merge. Server mergedAt2026-10-09T00:58:53Z, publicdevelop `66f0db2bbb00d34ebb104e71d1ce76bfb19f9117`, treea9b71748ae2acd18977b215fb5d75866247450db, parents4e2d+13e.
+
+First7c own runtime remained CANCELLED at25min with native aggregate-cap annotation and terminalFAILURE, even though recorded selected assertions completed. Normal successor13e changed only aggregate cap25→35 plus exact finite policy controls. Unexpected local observer130PASS/1FAIL (event push parsed as job) and corrected131PASS, refused first selector invocation and all raw FIRSTs remain retained. No failure waiver, unchanged-head rerun or automatic cap growth. Thirty-five minutes is finite scheduling headroom, not product-performance improvement or blanket future-suite guarantee.
+
+New13e own source workflows each root227/Freeland36/snapshot10; runtime450PASS/1prescribedSKIP, including default production factory/fresh-process, S01 5, browser-all48, compiler/build/integrity/cleanup SUCCESS. Kernel contracts515 are distinct from full1845PASS/1SKIP across47files; all three full groups and terminal actually SUCCESS. Prescribed unselected steps remain SKIP/NOT RUN, not PASS. New runtime00:26:04→00:50:25=24m21s; run creation→terminal31m42s, push-run creation→merge33m26s. No old result qualifies this report carrier. Foundation preparation-time pending prose remains historical, not reopened or erased.
+
+Future UI/source-child/download/Graph-Coverage admission, native execution, whole-request completeness, product/deployed acceptance, installed/frozen adoption and B02/L00/V01 remain unqualified. No report/UI/recipe publication or fresh product call follows from this local carrier.
