@@ -9,6 +9,7 @@ const bounds = { timeout: 30_000, maxBuffer: 16 * 1024 * 1024, encoding: 'utf8',
 const groups = ['rootTests', 'freelandControls', 'kernelBuildContracts', 'kernelFull', 'kernelFocusedTests',
   'consoleBuild', 'consoleRuntime', 'consoleBrowser', 'consoleS01Lifecycle'];
 const runtimeTests = new Set([
+  'bridge-registration', 'first-evidence', 'i2-registration-http', 'readonly-http-broker', 'registration-runtime',
   'intake-build', 'qa-init-cli', 'campaign-dependency-scope', 'campaign-dependency-adapter', 'campaign-dependency-cli',
   'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'kernel-fixture-authority', 'kernel-replace-authority', 'bridge-cli-authority',
   'campaign-fixture-digests', 'workspace-snapshot', 'qa-outcomes-export', 'request-admission', 'agent-request-checkpoint', 'qa-outcomes',
