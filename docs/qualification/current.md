@@ -16,15 +16,11 @@ Public source, installed host instructions, local prepared work, existing campai
 
 ## Immediate priority and normal cycle
 
-Finish the demonstrated read-blocker and ready UI/recipe, then the usable QA→saved report→UI→fresh continuation path; V01 remains the acceptance boundary. Read-repair has a one-working-day planning timebox without raising runtime caps. For the next three working days, defer other infrastructure extensions except concrete blockers of this path. Preserve known scope, failed/unreached/blocked/unknown results and all original attempts; no false flaky quarantine.
+Finish the demonstrated read-blocker and ready UI/recipe, then the usable QA→saved report→UI→fresh continuation path; V01 remains the acceptance boundary. Read-repair has a one-working-day planning timebox without raising runtime caps. For the next three days (9–12 October 2026), defer other infrastructure extensions except concrete blockers of this path. Preserve known scope, failed/unreached/blocked/unknown results and all original attempts; no false flaky quarantine.
 
 Use [plan §6](../superpowers/plans/2026-10-05-universal-qa-product-plan.md#6-общий-цикл-каждой-реализации): applicable accepted design for changed contracts/semantics → actual Sol 6.1 implementation/affected checks/self-review → ONE author-distinct actual Astra AQA → PR and own gates/readback. The same reviewer checks affected repairs. No separate full source/package/docs acceptance ladders, mandatory new per-slice qualification/hash-ledgers, acceptance-only commits or unchanged full regression. Keep exact tested identity and FIRST/raw results; report concise implementation/check/review/CI times, repeats, substantial findings and remaining scope from existing records. Unknown costs/times stay unknown.
 
 Independent preparation may proceed in isolated copies during CI; common writes and merges are serial, one observer per CI run and meaningful updates only. A frozen benchmark is for a separately scoped autonomy measurement, not every development step. No new metrics system, alternative runner or infrastructure expansion follows from this process update. A later fresh conversation is not created automatically.
-
-## Source provenance note
-
-The exact block below is retained unchanged from the pre-process checkpoint to preserve source provenance. Its LOCAL/PENDING prose describes preparation, not today's delivery status: PR23 delivered the same manifest source, as reconciled above. The manifest/source/bundle bytes are unchanged by this documentation slice.
 
 ## Selected source
 
@@ -33,7 +29,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `794e9fbae372ebf1fe8261556ec1ea0a4bceab26` | [Affected I1 source pair](request-bound-i1-delivery-20261008.md): compatible structural inspector; retained65/compiler/build0, old847 RED and first compiler fault retain their own attribution. No new Kernel suite or product acceptance. |
-| Console | `0c92a44879a4a0e95ede64594205b95bb5f10125` | LOCAL [request report](agent-request-report-20261009.md), exact accepted5e14 tree and six report paths over delivered4cc;455 prior paths unchanged. SAME source/results C0/I0/M0; affected carrier/own hosted PENDING. Original9305 runtime and5e14 compiler/build attribution retained. PR22 foundation delivery and FIRST timeout separately reconciled, no borrowed gates. |
+| Console | `0c92a44879a4a0e95ede64594205b95bb5f10125` | DELIVERED [request report](agent-request-report-20261009.md) through [PR23](https://github.com/solomindanil/qa-agent/pull/23), normal merge9011 after eight own SUCCESS. Exact accepted5e14 tree and six report paths over delivered4cc;455 prior paths unchanged. Original9305 runtime and5e14 compiler/build remain older source-specific evidence, not PR23 tests or product PASS. SAME source/carrier review accepted; PR22 foundation FIRST timeout remains separately attributed, no borrowed gates. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
