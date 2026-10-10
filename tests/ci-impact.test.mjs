@@ -51,6 +51,25 @@ test('loopback target existing units have literal owning mappings with deletion 
   }
 });
 
+test('authored command units have literal owning mappings without waiving deletion', async context => {
+  const { classifyImpact } = await api();
+  for (const name of ['qa-campaign-cli', 'authored-checks']) {
+    const path = `tests/unit/${name}.test.ts`;
+    for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
+      await context.test(`${name} ${status}`, () => {
+        const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+        for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+        assert.equal(result.selection.kernelFull, status === 'deleted');
+        assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+      });
+    }
+  }
+  const unknown = 'tests/unit/authored-checks-unreviewed.test.ts';
+  const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(unknown)])] });
+  assert.equal(result.selection.kernelFull, true);
+  assert.deepEqual(result.unsupportedChanges, [`unmapped or removed Console test: ${unknown}`]);
+});
+
 test('dependency intake literal mappings select runtime without accepting deleted or unknown tests', async context => {
   const { classifyImpact } = await api();
   const paths = ['tests/unit/intake-build.test.ts', 'tests/unit/qa-init-cli.test.ts',
