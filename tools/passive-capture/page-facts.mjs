@@ -51,11 +51,18 @@ export function extractPageFacts(limits) {
   const isDisabled = (el) => Boolean(el.closest('[disabled],[aria-disabled="true"],fieldset[disabled]'));
 
   // Active context: only demonstrably inactive content is excluded from own detectors — inside an [inert] subtree, or
-  // outside an open native modal <dialog>. This is a selection policy, not a claim about visual occlusion. An
-  // aria-modal declaration is recorded but not trusted; fixed layers and non-modal dialogs exclude nothing.
-  let nativeModal = null;
-  for (const d of document.querySelectorAll('dialog[open]')) { try { if (d.matches(':modal')) nativeModal = d; } catch { /* :modal unsupported */ } }
-  const inactive = (el) => Boolean(el.closest('[inert]')) || (nativeModal !== null && !nativeModal.contains(el));
+  // outside the single open native modal <dialog>. This is a selection policy, not a claim about visual occlusion. An
+  // aria-modal declaration is recorded but not trusted; fixed layers and non-modal dialogs exclude nothing. A modal
+  // escapes the inertness of its ancestors (explicit [inert] on or inside it still applies). With several open modals
+  // the blocking one cannot be derived from DOM order, so no modal-based exclusion is made and the case is reported.
+  const openModals = [...document.querySelectorAll('dialog[open]')].filter((d) => { try { return d.matches(':modal'); } catch { return false; } });
+  const nativeModal = openModals.length === 1 ? openModals[0] : null;
+  const inactive = (el) => {
+    if (nativeModal !== null && !nativeModal.contains(el)) return true;
+    const inertRoot = el.closest('[inert]'); if (inertRoot === null) return false;
+    const host = el.closest('dialog');
+    return !(host !== null && openModals.includes(host) && !host.contains(inertRoot));
+  };
 
   const labelOf = (el) => {
     if (el.getAttribute('aria-label')?.trim()) return { text: clean(el.getAttribute('aria-label')), source: 'aria-label' };
@@ -72,7 +79,8 @@ export function extractPageFacts(limits) {
     if (el.tagName === 'INPUT') {
       if (el.type === 'image') { const alt = clean(el.getAttribute('alt')); return alt ? { text: alt, source: 'alt' } : fallback; }
       if (el.value?.trim()) return { text: clean(el.value), source: 'value' };
-      if (el.type === 'submit' || el.type === 'reset') return { text: el.type === 'submit' ? 'Submit' : 'Reset', source: 'native-default' };
+      // The native default name applies only when the value attribute is absent; an explicit blank value is nameless.
+      if ((el.type === 'submit' || el.type === 'reset') && !el.hasAttribute('value')) return { text: el.type === 'submit' ? 'Submit' : 'Reset', source: 'native-default' };
       return fallback;
     }
     const own = clean(el.innerText || ''); if (own) return { text: own.slice(0, 80), source: 'text' };
@@ -105,7 +113,8 @@ export function extractPageFacts(limits) {
   }));
   return {
     url: location.href, title: document.title, viewport: { w: vw, h: vh }, scroll: { x: scrollX, y: scrollY },
-    activeContext: { nativeModal: nativeModal ? selector(nativeModal) : null, inertRoots: [...document.querySelectorAll('[inert]')].slice(0, 20).map(selector),
+    activeContext: { nativeModal: nativeModal ? selector(nativeModal) : null, openModalCount: openModals.length, ambiguousModal: openModals.length > 1,
+      inertRoots: [...document.querySelectorAll('[inert]')].slice(0, 20).map(selector),
       ariaModalDeclared: [...document.querySelectorAll('[aria-modal="true"]')].filter(isVisible).slice(0, 20).map(selector) },
     formCount: forms.length,
     truncated: elements.length >= maxElements, elements, fields, controls,

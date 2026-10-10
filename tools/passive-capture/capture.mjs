@@ -42,7 +42,7 @@ export async function captureState(page, { dir, label, axeSource = null, maxElem
   await writeFile(join(out, `${label}.axe.json`), JSON.stringify(axe));
   const entry = { label, url: facts.url, capturedAt: new Date(started).toISOString(), viewport: facts.viewport, ms: Date.now() - started,
     elements: facts.elements.length, fields: facts.fields.length, controls: facts.controls.length,
-    nativeModal: facts.activeContext.nativeModal !== null, ariaModalDeclared: facts.activeContext.ariaModalDeclared.length,
+    nativeModal: facts.activeContext.nativeModal !== null, ambiguousModal: facts.activeContext.ambiguousModal, ariaModalDeclared: facts.activeContext.ariaModalDeclared.length,
     truncated: facts.truncated, axe: axe.available ? 'ran' : axe.reason };
   await appendFile(join(out, 'index.jsonl'), JSON.stringify(entry) + '\n');
   return entry;
