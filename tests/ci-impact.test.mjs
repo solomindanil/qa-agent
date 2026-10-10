@@ -19,6 +19,23 @@ const change = (path, status = 'modified', baseMode = '100644', headMode = '1006
 const component = (id, paths) => ({ id, verified: true, baseCommit: '1'.repeat(40), headCommit: '2'.repeat(40),
   baseTree: '3'.repeat(40), headTree: paths.length ? '4'.repeat(40) : '3'.repeat(40), changedPaths: paths });
 
+test('selected finite read unit and literal helper select owning runtime; ordinary109 selects existing browser group', async context => {
+  const { classifyImpact } = await api();
+  for (const path of ['tests/unit/selected-agent-request-read.test.ts', 'tests/fixtures/selected-request-literal.ts',
+    'tests/e2e/selected-agent-request-finite-read-local.test.mjs']) {
+    for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
+      await context.test(`${path} ${status}`, () => {
+        const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+        for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+        assert.equal(result.selection.kernelFull, status === 'deleted');
+        assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+        assert.equal(result.selection.consoleBuild, status === 'deleted' || path.includes('/e2e/'));
+        assert.equal(result.selection.consoleBrowser, status === 'deleted' || path.includes('/e2e/') ? 'all' : 'none');
+      });
+    }
+  }
+});
+
 test('loopback target existing units have literal owning mappings with deletion fallback', async context => {
   const { classifyImpact } = await api();
   for (const name of ['bridge-registration', 'first-evidence', 'i2-registration-http', 'readonly-http-broker', 'registration-runtime']) {
@@ -304,13 +321,14 @@ test('U03a actual browser-all shell supplies portable installed Chromium and fre
     ACTIONS_RUNTIME_TOKEN: 'must-not-reach-child', SYNTHETIC_PRIVATE_SENTINEL: 'must-not-reach-child' }, encoding: 'utf8', timeout: 10_000 });
   assert.equal(result.status, 0, result.stderr);
   const actual = JSON.parse(await readFile(record, 'utf8'));
-  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs']);
+  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', '--test-concurrency=1', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs', 'tests/e2e/selected-agent-request-finite-read-local.test.mjs']);
   assert.equal(actual.env.QA_PRIMARY_UI_CHROMIUM, installed);
   assert.equal(actual.env.QA_STARTER_REPO, join(dir, 'workspace/components/kernel'));
   assert.equal(actual.env.PLAYWRIGHT_BROWSERS_PATH, join(dir, 'qa-release-browsers'));
   assert.ok(actual.env.TMPDIR.startsWith(`${dir}/qa-browser.`));
   assert.equal(actual.env.QA_SELECTED_RUN_UI_DIR, join(actual.env.TMPDIR, 'selected-run'));
   assert.equal(actual.env.QA_SELECTED_REQUEST_UI_DIR, join(actual.env.TMPDIR, 'selected-request'));
+  assert.equal(actual.env.QA_SELECTED_REQUEST_FINITE_DIR, join(actual.env.TMPDIR, 'selected-request-finite'));
   assert.equal(actual.env.QA_CONSUMER_SOURCE_COMMIT, consoleCommit);
   assert.notEqual(actual.env.QA_CONSUMER_SOURCE_COMMIT, 'a'.repeat(40), 'component not root tested SHA');
   const emitted = await readFile(output, 'utf8');

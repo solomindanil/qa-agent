@@ -178,6 +178,17 @@ test('isolated Console child receives request admission and association projecti
   assert.ok(observed.argv.includes('tests/unit/qa-outcomes.test.ts'));
 });
 
+test('selected finite reader executes exactly once in existing isolated runtime argv', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const check = async value => {
+    const observed = await isolatedConsoleAcquisitionEnv(value);
+    assert.equal(observed.argv.filter(arg => arg === 'tests/unit/selected-agent-request-read.test.ts').length, 1);
+  };
+  await check(workflow);
+  await assert.rejects(check(workflow.replace('tests/unit/selected-agent-request-read.test.ts', 'tests/unit/unreviewed.test.ts')));
+  await assert.rejects(check(workflow.replace('tests/unit/selected-agent-request-read.test.ts', 'tests/unit/selected-agent-request-read.test.ts tests/unit/selected-agent-request-read.test.ts')));
+});
+
 test('loopback target units execute exactly once in the existing actual isolated runtime argv', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const paths = ['bridge-registration', 'first-evidence', 'i2-registration-http', 'readonly-http-broker', 'registration-runtime']
@@ -411,9 +422,10 @@ test('the permanent browser command actually receives the accepted finite regres
   const { stdout } = await execFileAsync('/bin/bash', ['--noprofile', '--norc', '-c',
     `"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`,
     'qa-permanent-browser-argv', process.execPath], { env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` } });
-  assert.deepEqual(JSON.parse(stdout), ['tests/unit/browser-journey.test.ts',
+  assert.deepEqual(JSON.parse(stdout), ['--test-concurrency=1', 'tests/unit/browser-journey.test.ts',
     'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts',
-    'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs']);
+    'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs',
+    'tests/e2e/selected-agent-request-finite-read-local.test.mjs']);
 });
 
 function nodeBody(workflow, stepName) {
@@ -681,7 +693,7 @@ test('impact-dependent workflow wiring preserves bootstrap, shard isolation and 
     assert.match(value, /- name: Install isolated Chromium for local fixture checks\n        if: needs\.impact\.outputs\.console-browser != 'none'\n        working-directory: components\/console/u);
     assert.match(value, /node tools\/ci-impact\.mjs --root "\$\{GITHUB_WORKSPACE\}" --event-file "\$\{GITHUB_EVENT_PATH\}" --workflow runtime/u);
     assert.match(value, /--test-name-pattern='\^S01 owned lifecycle abort' tests\/unit\/nuanu-authored-revision\.test\.ts/u);
-    assert.match(value, /node --import tsx --test tests\/unit\/browser-journey\.test\.ts tests\/unit\/public-input-campaign\.test\.ts tests\/unit\/browser-action-sequence\.test\.ts/u);
+    assert.match(value, /node --import tsx --test --test-concurrency=1 tests\/unit\/browser-journey\.test\.ts tests\/unit\/public-input-campaign\.test\.ts tests\/unit\/browser-action-sequence\.test\.ts/u);
     assert.match(value, /fail-fast: false\n      matrix:\n        group: \[workspace, service, remaining\]/u);
     assert.doesNotMatch(value, /paths(?:-ignore)?:|cancel-in-progress:|continue-on-error:/u);
     assert.match(value, /^permissions:\n  contents: read\n\njobs:/mu);

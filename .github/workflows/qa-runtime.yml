@@ -165,6 +165,7 @@ jobs:
               tests/unit/agent-request-report.test.ts \
               tests/unit/agent-request-cli.test.ts \
               tests/unit/selected-agent-request.test.ts \
+              tests/unit/selected-agent-request-read.test.ts \
               tests/unit/qa-outcomes.test.ts \
               tests/unit/api-semantic-assertions.test.ts \
               tests/unit/qa-campaign-files-umask.test.ts \
@@ -267,10 +268,11 @@ jobs:
             QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel" \
             QA_SELECTED_RUN_UI_DIR="${qa_tmp}/selected-run" \
             QA_SELECTED_REQUEST_UI_DIR="${qa_tmp}/selected-request" \
+            QA_SELECTED_REQUEST_FINITE_DIR="${qa_tmp}/selected-request-finite" \
             QA_CONSUMER_SOURCE_COMMIT="${qa_source}" \
             QA_PRIMARY_UI_CHROMIUM="${qa_chromium}" \
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \
-            node --import tsx --test tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs
+            node --import tsx --test --test-concurrency=1 tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs tests/e2e/selected-agent-request-finite-read-local.test.mjs
       - name: Stage selected request evidence
         id: request-evidence
         if: always() && needs.impact.outputs.console-browser == 'all' && steps.browser-all.outcome != 'skipped'
