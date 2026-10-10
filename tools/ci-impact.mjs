@@ -13,7 +13,7 @@ const runtimeTests = new Set([
   'intake-build', 'qa-init-cli', 'campaign-dependency-scope', 'campaign-dependency-adapter', 'campaign-dependency-cli',
   'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'kernel-fixture-authority', 'kernel-replace-authority', 'bridge-cli-authority',
   'campaign-fixture-digests', 'workspace-snapshot', 'qa-outcomes-export', 'request-admission', 'agent-request-checkpoint', 'qa-outcomes',
-  'agent-request-report', 'agent-request-cli', 'selected-agent-request', 'selected-agent-request-read',
+  'agent-request-report', 'agent-request-cli', 'selected-agent-request', 'selected-agent-request-read', 'qa-campaign-cli', 'authored-checks',
   'api-semantic-assertions', 'qa-campaign-files-umask', 'campaign-plan-concurrency', 'agent-observation-bridge', 'agent-observation-cli-reader',
   'agent-observation-view', 'qa-agent-observation-cli', 'qa-agent-observation-pair', 'campaign-outcomes',
   'campaign-verdict-copy', 'campaign-continuation-source-authority', 'campaign-continuation-readback',

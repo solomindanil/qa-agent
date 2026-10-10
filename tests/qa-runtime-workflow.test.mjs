@@ -206,6 +206,22 @@ test('loopback target units execute exactly once in the existing actual isolated
   }
 });
 
+test('authored command units execute exactly once in the existing actual isolated runtime argv', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const paths = ['tests/unit/qa-campaign-cli.test.ts', 'tests/unit/authored-checks.test.ts'];
+  const check = async value => {
+    const observed = await isolatedConsoleAcquisitionEnv(value);
+    for (const path of paths) assert.equal(observed.argv.filter(arg => arg === path).length, 1, path);
+    for (const name of dependencyIntakeTests) assert.equal(observed.argv.includes(name), false, 'dedicated intake units stay in their own job');
+    assert.equal(observed.argv.some(arg => arg.startsWith('--test-name-pattern')), false);
+  };
+  await check(workflow);
+  for (const path of paths) {
+    await assert.rejects(check(workflow.replace(path, 'tests/unit/unreviewed-authoring.test.ts')));
+    await assert.rejects(check(workflow.replace(path, `${path} ${path}`)));
+  }
+});
+
 test('fixture compiler invocation receives a portable project and no-output flags', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const build = consoleSteps(workflow).find(step => /- name: Console typecheck and production build/u.test(step));
