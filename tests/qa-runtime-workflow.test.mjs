@@ -693,7 +693,7 @@ test('impact-dependent workflow wiring preserves bootstrap, shard isolation and 
     assert.match(value, /- name: Install isolated Chromium for local fixture checks\n        if: needs\.impact\.outputs\.console-browser != 'none'\n        working-directory: components\/console/u);
     assert.match(value, /node tools\/ci-impact\.mjs --root "\$\{GITHUB_WORKSPACE\}" --event-file "\$\{GITHUB_EVENT_PATH\}" --workflow runtime/u);
     assert.match(value, /--test-name-pattern='\^S01 owned lifecycle abort' tests\/unit\/nuanu-authored-revision\.test\.ts/u);
-    assert.match(value, /node --import tsx --test tests\/unit\/browser-journey\.test\.ts tests\/unit\/public-input-campaign\.test\.ts tests\/unit\/browser-action-sequence\.test\.ts/u);
+    assert.match(value, /node --import tsx --test --test-concurrency=1 tests\/unit\/browser-journey\.test\.ts tests\/unit\/public-input-campaign\.test\.ts tests\/unit\/browser-action-sequence\.test\.ts/u);
     assert.match(value, /fail-fast: false\n      matrix:\n        group: \[workspace, service, remaining\]/u);
     assert.doesNotMatch(value, /paths(?:-ignore)?:|cancel-in-progress:|continue-on-error:/u);
     assert.match(value, /^permissions:\n  contents: read\n\njobs:/mu);
