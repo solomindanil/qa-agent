@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "38cab84c835544f42c91c92c4d9dbb0d75579823",
-      "tree": "b66b4391adfb71e7267fc29c64f3f3f24761d86d",
-      "bundle": "sources/candidates/console-selected-read-pin-38cab84.bundle",
-      "sha256": "fc4a683008100e8ec5a9c4332caa78eb0b1fa0f723df1891e69d1a59361b64d4",
+      "commit": "db346f3da7bd0e4998816e8529e4b0e4064cecd8",
+      "tree": "d6cd6bfecbffa660376a96c871901966f26d0675",
+      "bundle": "sources/candidates/console-selected-handoff-db346f3.bundle",
+      "sha256": "3ca910ad96390d9b413123382bdcedcb27d9e799cdd07f6f250e455cff942215",
       "runtimeAuthority": true,
-      "qualification": "LOCAL38cab84 tests/docs-only successor to reviewedb042218: positive companion fixtures/operator README align exact unchanged Kernel1ba pin, explicit old4af rejection retained; no production/guard/API/lifecycle change. PR30 first head751 runtime741PASS/10FAIL/2SKIP exposed stale positive pins, not selected-reader failure; FIRST preserved, hosted browser/S01 not executed. SAME AQA source repair accepted; affected host27PASS/1 Darwin temporary-alias failure plus that sole case1PASS with canonical owned TMPDIR, no source weakening. Native Linux whole3 FIRST incomplete: nine bridge controls PASS, no final TAP or other two-file result; dockerwait1 after administrative stop, not whole28GREEN. Declared900s boundary observed about10s late before<=10s cleanup; no retry or cap change. Own new-head gates and reviewer assessment still required. Earlier b042 native109207.395s and Linux selected14/report6/lifecycle10 retain their original attribution, not rerun/relabelled for38. Prior checkpoint900s incomplete remains parked; local Linuxbrowser109 UNRUN, hosted whole109 owning proof owed. Screenshot35MiB exceeds existing16MiB upload; hosted packet-retention/visual review not claimed. Authored836 excluded; no cap growth/install/product/V01 acceptance. Current status: docs/qualification/current.md."
+      "qualification": "LOCALdb346f3 test-only successor to reviewed38cab84/b042: inherited initial list-to-selected UI handoff admits normal202, or exact409/BUSY with prior abandoned same-workspace list and one explicit Refresh after1s grace inside unchanged180s UI budget; second refusal fails. Production/guard/API/pin unchanged, all later assertions retained. SAME Astra accepted four-file test delta and fake-group cleanup repair. Affected host39PASS and native Linux Node22.23.3ARM whole two units39PASS/11.244s; one inherited host UI proof1PASS/190.178s, UI74.450s, normal initial202 (manual409 branch covered deterministically, not live-observed), all cleanup closed. PR30 previous1ea main751PASS/0FAIL/2SKIP, S01fivePASS, new109PASS88.183s, browser49PASS/1 inherited180s handoffFAIL; FIRST retained. Earlier pin-repair nativeLinux whole3 PARTIAL9/no finalTAP remains explicit, no local retry/borrowed GREEN. Fresh own successor hosted full gates owed. Original b042 proof attribution retained; local Linuxbrowser109 UNRUN, screenshot35MiB exceeds existing16MiB upload and hosted109 retention/visual review not claimed. Authored836 excluded; no install/cap growth/product/V01 acceptance. Current status: docs/qualification/current.md."
     },
     {
       "id": "freeland",
