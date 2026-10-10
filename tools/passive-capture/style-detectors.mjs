@@ -12,7 +12,7 @@ const majorityOf = (values) => {
   const [value, n] = [...counts].sort((a, b) => b[1] - a[1])[0] ?? [undefined, 0];
   return { value, share: values.length ? n / values.length : 0, distinct: counts.size };
 };
-const inspectable = (e) => !e.underOverlay && !e.disabled;
+const inspectable = (e) => !e.inactive && !e.disabled;
 const groupKey = (e) => `${baseSig(e.parentSig)}>${baseSig(e.sig)}`;
 
 export function styleOutliers(state, { minGroup = 5, majority = 0.65 } = {}) {
@@ -112,7 +112,7 @@ export function primaryActionGeometry(states, { minForms = 3, majority = 0.6, ra
 export function optionFontOutliers(state) {
   const out = [];
   for (const f of state.facts.fields) {
-    if (!f.options || f.options.length < 3 || f.underOverlay) continue;
+    if (!f.options || f.options.length < 3 || f.inactive) continue;
     const m = majorityOf(f.options.map((o) => o.fontSize)); if (m.distinct < 2) continue;
     const odd = f.options.filter((o) => o.fontSize !== m.value);
     out.push({ detector: 'style', key: `optfont|${f.sel}`, severity: 'low', confidence: 'medium',

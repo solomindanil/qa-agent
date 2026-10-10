@@ -1,31 +1,31 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { styleOutliers, crossStateAlignment, inputPaddingOutliers, primaryActionGeometry, optionFontOutliers } from '../tools/passive-capture/style-detectors.mjs';
-import { computedContrast, axeCandidates, nameCandidates, contrastRatio, parseColor } from '../tools/passive-capture/a11y-detectors.mjs';
+import { computedContrast, contrastCoverage, axeCandidates, nameCandidates, contrastRatio, parseColor } from '../tools/passive-capture/a11y-detectors.mjs';
 import { runDetectors, toMarkdown } from '../tools/passive-capture/detect.mjs';
 import { captureState } from '../tools/passive-capture/capture.mjs';
 
 const STYLE = { textAlign: 'start', fontFamily: 'Inter, sans-serif', fontSize: '16px', fontWeight: '400', color: 'rgb(33, 37, 41)', paddingLeft: '0px', paddingRight: '0px' };
 const el = (text, over = {}) => ({ sel: `#${text.replace(/\W/g, '')}`, tag: 'h5', sig: 'h5.card-title', parentSig: 'div.card-body', text,
-  rect: { x: 0, y: 0, w: 100, h: 20 }, bg: { kind: 'solid', color: 'rgb(255, 255, 255)' }, disabled: false, underOverlay: false, ...over, style: { ...STYLE, ...over.style } });
+  rect: { x: 0, y: 0, w: 100, h: 20 }, bg: { kind: 'solid', color: 'rgb(255, 255, 255)' }, disabled: false, inactive: false, ...over, style: { ...STYLE, ...over.style } });
 const field = (name, over = {}) => ({ sel: `#${name}`, tag: 'input', type: 'text', textLike: true, id: name, name, placeholder: null,
-  label: { text: name, source: 'label-for' }, form: 0, rect: { x: 100, y: 0, w: 300, h: 38 }, disabled: false, underOverlay: false, ...over,
+  label: { text: name, source: 'label-for' }, form: 0, rect: { x: 100, y: 0, w: 300, h: 38 }, disabled: false, inactive: false, ...over,
   style: { ...STYLE, paddingLeft: '12px', ...over.style } });
 const button = (name, over = {}) => ({ sel: `#${name}`, tag: 'button', type: 'submit', sig: 'button.btn', name: { text: name, source: 'text' }, form: 0,
-  rect: { x: 100, y: 200, w: 300, h: 38 }, disabled: false, underOverlay: false, style: STYLE, ...over });
-const facts = (over = {}) => ({ url: 'http://app.test/', elements: [], fields: [], controls: [], overlays: [], formCount: 0, ...over });
+  rect: { x: 100, y: 200, w: 300, h: 38 }, disabled: false, inactive: false, style: STYLE, ...over });
+const facts = (over = {}) => ({ url: 'http://app.test/', elements: [], fields: [], controls: [], activeContext: { nativeModal: null, inertRoots: [], ariaModalDeclared: [] }, formCount: 0, ...over });
 const state = (label, f, axe = { available: false, reason: 'no axe source passed by the caller' }) => ({ label, url: f.url, facts: f, axe });
 const titles = (align, n = 6) => Array.from({ length: n }, (_, i) => el(`Item ${i}`, { style: { textAlign: align } }));
 
-test('style outliers: healthy group, one injected outlier, logical-vs-physical alignment and overlay exclusion', () => {
+test('style outliers: healthy group, one injected outlier, logical-vs-physical alignment and inactive-context exclusion', () => {
   assert.deepEqual(styleOutliers(state('a', facts({ elements: titles('start') }))), []);
   const mixed = [...titles('start', 5).map((e) => ({ ...e, style: { ...e.style, textAlign: 'left' } })), el('Item X', { style: { textAlign: 'start' } })];
   assert.deepEqual(styleOutliers(state('a', facts({ elements: mixed }))), [], 'start and left render the same in LTR');
   const injected = [...titles('start', 5), el('Odd one', { style: { textAlign: 'right' } })];
   const found = styleOutliers(state('a', facts({ elements: injected })));
   assert.equal(found.length, 1); assert.match(found[0].what, /"Odd one" has right/); assert.equal(found[0].evidence.selector, '#Oddone');
-  const hidden = [...titles('start', 5), el('Odd one', { underOverlay: true, style: { textAlign: 'right' } })];
-  assert.deepEqual(styleOutliers(state('a', facts({ elements: hidden }))), [], 'elements under a modal are not inspected');
+  const hidden = [...titles('start', 5), el('Odd one', { inactive: true, style: { textAlign: 'right' } })];
+  assert.deepEqual(styleOutliers(state('a', facts({ elements: hidden }))), [], 'elements in an inactive (native modal or inert) context are not inspected');
 });
 
 test('cross-state alignment flags only the page whose repeated items differ', () => {
@@ -78,22 +78,31 @@ test('contrast: WCAG ratio, computed fallback only without axe, unknown backgrou
   const large = el('Big', { style: { color: 'rgb(130, 130, 130)', fontSize: '24px' } });
   assert.deepEqual(computedContrast(state('c', facts({ elements: [large] }))), [], 'large text needs 3:1 only');
   assert.deepEqual(computedContrast(state('c', facts({ elements: [low] }), { available: true, violations: [] })), [], 'axe result wins when axe ran');
+  const unsupportedFg = el('Modern', { style: { color: 'oklch(0.97 0.01 250)' } });
+  const unsupportedBg = { ...el('On modern panel', { style: { color: 'rgb(240, 240, 240)' } }), bg: { kind: 'unsupported', color: 'oklch(0.25 0.05 250)' } };
+  const mixed = state('c', facts({ elements: [low, el('Fine'), unsupportedFg, unsupportedBg, { ...low, bg: { kind: 'image' } }] }));
+  assert.equal(computedContrast(mixed).length, 1, 'only the supported low-contrast pair is a candidate; no ratio is fabricated');
+  assert.deepEqual(contrastCoverage(mixed), { mode: 'computed', assessed: 2, unassessed: { unsupported_colour: 2, image: 1 } });
+  assert.deepEqual(contrastCoverage(state('c', facts({ elements: [low] }), { available: true, violations: [] })), { mode: 'axe' });
 });
 
 test('axe results: contrast mapped with ratios, rules owned by the name detector skipped', () => {
   const axe = { available: true, violations: [
-    { id: 'color-contrast', impact: 'serious', help: 'contrast', nodes: [{ target: '.badge', html: '<span>', data: { contrastRatio: 2.1, fgColor: '#555', bgColor: '#333', expectedContrastRatio: '4.5:1' } }] },
-    { id: 'label', impact: 'critical', help: 'labels', nodes: [{ target: '#email', html: '<input>', data: null }] },
-    { id: 'image-alt', impact: 'critical', help: 'alt', nodes: [{ target: 'img.logo', html: '<img>', data: null }] }] };
+    { id: 'color-contrast', impact: 'serious', help: 'contrast', nodes: [{ target: '.badge', contrast: { contrastRatio: 2.1, fgColor: '#555', bgColor: '#333', expectedContrastRatio: '4.5:1' } }] },
+    { id: 'label', impact: 'critical', help: 'labels', nodes: [{ target: '#email' }] },
+    { id: 'image-alt', impact: 'critical', help: 'alt', nodes: [{ target: 'img.logo' }] }] };
   const found = axeCandidates(state('x', facts(), axe));
   assert.deepEqual(found.map((c) => c.detector).sort(), ['axe', 'contrast']);
   assert.match(found.find((c) => c.detector === 'contrast').what, /2.1:1 \(#555 on #333\)/);
   assert.deepEqual(axeCandidates(state('x', facts())), [], 'unavailable axe yields nothing, not a pass');
+  const underModal = axeCandidates(state('x', facts({ elements: [el('x', { inactive: true })] }), axe));
+  assert.equal(underModal.length, 2, 'axe rows are a separate stream: our inactive-context policy does not erase them');
 });
 
-test('accessible names: nameless control and placeholder-only field are candidates; named ones and overlay-hidden ones are not', () => {
+test('accessible names: nameless control and placeholder-only field are candidates; named, natively named and inactive ones are not', () => {
   const s = state('n', facts({
-    controls: [button('ok'), button('icon', { name: { text: '', source: 'none' } }), button('hidden', { name: { text: '', source: 'none' }, underOverlay: true })],
+    controls: [button('ok'), button('icon', { name: { text: '', source: 'none' } }), button('hidden', { name: { text: '', source: 'none' }, inactive: true }),
+      button('submit', { tag: 'input', type: 'submit', name: { text: 'Submit', source: 'native-default' } })],
     fields: [field('named'), field('email', { label: { text: '', source: 'none' }, placeholder: 'Your e-mail' }), field('bare', { label: { text: '', source: 'none' } })] }));
   const found = nameCandidates(s).map((c) => c.what);
   assert.equal(found.length, 3);
@@ -111,6 +120,8 @@ test('runDetectors merges the same candidate across states and the summary state
   assert.equal(same.length, 1); assert.deepEqual(same[0].states, ['c'], 'a state is listed once'); assert.equal(same[0].evidence.length, 2);
   const md = toMarkdown(list, [nameless('home'), nameless('detail')]);
   assert.match(md, /axe ran on 0; computed contrast was used for the rest/); assert.match(md, /\| Disposition \|/);
+  const unsupported = state('u', facts({ elements: [el('Modern', { style: { color: 'oklch(0.9 0.01 250)' } })] }));
+  assert.match(toMarkdown([], [unsupported]), /Contrast not assessed: 1 element\(s\) \(unsupported colour 1\)/);
 });
 
 test('captureState refuses a missing page, dir or unsafe label before touching anything', async () => {

@@ -1,5 +1,5 @@
 // Runs inside the page (serialised by Playwright): must not reference anything outside its own body.
-// Read-only: no clicks, typing, navigation or scrolling. Returns layout, style, name and overlay facts for one state.
+// Read-only: no clicks, typing, navigation or scrolling. Returns layout, style, name and active-context facts for one state.
 export function extractPageFacts(limits) {
   const maxElements = limits?.maxElements ?? 3000;
   const vw = innerWidth; const vh = innerHeight;
@@ -29,12 +29,20 @@ export function extractPageFacts(limits) {
     return { textAlign: s.textAlign, fontFamily: s.fontFamily, fontSize: s.fontSize, fontWeight: s.fontWeight, color: s.color,
       paddingLeft: s.paddingLeft, paddingRight: s.paddingRight };
   };
-  const alphaOf = (c) => { const m = /rgba?\(([^)]+)\)/.exec(c || ''); if (!m) return 0; const v = m[1].split(/[ ,/]+/).filter(Boolean); return v.length > 3 ? Number(v[3]) : 1; };
+  // Only rgb()/rgba() and the keyword transparent are understood. Any other computed colour (oklch, lab, color())
+  // is unsupported: the walk stops there instead of treating it as transparent.
+  const alphaOf = (c) => {
+    const t = (c || '').trim(); if (t === 'transparent') return 0;
+    const m = /^rgba?\(([^)]+)\)$/.exec(t); if (!m) return null;
+    const v = m[1].split(/[ ,/]+/).filter(Boolean); const a = v.length > 3 ? Number(v[3]) : 1;
+    return Number.isNaN(a) ? null : a;
+  };
   const background = (el) => {
     for (let e = el; e; e = e.parentElement) {
       const s = style(e);
       if (s.backgroundImage && s.backgroundImage !== 'none') return { kind: 'image' };
       const a = alphaOf(s.backgroundColor);
+      if (a === null) return { kind: 'unsupported', color: s.backgroundColor };
       if (a >= 0.99) return { kind: 'solid', color: s.backgroundColor };
       if (a > 0) return { kind: 'translucent', color: s.backgroundColor };
     }
@@ -42,20 +50,12 @@ export function extractPageFacts(limits) {
   };
   const isDisabled = (el) => Boolean(el.closest('[disabled],[aria-disabled="true"],fieldset[disabled]'));
 
-  // Overlays: open dialogs and fixed layers covering most of the viewport. Elements outside them are not inspectable.
-  const overlayRoots = new Set();
-  for (const d of document.querySelectorAll('dialog[open],[role=dialog],[role=alertdialog],[aria-modal="true"]')) if (isVisible(d)) overlayRoots.add(d);
-  for (let gx = 1; gx <= 4; gx++) for (let gy = 1; gy <= 4; gy++) {
-    let e = document.elementFromPoint((vw * gx) / 5, (vh * gy) / 5);
-    for (; e && e !== document.body && e !== document.documentElement; e = e.parentElement) {
-      const s = style(e); if (s.position !== 'fixed') continue;
-      const r = e.getBoundingClientRect();
-      if ((Math.min(r.right, vw) - Math.max(r.left, 0)) * (Math.min(r.bottom, vh) - Math.max(r.top, 0)) >= 0.4 * vw * vh) overlayRoots.add(e);
-      break;
-    }
-  }
-  const overlays = [...overlayRoots].filter((o) => ![...overlayRoots].some((p) => p !== o && p.contains(o)));
-  const underOverlay = (el) => overlays.length > 0 && !overlays.some((o) => o.contains(el));
+  // Active context: only demonstrably inactive content is excluded from own detectors — inside an [inert] subtree, or
+  // outside an open native modal <dialog>. This is a selection policy, not a claim about visual occlusion. An
+  // aria-modal declaration is recorded but not trusted; fixed layers and non-modal dialogs exclude nothing.
+  let nativeModal = null;
+  for (const d of document.querySelectorAll('dialog[open]')) { try { if (d.matches(':modal')) nativeModal = d; } catch { /* :modal unsupported */ } }
+  const inactive = (el) => Boolean(el.closest('[inert]')) || (nativeModal !== null && !nativeModal.contains(el));
 
   const labelOf = (el) => {
     if (el.getAttribute('aria-label')?.trim()) return { text: clean(el.getAttribute('aria-label')), source: 'aria-label' };
@@ -68,10 +68,16 @@ export function extractPageFacts(limits) {
   };
   const controlName = (el) => {
     const l = labelOf(el); if (l.source !== 'none' && l.source !== 'label-wrap') return l;
+    const fallback = l.source === 'label-wrap' ? l : { text: '', source: 'none' };
+    if (el.tagName === 'INPUT') {
+      if (el.type === 'image') { const alt = clean(el.getAttribute('alt')); return alt ? { text: alt, source: 'alt' } : fallback; }
+      if (el.value?.trim()) return { text: clean(el.value), source: 'value' };
+      if (el.type === 'submit' || el.type === 'reset') return { text: el.type === 'submit' ? 'Submit' : 'Reset', source: 'native-default' };
+      return fallback;
+    }
     const own = clean(el.innerText || ''); if (own) return { text: own.slice(0, 80), source: 'text' };
-    if (el.tagName === 'INPUT' && el.value?.trim()) return { text: clean(el.value), source: 'value' };
     const img = el.querySelector('img[alt]'); if (img && clean(img.getAttribute('alt'))) return { text: clean(img.getAttribute('alt')), source: 'img-alt' };
-    return l.source === 'label-wrap' ? l : { text: '', source: 'none' };
+    return fallback;
   };
   const forms = [...document.forms];
   const formIndex = (el) => { const f = el.closest('form'); return f ? forms.indexOf(f) : -1; };
@@ -83,22 +89,25 @@ export function extractPageFacts(limits) {
     const own = clean([...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(' '));
     if (!own) continue;
     elements.push({ sel: selector(el), tag: el.tagName.toLowerCase(), sig: signature(el), parentSig: signature(el.parentElement),
-      text: own.slice(0, 160), rect: box(el), style: looks(el), bg: background(el), disabled: isDisabled(el), underOverlay: underOverlay(el) });
+      text: own.slice(0, 160), rect: box(el), style: looks(el), bg: background(el), disabled: isDisabled(el), inactive: inactive(el) });
   }
   const TEXT_INPUT = /^(text|email|password|search|tel|url|number|date|datetime-local|month|time|week)$/;
-  const fields = [...document.querySelectorAll('input,select,textarea')].filter((el) => el.type !== 'hidden' && isVisible(el)).map((el) => ({
+  const NOT_FIELD = /^(hidden|submit|button|reset|image)$/;
+  const fields = [...document.querySelectorAll('input,select,textarea')].filter((el) => !(el.tagName === 'INPUT' && NOT_FIELD.test(el.type)) && isVisible(el)).map((el) => ({
     sel: selector(el), tag: el.tagName.toLowerCase(), type: el.type, textLike: el.tagName !== 'INPUT' || TEXT_INPUT.test(el.type),
     id: el.id || null, name: el.getAttribute('name'), placeholder: el.getAttribute('placeholder'), label: labelOf(el), form: formIndex(el),
-    rect: box(el), style: looks(el), disabled: isDisabled(el), underOverlay: underOverlay(el),
+    rect: box(el), style: looks(el), disabled: isDisabled(el), inactive: inactive(el),
     options: el.tagName === 'SELECT' ? [...el.options].slice(0, 60).map((o) => ({ text: clean(o.text), fontSize: style(o).fontSize })) : undefined,
   }));
-  const controls = [...document.querySelectorAll('button,[role=button],input[type=submit],input[type=button],input[type=image],a[href]')].filter(isVisible).slice(0, maxElements).map((el) => ({
+  const controls = [...document.querySelectorAll('button,[role=button],input[type=submit],input[type=button],input[type=reset],input[type=image],a[href]')].filter(isVisible).slice(0, maxElements).map((el) => ({
     sel: selector(el), tag: el.tagName.toLowerCase(), type: el.getAttribute('type'), sig: signature(el), name: controlName(el), form: formIndex(el),
-    rect: box(el), style: looks(el), disabled: isDisabled(el), underOverlay: underOverlay(el),
+    rect: box(el), style: looks(el), disabled: isDisabled(el), inactive: inactive(el),
   }));
   return {
     url: location.href, title: document.title, viewport: { w: vw, h: vh }, scroll: { x: scrollX, y: scrollY },
-    overlays: overlays.map((o) => ({ sel: selector(o), rect: box(o) })), formCount: forms.length,
+    activeContext: { nativeModal: nativeModal ? selector(nativeModal) : null, inertRoots: [...document.querySelectorAll('[inert]')].slice(0, 20).map(selector),
+      ariaModalDeclared: [...document.querySelectorAll('[aria-modal="true"]')].filter(isVisible).slice(0, 20).map(selector) },
+    formCount: forms.length,
     truncated: elements.length >= maxElements, elements, fields, controls,
   };
 }

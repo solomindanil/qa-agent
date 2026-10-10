@@ -6,7 +6,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { styleOutliers, crossStateAlignment, inputPaddingOutliers, primaryActionGeometry, optionFontOutliers } from './style-detectors.mjs';
-import { computedContrast, axeCandidates, nameCandidates } from './a11y-detectors.mjs';
+import { computedContrast, contrastCoverage, axeCandidates, nameCandidates } from './a11y-detectors.mjs';
 
 const ORDER = { high: 0, medium: 1, low: 2 };
 const MAX_EVIDENCE = 6;
@@ -37,9 +37,14 @@ export async function loadStates(dir) {
 
 export function toMarkdown(list, states) {
   const axeRan = states.filter((s) => s.axe?.available).length;
+  const REASON = { unsupported_colour: 'unsupported colour', image: 'image background', translucent: 'translucent background' };
+  const gaps = {}; for (const st of states) for (const [k, n] of Object.entries(contrastCoverage(st).unassessed ?? {})) gaps[k] = (gaps[k] ?? 0) + n;
+  const gapTotal = Object.values(gaps).reduce((a, b) => a + b, 0);
+  const gapLine = gapTotal ? [`Contrast not assessed: ${gapTotal} element(s) (${Object.entries(gaps).map(([k, n]) => `${REASON[k] ?? k} ${n}`).join(', ')}). No candidate there is not a pass.`] : [];
   const esc = (s) => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
   return [`# Passive capture candidates`, '',
     `${list.length} candidates from ${states.length} captured states (axe ran on ${axeRan}; computed contrast was used for the rest).`,
+    ...gapLine,
     'A candidate is not a finding. Give every row a disposition: **finding** after your own check (then record it with record-observation), or **dismissed: <reason>**.', '',
     '| ID | Detector | Severity | Confidence | What | States | Evidence | Disposition |', '| --- | --- | --- | --- | --- | --- | --- | --- |',
     ...list.map((c) => `| ${c.id} | ${c.detector} | ${c.severity} | ${c.confidence} | ${esc(c.what).slice(0, 240)} | ${c.states.length} | ${esc(c.evidence[0].shot)} \`${esc(c.evidence[0].selector).slice(0, 80)}\` | |`)].join('\n') + '\n';
@@ -50,7 +55,8 @@ async function main() {
   if (!dir || process.argv.length !== 3) { console.error('usage: detect.mjs <evidence-dir>'); process.exit(2); }
   const states = await loadStates(dir);
   const list = runDetectors(states);
-  await writeFile(join(dir, 'passive', 'candidates.json'), JSON.stringify({ states: states.map((s) => s.label), count: list.length, candidates: list }, null, 1));
+  await writeFile(join(dir, 'passive', 'candidates.json'), JSON.stringify({ states: states.map((s) => s.label), count: list.length,
+    contrastCoverage: Object.fromEntries(states.map((s) => [s.label, contrastCoverage(s)])), candidates: list }, null, 1));
   await writeFile(join(dir, 'passive', 'candidates.md'), toMarkdown(list, states));
   const by = {}; for (const c of list) by[c.detector] = (by[c.detector] ?? 0) + 1;
   console.log(JSON.stringify({ states: states.length, candidates: list.length, byDetector: by }));
