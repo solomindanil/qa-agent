@@ -112,7 +112,7 @@ npm run dev -- --host 127.0.0.1 --port 5173
 
 These commands do not grant permission to register or execute against a product. In another shell, export the same values or source an operator-owned private environment file. Inspect the approved intake without mutation, obtain authority for the exact target, then use the existing `qa-init` command from `components/console`. The target must be an absolute path below `QA_WORKSPACE_ROOTS`; do not `mkdir` it or fake `.qa-managed.json`.
 
-Build the `--answers` file against the delivered [`IntakeBuildInput`](../components/console/src/lib/intake-build.ts) and the current `qa-init` skill, not an unvalidated generic template. `briefText` is a string containing the structured product/surfaces/journeys/risks JSON described by that skill; preserve only established facts and observable outcomes. The current registration route is `black_box`; for a web or landing target it requires one public HTTPS root, top-level `surfaces` are supported kind strings, `sources` and `secretRefs` stay empty, and optional `sourceSnapshots` contain only exact supplied nonsecret Markdown or OpenAPI JSON. Do not invent product facts to make the input complete.
+Build the `--answers` file against the delivered [`IntakeBuildInput`](../components/console/src/lib/intake-build.ts) and the current `qa-init` skill, not an unvalidated generic template. `briefText` is a string containing the structured product/surfaces/journeys/risks JSON described by that skill; preserve only established facts and observable outcomes. The current registration route is `black_box`. A web or landing target normally declares one public HTTPS root; an operator-authorized product on exact `localhost` or `127.0.0.1` ports instead uses the [explicit owned loopback target](../components/console/skills/qa-init/SKILL.md#explicit-owned-loopback-target) route (`targetClass: "loopback_http"` in a `local` environment, plus the matching Console origin grant: `QA_LOOPBACK_ORIGINS` for either server; `serve` also accepts repeatable `--loopback-origin`, which takes precedence). Top-level `surfaces` are supported kind strings, `sources` and `secretRefs` stay empty, and optional `sourceSnapshots` contain only exact supplied nonsecret Markdown or OpenAPI JSON. Do not invent product facts to make the input complete.
 
 ```sh
 npm run qa-init -- --answers /absolute/path/to/intake.json \
@@ -130,6 +130,18 @@ Save the typed session/job/receipt and path bindings. Reconnect using the exact 
 ```sh
 export QA_WORKSPACE=/absolute/path/to/qa-workspace-parents/product-slug
 ```
+
+### Open an existing workspace or saved request report
+
+A continuing agent or reviewer registers nothing. Use the same exported values the workspace was registered with: export them as above or source the operator's private environment file (plain `KEY=value` lines need `set -a` before sourcing so `npm` sees them), including any loopback origin grant. Check read-only that Console dependencies are present and the selected Kernel is prepared as in the block above; if either is missing, ask the operator instead of installing or building in a frozen or shared clone. Then start the Vite dev server from `components/console`:
+
+```sh
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+The dev server serves the UI and the bridge directly from source; it needs no Console build. Port 5173 is strict, so a second server on that port fails instead of moving. `npm run serve` (default port 8791) runs the same bridge but serves only a prebuilt `dist-primary-ui/` bundle: without one, `/api/*` answers while the page itself returns 404. Use `serve` only where an operator already built that bundle in the selected checkout; `npm run build` writes inside the Console child, so do not run it in a frozen or shared clone. The Console README's "serves the built `dist/`" refers to this `dist-primary-ui/` output.
+
+In the UI, choose the workspace in the selector (it lists managed workspaces that are direct children of a `QA_WORKSPACE_ROOTS` entry, or of the parent of `QA_WORKSPACE` when no roots are set; `QA_WORKSPACE` is optional), open **Requests**, and on the saved request use **Open checkpoint K**, which opens its recorded latest checkpoint. An older checkpoint is opened from that report's **Immutable checkpoint history** card. The selected view verifies before it shows facts and is bounded at 240 seconds. Without the UI, read or export the same checkpoint with `read-agent-request` or `export-agent-request` as described in [agent-request checkpoints](../components/console/skills/qa-product-v0/references/agent-request-checkpoints.md). Opening or reading a report does not authorize product actions.
 
 ## 4. Supply lane-specific capabilities and authority
 

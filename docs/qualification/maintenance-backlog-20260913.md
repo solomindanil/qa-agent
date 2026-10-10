@@ -127,6 +127,7 @@ Actual release policy still falls back to full on this debt. A synthetic two-tes
 4. Freeland full verification has an explicit Node20 override and local platform/temp/lock assumptions. Configure/qualify the chosen host; Node22 root packaging success is not cross-platform runtime qualification. Reconcile old operational runbook commands with actual CLI; watcher remains intentionally blocked pending its admission design.
 5. Product permissions must be re-established for a new user. In particular, Freeland contains historical committed standing-authorization data: cloning it is not consent. Before transferable paid execution, verify how fresh product/owner authority is enforced; no inherited spending on a new host.
 6. Existing private account/registration/session data may still refer to legacy owner storage. Either explicitly import through owning tools with permission, or create separately scoped new state. Do not copy author secrets into Git, fake a registration or repeat an unresolved operation to reconstruct it.
+7. Correct owning Console README's standalone note: `serve.mjs` serves `dist-primary-ui/` (Vite `build.outDir`), not `dist/`, and returns 404 for the page when that bundle is absent. Root first-use guidance now routes continuation to the Vite dev server. The same README's V0 sections still say new registration requires a public HTTPS root, and the qa-init skill's new-registration paragraph states HTTPS-only before its explicit loopback section; root guidance names the loopback route.
 
 ## Next implementation order
 
