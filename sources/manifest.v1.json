@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "db346f3da7bd0e4998816e8529e4b0e4064cecd8",
-      "tree": "d6cd6bfecbffa660376a96c871901966f26d0675",
-      "bundle": "sources/candidates/console-selected-handoff-db346f3.bundle",
-      "sha256": "3ca910ad96390d9b413123382bdcedcb27d9e799cdd07f6f250e455cff942215",
+      "commit": "f923453fa8c433a819bee14be8e24160d287495d",
+      "tree": "9e40ad4127b6f2d448fef885ebd5f0210ca6006f",
+      "bundle": "sources/candidates/console-selected-stale-f923453.bundle",
+      "sha256": "b604b97fdf4a4326b27daa5ee58b6c63102dee9b3c021e21e49bef8472ce533b",
       "runtimeAuthority": true,
-      "qualification": "LOCALdb346f3 test-only successor to reviewed38cab84/b042: inherited initial list-to-selected UI handoff admits normal202, or exact409/BUSY with prior abandoned same-workspace list and one explicit Refresh after1s grace inside unchanged180s UI budget; second refusal fails. Production/guard/API/pin unchanged, all later assertions retained. SAME Astra accepted four-file test delta and fake-group cleanup repair. Affected host39PASS and native Linux Node22.23.3ARM whole two units39PASS/11.244s; one inherited host UI proof1PASS/190.178s, UI74.450s, normal initial202 (manual409 branch covered deterministically, not live-observed), all cleanup closed. PR30 previous1ea main751PASS/0FAIL/2SKIP, S01fivePASS, new109PASS88.183s, browser49PASS/1 inherited180s handoffFAIL; FIRST retained. Earlier pin-repair nativeLinux whole3 PARTIAL9/no finalTAP remains explicit. User/ROOT/SAME Astra approved THIS repair only: ordinary merge after fresh successor runtime-smoke, impact, source-safetyPR/push and intake SUCCESS, reusing three Kernel successes from own run38039576134/head1ea on unchanged exact1ba/locks/tests/CIargv/env; successor Kernel/qualification may remain genuinely pending, never reported PASS. Any new failure/base/source drift holds merge; no cancellation/skip/adminflag/workflow or global policy change. Original b042 proof attribution retained; local Linuxbrowser109 UNRUN, screenshot35MiB exceeds existing16MiB upload and hosted109 retention/visual review not claimed. Authored836 excluded; no install/cap growth/product/V01 acceptance. Current status: docs/qualification/current.md."
+      "qualification": "LOCAL selected-display successor f923453 to delivered PR30/db346: same-selection fully validated facts and original VerifiedAt remain explicitly stale/updating during automatic revalidation; all admission/model/download/history leases revoked synchronously, refusal/invalid hide facts, only transport retains stale facts. Reentrant select/dispose retirement guarded before publication/read. Kernel1ba, polling, server/API/TTL/limits/record/export and authored836 remain unchanged/excluded. Genuine contract FIRST0P6F and reentrant FIRST0P2F retained; focused GREEN6P then8P, host affected six files91P, typecheck/build exit0. Tiny built-App loopback diagnostic reached fresh ready with denied stale actions and closed cleanup; Header fits360px, but inherited ready/update document595px overflow remains FAIL, not responsive/visual-regression PASS. Native Linux affected checks and SAME review/carrier own gates reported in current status; not delivered or product/V01 acceptance. PR30 all nine own gates succeeded before mergebe3268; its one-time exception was unused and is expired. No install/cap/guard/policy change. Current status: docs/qualification/current.md."
     },
     {
       "id": "freeland",
