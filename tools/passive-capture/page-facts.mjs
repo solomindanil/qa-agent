@@ -60,8 +60,9 @@ export function extractPageFacts(limits) {
   const inactive = (el) => {
     if (nativeModal !== null && !nativeModal.contains(el)) return true;
     const inertRoot = el.closest('[inert]'); if (inertRoot === null) return false;
-    const host = el.closest('dialog');
-    return !(host !== null && openModals.includes(host) && !host.contains(inertRoot));
+    // The escape comes from the nearest open MODAL ancestor, not the nearest dialog (a non-modal dialog may be nested).
+    const host = openModals.filter((d) => d.contains(el)).reduce((inner, d) => (inner === null || inner.contains(d) ? d : inner), null);
+    return !(host !== null && !host.contains(inertRoot));
   };
 
   const labelOf = (el) => {
