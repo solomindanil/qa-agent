@@ -166,6 +166,8 @@ jobs:
               tests/unit/agent-request-checkpoint.test.ts \
               tests/unit/agent-request-report.test.ts \
               tests/unit/agent-request-cli.test.ts \
+              tests/unit/agent-request-native.test.ts \
+              tests/unit/agent-request-native-cli.test.ts \
               tests/unit/selected-agent-request.test.ts \
               tests/unit/selected-agent-request-read.test.ts \
               tests/unit/ordinary-owner-read-cancellation.test.ts \

@@ -294,6 +294,21 @@ test('isolated Console child receives request admission and association projecti
   assert.ok(observed.argv.includes('tests/unit/qa-outcomes.test.ts'));
 });
 
+test('fresh-v2 native units execute exactly once in existing isolated runtime argv', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const paths = ['tests/unit/agent-request-native.test.ts', 'tests/unit/agent-request-native-cli.test.ts'];
+  const check = async value => {
+    const observed = await isolatedConsoleAcquisitionEnv(value);
+    for (const path of paths) assert.equal(observed.argv.filter(arg => arg === path).length, 1, path);
+    assert.equal(observed.argv.some(arg => arg.startsWith('--test-name-pattern')), false);
+  };
+  await check(workflow);
+  for (const path of paths) {
+    await assert.rejects(check(workflow.replace(path, 'tests/unit/unreviewed-native.test.ts')));
+    await assert.rejects(check(workflow.replace(path, `${path} ${path}`)));
+  }
+});
+
 test('ordinary owner cancellation executes exactly once in existing isolated runtime argv', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const path = 'tests/unit/ordinary-owner-read-cancellation.test.ts';
