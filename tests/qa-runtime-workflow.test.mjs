@@ -348,7 +348,7 @@ test('selected finite reader executes exactly once in existing isolated runtime 
 test('monitor runtime executes each whole control once with private default-off child context',async()=>{
   const workflow=await readFile(workflowUrl,'utf8');
   const paths=['monitor-http-contract','monitor-http','monitor-owner-display','monitor-owner-reference',
-    'monitor-reader','qa-monitor-producers','primary-ui-monitor','qa-campaign-runner',
+    'monitor-reader','qa-monitor-producers','primary-ui-monitor',
     'primary-ui-routing','primary-ui-preview','primary-ui-evidence','primary-ui-outcomes',
     'primary-ui-island','primary-ui-original-input'].map(name=>`tests/unit/${name}.test.ts`);
   const check=async value=>{
@@ -362,6 +362,35 @@ test('monitor runtime executes each whole control once with private default-off 
   for(const path of paths){await assert.rejects(check(workflow.replace(path,'tests/unit/unreviewed-monitor.test.ts')));await assert.rejects(check(workflow.replace(path,`${path} ${path}`)));}
   await assert.rejects(check(workflow.replace('QA_MONITOR=off','QA_MONITOR=on')));
   await assert.rejects(check(workflow.replace('QA_MONITOR_ROOT="${qa_tmp}/monitor"','QA_MONITOR_ROOT="/tmp/shared-monitor"')));
+});
+
+test('real campaign runner executes whole once only in installed-browser argv',async()=>{
+  const workflow=await readFile(workflowUrl,'utf8');
+  const path='tests/unit/qa-campaign-runner.test.ts';
+  const check=async value=>{
+    const runtime=await isolatedConsoleAcquisitionEnv(value);
+    assert.equal(runtime.argv.includes(path),false,'no real browser unit in browserless runtime');
+    const step=consoleSteps(value).find(step=>step.includes('- name: Browser healthy and broken fixture controls'));
+    const prefix=step?.match(/^ {10}env -i \\\n[\s\S]*?(?=^ {12}node --import tsx --test)/mu)?.[0];
+    const command=step?.split('\n').find(line=>/^ {12}node --import tsx --test /u.test(line));
+    assert.ok(prefix);assert.ok(command);
+    const args=command.trim().slice('node --import tsx --test'.length);
+    const {stdout}=await execFileAsync('/bin/bash',['--noprofile','--norc','-c',
+      `${prefix}"$1" -e 'process.stdout.write(JSON.stringify({argv:process.argv.slice(1),env:process.env}))' --${args}`,
+      'qa-campaign-browser-argv',process.execPath],{env:{PATH:`${dirname(process.execPath)}:/usr/bin:/bin`,qa_tmp:'/tmp/owned-campaign-browser',
+        GITHUB_WORKSPACE:'/tmp/owned-workspace',RUNNER_TEMP:'/tmp/owned-runner',qa_source:'a'.repeat(40),qa_chromium:'/tmp/existing-chromium'}});
+    const observed=JSON.parse(stdout);
+    assert.equal(observed.argv.filter(arg=>arg===path).length,1);
+    assert.equal(observed.argv.some(arg=>arg.startsWith('--test-name-pattern')||arg.startsWith('--test-skip-pattern')),false);
+    assert.equal(observed.env.PLAYWRIGHT_BROWSERS_PATH,'/tmp/owned-runner/qa-release-browsers');
+    assert.equal(observed.env.QA_MONITOR,'off');
+  };
+  await check(workflow);
+  await assert.rejects(check(workflow.replace(path,'tests/unit/unreviewed-campaign.test.ts')));
+  await assert.rejects(check(workflow.replace(path,`${path} ${path}`)));
+  await assert.rejects(check(workflow.replace('--test-concurrency=1 tests/unit/browser-journey','--test-concurrency=1 --test-name-pattern=oracle tests/unit/browser-journey')));
+  await assert.rejects(check(workflow.replace('tests/unit/qa-campaign-cli.test.ts \\',`tests/unit/qa-campaign-cli.test.ts ${path} \\`)));
+  await assert.rejects(check(workflow.replace('PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \\','PLAYWRIGHT_BROWSERS_PATH="/tmp/uninstalled-browser" \\')));
 });
 
 test('monitor browser runs one actual whole route with private output and no executable helper',async()=>{
@@ -654,6 +683,7 @@ test('the permanent browser command actually receives the accepted finite regres
     'qa-permanent-browser-argv', process.execPath], { env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` } });
   assert.deepEqual(JSON.parse(stdout), ['--test-concurrency=1', 'tests/unit/browser-journey.test.ts',
     'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts',
+    'tests/unit/qa-campaign-runner.test.ts',
     'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs',
     'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
 });

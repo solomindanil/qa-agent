@@ -54,7 +54,7 @@ test('reason dedup retains first distinct diagnostics and unknown deletion escal
 test('monitor controls map to existing owning lanes while deletion and unknown remain fail closed', async context => {
   const {classifyImpact}=await api();
   const units=['monitor-http-contract','monitor-http','monitor-owner-display','monitor-owner-reference',
-    'monitor-reader','qa-monitor-producers','primary-ui-monitor','qa-campaign-runner',
+    'monitor-reader','qa-monitor-producers','primary-ui-monitor',
     'primary-ui-routing','primary-ui-preview','primary-ui-evidence','primary-ui-outcomes',
     'primary-ui-island','primary-ui-original-input'].map(name=>`tests/unit/${name}.test.ts`);
   const browser=['tests/e2e/qa-monitor-local.test.mjs','tests/e2e/qa-monitor-fixture.mjs'];
@@ -74,6 +74,28 @@ test('monitor controls map to existing owning lanes while deletion and unknown r
   }
   // New runtime/root source is NOT silently promoted into a narrow test lane.
   assert.equal(classifyImpact({cohort:'pull_request',rootChanges:[change('skills/qa-check/scripts/monitor.mjs')]}).selection.kernelFull,true);
+});
+
+test('real campaign runner selects browser-all while production and removal retain conservative gates', async () => {
+  const {classifyImpact}=await api();
+  const path='tests/unit/qa-campaign-runner.test.ts';
+  for(const status of ['added','modified','deleted']){
+    const result=classifyImpact({cohort:'pull_request',components:[component('console',[
+      change(path,status,status==='added'?null:'100644',status==='deleted'?null:'100644')])]});
+    assert.deepEqual(result.selection,{rootTests:true,freelandControls:false,kernelBuildContracts:true,
+      kernelFull:status==='deleted',kernelFocusedTests:[],consoleBuild:true,consoleRuntime:true,
+      consoleBrowser:'all',consoleS01Lifecycle:true});
+    assert.deepEqual(result.unsupportedChanges,status==='deleted'?[`unmapped or removed Console test: ${path}`]:[]);
+  }
+  for(const path of ['src/node/qa-campaign-runner.ts','src/node/playwright-campaign-adapter.ts']){
+    const result=classifyImpact({cohort:'pull_request',components:[component('console',[change(path)])]});
+    assert.deepEqual(result.selection,{rootTests:true,freelandControls:false,kernelBuildContracts:true,
+      kernelFull:true,kernelFocusedTests:[],consoleBuild:true,consoleRuntime:true,consoleBrowser:'all',consoleS01Lifecycle:true});
+  }
+  const unknown='tests/unit/qa-campaign-runner-unreviewed.test.ts';
+  const result=classifyImpact({cohort:'pull_request',components:[component('console',[change(unknown)])]});
+  assert.equal(result.selection.kernelFull,true);assert.equal(result.selection.consoleBrowser,'all');
+  assert.deepEqual(result.unsupportedChanges,[`unmapped or removed Console test: ${unknown}`]);
 });
 
 test('fresh-v2 native units have literal owning mappings without waiving deletion or unknown tests', async context => {
@@ -456,7 +478,7 @@ test('U03a actual browser-all shell supplies portable installed Chromium and fre
     ACTIONS_RUNTIME_TOKEN: 'must-not-reach-child', SYNTHETIC_PRIVATE_SENTINEL: 'must-not-reach-child' }, encoding: 'utf8', timeout: 10_000 });
   assert.equal(result.status, 0, result.stderr);
   const actual = JSON.parse(await readFile(record, 'utf8'));
-  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', '--test-concurrency=1', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs', 'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
+  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', '--test-concurrency=1', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/unit/qa-campaign-runner.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs', 'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
   assert.equal(actual.env.QA_PRIMARY_UI_CHROMIUM, installed);
   assert.equal(actual.env.QA_STARTER_REPO, join(dir, 'workspace/components/kernel'));
   assert.equal(actual.env.PLAYWRIGHT_BROWSERS_PATH, join(dir, 'qa-release-browsers'));

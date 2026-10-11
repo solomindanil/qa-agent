@@ -22,7 +22,7 @@ const runtimeTests = new Set([
   'primary-ui-read-client', 'primary-ui-selection', 'primary-ui-projection', 'primary-ui-report', 'primary-ui-boundary',
   'primary-ui-routing', 'primary-ui-preview', 'primary-ui-evidence', 'primary-ui-outcomes', 'primary-ui-island', 'primary-ui-original-input',
   'monitor-http-contract', 'monitor-http', 'monitor-owner-display', 'monitor-owner-reference',
-  'monitor-reader', 'qa-monitor-producers', 'primary-ui-monitor', 'qa-campaign-runner',
+  'monitor-reader', 'qa-monitor-producers', 'primary-ui-monitor',
   'selected-campaign-consumer-lifecycle',
 ].map(name => `tests/unit/${name}.test.${name.startsWith('campaign-continuation-readback') ||
   ['selected-campaign-readback', 'selected-campaign-consumer-lifecycle'].includes(name) ? 'mjs' : 'ts'}`));
@@ -34,6 +34,7 @@ const consoleCompatibilityPaths = new Set([
   'server/selected-campaign-readback.d.mts', 'server/workspace-snapshot.mjs', 'src/lib/live.ts',
   'src/lib/selected-agent-request.ts', 'scripts/qa-campaign.ts', 'src/lib/qa-outcomes.ts',
   'src/node/agent-request-report.ts', 'src/node/qa-outcomes-export.ts',
+  'tests/unit/qa-campaign-runner.test.ts',
 ]);
 const rootPolicyTestPaths = new Set(['tests/ci-impact.test.mjs', 'tests/qa-runtime-workflow.test.mjs']);
 // Duplicate source routing is distinct from runtime qualification: a workflow
