@@ -103,7 +103,7 @@ jobs:
         if: needs.impact.outputs.kernel-build == 'true'
         run: npm ci --ignore-scripts --no-audit --no-fund --prefix components/kernel
       - name: Install selected Console dependencies without lifecycle scripts
-        if: needs.impact.outputs.console-build == 'true' || needs.impact.outputs.console-runtime == 'true' || needs.impact.outputs.console-browser != 'none' || needs.impact.outputs.console-s01 == 'true'
+        if: needs.impact.outputs.console-build == 'true' || needs.impact.outputs.console-runtime == 'true' || needs.impact.outputs.console-s01 == 'true'
         run: npm ci --ignore-scripts --no-audit --no-fund --prefix components/console
       - name: Kernel build and contract controls
         if: needs.impact.outputs.kernel-build == 'true'
@@ -168,6 +168,7 @@ jobs:
               tests/unit/agent-request-cli.test.ts \
               tests/unit/selected-agent-request.test.ts \
               tests/unit/selected-agent-request-read.test.ts \
+              tests/unit/ordinary-owner-read-cancellation.test.ts \
               tests/unit/qa-outcomes.test.ts \
               tests/unit/api-semantic-assertions.test.ts \
               tests/unit/qa-campaign-files-umask.test.ts \
@@ -189,15 +190,12 @@ jobs:
               tests/unit/primary-ui-selection.test.ts \
               tests/unit/primary-ui-projection.test.ts \
               tests/unit/primary-ui-report.test.ts \
+              tests/unit/primary-ui-boundary.test.ts \
               tests/unit/selected-campaign-consumer-lifecycle.test.mjs
       - name: Console runtime fixture compiler
         if: needs.impact.outputs.console-runtime == 'true' && needs.impact.outputs.console-build != 'true'
         working-directory: components/console
         run: ./node_modules/.bin/tsc -p tsconfig.fixture-repair.json --noEmit --incremental false
-      - name: Finite browser no-output compiler
-        if: needs.impact.outputs.console-browser != 'none'
-        working-directory: components/console
-        run: ./node_modules/.bin/tsc --noEmit --incremental false --target ES2022 --module ESNext --moduleResolution bundler --strict --skipLibCheck --lib ES2022,DOM,DOM.Iterable --types node tests/fixtures/browser-action-sequence/check.ts tests/unit/browser-action-sequence.test.ts
       - name: Exact affected Kernel tests
         if: needs.impact.outputs.kernel-focused != '[]'
         working-directory: components/kernel
@@ -246,6 +244,65 @@ jobs:
             QA_REGISTRATION_TARGET_REGISTRY="${qa_tmp}/targets.json" \
             node --import tsx --test --test-concurrency=1 \
               --test-name-pattern='^S01 owned lifecycle abort' tests/unit/nuanu-authored-revision.test.ts
+      - name: Explicit unselected runtime result
+        if: needs.impact.outputs.kernel-build != 'true' && needs.impact.outputs.console-build != 'true' && needs.impact.outputs.console-runtime != 'true' && needs.impact.outputs.console-s01 != 'true'
+        run: echo 'NOT RUN — no runtime effects selected; root source packaging is qualified separately'
+      - name: Record actual selected runtime completion
+        id: runtime-result
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const materializedPlan = ${{ toJSON(needs.impact.outputs.plan) }};
+          if (typeof materializedPlan !== 'string' || Buffer.byteLength(materializedPlan) > 1024 * 1024) throw Error('Selection plan exceeds materialization bound');
+          const s = JSON.parse(materializedPlan).selection;
+          const selected = s.kernelBuildContracts || s.consoleBuild || s.consoleRuntime || s.consoleS01Lifecycle || s.kernelFocusedTests.length;
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'mode=' + (selected ? 'selected-complete' : 'explicit-no-tests') + '\n');
+          NODE
+      - name: Verify source integrity after runtime checks
+        if: always()
+        run: node tools/workspace.mjs verify
+
+  console-browser:
+    needs: impact
+    if: needs.impact.outputs.console-browser != 'none'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    outputs:
+      mode: ${{ steps.browser-result.outputs.mode }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.1
+          package-manager-cache: false
+      - name: Restore and verify pinned components
+        run: |
+          node tools/workspace.mjs restore
+          node tools/workspace.mjs verify
+      - name: Install browser Kernel dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix components/kernel
+      - name: Install browser Console dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefix components/console
+      - name: Browser Kernel build prerequisites
+        working-directory: components/kernel
+        run: |
+          npm run typecheck
+          npm run build
+      - name: Browser Console build prerequisites
+        working-directory: components/console
+        run: |
+          ./node_modules/.bin/tsc --noEmit --incremental false
+          ./node_modules/.bin/tsc -p tsconfig.fixture-repair.json --noEmit --incremental false
+          ./node_modules/.bin/vite build
+      - name: Finite browser no-output compiler
+        if: needs.impact.outputs.console-browser != 'none'
+        working-directory: components/console
+        run: ./node_modules/.bin/tsc --noEmit --incremental false --target ES2022 --module ESNext --moduleResolution bundler --strict --skipLibCheck --lib ES2022,DOM,DOM.Iterable --types node tests/fixtures/browser-action-sequence/check.ts tests/unit/browser-action-sequence.test.ts
       - name: Install isolated Chromium for local fixture checks
         if: needs.impact.outputs.console-browser != 'none'
         working-directory: components/console
@@ -379,23 +436,20 @@ jobs:
             TMPDIR="${qa_tmp}" \
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \
             node --import tsx --test tests/unit/browser-action-sequence.test.ts
-      - name: Explicit unselected runtime result
-        if: needs.impact.outputs.kernel-build != 'true' && needs.impact.outputs.console-build != 'true' && needs.impact.outputs.console-runtime != 'true' && needs.impact.outputs.console-browser == 'none' && needs.impact.outputs.console-s01 != 'true'
-        run: echo 'NOT RUN — no runtime effects selected; root source packaging is qualified separately'
-      - name: Record actual selected runtime completion
-        id: runtime-result
+      - name: Verify browser source integrity
+        if: always()
+        run: node tools/workspace.mjs verify
+      - name: Record browser completion
+        id: browser-result
         run: |
           node <<'NODE'
           const fs = require('node:fs');
           const materializedPlan = ${{ toJSON(needs.impact.outputs.plan) }};
           if (typeof materializedPlan !== 'string' || Buffer.byteLength(materializedPlan) > 1024 * 1024) throw Error('Selection plan exceeds materialization bound');
-          const s = JSON.parse(materializedPlan).selection;
-          const selected = s.kernelBuildContracts || s.consoleBuild || s.consoleRuntime || s.consoleBrowser !== 'none' || s.consoleS01Lifecycle || s.kernelFocusedTests.length;
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'mode=' + (selected ? 'selected-complete' : 'explicit-no-tests') + '\n');
+          const selection = JSON.parse(materializedPlan).selection?.consoleBrowser;
+          if (!['all', 'finite'].includes(selection)) throw Error('Browser completion requires an actual selected browser mode');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 'mode=' + selection + '\n');
           NODE
-      - name: Verify source integrity after runtime checks
-        if: always()
-        run: node tools/workspace.mjs verify
 
   console-dependency-intake:
     needs: impact
@@ -522,7 +576,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: always()
-    needs: [impact, runtime-smoke, kernel-regression, console-dependency-intake]
+    needs: [impact, runtime-smoke, kernel-regression, console-dependency-intake, console-browser]
     steps:
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -544,6 +598,8 @@ jobs:
           RUNTIME_MODE: ${{ needs.runtime-smoke.outputs.mode }}
           DEPENDENCY_RESULT: ${{ needs.console-dependency-intake.result }}
           DEPENDENCY_MODE: ${{ needs.console-dependency-intake.outputs.mode }}
+          BROWSER_RESULT: ${{ needs.console-browser.result }}
+          BROWSER_MODE: ${{ needs.console-browser.outputs.mode }}
         run: |
           node <<'NODE'
           const fs = require('node:fs');
@@ -562,11 +618,14 @@ jobs:
             KERNEL_FOCUSED: JSON.stringify(s.kernelFocusedTests), CONSOLE_BUILD: String(s.consoleBuild),
             CONSOLE_RUNTIME: String(s.consoleRuntime), CONSOLE_BROWSER: s.consoleBrowser, CONSOLE_S01: String(s.consoleS01Lifecycle)};
           if (Object.entries(outputs).some(([key,value]) => process.env[key] !== value)) throw Error('Missing or contradictory selection outputs');
-          const selected = s.kernelBuildContracts || s.consoleBuild || s.consoleRuntime || s.consoleBrowser !== 'none' || s.consoleS01Lifecycle || s.kernelFocusedTests.length;
+          const selected = s.kernelBuildContracts || s.consoleBuild || s.consoleRuntime || s.consoleS01Lifecycle || s.kernelFocusedTests.length;
           if (process.env.RUNTIME_MODE !== (selected ? 'selected-complete' : 'explicit-no-tests')) throw Error('Missing/contradictory explicit runtime completion');
           if (s.kernelFull ? process.env.KERNEL_RESULT !== 'success' : process.env.KERNEL_RESULT !== 'skipped') throw Error('Kernel job contradicts selected plan');
           if (s.consoleRuntime ? process.env.DEPENDENCY_RESULT !== 'success' || process.env.DEPENDENCY_MODE !== 'selected-complete' :
               process.env.DEPENDENCY_RESULT !== 'skipped' || Boolean(process.env.DEPENDENCY_MODE)) throw Error('Dependency intake job contradicts selected plan or completion');
+          if (s.consoleBrowser !== 'none' ? process.env.BROWSER_RESULT !== 'success' || process.env.BROWSER_MODE !== s.consoleBrowser :
+              process.env.BROWSER_RESULT !== 'skipped' || Boolean(process.env.BROWSER_MODE)) throw Error('Browser job contradicts selected plan or completion');
+          console.log('browser controls: ' + (s.consoleBrowser !== 'none' ? 'selected browser results successful' : 'NOT RUN — unselected job skipped'));
           console.log('dependency intake: ' + (s.consoleRuntime ? 'selected runtime results successful' : 'NOT RUN — unselected job skipped'));
           const rows = Object.entries(s).map(([key,value]) => key + ': ' +
             (['rootTests','freelandControls'].includes(key) ? 'separate source workflow; not asserted here — ' :
