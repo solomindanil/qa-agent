@@ -294,9 +294,9 @@ test('isolated Console child receives request admission and association projecti
   assert.ok(observed.argv.includes('tests/unit/qa-outcomes.test.ts'));
 });
 
-test('fresh-v2 native units execute exactly once in existing isolated runtime argv', async () => {
+test('fresh native units execute exactly once in existing isolated runtime argv', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
-  const paths = ['tests/unit/agent-request-native.test.ts', 'tests/unit/agent-request-native-cli.test.ts'];
+  const paths = ['tests/unit/agent-request-native.test.ts', 'tests/unit/agent-request-native-cli.test.ts', 'tests/unit/agent-request-sufficiency.test.ts'];
   const check = async value => {
     const observed = await isolatedConsoleAcquisitionEnv(value);
     for (const path of paths) assert.equal(observed.argv.filter(arg => arg === path).length, 1, path);

@@ -98,9 +98,9 @@ test('real campaign runner selects browser-all while production and removal reta
   assert.deepEqual(result.unsupportedChanges,[`unmapped or removed Console test: ${unknown}`]);
 });
 
-test('fresh-v2 native units have literal owning mappings without waiving deletion or unknown tests', async context => {
+test('fresh native units have literal owning mappings without waiving deletion or unknown tests', async context => {
   const { classifyImpact } = await api();
-  for (const name of ['agent-request-native', 'agent-request-native-cli']) {
+  for (const name of ['agent-request-native', 'agent-request-native-cli', 'agent-request-sufficiency']) {
     const path = `tests/unit/${name}.test.ts`;
     for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
       await context.test(`${name} ${status}`, () => {
