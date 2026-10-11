@@ -71,10 +71,14 @@ function emptySelection() { return { rootTests: true, freelandControls: false, k
 /** Pure fixed policy. Changed records carry literal tree modes; no import graph or filename-of-bundle inference. */
 export function classifyImpact({ cohort, rootChanges = [], components = [], unknownReasons = [] }) {
   const selection = emptySelection(); const reasons = {}; const unsupportedChanges = [];
+  const explained = new Map(groups.map(key => [key, new Set()]));
   for (const key of groups) reasons[key] = key === 'rootTests' ? 'root source packaging' : 'NOT RUN: no applicable verified delta';
   const enable = (key, why, value = true) => {
     if (key === 'consoleBrowser') selection[key] = selection[key] === 'all' || value === 'all' ? 'all' : value;
     else selection[key] = value;
+    // Selection still escalates on every call; identical explanations emit once.
+    if (explained.get(key).has(why)) return;
+    explained.get(key).add(why);
     reasons[key] = reasons[key].startsWith('NOT RUN:') ? why : `${reasons[key]}; ${why}`;
   };
   const compatibility = why => {

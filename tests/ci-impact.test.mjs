@@ -19,6 +19,38 @@ const change = (path, status = 'modified', baseMode = '100644', headMode = '1006
 const component = (id, paths) => ({ id, verified: true, baseCommit: '1'.repeat(40), headCommit: '2'.repeat(40),
   baseTree: '3'.repeat(40), headTree: paths.length ? '4'.repeat(40) : '3'.repeat(40), changedPaths: paths });
 
+test('many-path reasons fit output transport without dropping compatibility gates or paths', async () => {
+  const {classifyImpact}=await api();
+  const paths=Array.from({length:96},(_,i)=>change(`src/primary-ui/output-fixture-${i}.ts`));
+  const result=classifyImpact({cohort:'pull_request',components:[component('console',paths)]});
+  assert.deepEqual(result.selection,{rootTests:true,freelandControls:false,kernelBuildContracts:true,kernelFull:false,
+    kernelFocusedTests:[],consoleBuild:true,consoleRuntime:true,consoleBrowser:'all',consoleS01Lifecycle:true});
+  assert.deepEqual(result.unsupportedChanges,[]);
+  for(const key of ['kernelBuildContracts','consoleBuild','consoleRuntime','consoleBrowser','consoleS01Lifecycle']) {
+    for(const {path} of paths)assert.ok(result.reasons[key].includes(path),`${key} must retain ${path}`);
+  }
+  assert.ok(Buffer.byteLength(JSON.stringify(result),'utf16le')<128*1024,'Repeated reasons must not consume the job-output quota');
+});
+
+test('reason dedup retains first distinct diagnostics and unknown deletion escalation', async () => {
+  const {classifyImpact}=await api();
+  const first=[change('src/primary-ui/first.ts'),change('src/primary-ui/second.ts')];
+  const removed='tests/unit/monitor-reader.test.ts';
+  const result=classifyImpact({cohort:'pull_request',unknownReasons:['first unknown','second unknown'],
+    components:[component('console',first),component('console',[change(removed,'deleted','100644',null)])]});
+  assert.deepEqual(result.selection,{rootTests:true,freelandControls:true,kernelBuildContracts:true,kernelFull:true,
+    kernelFocusedTests:[],consoleBuild:true,consoleRuntime:true,consoleBrowser:'all',consoleS01Lifecycle:true});
+  assert.deepEqual(result.unsupportedChanges,[`unmapped or removed Console test: ${removed}`]);
+  const diagnostics=['unknown impact: first unknown; second unknown',
+    'console actual content delta: src/primary-ui/first.ts, src/primary-ui/second.ts',
+    `console actual content delta: ${removed}`];
+  for(const key of ['kernelBuildContracts','consoleBuild','consoleRuntime','consoleBrowser','consoleS01Lifecycle']) {
+    let prior=-1;
+    for(const why of diagnostics){const at=result.reasons[key].indexOf(why);assert.ok(at>prior,`${key} diagnostic order`);
+      assert.equal(at,result.reasons[key].lastIndexOf(why),`${key} duplicate diagnostic`);prior=at;}
+  }
+});
+
 test('monitor controls map to existing owning lanes while deletion and unknown remain fail closed', async context => {
   const {classifyImpact}=await api();
   const units=['monitor-http-contract','monitor-http','monitor-owner-display','monitor-owner-reference',
