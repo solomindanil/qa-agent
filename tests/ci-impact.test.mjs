@@ -19,6 +19,51 @@ const change = (path, status = 'modified', baseMode = '100644', headMode = '1006
 const component = (id, paths) => ({ id, verified: true, baseCommit: '1'.repeat(40), headCommit: '2'.repeat(40),
   baseTree: '3'.repeat(40), headTree: paths.length ? '4'.repeat(40) : '3'.repeat(40), changedPaths: paths });
 
+test('unchanged Kernel exact producer mappings retain complete Console ownership and conservative unions', async () => {
+  const {classifyImpact}=await api();
+  const paths=['server/kernel-authority.mjs','server/registration-runtime.mjs','server/registration-runtime.d.mts',
+    'server/monitor-http.mjs','server/monitor-owner-display.mjs','server/monitor-owner-reference.mjs','server/monitor-reader.mjs',
+    'scripts/qa-init.ts','src/node/authored-checks.ts','src/node/qa-campaign-runner.ts','src/node/qa-monitor.mjs','src/node/qa-monitor.d.mts',
+    'src/lib/root-monitor/monitor-contract.mjs','src/lib/root-monitor/monitor-http-contract.mjs',
+    'src/lib/root-monitor/monitor-http-contract.d.mts','src/lib/root-monitor/monitor.mjs','src/lib/root-monitor/request-contract.mjs',
+    'src/lib/agent-request-checkpoint.ts','src/node/agent-request-checkpoint.ts','src/node/agent-request-cli-format.ts'];
+  const rootPaths=['skills/qa-check/scripts/monitor-contract.mjs','skills/qa-check/scripts/monitor.mjs','skills/qa-check/scripts/request.mjs',
+    'skills/qa-check/SKILL.md','skills/qa-check/references/request-intake.md','tests/qa-monitor.test.mjs','tests/qa-request-cli.test.mjs','tests/generic-skill-bundles.test.mjs'];
+  for(const [kind,path]of [...paths.map(path=>['console',path]),...rootPaths.map(path=>['root',path])]){
+    for(const status of ['added','modified']){
+      const changed=change(path,status,status==='added'?null:'100644','100644');
+      const input={cohort:'pull_request',components:[component('kernel',[]),component('console',kind==='console'?[changed]:[])],rootChanges:kind==='root'?[changed]:[]};
+      assert.deepEqual(classifyImpact(input).selection,{rootTests:true,freelandControls:false,kernelBuildContracts:true,kernelFull:false,
+        kernelFocusedTests:[],consoleBuild:true,consoleRuntime:true,consoleBrowser:'all',consoleS01Lifecycle:true},path);
+      for(const mutation of [i=>{i.components[0].headTree='5'.repeat(40);},i=>{i.components[0].verified=false;},i=>{i.components.shift();},
+        i=>{delete i.components[0].baseTree;},i=>{i.components[0].baseTree=i.components[0].headTree='invalid';},
+        i=>{i.components.push(component('kernel',[]));},i=>{i.components.push(component('unknown',[]));},
+        i=>{i.unknownReasons=['manifest identity/authority changed'];},i=>{i.components.push(component('console',[change('src/unmapped.ts')]));},
+        i=>{i.rootChanges.push(change('tools/workspace.mjs'));},i=>{i.components.push(component('console',[change('package-lock.json')]));}]){
+        const unsafe=structuredClone(input);mutation(unsafe);assert.equal(classifyImpact(unsafe).selection.kernelFull,true,path);
+      }
+      for(const cohort of ['manual','tag','integration'])assert.equal(classifyImpact({...input,cohort}).selection.kernelFull,true,path);
+    }
+    for(const changed of [change(path,'deleted','100644',null),change(path,'modified','100644','100755'),change(path,'modified','100644','120000')]){
+      assert.equal(classifyImpact({cohort:'pull_request',components:[component('kernel',[]),component('console',kind==='console'?[changed]:[])],rootChanges:kind==='root'?[changed]:[]}).selection.kernelFull,true,path);
+    }
+  }
+});
+
+test('unchanged Kernel real verified workflow blobs admit only the three Console bodies', async () => {
+  const workflow=await readFile(new URL('../.github/workflows/qa-runtime.yml',import.meta.url),'utf8');
+  const f=await fixture();await mkdir(join(f.root,'.github/workflows'),{recursive:true});
+  await writeFile(join(f.root,'.github/workflows/qa-runtime.yml'),workflow);f.baseCommit=f.commitHead();
+  await f.publish('console','server/monitor-reader.mjs');
+  const changed=workflow.replace('tests/unit/agent-request-native.test.ts \\', 'tests/unit/agent-request-native.test.ts tests/unit/agent-request-sufficiency.test.ts \\');
+  assert.notEqual(changed,workflow);await writeFile(join(f.root,'.github/workflows/qa-runtime.yml'),changed);f.commitHead();
+  const plan=await compute(f);assert.equal(plan.base.status,'verified');
+  assert.equal(plan.components.find(item=>item.id==='kernel').baseTree,plan.components.find(item=>item.id==='kernel').headTree);
+  assert.equal(plan.selection.kernelFull,false);assert.equal(plan.selection.consoleBrowser,'all');assert.equal(plan.selection.consoleRuntime,true);
+  await writeFile(join(f.root,'.github/workflows/qa-runtime.yml'),changed.replace('node-version: 22.23.1','node-version: 24'));f.commitHead();
+  assert.equal((await compute(f)).selection.kernelFull,true);
+});
+
 test('many-path reasons fit output transport without dropping compatibility gates or paths', async () => {
   const {classifyImpact}=await api();
   const paths=Array.from({length:96},(_,i)=>change(`src/primary-ui/output-fixture-${i}.ts`));

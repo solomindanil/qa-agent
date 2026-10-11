@@ -10,6 +10,54 @@ import { promisify } from 'node:util';
 const workflowUrl = new URL('../.github/workflows/qa-runtime.yml', import.meta.url);
 const execFileAsync = promisify(execFile);
 
+test('unchanged Kernel workflow guard preserves all non-Console boundaries and rejects hidden install or action changes',async()=>{
+  const {classifyImpact}=await import('../tools/ci-impact.mjs');
+  const before=await readFile(workflowUrl,'utf8');
+  const kernel={id:'kernel',verified:true,baseTree:'3'.repeat(40),headTree:'3'.repeat(40),changedPaths:[]};
+  const selected=(after,path='.github/workflows/qa-runtime.yml')=>classifyImpact({cohort:'pull_request',components:[kernel],
+    rootChanges:[{path,status:'modified',baseMode:'100644',headMode:'100644'}],workflowBefore:before,workflowAfter:after}).selection;
+  const allowed=[before,
+    before.replace('tests/unit/agent-request-native.test.ts \\', 'tests/unit/agent-request-native.test.ts tests/unit/agent-request-sufficiency.test.ts \\'),
+    before.replace('tests/e2e/qa-monitor-local.test.mjs','tests/e2e/qa-monitor-local.test.mjs tests/e2e/extra-local.test.mjs'),
+    before.replace("const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');","const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'); // bounded diagnostic")];
+  for(const after of allowed){assert.equal(selected(after).kernelFull,false);assert.equal(selected(after).consoleBrowser,'all');}
+  assert.equal(selected(before,'tools/ci-impact.mjs').kernelFull,false);
+  const heading='      - name: Isolated Console runtime controls';
+  const start=before.indexOf(heading);assert.equal(start,before.lastIndexOf(heading));assert.ok(start>=0);
+  const end=before.indexOf('\n      - ',start+heading.length);assert.ok(end>start);
+  const body=before.slice(start,end);
+  const inConsole=(needle,replacement)=>{
+    assert.ok(body.includes(needle),`selected Console body must contain ${needle}`);
+    const changedBody=body.replace(needle,replacement);assert.notEqual(changedBody,body);
+    const after=before.slice(0,start)+changedBody+before.slice(end);
+    assert.equal(after.slice(0,start),before.slice(0,start));
+    assert.equal(after.slice(start+changedBody.length),before.slice(end));
+    return after;
+  };
+  for(const workflowBefore of [undefined,'',before.replace(/\n/gu,'\r\n')]){
+    assert.equal(classifyImpact({cohort:'pull_request',components:[kernel],
+      rootChanges:[{path:'tools/ci-impact.mjs',status:'modified',baseMode:'100644',headMode:'100644'}],
+      workflowBefore,workflowAfter:before}).selection.kernelFull,true);
+  }
+  const mutations=[
+    before.replace('node-version: 22.23.1','node-version: 24'),
+    before.replace('npm run typecheck','npm run test'),
+    before.replace('permissions:','permissions:\n  actions: write'),
+    before.replace('node tools/ci-impact.mjs','node tools/other-impact.mjs'),
+    before.replace('Kernel build and contract controls','Changed Kernel build and contract controls'),
+    before.replace('      - name: Isolated Console runtime controls','     - name: Isolated Console runtime controls'),
+    before.replace('      - name: Isolated Console runtime controls','      - name: Missing Console controls'),
+    before.replace('      - name: Isolated Console runtime controls','      - name: Isolated Console runtime controls\n      - name: Isolated Console runtime controls'),
+    inConsole('        shell: bash','        uses: hostile/action@v1\n        shell: bash'),
+    ...['npm install hostile','npm ci','yarn add hostile','pnpm install hostile','npm --prefix components/console ci',
+      'apt-get install hostile','npm \\\n            install hostile'].map(command=>inConsole('          qa_tmp=',`          ${command}\n          qa_tmp=`)),
+    before.replace('      - name: Stage selected request evidence','      - uses: hostile/action@v1\n      - name: Stage selected request evidence'),
+    before.replace('      - name: Stage selected request evidence','  hidden-job:\n    runs-on: ubuntu-24.04\n      - name: Stage selected request evidence'),
+  ];
+  for(const after of mutations){assert.notEqual(after,before);assert.equal(selected(after).kernelFull,true,after.slice(0,80));}
+  assert.match(before,/tests\/e2e\/qa-monitor-local\.test\.mjs/u,'browser-all still owns registered monitor');
+});
+
 function workflowJob(workflow, name) {
   const start = workflow.indexOf(`\n  ${name}:\n`);
   assert.notEqual(start, -1, `job ${name} must exist`);
