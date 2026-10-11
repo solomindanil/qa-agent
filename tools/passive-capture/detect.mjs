@@ -7,13 +7,14 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { styleOutliers, crossStateAlignment, inputPaddingOutliers, primaryActionGeometry, optionFontOutliers } from './style-detectors.mjs';
 import { computedContrast, contrastCoverage, axeCandidates, nameCandidates } from './a11y-detectors.mjs';
+import { textHygieneCandidates } from './text-markers.mjs';
 
 const ORDER = { high: 0, medium: 1, low: 2 };
 const MAX_EVIDENCE = 6;
 
 export function runDetectors(states) {
   const raw = [
-    ...states.flatMap((s) => [...styleOutliers(s), ...optionFontOutliers(s), ...computedContrast(s), ...axeCandidates(s), ...nameCandidates(s)]),
+    ...states.flatMap((s) => [...styleOutliers(s), ...optionFontOutliers(s), ...computedContrast(s), ...axeCandidates(s), ...nameCandidates(s), ...textHygieneCandidates(s)]),
     ...crossStateAlignment(states), ...inputPaddingOutliers(states), ...primaryActionGeometry(states),
   ];
   const merged = new Map();
@@ -41,11 +42,14 @@ export function toMarkdown(list, states) {
   const gaps = {}; for (const st of states) for (const [k, n] of Object.entries(contrastCoverage(st).unassessed ?? {})) gaps[k] = (gaps[k] ?? 0) + n;
   const gapTotal = Object.values(gaps).reduce((a, b) => a + b, 0);
   const gapLine = gapTotal ? [`Contrast not assessed: ${gapTotal} element(s) (${Object.entries(gaps).map(([k, n]) => `${REASON[k] ?? k} ${n}`).join(', ')}). No candidate there is not a pass.`] : [];
+  const truncated = states.filter((s) => s.facts?.truncated).map((s) => s.label);
+  const truncLine = truncated.length ? [`Facts truncated in: ${truncated.join(', ')} (element limit reached; text beyond it was not inspected).`] : [];
   const esc = (s) => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
   return [`# Passive capture candidates`, '',
     `${list.length} candidates from ${states.length} captured states (axe ran on ${axeRan}; computed contrast was used for the rest).`,
-    ...gapLine,
-    'A candidate is not a finding. Give every row a disposition: **finding** after your own check (then record it with record-observation), or **dismissed: <reason>**.', '',
+    ...gapLine, ...truncLine,
+    'No candidate is not a check of all text or states.',
+    'A candidate is not a finding. Give every row a disposition in your existing notes: **finding** after your own sufficient check (then record it with record-observation), **hypothesis** with its basis and the missing evidence, **dismissed: <reason>**, or **unassessed** with the reason and the follow-up.', '',
     '| ID | Detector | Severity | Confidence | What | States | Evidence | Disposition |', '| --- | --- | --- | --- | --- | --- | --- | --- |',
     ...list.map((c) => `| ${c.id} | ${c.detector} | ${c.severity} | ${c.confidence} | ${esc(c.what).slice(0, 240)} | ${c.states.length} | ${esc(c.evidence[0].shot)} \`${esc(c.evidence[0].selector).slice(0, 80)}\` | |`)].join('\n') + '\n';
 }

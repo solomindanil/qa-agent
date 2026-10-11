@@ -60,6 +60,7 @@ minimisation, not redaction: nothing is masked in the live page and old evidence
 | `contrast` | axe color-contrast when axe ran; otherwise WCAG contrast computed for rgb text on a solid rgb background only (other cases are counted as unassessed) |
 | `a11y-name` | a control with no accessible name (native submit/reset names when no `value` attribute is given, and image-input `alt`, count as names; an explicitly blank value does not); a text-like field, select or textarea with no label, or identified only by its placeholder. Button-type inputs are controls, not fields. |
 | `axe` | other axe violations from a short, fixed rule list |
+| `text-hygiene` | captured active, non-disabled element text, control name, field label or placeholder containing `[object Object]`, `Invalid Date`, or the case-sensitive tokens `undefined`, `null` or `NaN` bounded by a string edge or a character that is not a Unicode letter, number or underscore. **Convention-based candidate, not a norm:** a code sample, a mathematical text or an intentionally shown empty value can match and is dismissed in triage. The message and key carry no surrounding text. No candidate is not a check of all text; truncated facts are reported. |
 
 **Active context (own detectors only).** Only demonstrably inactive content is excluded: anything inside an `[inert]`
 subtree, and anything outside the single open native modal `<dialog>` (`showModal`). An open modal escapes the
@@ -75,12 +76,15 @@ background. Unsupported colour formats (for example `oklch`, `lab`, `color()`), 
 backgrounds stay unassessed. They are counted with a reason in `candidates.md` and `candidates.json`, never given a
 ratio. No candidate there is not a pass.
 
-Typos and wording are out of scope; an evidence review covers them better.
+Typos and wording are out of scope; an evidence review covers them better. The fixed serialization markers above are the only text rule.
 
 ## Triage (mandatory)
-- **Every row needs a disposition:**
-  - **finding**, after your own check on the product;
-  - **dismissed: <reason>**, for example designed emphasis or a brand style.
+- **Every row needs a disposition in your existing notes:**
+  - **finding**, after your own sufficient check on the product;
+  - **hypothesis**, with its basis and the evidence still missing;
+  - **dismissed: <reason>**, for example designed emphasis, a brand style or an intentional literal;
+  - **unassessed**, with the reason and the follow-up.
+- **This is triage wording, not a new persisted status or gate.**
 - **Record each confirmed row** with the existing `record-observation` command, as an agent-authored observation that
   cites the capture files. See `components/console/skills/qa-product-v0/references/agent-observations.md`.
 - **Do not count candidates as defects.**

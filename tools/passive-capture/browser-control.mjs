@@ -19,8 +19,9 @@ const MUST = [
   ['scope-native-modal', 'a11y-name', /control has no accessible name/],
   ['scope-modal-under-inert', 'a11y-name', /control has no accessible name/], ['scope-two-modals', 'style', /"Chisel" has right/],
   ['form4', 'geometry'], ['form4', 'padding'], ['form4', 'a11y-name', /only by its placeholder/],
+  ['cards', 'text-hygiene', /Marker: NaN; channel: text\./],
 ];
-const MUST_NOT = [['scope-native-modal', 'style'], ['scope-inert', 'style'], ['scope-modal-under-inert', 'style'], ['privacy', 'a11y-name']];
+const MUST_NOT = [['scope-native-modal', 'style'], ['scope-inert', 'style'], ['scope-modal-under-inert', 'style'], ['privacy', 'a11y-name'], ['privacy', 'text-hygiene']];
 const NAMES_EXACT = [/^button\[type=button\] control has no accessible name/, /^input\[type=button\] control has no accessible name/,
   /^input\[type=submit\] control has no accessible name/, /^input\[type=reset\] control has no accessible name/, /^Field u has no label/];
 
