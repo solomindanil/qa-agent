@@ -40,6 +40,25 @@ test('fresh-v2 native units have literal owning mappings without waiving deletio
   assert.deepEqual(result.unsupportedChanges, [`unmapped or removed Console test: ${unknown}`]);
 });
 
+test('method trigger unit selects existing runtime without waiving deleted or unknown tests', async context => {
+  const { classifyImpact } = await api();
+  const path = 'tests/unit/qa-product-method-triggers.test.ts';
+  for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
+    await context.test(status, () => {
+      const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+      for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+      assert.equal(result.selection.kernelFull, status === 'deleted');
+      assert.equal(result.selection.consoleBuild, status === 'deleted');
+      assert.equal(result.selection.consoleBrowser, status === 'deleted' ? 'all' : 'none');
+      assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+    });
+  }
+  const unknown = 'tests/unit/qa-product-method-unreviewed.test.ts';
+  const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(unknown)])] });
+  assert.equal(result.selection.kernelFull, true);
+  assert.deepEqual(result.unsupportedChanges, [`unmapped or removed Console test: ${unknown}`]);
+});
+
 test('ordinary owner cancellation unit selects existing runtime without waiving deletion or unknown tests', async context => {
   const { classifyImpact } = await api();
   const path = 'tests/unit/ordinary-owner-read-cancellation.test.ts';

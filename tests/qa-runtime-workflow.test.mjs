@@ -322,6 +322,18 @@ test('ordinary owner cancellation executes exactly once in existing isolated run
   await assert.rejects(check(workflow.replace(path, `${path} ${path}`)));
 });
 
+test('method trigger unit executes exactly once in existing isolated runtime argv', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const path = 'tests/unit/qa-product-method-triggers.test.ts';
+  const check = async value => {
+    const observed = await isolatedConsoleAcquisitionEnv(value);
+    assert.equal(observed.argv.filter(arg => arg === path).length, 1);
+  };
+  await check(workflow);
+  await assert.rejects(check(workflow.replace(path, 'tests/unit/unreviewed-method.test.ts')));
+  await assert.rejects(check(workflow.replace(path, `${path} ${path}`)));
+});
+
 test('selected finite reader executes exactly once in existing isolated runtime argv', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const check = async value => {
