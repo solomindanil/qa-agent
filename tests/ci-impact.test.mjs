@@ -19,6 +19,25 @@ const change = (path, status = 'modified', baseMode = '100644', headMode = '1006
 const component = (id, paths) => ({ id, verified: true, baseCommit: '1'.repeat(40), headCommit: '2'.repeat(40),
   baseTree: '3'.repeat(40), headTree: paths.length ? '4'.repeat(40) : '3'.repeat(40), changedPaths: paths });
 
+test('ordinary owner cancellation unit selects existing runtime without waiving deletion or unknown tests', async context => {
+  const { classifyImpact } = await api();
+  const path = 'tests/unit/ordinary-owner-read-cancellation.test.ts';
+  for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
+    await context.test(status, () => {
+      const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+      for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+      assert.equal(result.selection.kernelFull, status === 'deleted');
+      assert.equal(result.selection.consoleBuild, status === 'deleted');
+      assert.equal(result.selection.consoleBrowser, status === 'deleted' ? 'all' : 'none');
+      assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+    });
+  }
+  const unknown = 'tests/unit/ordinary-owner-read-unreviewed.test.ts';
+  const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(unknown)])] });
+  assert.equal(result.selection.kernelFull, true);
+  assert.deepEqual(result.unsupportedChanges, [`unmapped or removed Console test: ${unknown}`]);
+});
+
 test('selected finite read unit and literal helper select owning runtime; ordinary109 selects existing browser group', async context => {
   const { classifyImpact } = await api();
   for (const path of ['tests/unit/selected-agent-request-read.test.ts', 'tests/fixtures/selected-request-literal.ts',

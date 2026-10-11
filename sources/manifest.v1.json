@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "6e2cdf6b19a276a3b039c70c75c452d270760ec1",
-      "tree": "4b481588fb0b5fdc2bfca9a5dab00fad8a4062dd",
-      "bundle": "sources/candidates/console-writer-finite-6e2cdf6.bundle",
-      "sha256": "86672224b19fe218c4d1394bbf25061500383927d355a81a5f1bd27b4ba579a4",
+      "commit": "48da1bc322d7024781ec88976c4e2e7be7b5fb69",
+      "tree": "7908b446fe85a365c0d47f30339d376329c030e0",
+      "bundle": "sources/candidates/console-ordinary-cancel-48da1bc.bundle",
+      "sha256": "aefa9306226addb48bf0486f478d44b33e78692caaef6550d3384c2da4135e35",
       "runtimeAuthority": true,
-      "qualification": "LOCAL A3 writer-finite6e2 successor to PR37-delivered6e25, paired with unchanged Kernel1ba. Sorted writer admission and every qualified writer readback reuse the existing guarded finite reader; no individual fallback/cache/chunk/retry, schema/API/CAS/unknown-write weakening or cap growth. Existing8MiB retained-byte bound is explicit. Native/ledger-only Overview guidance reuses the existing listed-workspace Requests action without a new fetch or inferred request/bug count. Host whole selected48P, UI22P, CLI3P and typecheck exit0; native Linux Node22.23.3ARM whole selected48P/report11P, then boundary11P/CLI3P in separate invocations with a lower512MiB Node heap. Original setup failure, unknown SIGKILL and subsequent diagnostic OOM remain FIRST; final invocations have no OOM/deadline expiry and closed cleanup, not one whole-sequence GREEN. SAME author-distinct Astra source/evidence C0/I0/M0. These synthetic source/usage proofs do not establish A3 latency improvement, product acceptance, fullV01/Q05 or owner migration. Other sources, dependencies and CI policy unchanged; carrier own fresh applicable gates/public delivery pending. Current status: docs/qualification/current.md."
+      "qualification": "LOCAL ordinary-read cancellation48da over A3 writer6e2, unchanged Kernel1ba. Request-local premature-close cancellation launches no abandoned read and suppresses abandoned response publication; the shared source slot remains held until confirmed supervisor cleanup and unknown cleanup stays unavailable. Only genuine active contention returns closed OWNER_READ_BUSY503; selected409 stays generic with explicit refresh/no retry. Optional request-list503 diagnostic is strict complete UTF-8/closed envelope, at most1024 bytes and250ms, safely abandoning stalled/aborted/oversize bodies without request retry or changing source caps. SAME author-distinct Astra source/repair C0/I0/M0. Exact48da native Linux Node22.23.3 ARM whole affected three files51P/0F/0S/173.496s, closed cleanup/no OOM; ordinary host no-output typecheck exit0/22.542s. Original RED/f195 host47P/I1 RED13P3F/pre-final-guard GREEN16P retain attribution; imposed512MiB compiler OOM stays FIRST UNKNOWN. Inherited writer6e2 host selected48P/UI22P/CLI3P/type0 and Linux selected48P/report11P then boundary11P/CLI3P remain separate original invocations, not renewed or one whole-sequence GREEN; writer setup/unknown SIGKILL/diagnostic OOM preserved. Carrier derives from local root179b, writer precursor not delivered; own fresh applicable CI/public delivery pending. No queue/cache/new runner/cap growth, installation, product/browser/fullV01/Q05, measured A3 speedup or owner migration claim. Current status: docs/qualification/current.md."
     },
     {
       "id": "freeland",

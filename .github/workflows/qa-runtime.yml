@@ -168,6 +168,7 @@ jobs:
               tests/unit/agent-request-cli.test.ts \
               tests/unit/selected-agent-request.test.ts \
               tests/unit/selected-agent-request-read.test.ts \
+              tests/unit/ordinary-owner-read-cancellation.test.ts \
               tests/unit/qa-outcomes.test.ts \
               tests/unit/api-semantic-assertions.test.ts \
               tests/unit/qa-campaign-files-umask.test.ts \
