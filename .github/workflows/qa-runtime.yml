@@ -376,7 +376,8 @@ jobs:
           const names = ['command-1.json', 'command-2.json', 'command-3.json', 'consumer-evidence.json',
             'checkpoint1-download.md', 'request-desktop.png', 'graph-shadow.html', 'graph.png', 'coverage-shadow.html', 'coverage.png',
             'opened-blocker-1.png', 'opened-blocker-2.png', 'opened-blocker-3.png', 'opened-blocker-4.png', 'opened-blocker-5.png', 'opened-blocker-6.png',
-            'opened-plan.html', 'disclosed-strategy.json', 'opened-plan.png', 'historical-checkpoint1.png', 'injected-failure-unavailable.png'];
+            'opened-plan.html', 'disclosed-strategy.json', 'opened-plan.png', 'historical-checkpoint1.png', 'injected-failure-unavailable.png',
+            'registration-worker-diagnostic.json'];
           const manifest = { schemaVersion: 1, syntheticFixtureOnly: true,
             rootCommit: process.env.ROOT_SOURCE_COMMIT || null, consoleCommit: process.env.CONSOLE_SOURCE_COMMIT || null,
             kernelCommit: process.env.KERNEL_SOURCE_COMMIT || null, runId: process.env.GITHUB_RUN_ID || null,
