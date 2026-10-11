@@ -1004,3 +1004,34 @@ test('actual CLI emits selection-only JSON exclusively and refuses malformed fla
   assert.equal(spawnSync(process.execPath, args, options).status, 1, 'existing caller output is preserved');
   assert.notEqual(spawnSync(process.execPath, [...args, '--unknown'], options).status, 0);
 });
+
+test('journey recommendation units and exact consumer helper select owning runtime without widening mappings', async () => {
+  const { classifyImpact } = await api();
+  const paths = ['tests/unit/qa-graph-recommendations-cli.test.ts',
+    'tests/unit/journey-check-recommendations-consumer.test.ts',
+    'tests/unit/fixtures/journey-check-recommendations-consumer.ts'];
+  for (const path of paths) {
+    for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
+      const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
+      for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true, path);
+      assert.equal(result.selection.kernelFull, status === 'deleted', path);
+      assert.equal(result.selection.consoleBuild, status === 'deleted', path);
+      assert.equal(result.selection.consoleBrowser, status === 'deleted' ? 'all' : 'none', path);
+      assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : [], path);
+    }
+  }
+  for (const path of ['tests/unit/fixtures/journey-check-recommendations-other.ts', 'tests/unit/journey-check-recommendations-unreviewed.test.ts']) {
+    const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path)])] });
+    assert.equal(result.selection.kernelFull, true);
+    assert.deepEqual(result.unsupportedChanges, [`unmapped or removed Console test: ${path}`]);
+  }
+  for (const input of [
+    { components: [component('kernel', [change('src/kernel/journey-check-recommendations.ts'), change('tests/kernel/journey-check-recommendations.test.ts')])] },
+    { rootChanges: [change('.github/workflows/qa-runtime.yml')] },
+  ]) {
+    const result = classifyImpact({ cohort: 'pull_request', ...input });
+    for (const key of ['kernelFull', 'kernelBuildContracts', 'consoleBuild', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+    assert.equal(result.selection.consoleBrowser, 'all');
+    assert.deepEqual(result.selection.kernelFocusedTests, []);
+  }
+});

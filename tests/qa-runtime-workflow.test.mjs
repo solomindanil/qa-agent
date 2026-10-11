@@ -1068,3 +1068,24 @@ test('exact Kernel workflow actually supplies array argv and rejects hostile pat
     await writeFile(marker, 'not spawned'); assert.notEqual(run(paths).status, 0); assert.equal(await readFile(marker, 'utf8'), 'not spawned');
   }
 });
+
+function validateJourneyRecommendationRuntimeArgv(workflow) {
+  const runtime = workflowJob(workflow, 'runtime-smoke');
+  const step = runtime.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu);
+  const command = step?.[1].match(/^\s*node --import tsx --test --test-concurrency=1 \\\n((?:\s+tests\/unit\/[^\n]+\n?)+)/mu);
+  assert.ok(command, 'actual isolated runtime command must own the graph consumer');
+  const argv = command[0].replace(/\\\n/gu, ' ').trim().split(/\s+/u);
+  for (const path of ['tests/unit/qa-graph-recommendations-cli.test.ts', 'tests/unit/journey-check-recommendations-consumer.test.ts']) {
+    assert.equal(argv.filter(arg => arg === path).length, 1, path);
+  }
+  assert.equal(argv.includes('tests/unit/fixtures/journey-check-recommendations-consumer.ts'), false, 'setup helper is imported by its owning test');
+}
+
+test('journey recommendation CLI and native consumer execute once in the existing runtime argv', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  validateJourneyRecommendationRuntimeArgv(workflow);
+  for (const path of ['tests/unit/qa-graph-recommendations-cli.test.ts', 'tests/unit/journey-check-recommendations-consumer.test.ts']) {
+    assert.throws(() => validateJourneyRecommendationRuntimeArgv(workflow.replace(path, 'tests/unit/unrelated.test.ts')), assert.AssertionError);
+    assert.throws(() => validateJourneyRecommendationRuntimeArgv(workflow.replace(path, `${path} ${path}`)), assert.AssertionError);
+  }
+});

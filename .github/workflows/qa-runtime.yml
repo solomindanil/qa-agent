@@ -176,6 +176,8 @@ jobs:
               tests/unit/selected-agent-request-read.test.ts \
               tests/unit/ordinary-owner-read-cancellation.test.ts \
               tests/unit/qa-outcomes.test.ts \
+              tests/unit/qa-graph-recommendations-cli.test.ts \
+              tests/unit/journey-check-recommendations-consumer.test.ts \
               tests/unit/api-semantic-assertions.test.ts \
               tests/unit/qa-campaign-files-umask.test.ts \
               tests/unit/campaign-plan-concurrency.test.ts \

@@ -14,6 +14,7 @@ const runtimeTests = new Set([
   'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'qa-product-method-triggers', 'kernel-fixture-authority', 'kernel-replace-authority', 'bridge-cli-authority',
   'campaign-fixture-digests', 'workspace-snapshot', 'qa-outcomes-export', 'request-admission', 'agent-request-checkpoint', 'qa-outcomes',
   'agent-request-report', 'agent-request-cli', 'agent-request-native', 'agent-request-native-cli', 'agent-request-sufficiency', 'selected-agent-request', 'selected-agent-request-read', 'ordinary-owner-read-cancellation', 'qa-campaign-cli', 'authored-checks',
+  'qa-graph-recommendations-cli', 'journey-check-recommendations-consumer',
   'api-semantic-assertions', 'qa-campaign-files-umask', 'campaign-plan-concurrency', 'agent-observation-bridge', 'agent-observation-cli-reader',
   'agent-observation-view', 'qa-agent-observation-cli', 'qa-agent-observation-pair', 'campaign-outcomes',
   'campaign-verdict-copy', 'campaign-continuation-source-authority', 'campaign-continuation-readback',
@@ -29,6 +30,7 @@ const runtimeTests = new Set([
 const finitePaths = new Set(['tests/fixtures/browser-action-sequence/check.ts', 'tests/unit/browser-action-sequence.test.ts']);
 const dependencyIntakeHelpers = new Set(['tests/fixtures/nuanu-readonly/fixture.ts', 'tests/fixtures/public-auth-readonly/fixture.ts']);
 const selectedReadHelpers = new Set(['tests/fixtures/selected-request-literal.ts']);
+const journeyRecommendationHelpers = new Set(['tests/unit/fixtures/journey-check-recommendations-consumer.ts']);
 const consoleCompatibilityPaths = new Set([
   'server/agent-observation-cli.mjs', 'server/bridge.mjs', 'server/selected-campaign-readback.mjs',
   'server/selected-campaign-readback.d.mts', 'server/workspace-snapshot.mjs', 'src/lib/live.ts',
@@ -174,7 +176,7 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
       if (ordinary(record) && consoleCompatibilityPaths.has(record.path)) { compatibility(why); continue; }
       if (ordinary(record) && safePath(record.path) && verifiedUnchangedKernel && unchangedKernelConsolePaths.has(record.path)) { compatibility(why); continue; }
       if (ordinary(record) && finitePaths.has(record.path)) { enable('consoleBrowser', why, 'finite'); continue; }
-      if (ordinary(record) && (runtimeTests.has(record.path) || dependencyIntakeHelpers.has(record.path) || selectedReadHelpers.has(record.path) || /^(?:skills|\.claude\/skills)\/.+\.md$/u.test(record.path))) {
+      if (ordinary(record) && (runtimeTests.has(record.path) || dependencyIntakeHelpers.has(record.path) || selectedReadHelpers.has(record.path) || journeyRecommendationHelpers.has(record.path) || /^(?:skills|\.claude\/skills)\/.+\.md$/u.test(record.path))) {
         for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) enable(key, why); continue;
       }
       if (ordinary(record) && (/^(?:src\/(?:components|primary-ui|styles)\/|src\/(?:App\.tsx|main\.tsx|index\.css)$|public\/|index\.html$)/u.test(record.path) ||
