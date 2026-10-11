@@ -117,6 +117,7 @@ test('missing lists and truncated facts never produce a completeness claim', () 
   const truncated = state('t', facts({ truncated: true, elements: [text('#a', 'Fine text')] }));
   const md = toMarkdown(runDetectors([truncated]), [truncated]);
   assert.match(md, /Facts truncated in: t/);
+  assert.match(md, /element text up to its first 160 characters and control names taken from visible text up to 80; markers beyond that are not inspected/);
   assert.match(md, /No candidate is not a check of all text or states/);
   assert.match(md, /\*\*hypothesis\*\*[\s\S]*\*\*unassessed\*\*/, 'triage allows hypothesis and unassessed, not only finding/dismissed');
   assert.doesNotMatch(md, /\b(pass|passed|clean)\b/i);
@@ -125,4 +126,10 @@ test('missing lists and truncated facts never produce a completeness claim', () 
 test('new detector source names no benchmark product, host port or bench vocabulary', async () => {
   const src = await readFile(new URL('../tools/passive-capture/text-markers.mjs', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /toolshop|practice software testing|localhost:\d+|127\.0\.0\.1:\d+/i);
+});
+
+test('disclosed text capture limits match the capture source', async () => {
+  const src = await readFile(new URL('../tools/passive-capture/page-facts.mjs', import.meta.url), 'utf8');
+  assert.match(src, /text: own\.slice\(0, 160\)/);
+  assert.match(src, /return \{ text: own\.slice\(0, 80\), source: 'text' \}/);
 });

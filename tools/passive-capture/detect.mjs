@@ -48,7 +48,7 @@ export function toMarkdown(list, states) {
   return [`# Passive capture candidates`, '',
     `${list.length} candidates from ${states.length} captured states (axe ran on ${axeRan}; computed contrast was used for the rest).`,
     ...gapLine, ...truncLine,
-    'No candidate is not a check of all text or states.',
+    'No candidate is not a check of all text or states. Text is inspected only as captured: element text up to its first 160 characters and control names taken from visible text up to 80; markers beyond that are not inspected.',
     'A candidate is not a finding. Give every row a disposition in your existing notes: **finding** after your own sufficient check (then record it with record-observation), **hypothesis** with its basis and the missing evidence, **dismissed: <reason>**, or **unassessed** with the reason and the follow-up.', '',
     '| ID | Detector | Severity | Confidence | What | States | Evidence | Disposition |', '| --- | --- | --- | --- | --- | --- | --- | --- |',
     ...list.map((c) => `| ${c.id} | ${c.detector} | ${c.severity} | ${c.confidence} | ${esc(c.what).slice(0, 240)} | ${c.states.length} | ${esc(c.evidence[0].shot)} \`${esc(c.evidence[0].selector).slice(0, 80)}\` | |`)].join('\n') + '\n';
