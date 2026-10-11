@@ -189,6 +189,7 @@ jobs:
               tests/unit/primary-ui-selection.test.ts \
               tests/unit/primary-ui-projection.test.ts \
               tests/unit/primary-ui-report.test.ts \
+              tests/unit/primary-ui-boundary.test.ts \
               tests/unit/selected-campaign-consumer-lifecycle.test.mjs
       - name: Console runtime fixture compiler
         if: needs.impact.outputs.console-runtime == 'true' && needs.impact.outputs.console-build != 'true'

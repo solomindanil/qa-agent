@@ -189,6 +189,19 @@ test('selected finite reader executes exactly once in existing isolated runtime 
   await assert.rejects(check(workflow.replace('tests/unit/selected-agent-request-read.test.ts', 'tests/unit/selected-agent-request-read.test.ts tests/unit/selected-agent-request-read.test.ts')));
 });
 
+test('primary UI boundary executes exactly once in existing isolated runtime argv', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const path = 'tests/unit/primary-ui-boundary.test.ts';
+  const check = async value => {
+    const observed = await isolatedConsoleAcquisitionEnv(value);
+    assert.equal(observed.argv.filter(arg => arg === path).length, 1);
+    assert.equal(observed.argv.some(arg => arg.startsWith('--test-name-pattern')), false);
+  };
+  await check(workflow);
+  await assert.rejects(check(workflow.replace(path, 'tests/unit/unreviewed-boundary.test.ts')));
+  await assert.rejects(check(workflow.replace(path, `${path} ${path}`)));
+});
+
 test('loopback target units execute exactly once in the existing actual isolated runtime argv', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const paths = ['bridge-registration', 'first-evidence', 'i2-registration-http', 'readonly-http-broker', 'registration-runtime']

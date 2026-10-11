@@ -272,7 +272,7 @@ test('U03a literal unit mappings admit added/modified controls without waiving d
     'tests/unit/selected-campaign-readback.test.mjs', 'tests/unit/selected-campaign-http.test.ts',
     'tests/unit/selected-campaign-projection.test.ts', 'tests/unit/primary-ui-read-client.test.ts',
     'tests/unit/primary-ui-selection.test.ts', 'tests/unit/primary-ui-projection.test.ts',
-    'tests/unit/primary-ui-report.test.ts', 'tests/unit/selected-campaign-consumer-lifecycle.test.mjs',
+    'tests/unit/primary-ui-report.test.ts', 'tests/unit/primary-ui-boundary.test.ts', 'tests/unit/selected-campaign-consumer-lifecycle.test.mjs',
   ]) for (const [status, before, after] of [['added', null, '100644'], ['modified', '100644', '100644'], ['deleted', '100644', null]]) {
     await context.test(`${path} ${status}`, () => {
       const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, before, after)])] });
@@ -308,7 +308,7 @@ test('U03a actual runtime argv executes every ruled unit and retains existing re
     'tests/unit/selected-campaign-readback.test.mjs', 'tests/unit/selected-campaign-http.test.ts',
     'tests/unit/selected-campaign-projection.test.ts', 'tests/unit/primary-ui-read-client.test.ts',
     'tests/unit/primary-ui-selection.test.ts', 'tests/unit/primary-ui-projection.test.ts',
-    'tests/unit/primary-ui-report.test.ts', 'tests/unit/selected-campaign-consumer-lifecycle.test.mjs',
+    'tests/unit/primary-ui-report.test.ts', 'tests/unit/primary-ui-boundary.test.ts', 'tests/unit/selected-campaign-consumer-lifecycle.test.mjs',
     'tests/unit/workspace-snapshot.test.ts', 'tests/unit/campaign-continuation-readback.test.mjs',
     'tests/unit/campaign-continuation-readback-faults.test.mjs',
   ]) assert.equal(argv.filter(arg => arg === path).length, 1, path);

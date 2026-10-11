@@ -19,7 +19,7 @@ const runtimeTests = new Set([
   'campaign-verdict-copy', 'campaign-continuation-source-authority', 'campaign-continuation-readback',
   'campaign-continuation-readback-faults',
   'selected-campaign-readback', 'selected-campaign-http', 'selected-campaign-projection',
-  'primary-ui-read-client', 'primary-ui-selection', 'primary-ui-projection', 'primary-ui-report',
+  'primary-ui-read-client', 'primary-ui-selection', 'primary-ui-projection', 'primary-ui-report', 'primary-ui-boundary',
   'selected-campaign-consumer-lifecycle',
 ].map(name => `tests/unit/${name}.test.${name.startsWith('campaign-continuation-readback') ||
   ['selected-campaign-readback', 'selected-campaign-consumer-lifecycle'].includes(name) ? 'mjs' : 'ts'}`));
