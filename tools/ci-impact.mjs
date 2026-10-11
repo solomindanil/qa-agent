@@ -13,7 +13,7 @@ const runtimeTests = new Set([
   'intake-build', 'qa-init-cli', 'campaign-dependency-scope', 'campaign-dependency-adapter', 'campaign-dependency-cli',
   'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'qa-product-method-triggers', 'kernel-fixture-authority', 'kernel-replace-authority', 'bridge-cli-authority',
   'campaign-fixture-digests', 'workspace-snapshot', 'qa-outcomes-export', 'request-admission', 'agent-request-checkpoint', 'qa-outcomes',
-  'agent-request-report', 'agent-request-cli', 'agent-request-native', 'agent-request-native-cli', 'selected-agent-request', 'selected-agent-request-read', 'ordinary-owner-read-cancellation', 'qa-campaign-cli', 'authored-checks',
+  'agent-request-report', 'agent-request-cli', 'agent-request-native', 'agent-request-native-cli', 'agent-request-sufficiency', 'selected-agent-request', 'selected-agent-request-read', 'ordinary-owner-read-cancellation', 'qa-campaign-cli', 'authored-checks',
   'api-semantic-assertions', 'qa-campaign-files-umask', 'campaign-plan-concurrency', 'agent-observation-bridge', 'agent-observation-cli-reader',
   'agent-observation-view', 'qa-agent-observation-cli', 'qa-agent-observation-pair', 'campaign-outcomes',
   'campaign-verdict-copy', 'campaign-continuation-source-authority', 'campaign-continuation-readback',
@@ -35,6 +35,19 @@ const consoleCompatibilityPaths = new Set([
   'src/lib/selected-agent-request.ts', 'scripts/qa-campaign.ts', 'src/lib/qa-outcomes.ts',
   'src/node/agent-request-report.ts', 'src/node/qa-outcomes-export.ts',
   'tests/unit/qa-campaign-runner.test.ts',
+]);
+const unchangedKernelConsolePaths = new Set([
+  'server/kernel-authority.mjs', 'server/registration-runtime.mjs', 'server/registration-runtime.d.mts',
+  'server/monitor-http.mjs', 'server/monitor-owner-display.mjs', 'server/monitor-owner-reference.mjs', 'server/monitor-reader.mjs',
+  'scripts/qa-init.ts', 'src/node/authored-checks.ts', 'src/node/qa-campaign-runner.ts', 'src/node/qa-monitor.mjs', 'src/node/qa-monitor.d.mts',
+  'src/lib/root-monitor/monitor-contract.mjs', 'src/lib/root-monitor/monitor-http-contract.mjs',
+  'src/lib/root-monitor/monitor-http-contract.d.mts', 'src/lib/root-monitor/monitor.mjs', 'src/lib/root-monitor/request-contract.mjs',
+  'src/lib/agent-request-checkpoint.ts', 'src/node/agent-request-checkpoint.ts', 'src/node/agent-request-cli-format.ts',
+]);
+const unchangedKernelRootPaths = new Set([
+  'skills/qa-check/scripts/monitor-contract.mjs', 'skills/qa-check/scripts/monitor.mjs', 'skills/qa-check/scripts/request.mjs',
+  'skills/qa-check/SKILL.md', 'skills/qa-check/references/request-intake.md',
+  'tests/qa-monitor.test.mjs', 'tests/qa-request-cli.test.mjs', 'tests/generic-skill-bundles.test.mjs',
 ]);
 const rootPolicyTestPaths = new Set(['tests/ci-impact.test.mjs', 'tests/qa-runtime-workflow.test.mjs']);
 // Duplicate source routing is distinct from runtime qualification: a workflow
@@ -69,8 +82,38 @@ function duplicateRootRecord(record) {
 function emptySelection() { return { rootTests: true, freelandControls: false, kernelBuildContracts: false, kernelFull: false,
   kernelFocusedTests: [], consoleBuild: false, consoleRuntime: false, consoleBrowser: 'none', consoleS01Lifecycle: false }; }
 
+// Exact current workflow boundary, not a YAML parser or semantic approval of
+// Console shell code. Owning workflow tests still validate argv and custody.
+function consoleWorkflowBoundary(bytes) {
+  if (typeof bytes !== 'string' || bytes.includes('\r') || bytes.includes('\ufffd')) return null;
+  const names = ['Isolated Console runtime controls', 'Browser healthy and broken fixture controls', 'Stage selected request evidence'];
+  const lines = bytes.split('\n'); const spans = [];
+  for (const name of names) {
+    const heading = `      - name: ${name}`;
+    const starts = lines.flatMap((line, index) => line === heading ? [index] : []);
+    if (starts.length !== 1) return null;
+    const start = starts[0]; let end = start + 1;
+    while (end < lines.length && !/^      - /u.test(lines[end]) && !/^  \S/u.test(lines[end])) end += 1;
+    const body = lines.slice(start + 1, end).join('\n');
+    const commands = body.replace(/\\\n\s*/gu, ' ');
+    if (!/^        run: \|$/mu.test(body) || /^\s*uses:/mu.test(body) ||
+      /^\s*-\s*(?:name|uses|run|id):/mu.test(body) ||
+      /\b(?:npm|pnpm|yarn|bun)\s+(?:[^\n]*?\s)?(?:ci|install|add)\b/u.test(commands) ||
+      /\b(?:apt(?:-get)?|apk|pip3?|brew)\s+(?:[^\n]*?\s)?install\b/u.test(commands)) return null;
+    spans.push({start,end});
+  }
+  if (spans.some((span,index) => index > 0 && span.start < spans[index-1].end)) return null;
+  for (const {start,end} of spans.reverse()) lines.splice(start + 1,end-start-1,'        # fixed Console-owned body');
+  return lines.join('\n');
+}
+
+function sameNonConsoleWorkflow(before, after) {
+  const boundary = consoleWorkflowBoundary(before);
+  return boundary !== null && boundary === consoleWorkflowBoundary(after);
+}
+
 /** Pure fixed policy. Changed records carry literal tree modes; no import graph or filename-of-bundle inference. */
-export function classifyImpact({ cohort, rootChanges = [], components = [], unknownReasons = [] }) {
+export function classifyImpact({ cohort, rootChanges = [], components = [], unknownReasons = [], workflowBefore, workflowAfter }) {
   const selection = emptySelection(); const reasons = {}; const unsupportedChanges = [];
   const explained = new Map(groups.map(key => [key, new Set()]));
   for (const key of groups) reasons[key] = key === 'rootTests' ? 'root source packaging' : 'NOT RUN: no applicable verified delta';
@@ -91,11 +134,21 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
     enable('consoleBrowser', why, 'all'); selection.kernelFocusedTests = []; reasons.kernelFocusedTests = `NOT RUN separately: full Kernel selected (${why})`;
   };
   let broad = false;
+  const kernels = components.filter(item => item.id === 'kernel');
+  const verifiedUnchangedKernel = unknownReasons.length === 0 && kernels.length === 1 &&
+    components.every(item => roles.has(item.id) && item.verified === true) &&
+    hex.test(kernels[0].baseTree ?? '') && kernels[0].baseTree === kernels[0].headTree;
+  const workflowCompatible = verifiedUnchangedKernel && sameNonConsoleWorkflow(workflowBefore, workflowAfter);
   if (['integration', 'tag', 'manual'].includes(cohort)) { full(`full ${cohort} qualification boundary`); broad = true; }
   if (unknownReasons.length) { full(`unknown impact: ${unknownReasons.join('; ')}`); broad = true; }
   for (const record of rootChanges) if (!doc(record) && !record.sourceMetadata) {
     if (ordinary(record) && rootPolicyTestPaths.has(record.path)) {
       enable('rootTests', `root policy assertion delta: ${record.path}`); continue;
+    }
+    if (ordinary(record) && safePath(record.path) && verifiedUnchangedKernel &&
+      (unchangedKernelRootPaths.has(record.path) ||
+        (['tools/ci-impact.mjs', '.github/workflows/qa-runtime.yml'].includes(record.path) && workflowCompatible))) {
+      compatibility(`verified unchanged Kernel owning root delta: ${record.path}`); continue;
     }
     full(`${bootstrap(record) ? 'bootstrap policy change' : 'unmapped root path'}: ${record.path}`); broad = true;
   }
@@ -119,6 +172,7 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
     }
     for (const record of content) {
       if (ordinary(record) && consoleCompatibilityPaths.has(record.path)) { compatibility(why); continue; }
+      if (ordinary(record) && safePath(record.path) && verifiedUnchangedKernel && unchangedKernelConsolePaths.has(record.path)) { compatibility(why); continue; }
       if (ordinary(record) && finitePaths.has(record.path)) { enable('consoleBrowser', why, 'finite'); continue; }
       if (ordinary(record) && (runtimeTests.has(record.path) || dependencyIntakeHelpers.has(record.path) || selectedReadHelpers.has(record.path) || /^(?:skills|\.claude\/skills)\/.+\.md$/u.test(record.path))) {
         for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) enable(key, why); continue;
@@ -210,7 +264,7 @@ export async function computeCiImpact({ root, eventName, event, ref = '', tested
   if (git(root, 'status', '--porcelain=v1', '--untracked-files=all').length) fail('HEAD root is dirty');
   const head = { commit: testedSha, tree: git(root, 'rev-parse', 'HEAD^{tree}').trim() };
   const headManifest = await manifest(root); let base = { commit: null, tree: null, status: 'unavailable' }; let rootChanges = []; let components = [];
-  const unknownReasons = observed.error ? [observed.error] : [];
+  const unknownReasons = observed.error ? [observed.error] : []; let workflowBefore, workflowAfter;
   if (cohort === 'unknown') unknownReasons.push('unsupported event cohort');
   const baseSha = cohort === 'pull_request' ? event.pull_request?.base?.sha : observed.pr?.base?.sha ?? event.before;
   if (!['manual', 'tag'].includes(cohort)) {
@@ -224,6 +278,14 @@ export async function computeCiImpact({ root, eventName, event, ref = '', tested
       git(baseRoot, 'checkout', '--detach', baseSha);
       verify(cli, baseRoot, 'restore', temporaryRoot); verify(cli, baseRoot, 'verify', temporaryRoot);
       const before = await manifest(baseRoot); unknownReasons.push(...semantics(before, headManifest));
+      try {
+        const workflowPath = '.github/workflows/qa-runtime.yml';
+        const beforeEntry = tree(baseRoot, baseTree).get(workflowPath), afterEntry = tree(root, head.tree).get(workflowPath);
+        if (beforeEntry?.mode === '100644' && afterEntry?.mode === '100644') {
+          workflowBefore = git(baseRoot, 'show', `${baseTree}:${workflowPath}`);
+          workflowAfter = git(root, 'show', `${head.tree}:${workflowPath}`);
+        }
+      } catch { /* Missing/malformed workflow cannot qualify an eligible policy edit. */ }
       const metadataPaths = new Set(['sources/manifest.v1.json', ...before.components.map(entry => entry.bundle), ...headManifest.components.map(entry => entry.bundle)]);
       rootChanges = delta(tree(baseRoot, baseTree), tree(root, head.tree)).map(record => ({ ...record,
         sourceMetadata: metadataPaths.has(record.path) && (!record.baseMode || record.baseMode === '100644') && (!record.headMode || record.headMode === '100644') }));
@@ -236,7 +298,7 @@ export async function computeCiImpact({ root, eventName, event, ref = '', tested
       base = { commit: baseSha, tree: baseTree, status: 'verified' };
     } catch (error) { unknownReasons.push(`base impact unavailable: ${error.message}`); base.tree = null; base.status = 'unavailable'; }
   } else unknownReasons.push(`no differential baseline for ${cohort}`);
-  const result = classifyImpact({ cohort, rootChanges, components, unknownReasons });
+  const result = classifyImpact({ cohort, rootChanges, components, unknownReasons, workflowBefore, workflowAfter });
   const duplicate = { suppressed: false, prNumber: observed.pr?.number ?? null, headSha: observed.pr?.head?.sha ?? null, reason: 'not a confirmed eligible duplicate' };
   if (observed.pr && !unknownReasons.length && rootChanges.every(duplicateRootRecord) && !result.unsupportedChanges.length) {
     try {
