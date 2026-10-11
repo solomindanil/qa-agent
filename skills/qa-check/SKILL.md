@@ -13,6 +13,8 @@ Resolve the requested product using its current registration, project instructio
 
 For a new ordinary QA request or an explicitly amended one, read [request-intake.md](references/request-intake.md). Preserve the original wording/full scope in the selected owner's existing private notes and read back the request document before the specialist handoff. Do not require documentation or a managed registration to capture/analyze a request. New work gets a new request; continuation names the exact saved request/revision. Capture is not execution, and this helper does not bind managed campaign receipts to requests. Then route once and stop the generic QA workflow.
 
+When the selected source supports the optional live monitor, capture before registration after the permitted notes owner is resolved. Carry the exact saved request path into ordinary commands as described in that reference; absent or disabled monitoring must not stop otherwise authorized QA. Recorded activity and saved display are not execution authority or QA verdicts.
+
 ## Route once
 
 | Product context | Required workflow |

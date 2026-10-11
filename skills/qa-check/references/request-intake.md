@@ -46,6 +46,14 @@ New `capture` always creates a new UUID, even for identical wording in the same 
 
 ## Read back, report and reopen
 
+### Optional live monitor before registration
+
+For a selected source that supports the live monitor, capture **before registration** once the permitted notes owner is resolved; omit workspace when absent. Resolve the selected Console's private monitor root through that owner and set explicit `QA_MONITOR_ROOT` for the root helper and Console commands; do not guess a global store. Preserve the exact returned request path as `QA_MONITOR_REQUEST` for ordinary qa-init/qa-campaign commands. Existing command producers record bounded activity automatically; never manufacture progress events or put secrets into arguments or notes.
+
+`node scripts/request.mjs monitor-announce --request ABS` announces the same existing validated request idempotently; it does not create another request or prove a fresh operation. Use `node scripts/request.mjs monitor-close --request ABS --disposition paused` or `ended` at the actual reporting boundary. Closing is an agent-declared episode boundary, not cancellation or successful QA completion. Missing/invalid monitor context is a visible monitoring gap, not authority to stop independent authorized QA or invent a replacement store; `QA_MONITOR=off` disables optional recording without changing the underlying QA lane.
+
+Save coherent intermediate intake reports through the existing report command when analysis changes meaningfully; their complete original/selected/remaining partitions remain NOT_EVALUATED. Mission live-follow can show new validated saved results without reload; explicit report history stays pinned by exact reference, while activity cursors are revision-bound pagination only. Display-only samples carry no owner admission, execution authority, native PASS or product verdict. Keep the full request and unknowns even when no workspace exists. After separately authorized registration, preserve this null-owner request unchanged; use the selected specialist's explicit parent/child checkpoint recipe, never silently rebind it.
+
 Capture returns one JSON line with `kind:"request_captured"`, `path`, `digest`, `requestId`, `revision`; amend uses `kind:"request_amended"`. Read the exact returned request path before specialist handoff. Read verifies the full schema, digest and consistency and returns the full private document, without writing. Retain the binding tuple `requestId` + `revision` + request `digest`, owner fields and original scope, not just workspace or filename.
 
 Report returns `kind:"intake_report"`, `path`, report `digest`, `requestId`, `revision`, `markdownPath`. Read its exact JSON path with `read --report` and open the returned Markdown using the host's normal file-opening mechanism (Codex: `open_in_codex` with the actual returned absolute file path). JSON is the authoritative bounded document projection; Markdown is rebuildable from it.

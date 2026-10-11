@@ -20,6 +20,9 @@ const runtimeTests = new Set([
   'campaign-continuation-readback-faults',
   'selected-campaign-readback', 'selected-campaign-http', 'selected-campaign-projection',
   'primary-ui-read-client', 'primary-ui-selection', 'primary-ui-projection', 'primary-ui-report', 'primary-ui-boundary',
+  'primary-ui-routing', 'primary-ui-preview', 'primary-ui-evidence', 'primary-ui-outcomes', 'primary-ui-island', 'primary-ui-original-input',
+  'monitor-http-contract', 'monitor-http', 'monitor-owner-display', 'monitor-owner-reference',
+  'monitor-reader', 'qa-monitor-producers', 'primary-ui-monitor', 'qa-campaign-runner',
   'selected-campaign-consumer-lifecycle',
 ].map(name => `tests/unit/${name}.test.${name.startsWith('campaign-continuation-readback') ||
   ['selected-campaign-readback', 'selected-campaign-consumer-lifecycle'].includes(name) ? 'mjs' : 'ts'}`));
@@ -118,6 +121,7 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
       if (ordinary(record) && (/^(?:src\/(?:components|primary-ui|styles)\/|src\/(?:App\.tsx|main\.tsx|index\.css)$|public\/|index\.html$)/u.test(record.path) ||
         record.path === 'tests/e2e/selected-campaign-local.test.mjs' || record.path === 'tests/e2e/selected-agent-request-local.test.mjs' ||
         record.path === 'tests/e2e/selected-agent-request-finite-read-local.test.mjs' ||
+        record.path === 'tests/e2e/qa-monitor-local.test.mjs' || record.path === 'tests/e2e/qa-monitor-fixture.mjs' ||
         record.path === 'tests/fixtures/selected-campaign-consumer-lifecycle.mjs')) {
         compatibility(why); continue;
       }

@@ -250,7 +250,7 @@ async function isolatedConsoleAcquisitionEnv(workflow) {
   // Execute that prefix, replacing only the product command with a builtin Node reader.
   const { stdout } = await execFileAsync('/bin/bash', [
     '--noprofile', '--norc', '-c',
-    `${prefix}"$1" -e 'process.stdout.write(JSON.stringify({ offline: process.env.npm_config_offline, yes: process.env.npm_config_yes, argv: process.argv.slice(1) }))' -- \\\n${args}`,
+    `${prefix}"$1" -e 'process.stdout.write(JSON.stringify({ offline: process.env.npm_config_offline, yes: process.env.npm_config_yes, argv: process.argv.slice(1), env:process.env }))' -- \\\n${args}`,
     'qa-runtime-env-control', process.execPath,
   ], {
     env: {
@@ -343,6 +343,51 @@ test('selected finite reader executes exactly once in existing isolated runtime 
   await check(workflow);
   await assert.rejects(check(workflow.replace('tests/unit/selected-agent-request-read.test.ts', 'tests/unit/unreviewed.test.ts')));
   await assert.rejects(check(workflow.replace('tests/unit/selected-agent-request-read.test.ts', 'tests/unit/selected-agent-request-read.test.ts tests/unit/selected-agent-request-read.test.ts')));
+});
+
+test('monitor runtime executes each whole control once with private default-off child context',async()=>{
+  const workflow=await readFile(workflowUrl,'utf8');
+  const paths=['monitor-http-contract','monitor-http','monitor-owner-display','monitor-owner-reference',
+    'monitor-reader','qa-monitor-producers','primary-ui-monitor','qa-campaign-runner',
+    'primary-ui-routing','primary-ui-preview','primary-ui-evidence','primary-ui-outcomes',
+    'primary-ui-island','primary-ui-original-input'].map(name=>`tests/unit/${name}.test.ts`);
+  const check=async value=>{
+    const observed=await isolatedConsoleAcquisitionEnv(value);
+    for(const path of paths)assert.equal(observed.argv.filter(arg=>arg===path).length,1,path);
+    assert.equal(observed.argv.some(arg=>arg.startsWith('--test-name-pattern')),false);
+    assert.equal(observed.env.QA_MONITOR,'off');
+    assert.equal(observed.env.QA_MONITOR_ROOT,join(observed.env.TMPDIR,'monitor'));
+  };
+  await check(workflow);
+  for(const path of paths){await assert.rejects(check(workflow.replace(path,'tests/unit/unreviewed-monitor.test.ts')));await assert.rejects(check(workflow.replace(path,`${path} ${path}`)));}
+  await assert.rejects(check(workflow.replace('QA_MONITOR=off','QA_MONITOR=on')));
+  await assert.rejects(check(workflow.replace('QA_MONITOR_ROOT="${qa_tmp}/monitor"','QA_MONITOR_ROOT="/tmp/shared-monitor"')));
+});
+
+test('monitor browser runs one actual whole route with private output and no executable helper',async()=>{
+  const workflow=await readFile(workflowUrl,'utf8');
+  const check=async value=>{
+    const step=consoleSteps(value).find(step=>step.includes('- name: Browser healthy and broken fixture controls'));
+    const prefix=step?.match(/^ {10}env -i \\\n[\s\S]*?(?=^ {12}node --import tsx --test)/mu)?.[0];
+    const command=step?.split('\n').find(line=>/^ {12}node --import tsx --test /u.test(line));
+    assert.ok(prefix);assert.ok(command);
+    const args=command.trim().slice('node --import tsx --test'.length);
+    const {stdout}=await execFileAsync('/bin/bash',['--noprofile','--norc','-c',
+      `${prefix}"$1" -e 'process.stdout.write(JSON.stringify({argv:process.argv.slice(1),env:process.env}))' --${args}`,
+      'qa-monitor-browser-argv',process.execPath],{env:{PATH:`${dirname(process.execPath)}:/usr/bin:/bin`,qa_tmp:'/tmp/owned-monitor-browser',
+        GITHUB_WORKSPACE:'/tmp/owned-workspace',RUNNER_TEMP:'/tmp/owned-runner',qa_source:'a'.repeat(40),qa_chromium:'/tmp/existing-chromium'}});
+    const observed=JSON.parse(stdout);
+    assert.equal(observed.argv.filter(arg=>arg==='tests/e2e/qa-monitor-local.test.mjs').length,1);
+    assert.equal(observed.argv.includes('tests/e2e/qa-monitor-fixture.mjs'),false);
+    assert.equal(observed.argv.some(arg=>arg.startsWith('--test-name-pattern')),false);
+    assert.equal(observed.env.QA_MONITOR,'off');assert.equal(observed.env.QA_MONITOR_ROOT,join(observed.env.TMPDIR,'monitor'));
+    assert.equal(observed.env.QA_MONITOR_UI_DIR,join(observed.env.TMPDIR,'monitor-ui'));
+  };
+  await check(workflow);
+  const path='tests/e2e/qa-monitor-local.test.mjs';
+  await assert.rejects(check(workflow.replace(path,'tests/e2e/unreviewed-monitor.test.mjs')));
+  await assert.rejects(check(workflow.replace(path,`${path} ${path}`)));
+  await assert.rejects(check(workflow.replace('QA_MONITOR_UI_DIR="${qa_tmp}/monitor-ui"','QA_MONITOR_UI_DIR="/tmp/shared-monitor-ui"')));
 });
 
 test('primary UI boundary executes exactly once in existing isolated runtime argv', async () => {
@@ -610,7 +655,7 @@ test('the permanent browser command actually receives the accepted finite regres
   assert.deepEqual(JSON.parse(stdout), ['--test-concurrency=1', 'tests/unit/browser-journey.test.ts',
     'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts',
     'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs',
-    'tests/e2e/selected-agent-request-finite-read-local.test.mjs']);
+    'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
 });
 
 function nodeBody(workflow, stepName) {

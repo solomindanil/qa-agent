@@ -145,6 +145,8 @@ jobs:
             QA_CONSOLE_PRIVATE_ROOT="${qa_tmp}/private" \
             QA_REGISTRATION_STORE="${qa_tmp}/store" \
             QA_REGISTRATION_TARGET_REGISTRY="${qa_tmp}/targets.json" \
+            QA_MONITOR=off \
+            QA_MONITOR_ROOT="${qa_tmp}/monitor" \
             node --import tsx --test --test-concurrency=1 \
               tests/unit/portable-entrypoints.test.ts \
               tests/unit/runtime-paths.test.ts \
@@ -194,6 +196,20 @@ jobs:
               tests/unit/primary-ui-projection.test.ts \
               tests/unit/primary-ui-report.test.ts \
               tests/unit/primary-ui-boundary.test.ts \
+            tests/unit/primary-ui-routing.test.ts \
+            tests/unit/primary-ui-preview.test.ts \
+            tests/unit/primary-ui-evidence.test.ts \
+            tests/unit/primary-ui-outcomes.test.ts \
+            tests/unit/primary-ui-island.test.ts \
+            tests/unit/primary-ui-original-input.test.ts \
+              tests/unit/monitor-http-contract.test.ts \
+              tests/unit/monitor-http.test.ts \
+              tests/unit/monitor-owner-display.test.ts \
+              tests/unit/monitor-owner-reference.test.ts \
+              tests/unit/monitor-reader.test.ts \
+              tests/unit/qa-monitor-producers.test.ts \
+              tests/unit/primary-ui-monitor.test.ts \
+              tests/unit/qa-campaign-runner.test.ts \
               tests/unit/selected-campaign-consumer-lifecycle.test.mjs
       - name: Console runtime fixture compiler
         if: needs.impact.outputs.console-runtime == 'true' && needs.impact.outputs.console-build != 'true'
@@ -331,10 +347,13 @@ jobs:
             QA_SELECTED_RUN_UI_DIR="${qa_tmp}/selected-run" \
             QA_SELECTED_REQUEST_UI_DIR="${qa_tmp}/selected-request" \
             QA_SELECTED_REQUEST_FINITE_DIR="${qa_tmp}/selected-request-finite" \
+            QA_MONITOR=off \
+            QA_MONITOR_ROOT="${qa_tmp}/monitor" \
+            QA_MONITOR_UI_DIR="${qa_tmp}/monitor-ui" \
             QA_CONSUMER_SOURCE_COMMIT="${qa_source}" \
             QA_PRIMARY_UI_CHROMIUM="${qa_chromium}" \
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \
-            node --import tsx --test --test-concurrency=1 tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs tests/e2e/selected-agent-request-finite-read-local.test.mjs
+            node --import tsx --test --test-concurrency=1 tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs tests/e2e/selected-agent-request-finite-read-local.test.mjs tests/e2e/qa-monitor-local.test.mjs
       - name: Stage selected request evidence
         id: request-evidence
         if: always() && needs.impact.outputs.console-browser == 'all' && steps.browser-all.outcome != 'skipped'

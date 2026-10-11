@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const sourceRoot = fileURLToPath(new URL('../skills/', import.meta.url));
 const bundles = [
   ['qa-check', ['SKILL.md', 'agents/openai.yaml', 'references/request-intake.md',
-    'scripts/request.mjs', 'scripts/request-contract.mjs']],
+    'scripts/request.mjs', 'scripts/request-contract.mjs','scripts/monitor.mjs','scripts/monitor-contract.mjs']],
   ['qa-bugfix', ['SKILL.md', 'agents/openai.yaml', 'references/fix-prompt.md']],
 ];
 
@@ -130,7 +130,7 @@ test('qa-check copied CLI preserves a full no-doc request and pilot remainder wi
   const exec = promisify(execFile);
   async function invoke(args) {
     const { stdout, stderr } = await exec(process.execPath, [cli, ...args], {
-      cwd: notes, env: {}, timeout: 10000, maxBuffer: 2 * 1024 * 1024,
+      cwd: notes, env: {QA_MONITOR:'off'}, timeout: 10000, maxBuffer: 2 * 1024 * 1024,
     });
     assert.equal(stderr, '');
     return JSON.parse(stdout);
