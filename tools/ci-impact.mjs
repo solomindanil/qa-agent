@@ -11,7 +11,7 @@ const groups = ['rootTests', 'freelandControls', 'kernelBuildContracts', 'kernel
 const runtimeTests = new Set([
   'bridge-registration', 'first-evidence', 'i2-registration-http', 'readonly-http-broker', 'registration-runtime',
   'intake-build', 'qa-init-cli', 'campaign-dependency-scope', 'campaign-dependency-adapter', 'campaign-dependency-cli',
-  'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'kernel-fixture-authority', 'kernel-replace-authority', 'bridge-cli-authority',
+  'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'qa-product-method-triggers', 'kernel-fixture-authority', 'kernel-replace-authority', 'bridge-cli-authority',
   'campaign-fixture-digests', 'workspace-snapshot', 'qa-outcomes-export', 'request-admission', 'agent-request-checkpoint', 'qa-outcomes',
   'agent-request-report', 'agent-request-cli', 'agent-request-native', 'agent-request-native-cli', 'selected-agent-request', 'selected-agent-request-read', 'ordinary-owner-read-cancellation', 'qa-campaign-cli', 'authored-checks',
   'api-semantic-assertions', 'qa-campaign-files-umask', 'campaign-plan-concurrency', 'agent-observation-bridge', 'agent-observation-cli-reader',
