@@ -741,7 +741,8 @@ test('materialized selection survives large plans and treats hostile quote data 
 const requestEvidenceFiles = ['command-1.json', 'command-2.json', 'command-3.json', 'consumer-evidence.json',
   'checkpoint1-download.md', 'request-desktop.png', 'graph-shadow.html', 'graph.png', 'coverage-shadow.html', 'coverage.png',
   'opened-blocker-1.png', 'opened-blocker-2.png', 'opened-blocker-3.png', 'opened-blocker-4.png', 'opened-blocker-5.png', 'opened-blocker-6.png',
-  'opened-plan.html', 'disclosed-strategy.json', 'opened-plan.png', 'historical-checkpoint1.png', 'injected-failure-unavailable.png'];
+  'opened-plan.html', 'disclosed-strategy.json', 'opened-plan.png', 'historical-checkpoint1.png', 'injected-failure-unavailable.png',
+  'registration-worker-diagnostic.json'];
 
 test('selected request evidence staging preserves only the literal bounded synthetic payload', async context => {
   const script = nodeBody(await readFile(workflowUrl, 'utf8'), 'Stage selected request evidence');
@@ -760,7 +761,7 @@ test('selected request evidence staging preserves only the literal bounded synth
     assert.equal((await lstat(path)).mode & 0o777, 0o700);
     return { result, path, manifest: JSON.parse(await readFile(join(path, 'manifest.json'), 'utf8')) };
   };
-  await context.test('success requires all21 files and preserves exact bytes hashes and identities', async () => {
+  await context.test('success requires all22 files and preserves exact bytes hashes and identities', async () => {
     const f = await fixture('success');
     for (const name of requestEvidenceFiles) await writeFile(join(f.source, name), Buffer.from([0, 255, 1, 10]));
     await writeFile(join(f.source, 'private-store.json'), 'must not upload');
@@ -780,12 +781,12 @@ test('selected request evidence staging preserves only the literal bounded synth
   await context.test('ordinary failed browser preserves safe early files and explicit missing entries', async () => {
     const f = await fixture('failure'); await writeFile(join(f.source, 'command-1.json'), 'first raw');
     const { result, manifest } = await run(f); assert.equal(result.status, 0, result.stderr);
-    assert.equal(manifest.files[0].status, 'accepted'); assert.equal(manifest.files.filter(x => x.status === 'missing').length, 20);
+    assert.equal(manifest.files[0].status, 'accepted'); assert.equal(manifest.files.filter(x => x.status === 'missing').length, 21);
     assert.equal(manifest.consumerLedger, 'missing');
   });
   await context.test('success with missing captures fails instead of silently losing proof', async () => {
     const { result, manifest } = await run(await fixture('success'));
-    assert.notEqual(result.status, 0); assert.equal(manifest.files.filter(x => x.status === 'missing').length, 21);
+    assert.notEqual(result.status, 0); assert.equal(manifest.files.filter(x => x.status === 'missing').length, 22);
   });
   for (const kind of ['symlink', 'hardlink', 'directory', 'directory-symlink', 'oversize', 'broad-root', 'escape', 'identity-drift', 'total-size']) {
     await context.test(`${kind} refuses unsafe payload but retains owned manifest`, async () => {
