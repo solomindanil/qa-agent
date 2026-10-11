@@ -13,7 +13,7 @@ const exec = promisify(execFile);
 const cli = fileURLToPath(new URL('../skills/qa-check/scripts/request.mjs', import.meta.url));
 const rawDigest = text => `sha256:${createHash('sha256').update(text).digest('hex')}`;
 async function processResult(args, nodeArgs = []) {
-  try { return {...await exec(process.execPath, [...nodeArgs, cli, ...args], {timeout:10000, maxBuffer:2 * 1024 * 1024}), code:0}; }
+  try { return {...await exec(process.execPath, [...nodeArgs, cli, ...args], {timeout:10000, maxBuffer:2 * 1024 * 1024,env:{...process.env,QA_MONITOR:'off'}}), code:0}; }
   catch (error) { return {stdout:error.stdout, stderr:error.stderr, code:error.code}; }
 }
 async function invoke(args, nodeArgs) {

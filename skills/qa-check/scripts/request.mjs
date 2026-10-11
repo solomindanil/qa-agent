@@ -8,6 +8,7 @@ import {
   captureRequest, validateRequest, validateIntakeReport,
   buildIntakeReport, renderIntakeReport,
 } from './request-contract.mjs';
+import {bestEffortMonitor} from './monitor.mjs';
 
 // Local immutable notes only. These operations neither execute QA nor attest an owner.
 const JSON_LIMIT = 1024 * 1024;
@@ -18,6 +19,8 @@ const grammar = {
   read: ['request','report'],
   report: ['request','select','reason','evidence-note'],
   'render-report': ['report'],
+  'monitor-announce': ['request'],
+  'monitor-close': ['request','disposition'],
 };
 const help = `Local QA request documents (Node >=22.12.0):
 capture --text-file ABS --scope full|subscope|tickets|documents --product TEXT --specialist TEXT --checkpoint ABS --notes-dir ABS [--workspace ABS] [--source-file ABS ...] [--partial-source-file ABS ... --partial-reason TEXT] [--exclude TEXT ...]
@@ -25,6 +28,8 @@ amend --request ABS --text-file ABS [--source-file ABS ...] [--partial-source-fi
 read --request ABS | read --report ABS
 report --request ABS --reason TEXT [--select clause-N ...] [--evidence-note ABS ...]
 render-report --report ABS
+monitor-announce --request ABS
+monitor-close --request ABS --disposition paused|ended
 --help
 Exit 0 means document operation only. Intake result is NOT_EVALUATED; no QA execution or owner attestation.
 `;
@@ -170,9 +175,10 @@ function commandArgs(argv) {
     argument(!seen.has(token.name) || multiple.has(token.name));
     seen.add(token.name);
   }
-  const required = {capture:['text-file','scope','product','specialist','checkpoint','notes-dir'],amend:['request','text-file'],report:['request','reason'],'render-report':['report'],read:[]};
+  const required = {capture:['text-file','scope','product','specialist','checkpoint','notes-dir'],amend:['request','text-file'],report:['request','reason'],'render-report':['report'],read:[],'monitor-announce':['request'],'monitor-close':['request','disposition']};
   for (const name of required[command]) argument(typeof parsed.values[name] === 'string' && parsed.values[name].trim().length > 0);
   if (command === 'read') argument(Number(seen.has('request')) + Number(seen.has('report')) === 1);
+  if (command === 'monitor-close') argument(['paused','ended'].includes(parsed.values.disposition));
   if (command === 'capture' || command === 'amend') {
     argument(seen.has('partial-source-file') === seen.has('partial-reason'));
     if (seen.has('partial-reason')) argument(parsed.values['partial-reason'].trim().length > 0 && Buffer.byteLength(parsed.values['partial-reason'],'utf8') <= 1024);
@@ -206,6 +212,13 @@ function reportPaths(report) {
   const path = join(localPath(report.owner.notesDirectory),`qa-request-report-${report.request.requestId}-r${report.request.revision}-${report.digest.slice(7)}.json`);
   return {path,markdownPath:path.slice(0,-5) + '.md'};
 }
+async function monitored(requestPath,command,execute) {
+  const host=['codex','claude','other'].includes(process.env.QA_MONITOR_HOST)?process.env.QA_MONITOR_HOST:'unknown';
+  const operation=await bestEffortMonitor(requestPath,{kind:'root_request',operation:command,host});
+  await operation?.publish({kind:'command_started'});
+  try {const result=await execute(operation);await operation?.finish('returned',null);return result;}
+  catch(error){await operation?.finish(error.operationCode==='WRITE_OUTCOME_UNKNOWN'?'write_outcome_unknown':'refused',error.operationCode);throw error;}
+}
 async function run({command,values,tokens}) {
   if (command === 'read') {
     return values.request ? readJson(values.request,validateRequest) : readJson(values.report,validateIntakeReport);
@@ -234,9 +247,15 @@ async function run({command,values,tokens}) {
     const record = validateCall(() => captureRequest({requestId:previous?.requestId ?? randomUUID(),capturedAt:new Date().toISOString(),owner,scope:previous?.originalScope ?? values.scope,text,sourceItems:sources,exclusions:previous?.exclusions ?? values.exclude ?? []},previous),'INVALID_ARGUMENT');
     const path = join(owner.notesDirectory,`qa-request-${record.requestId}-r${record.revision}.json`);
     await publish(path,serialized(record),{validate:validateRequest});
+    await monitored(path,command,async()=>{});
     return envelope(command === 'capture' ? 'request_captured' : 'request_amended',path,record);
   }
   const request = await readJson(values.request,validateRequest);
+  if(command==='monitor-announce'||command==='monitor-close')return monitored(values.request,command,async operation=>{
+    if(command==='monitor-close')await operation?.publish({kind:'episode_closed',disposition:values.disposition});
+    return {kind:command==='monitor-close'?'monitor_closed':'monitor_announced',status:operation?'observed':'unavailable',missionId:operation?.mission.missionId??null};
+  });
+  return monitored(values.request,command,async operation=>{
   const evidence = [];
   for (const path of values['evidence-note'] ?? []) {
     // Validate via the existing report contract; arbitrary owner receipts are not imported.
@@ -252,7 +271,9 @@ async function run({command,values,tokens}) {
   const json = serialized(report), markdown = Buffer.from(renderIntakeReport(report),'utf8');
   await publish(paths.path,json,{idempotent:true,validate:validateIntakeReport});
   await publish(paths.markdownPath,markdown,{idempotent:true,rendered:true});
+  await operation?.publish({kind:'owner_reference',reference:{type:'intake_report',reportPath:paths.path,reportDigest:report.digest}});
   return {...envelope('intake_report',paths.path,report),markdownPath:paths.markdownPath};
+  });
 }
 
 try {

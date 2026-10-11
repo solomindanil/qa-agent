@@ -20,6 +20,9 @@ const runtimeTests = new Set([
   'campaign-continuation-readback-faults',
   'selected-campaign-readback', 'selected-campaign-http', 'selected-campaign-projection',
   'primary-ui-read-client', 'primary-ui-selection', 'primary-ui-projection', 'primary-ui-report', 'primary-ui-boundary',
+  'primary-ui-routing', 'primary-ui-preview', 'primary-ui-evidence', 'primary-ui-outcomes', 'primary-ui-island', 'primary-ui-original-input',
+  'monitor-http-contract', 'monitor-http', 'monitor-owner-display', 'monitor-owner-reference',
+  'monitor-reader', 'qa-monitor-producers', 'primary-ui-monitor',
   'selected-campaign-consumer-lifecycle',
 ].map(name => `tests/unit/${name}.test.${name.startsWith('campaign-continuation-readback') ||
   ['selected-campaign-readback', 'selected-campaign-consumer-lifecycle'].includes(name) ? 'mjs' : 'ts'}`));
@@ -31,6 +34,7 @@ const consoleCompatibilityPaths = new Set([
   'server/selected-campaign-readback.d.mts', 'server/workspace-snapshot.mjs', 'src/lib/live.ts',
   'src/lib/selected-agent-request.ts', 'scripts/qa-campaign.ts', 'src/lib/qa-outcomes.ts',
   'src/node/agent-request-report.ts', 'src/node/qa-outcomes-export.ts',
+  'tests/unit/qa-campaign-runner.test.ts',
 ]);
 const rootPolicyTestPaths = new Set(['tests/ci-impact.test.mjs', 'tests/qa-runtime-workflow.test.mjs']);
 // Duplicate source routing is distinct from runtime qualification: a workflow
@@ -68,10 +72,14 @@ function emptySelection() { return { rootTests: true, freelandControls: false, k
 /** Pure fixed policy. Changed records carry literal tree modes; no import graph or filename-of-bundle inference. */
 export function classifyImpact({ cohort, rootChanges = [], components = [], unknownReasons = [] }) {
   const selection = emptySelection(); const reasons = {}; const unsupportedChanges = [];
+  const explained = new Map(groups.map(key => [key, new Set()]));
   for (const key of groups) reasons[key] = key === 'rootTests' ? 'root source packaging' : 'NOT RUN: no applicable verified delta';
   const enable = (key, why, value = true) => {
     if (key === 'consoleBrowser') selection[key] = selection[key] === 'all' || value === 'all' ? 'all' : value;
     else selection[key] = value;
+    // Selection still escalates on every call; identical explanations emit once.
+    if (explained.get(key).has(why)) return;
+    explained.get(key).add(why);
     reasons[key] = reasons[key].startsWith('NOT RUN:') ? why : `${reasons[key]}; ${why}`;
   };
   const compatibility = why => {
@@ -118,6 +126,7 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
       if (ordinary(record) && (/^(?:src\/(?:components|primary-ui|styles)\/|src\/(?:App\.tsx|main\.tsx|index\.css)$|public\/|index\.html$)/u.test(record.path) ||
         record.path === 'tests/e2e/selected-campaign-local.test.mjs' || record.path === 'tests/e2e/selected-agent-request-local.test.mjs' ||
         record.path === 'tests/e2e/selected-agent-request-finite-read-local.test.mjs' ||
+        record.path === 'tests/e2e/qa-monitor-local.test.mjs' || record.path === 'tests/e2e/qa-monitor-fixture.mjs' ||
         record.path === 'tests/fixtures/selected-campaign-consumer-lifecycle.mjs')) {
         compatibility(why); continue;
       }

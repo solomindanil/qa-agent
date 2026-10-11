@@ -250,7 +250,7 @@ async function isolatedConsoleAcquisitionEnv(workflow) {
   // Execute that prefix, replacing only the product command with a builtin Node reader.
   const { stdout } = await execFileAsync('/bin/bash', [
     '--noprofile', '--norc', '-c',
-    `${prefix}"$1" -e 'process.stdout.write(JSON.stringify({ offline: process.env.npm_config_offline, yes: process.env.npm_config_yes, argv: process.argv.slice(1) }))' -- \\\n${args}`,
+    `${prefix}"$1" -e 'process.stdout.write(JSON.stringify({ offline: process.env.npm_config_offline, yes: process.env.npm_config_yes, argv: process.argv.slice(1), env:process.env }))' -- \\\n${args}`,
     'qa-runtime-env-control', process.execPath,
   ], {
     env: {
@@ -343,6 +343,80 @@ test('selected finite reader executes exactly once in existing isolated runtime 
   await check(workflow);
   await assert.rejects(check(workflow.replace('tests/unit/selected-agent-request-read.test.ts', 'tests/unit/unreviewed.test.ts')));
   await assert.rejects(check(workflow.replace('tests/unit/selected-agent-request-read.test.ts', 'tests/unit/selected-agent-request-read.test.ts tests/unit/selected-agent-request-read.test.ts')));
+});
+
+test('monitor runtime executes each whole control once with private default-off child context',async()=>{
+  const workflow=await readFile(workflowUrl,'utf8');
+  const paths=['monitor-http-contract','monitor-http','monitor-owner-display','monitor-owner-reference',
+    'monitor-reader','qa-monitor-producers','primary-ui-monitor',
+    'primary-ui-routing','primary-ui-preview','primary-ui-evidence','primary-ui-outcomes',
+    'primary-ui-island','primary-ui-original-input'].map(name=>`tests/unit/${name}.test.ts`);
+  const check=async value=>{
+    const observed=await isolatedConsoleAcquisitionEnv(value);
+    for(const path of paths)assert.equal(observed.argv.filter(arg=>arg===path).length,1,path);
+    assert.equal(observed.argv.some(arg=>arg.startsWith('--test-name-pattern')),false);
+    assert.equal(observed.env.QA_MONITOR,'off');
+    assert.equal(observed.env.QA_MONITOR_ROOT,join(observed.env.TMPDIR,'monitor'));
+  };
+  await check(workflow);
+  for(const path of paths){await assert.rejects(check(workflow.replace(path,'tests/unit/unreviewed-monitor.test.ts')));await assert.rejects(check(workflow.replace(path,`${path} ${path}`)));}
+  await assert.rejects(check(workflow.replace('QA_MONITOR=off','QA_MONITOR=on')));
+  await assert.rejects(check(workflow.replace('QA_MONITOR_ROOT="${qa_tmp}/monitor"','QA_MONITOR_ROOT="/tmp/shared-monitor"')));
+});
+
+test('real campaign runner executes whole once only in installed-browser argv',async()=>{
+  const workflow=await readFile(workflowUrl,'utf8');
+  const path='tests/unit/qa-campaign-runner.test.ts';
+  const check=async value=>{
+    const runtime=await isolatedConsoleAcquisitionEnv(value);
+    assert.equal(runtime.argv.includes(path),false,'no real browser unit in browserless runtime');
+    const step=consoleSteps(value).find(step=>step.includes('- name: Browser healthy and broken fixture controls'));
+    const prefix=step?.match(/^ {10}env -i \\\n[\s\S]*?(?=^ {12}node --import tsx --test)/mu)?.[0];
+    const command=step?.split('\n').find(line=>/^ {12}node --import tsx --test /u.test(line));
+    assert.ok(prefix);assert.ok(command);
+    const args=command.trim().slice('node --import tsx --test'.length);
+    const {stdout}=await execFileAsync('/bin/bash',['--noprofile','--norc','-c',
+      `${prefix}"$1" -e 'process.stdout.write(JSON.stringify({argv:process.argv.slice(1),env:process.env}))' --${args}`,
+      'qa-campaign-browser-argv',process.execPath],{env:{PATH:`${dirname(process.execPath)}:/usr/bin:/bin`,qa_tmp:'/tmp/owned-campaign-browser',
+        GITHUB_WORKSPACE:'/tmp/owned-workspace',RUNNER_TEMP:'/tmp/owned-runner',qa_source:'a'.repeat(40),qa_chromium:'/tmp/existing-chromium'}});
+    const observed=JSON.parse(stdout);
+    assert.equal(observed.argv.filter(arg=>arg===path).length,1);
+    assert.equal(observed.argv.some(arg=>arg.startsWith('--test-name-pattern')||arg.startsWith('--test-skip-pattern')),false);
+    assert.equal(observed.env.PLAYWRIGHT_BROWSERS_PATH,'/tmp/owned-runner/qa-release-browsers');
+    assert.equal(observed.env.QA_MONITOR,'off');
+  };
+  await check(workflow);
+  await assert.rejects(check(workflow.replace(path,'tests/unit/unreviewed-campaign.test.ts')));
+  await assert.rejects(check(workflow.replace(path,`${path} ${path}`)));
+  await assert.rejects(check(workflow.replace('--test-concurrency=1 tests/unit/browser-journey','--test-concurrency=1 --test-name-pattern=oracle tests/unit/browser-journey')));
+  await assert.rejects(check(workflow.replace('tests/unit/qa-campaign-cli.test.ts \\',`tests/unit/qa-campaign-cli.test.ts ${path} \\`)));
+  await assert.rejects(check(workflow.replace('PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \\','PLAYWRIGHT_BROWSERS_PATH="/tmp/uninstalled-browser" \\')));
+});
+
+test('monitor browser runs one actual whole route with private output and no executable helper',async()=>{
+  const workflow=await readFile(workflowUrl,'utf8');
+  const check=async value=>{
+    const step=consoleSteps(value).find(step=>step.includes('- name: Browser healthy and broken fixture controls'));
+    const prefix=step?.match(/^ {10}env -i \\\n[\s\S]*?(?=^ {12}node --import tsx --test)/mu)?.[0];
+    const command=step?.split('\n').find(line=>/^ {12}node --import tsx --test /u.test(line));
+    assert.ok(prefix);assert.ok(command);
+    const args=command.trim().slice('node --import tsx --test'.length);
+    const {stdout}=await execFileAsync('/bin/bash',['--noprofile','--norc','-c',
+      `${prefix}"$1" -e 'process.stdout.write(JSON.stringify({argv:process.argv.slice(1),env:process.env}))' --${args}`,
+      'qa-monitor-browser-argv',process.execPath],{env:{PATH:`${dirname(process.execPath)}:/usr/bin:/bin`,qa_tmp:'/tmp/owned-monitor-browser',
+        GITHUB_WORKSPACE:'/tmp/owned-workspace',RUNNER_TEMP:'/tmp/owned-runner',qa_source:'a'.repeat(40),qa_chromium:'/tmp/existing-chromium'}});
+    const observed=JSON.parse(stdout);
+    assert.equal(observed.argv.filter(arg=>arg==='tests/e2e/qa-monitor-local.test.mjs').length,1);
+    assert.equal(observed.argv.includes('tests/e2e/qa-monitor-fixture.mjs'),false);
+    assert.equal(observed.argv.some(arg=>arg.startsWith('--test-name-pattern')),false);
+    assert.equal(observed.env.QA_MONITOR,'off');assert.equal(observed.env.QA_MONITOR_ROOT,join(observed.env.TMPDIR,'monitor'));
+    assert.equal(observed.env.QA_MONITOR_UI_DIR,join(observed.env.TMPDIR,'monitor-ui'));
+  };
+  await check(workflow);
+  const path='tests/e2e/qa-monitor-local.test.mjs';
+  await assert.rejects(check(workflow.replace(path,'tests/e2e/unreviewed-monitor.test.mjs')));
+  await assert.rejects(check(workflow.replace(path,`${path} ${path}`)));
+  await assert.rejects(check(workflow.replace('QA_MONITOR_UI_DIR="${qa_tmp}/monitor-ui"','QA_MONITOR_UI_DIR="/tmp/shared-monitor-ui"')));
 });
 
 test('primary UI boundary executes exactly once in existing isolated runtime argv', async () => {
@@ -609,8 +683,9 @@ test('the permanent browser command actually receives the accepted finite regres
     'qa-permanent-browser-argv', process.execPath], { env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` } });
   assert.deepEqual(JSON.parse(stdout), ['--test-concurrency=1', 'tests/unit/browser-journey.test.ts',
     'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts',
+    'tests/unit/qa-campaign-runner.test.ts',
     'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs',
-    'tests/e2e/selected-agent-request-finite-read-local.test.mjs']);
+    'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
 });
 
 function nodeBody(workflow, stepName) {
@@ -666,7 +741,8 @@ test('materialized selection survives large plans and treats hostile quote data 
 const requestEvidenceFiles = ['command-1.json', 'command-2.json', 'command-3.json', 'consumer-evidence.json',
   'checkpoint1-download.md', 'request-desktop.png', 'graph-shadow.html', 'graph.png', 'coverage-shadow.html', 'coverage.png',
   'opened-blocker-1.png', 'opened-blocker-2.png', 'opened-blocker-3.png', 'opened-blocker-4.png', 'opened-blocker-5.png', 'opened-blocker-6.png',
-  'opened-plan.html', 'disclosed-strategy.json', 'opened-plan.png', 'historical-checkpoint1.png', 'injected-failure-unavailable.png'];
+  'opened-plan.html', 'disclosed-strategy.json', 'opened-plan.png', 'historical-checkpoint1.png', 'injected-failure-unavailable.png',
+  'registration-worker-diagnostic.json'];
 
 test('selected request evidence staging preserves only the literal bounded synthetic payload', async context => {
   const script = nodeBody(await readFile(workflowUrl, 'utf8'), 'Stage selected request evidence');
@@ -685,7 +761,7 @@ test('selected request evidence staging preserves only the literal bounded synth
     assert.equal((await lstat(path)).mode & 0o777, 0o700);
     return { result, path, manifest: JSON.parse(await readFile(join(path, 'manifest.json'), 'utf8')) };
   };
-  await context.test('success requires all21 files and preserves exact bytes hashes and identities', async () => {
+  await context.test('success requires all22 files and preserves exact bytes hashes and identities', async () => {
     const f = await fixture('success');
     for (const name of requestEvidenceFiles) await writeFile(join(f.source, name), Buffer.from([0, 255, 1, 10]));
     await writeFile(join(f.source, 'private-store.json'), 'must not upload');
@@ -705,12 +781,12 @@ test('selected request evidence staging preserves only the literal bounded synth
   await context.test('ordinary failed browser preserves safe early files and explicit missing entries', async () => {
     const f = await fixture('failure'); await writeFile(join(f.source, 'command-1.json'), 'first raw');
     const { result, manifest } = await run(f); assert.equal(result.status, 0, result.stderr);
-    assert.equal(manifest.files[0].status, 'accepted'); assert.equal(manifest.files.filter(x => x.status === 'missing').length, 20);
+    assert.equal(manifest.files[0].status, 'accepted'); assert.equal(manifest.files.filter(x => x.status === 'missing').length, 21);
     assert.equal(manifest.consumerLedger, 'missing');
   });
   await context.test('success with missing captures fails instead of silently losing proof', async () => {
     const { result, manifest } = await run(await fixture('success'));
-    assert.notEqual(result.status, 0); assert.equal(manifest.files.filter(x => x.status === 'missing').length, 21);
+    assert.notEqual(result.status, 0); assert.equal(manifest.files.filter(x => x.status === 'missing').length, 22);
   });
   for (const kind of ['symlink', 'hardlink', 'directory', 'directory-symlink', 'oversize', 'broad-root', 'escape', 'identity-drift', 'total-size']) {
     await context.test(`${kind} refuses unsafe payload but retains owned manifest`, async () => {

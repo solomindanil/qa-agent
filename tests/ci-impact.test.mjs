@@ -19,6 +19,85 @@ const change = (path, status = 'modified', baseMode = '100644', headMode = '1006
 const component = (id, paths) => ({ id, verified: true, baseCommit: '1'.repeat(40), headCommit: '2'.repeat(40),
   baseTree: '3'.repeat(40), headTree: paths.length ? '4'.repeat(40) : '3'.repeat(40), changedPaths: paths });
 
+test('many-path reasons fit output transport without dropping compatibility gates or paths', async () => {
+  const {classifyImpact}=await api();
+  const paths=Array.from({length:96},(_,i)=>change(`src/primary-ui/output-fixture-${i}.ts`));
+  const result=classifyImpact({cohort:'pull_request',components:[component('console',paths)]});
+  assert.deepEqual(result.selection,{rootTests:true,freelandControls:false,kernelBuildContracts:true,kernelFull:false,
+    kernelFocusedTests:[],consoleBuild:true,consoleRuntime:true,consoleBrowser:'all',consoleS01Lifecycle:true});
+  assert.deepEqual(result.unsupportedChanges,[]);
+  for(const key of ['kernelBuildContracts','consoleBuild','consoleRuntime','consoleBrowser','consoleS01Lifecycle']) {
+    for(const {path} of paths)assert.ok(result.reasons[key].includes(path),`${key} must retain ${path}`);
+  }
+  assert.ok(Buffer.byteLength(JSON.stringify(result),'utf16le')<128*1024,'Repeated reasons must not consume the job-output quota');
+});
+
+test('reason dedup retains first distinct diagnostics and unknown deletion escalation', async () => {
+  const {classifyImpact}=await api();
+  const first=[change('src/primary-ui/first.ts'),change('src/primary-ui/second.ts')];
+  const removed='tests/unit/monitor-reader.test.ts';
+  const result=classifyImpact({cohort:'pull_request',unknownReasons:['first unknown','second unknown'],
+    components:[component('console',first),component('console',[change(removed,'deleted','100644',null)])]});
+  assert.deepEqual(result.selection,{rootTests:true,freelandControls:true,kernelBuildContracts:true,kernelFull:true,
+    kernelFocusedTests:[],consoleBuild:true,consoleRuntime:true,consoleBrowser:'all',consoleS01Lifecycle:true});
+  assert.deepEqual(result.unsupportedChanges,[`unmapped or removed Console test: ${removed}`]);
+  const diagnostics=['unknown impact: first unknown; second unknown',
+    'console actual content delta: src/primary-ui/first.ts, src/primary-ui/second.ts',
+    `console actual content delta: ${removed}`];
+  for(const key of ['kernelBuildContracts','consoleBuild','consoleRuntime','consoleBrowser','consoleS01Lifecycle']) {
+    let prior=-1;
+    for(const why of diagnostics){const at=result.reasons[key].indexOf(why);assert.ok(at>prior,`${key} diagnostic order`);
+      assert.equal(at,result.reasons[key].lastIndexOf(why),`${key} duplicate diagnostic`);prior=at;}
+  }
+});
+
+test('monitor controls map to existing owning lanes while deletion and unknown remain fail closed', async context => {
+  const {classifyImpact}=await api();
+  const units=['monitor-http-contract','monitor-http','monitor-owner-display','monitor-owner-reference',
+    'monitor-reader','qa-monitor-producers','primary-ui-monitor',
+    'primary-ui-routing','primary-ui-preview','primary-ui-evidence','primary-ui-outcomes',
+    'primary-ui-island','primary-ui-original-input'].map(name=>`tests/unit/${name}.test.ts`);
+  const browser=['tests/e2e/qa-monitor-local.test.mjs','tests/e2e/qa-monitor-fixture.mjs'];
+  for(const path of [...units,...browser])for(const status of ['added','modified','deleted']){
+    await context.test(`${path} ${status}`,()=>{
+      const result=classifyImpact({cohort:'pull_request',components:[component('console',[change(path,status,status==='added'?null:'100644',status==='deleted'?null:'100644')])]});
+      for(const key of ['kernelBuildContracts','consoleRuntime','consoleS01Lifecycle'])assert.equal(result.selection[key],true);
+      assert.equal(result.selection.kernelFull,status==='deleted');
+      assert.equal(result.selection.consoleBrowser,status==='deleted'||browser.includes(path)?'all':'none');
+      assert.equal(result.selection.consoleBuild,status==='deleted'||browser.includes(path));
+      assert.deepEqual(result.unsupportedChanges,status==='deleted'?[`unmapped or removed Console test: ${path}`]:[]);
+    });
+  }
+  for(const path of ['tests/unit/monitor-unreviewed.test.ts','tests/e2e/qa-monitor-unreviewed.test.mjs']){
+    const result=classifyImpact({cohort:'pull_request',components:[component('console',[change(path)])]});
+    assert.equal(result.selection.kernelFull,true);assert.deepEqual(result.unsupportedChanges,[`unmapped or removed Console test: ${path}`]);
+  }
+  // New runtime/root source is NOT silently promoted into a narrow test lane.
+  assert.equal(classifyImpact({cohort:'pull_request',rootChanges:[change('skills/qa-check/scripts/monitor.mjs')]}).selection.kernelFull,true);
+});
+
+test('real campaign runner selects browser-all while production and removal retain conservative gates', async () => {
+  const {classifyImpact}=await api();
+  const path='tests/unit/qa-campaign-runner.test.ts';
+  for(const status of ['added','modified','deleted']){
+    const result=classifyImpact({cohort:'pull_request',components:[component('console',[
+      change(path,status,status==='added'?null:'100644',status==='deleted'?null:'100644')])]});
+    assert.deepEqual(result.selection,{rootTests:true,freelandControls:false,kernelBuildContracts:true,
+      kernelFull:status==='deleted',kernelFocusedTests:[],consoleBuild:true,consoleRuntime:true,
+      consoleBrowser:'all',consoleS01Lifecycle:true});
+    assert.deepEqual(result.unsupportedChanges,status==='deleted'?[`unmapped or removed Console test: ${path}`]:[]);
+  }
+  for(const path of ['src/node/qa-campaign-runner.ts','src/node/playwright-campaign-adapter.ts']){
+    const result=classifyImpact({cohort:'pull_request',components:[component('console',[change(path)])]});
+    assert.deepEqual(result.selection,{rootTests:true,freelandControls:false,kernelBuildContracts:true,
+      kernelFull:true,kernelFocusedTests:[],consoleBuild:true,consoleRuntime:true,consoleBrowser:'all',consoleS01Lifecycle:true});
+  }
+  const unknown='tests/unit/qa-campaign-runner-unreviewed.test.ts';
+  const result=classifyImpact({cohort:'pull_request',components:[component('console',[change(unknown)])]});
+  assert.equal(result.selection.kernelFull,true);assert.equal(result.selection.consoleBrowser,'all');
+  assert.deepEqual(result.unsupportedChanges,[`unmapped or removed Console test: ${unknown}`]);
+});
+
 test('fresh-v2 native units have literal owning mappings without waiving deletion or unknown tests', async context => {
   const { classifyImpact } = await api();
   for (const name of ['agent-request-native', 'agent-request-native-cli']) {
@@ -399,7 +478,7 @@ test('U03a actual browser-all shell supplies portable installed Chromium and fre
     ACTIONS_RUNTIME_TOKEN: 'must-not-reach-child', SYNTHETIC_PRIVATE_SENTINEL: 'must-not-reach-child' }, encoding: 'utf8', timeout: 10_000 });
   assert.equal(result.status, 0, result.stderr);
   const actual = JSON.parse(await readFile(record, 'utf8'));
-  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', '--test-concurrency=1', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs', 'tests/e2e/selected-agent-request-finite-read-local.test.mjs']);
+  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', '--test-concurrency=1', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/unit/qa-campaign-runner.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs', 'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
   assert.equal(actual.env.QA_PRIMARY_UI_CHROMIUM, installed);
   assert.equal(actual.env.QA_STARTER_REPO, join(dir, 'workspace/components/kernel'));
   assert.equal(actual.env.PLAYWRIGHT_BROWSERS_PATH, join(dir, 'qa-release-browsers'));
@@ -407,6 +486,9 @@ test('U03a actual browser-all shell supplies portable installed Chromium and fre
   assert.equal(actual.env.QA_SELECTED_RUN_UI_DIR, join(actual.env.TMPDIR, 'selected-run'));
   assert.equal(actual.env.QA_SELECTED_REQUEST_UI_DIR, join(actual.env.TMPDIR, 'selected-request'));
   assert.equal(actual.env.QA_SELECTED_REQUEST_FINITE_DIR, join(actual.env.TMPDIR, 'selected-request-finite'));
+  assert.equal(actual.env.QA_MONITOR, 'off');
+  assert.equal(actual.env.QA_MONITOR_ROOT, join(actual.env.TMPDIR, 'monitor'));
+  assert.equal(actual.env.QA_MONITOR_UI_DIR, join(actual.env.TMPDIR, 'monitor-ui'));
   assert.equal(actual.env.QA_CONSUMER_SOURCE_COMMIT, consoleCommit);
   assert.notEqual(actual.env.QA_CONSUMER_SOURCE_COMMIT, 'a'.repeat(40), 'component not root tested SHA');
   const emitted = await readFile(output, 'utf8');
