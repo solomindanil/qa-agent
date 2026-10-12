@@ -106,7 +106,13 @@ function rangeRows(type, c, invalid) {
   if (step.source !== 'declared' || !conv.hasOffStep(step.value)) return rows;
   if (c.min === undefined || conv.parse(c.min) === null) return [...rows, row('step', c.step, 'off-step', null, `declared step=${c.step}; no min, so the step base is not declared and the off-step value is not derived`)];
   const offset = conv.offset(exactStep); const off = min === null || offset === null ? null : conv.format(conv.move(min, offset, 1));
-  return [...rows, off !== null && conv.parse(off) !== null ? row('step', c.step, 'off-step', value(off), `declared step=${c.step} from min=${c.min}, between two allowed values`)
+  const parsed = off === null ? null : conv.parse(off);
+  const next = conv.format(conv.move(min, exactStep, 1));
+  const parsedNext = conv === DATE ? conv.move(min, exactStep, 1) : next === null ? null : conv.parse(next);
+  const exactOff = off === null ? null : conv.exact(off);
+  const demonstrablyOffGrid = parsed !== null && parsedNext !== null && parsed > conv.parse(c.min) && parsed < parsedNext
+    && exactOff !== null && !conv.onGrid(exactOff, min, exactStep);
+  return [...rows, demonstrablyOffGrid ? row('step', c.step, 'off-step', value(off), `declared step=${c.step} from min=${c.min}, between two allowed values`)
     : row('step', c.step, 'off-step', null, `declared step=${c.step} from min=${c.min}; the value between two allowed values is not derived (exponent notation or out of range), so it is left to the agent`)];
 }
 

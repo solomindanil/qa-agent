@@ -1111,6 +1111,12 @@ test('partitions: an at-max probe off the step grid from min is not derived; on 
   assert.deepEqual([at.probe, at.basis], [val('20:30'), 'declared max=20:30; whether it lies on the step grid from min is not checked for time']);
 });
 
+test('partitions: off-step probes survive parsed bounds and remain off-grid', () => {
+  const off = (min, step) => partitionWorklist([formState('desk', [declared('n', 'number', { min, step })])]).rows.find((r) => r.partition === 'off-step').probe;
+  assert.equal(off('100000000000000000000', '1'), null);
+  assert.deepEqual(off('0.1', '0.1'), val('0.15'));
+});
+
 test('partitions: each row names its own expectation, accepted at a bound and rejected beyond it, and the report shows it', () => {
   const w = partitionWorklist([formState('desk', [declared('copies', 'number', { min: '1', max: '4', step: '1' }), declared('pin', 'password', { required: true, minlength: 4, maxlength: 6 }),
     declared('mail', 'email', {}), declared('zone', 'text', { pattern: '[A-Z]' }), declared('scan', 'file', { accept: '.csv' })])]);
