@@ -9,7 +9,17 @@ import { promisify } from 'node:util';
 
 const workflowUrl = new URL('../.github/workflows/qa-runtime.yml', import.meta.url);
 const execFileAsync = promisify(execFile);
+function pythonOwnerPrefix(step) {
+  const array=step?.match(/^ {10}qa_env=\(\n[\s\S]*?^ {10}\)\n/mu)?.[0];
+  assert.ok(array,'actual shared assignment array');
+  assert.ok(step.includes('          env -i "${qa_env[@]}" \\\n'));
+  return 'QA_FIXTURE_PYTHON=/tmp/selected-python/bin/python\nqa_python_lib=/tmp/selected-python/lib\n'+array+'          env -i "${qa_env[@]}" \\\n';
+}
 const runtimeInventory = [
+  "tests/unit/agent-activity.test.ts",
+  "tests/unit/agent-activity-store.test.ts",
+  "tests/unit/activity-config.test.ts",
+  "tests/integration/agent-adapter-fixture.test.ts",
   "tests/unit/portable-entrypoints.test.ts",
   "tests/unit/runtime-paths.test.ts",
   "tests/unit/qa-product-skill.test.ts",
@@ -92,13 +102,71 @@ function validateRuntimeMatrix(workflow) {
   assert.match(job, /    timeout-minutes: 35\n/u);
 }
 
+test('D2 Python prerequisite is pinned selected-only and forwarded through both isolated commands', async()=>{
+  const workflow=await readFile(workflowUrl,'utf8');
+  for(const [jobName,id,condition,name]of [['runtime-smoke','runtime-python',"console-runtime == 'true'",'Isolated Console runtime controls'],['console-browser','browser-python',"console-browser == 'all'",'Browser healthy and broken fixture controls']]){
+    const job=workflowJob(workflow,jobName);
+    const setup=job.match(/^      - name: Set up fixture Python\n[\s\S]*?(?=^      - name:)/mu)?.[0];
+    assert.ok(setup,jobName);
+    assert.ok(setup.includes(`id: ${id}`));assert.ok(setup.includes(condition));
+    assert.ok(setup.includes('uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c'));
+    for(const option of ["python-version: '3.13'",'check-latest: false','allow-prereleases: false','freethreaded: false'])assert.ok(setup.includes(option),option);
+    assert.doesNotMatch(setup,/cache:|pip install|continue-on-error/u);
+    const step=job.slice(job.indexOf(`      - name: ${name}`)).split(/\n {6}- name: /u)[0];
+    assert.ok(step.includes(`QA_FIXTURE_PYTHON: \u0024{{ steps.${id}.outputs.python-path }}`));
+    assert.ok(step.includes('case "${QA_FIXTURE_PYTHON}" in /*/bin/python) ;; *) exit 1 ;; esac'));
+    assert.ok(step.includes('test -x "${QA_FIXTURE_PYTHON}"'));
+    assert.ok(step.includes('assert sys.version_info[:2] == (3, 13) and sys.version_info.releaselevel == "final"'));
+    assert.ok(step.includes('QA_AGENT_FIXTURE_PYTHON="${QA_FIXTURE_PYTHON}"'));
+    assert.ok(step.includes('PYTHONDONTWRITEBYTECODE=1'));
+    assert.match(job,/node-version: 22\.23\.1/u);
+  }
+});
+
+test('D2 cleaned Python preflight and owners share selected lib only and refuse invalid setup before owners',async()=>{
+  const workflow=await readFile(workflowUrl,'utf8');
+  const root=await mkdtemp(join(tmpdir(),'qa-python-wiring-'));
+  const prefix=join(root,'installation'),python=join(prefix,'bin/python'),lib=join(prefix,'lib'),witness=join(root,'preflight.json');
+  await mkdir(join(prefix,'bin'),{recursive:true});await mkdir(lib);
+  const fake=async status=>{
+    await writeFile(python,`#!${process.execPath}\nconst fs=require('node:fs');fs.writeFileSync(${JSON.stringify(witness)},JSON.stringify({argv:process.argv.slice(2),env:process.env}));process.exit(${status});\n`);await chmod(python,0o755);
+  };
+  for(const name of ['Isolated Console runtime controls','Browser healthy and broken fixture controls']){
+    const step=consoleSteps(workflow).find(s=>s.includes(`- name: ${name}`));
+    const start=step.indexOf('          case "${QA_FIXTURE_PYTHON}"'),end=step.indexOf('            node --import tsx --test');
+    assert.ok(start>=0&&end>start);
+    const script=step.slice(start,end)+`"$1" -e 'console.log(JSON.stringify(process.env))'`;
+    const run=selected=>spawnSync('/bin/bash',['--noprofile','--norc','-c',`set -euo pipefail\n${script}`,'qa-python-env',process.execPath],{encoding:'utf8',env:{
+      PATH:`${dirname(process.execPath)}:/usr/bin:/bin`,QA_FIXTURE_PYTHON:selected,LD_LIBRARY_PATH:'/unrelated/inherited',PYTHONPATH:'/unrelated/python',PYTHONHOME:'/unrelated/home',GITHUB_TOKEN:'must-not-leak',
+      qa_tmp:root,GITHUB_WORKSPACE:root,RUNNER_TEMP:root,qa_source:'a'.repeat(40),qa_chromium:'/owned/chromium'}});
+    await fake(0);const result=run(python);assert.equal(result.status,0,result.stderr);
+    const preflight=JSON.parse(await readFile(witness,'utf8')),owner=JSON.parse(result.stdout);
+    assert.deepEqual(preflight.env,owner,'same actual assignment list');
+    assert.equal(owner.QA_AGENT_FIXTURE_PYTHON,python);assert.equal(owner.LD_LIBRARY_PATH,lib);assert.equal(owner.PYTHONDONTWRITEBYTECODE,'1');
+    for(const key of ['PYTHONPATH','PYTHONHOME','GITHUB_TOKEN'])assert.equal(owner[key],undefined,key);
+    assert.equal(preflight.argv[0],'-c');assert.match(preflight.argv[1],/version_info\[:2\] == \(3, 13\)/u);
+    assert.match(preflight.argv[1],/realpath\(sys\.prefix\)/u);assert.match(preflight.argv[1],/realpath\(sys\.executable\)/u);
+    for(const selected of ['', 'python',join(root,'wrong/bin/python'),python+':other',python+'\n']){const bad=run(selected);assert.notEqual(bad.status,0,selected);assert.equal(bad.stdout,'','owner never invoked');}
+    await fake(7);const failed=run(python);assert.notEqual(failed.status,0);assert.equal(failed.stdout,'','failed interpreter preflight prevents owner');
+    await fake(0);
+    const malformed=script.replace('LD_LIBRARY_PATH="${qa_python_lib}"','LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"');
+    const changed=spawnSync('/bin/bash',['--noprofile','--norc','-c',`set -euo pipefail\n${malformed}`,'qa-python-env',process.execPath],{encoding:'utf8',env:{PATH:`${dirname(process.execPath)}:/usr/bin:/bin`,QA_FIXTURE_PYTHON:python,LD_LIBRARY_PATH:'/unrelated/inherited',qa_tmp:root,GITHUB_WORKSPACE:root,RUNNER_TEMP:root,qa_source:'a'.repeat(40),qa_chromium:'/owned/chromium'}});
+    assert.equal(changed.status,0,changed.stderr);assert.notEqual(JSON.parse(changed.stdout).LD_LIBRARY_PATH,lib,'inherited-loader mutation is observable');
+  }
+});
+
 test('two runtime cells execute exact prior inventory once with disjoint private contexts', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   validateRuntimeMatrix(workflow);
   const observed = await isolatedConsoleAcquisitionEnv(workflow);
   assert.deepEqual(observed.cells.map(cell => cell.argv), [runtimeInventory.filter((_, i) => i % 2 === 0), runtimeInventory.filter((_, i) => i % 2 === 1)]);
-  assert.equal(new Set(observed.argv).size, 72);
-  assert.equal(observed.argv.length, 72);
+  assert.equal(new Set(observed.argv).size, 76);
+  assert.equal(observed.argv.length, 76);
+  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[38,38]);
+  for(const owner of ['tests/unit/agent-activity.test.ts','tests/unit/agent-activity-store.test.ts','tests/unit/activity-config.test.ts','tests/integration/agent-adapter-fixture.test.ts',
+    'tests/unit/monitor-reader.test.ts','tests/unit/monitor-http.test.ts','tests/unit/portable-entrypoints.test.ts','tests/unit/primary-ui-monitor.test.ts'])assert.equal(observed.argv.filter(path=>path===owner).length,1,owner);
+  const browser=workflowJob(workflow,'console-browser');
+  assert.equal(browser.match(/tests\/e2e\/qa-monitor-local\.test\.mjs/gu)?.length,1,'existing mounted monitor owner once');
   assert.notEqual(observed.cells[0].env.QA_REGISTRATION_STORE, observed.cells[1].env.QA_REGISTRATION_STORE);
   for (const cell of observed.cells) {
     assert.equal(cell.offline, 'true'); assert.equal(cell.yes, 'false');
@@ -401,12 +469,12 @@ async function isolatedConsoleAcquisitionEnv(workflow, shards = ['a', 'b']) {
   const isolated = consoleSteps(workflow)
     .find((step) => /- name: Isolated Console runtime controls/u.test(step));
   assert.ok(isolated, 'isolated Console runtime step must exist');
-  const prefix = isolated.match(/^ {10}env -i \\\n[\s\S]*?(?=^ {12}node --import tsx --test)/mu)?.[0];
+  const prefix = pythonOwnerPrefix(isolated);
   assert.ok(prefix, 'actual isolated environment prefix must precede the Console command');
   const nodeLine = '            node --import tsx --test --test-concurrency=1 \\\n';
   assert.ok(isolated.includes(nodeLine), 'fixed isolated Node gate must exist');
   const args = isolated.slice(isolated.indexOf(nodeLine) + nodeLine.length);
-  const setup = isolated.slice(isolated.indexOf('          qa_files=('), isolated.indexOf('          env -i'));
+  const setup = isolated.slice(isolated.indexOf('          qa_files=('), isolated.indexOf('          case "${QA_FIXTURE_PYTHON}"'));
   assert.ok(setup.startsWith('          qa_files=('), 'exact literal runtime inventory must exist');
   assert.match(isolated, /QA_RUNTIME_SHARD: \$\{\{ matrix\.shard \}\}/u);
   const cells = [];
@@ -557,7 +625,7 @@ test('real campaign runner executes whole once only in installed-browser argv',a
     const runtime=await isolatedConsoleAcquisitionEnv(value);
     assert.equal(runtime.argv.includes(path),false,'no real browser unit in browserless runtime');
     const step=consoleSteps(value).find(step=>step.includes('- name: Browser healthy and broken fixture controls'));
-    const prefix=step?.match(/^ {10}env -i \\\n[\s\S]*?(?=^ {12}node --import tsx --test)/mu)?.[0];
+    const prefix=pythonOwnerPrefix(step);
     const command=step?.split('\n').find(line=>/^ {12}node --import tsx --test /u.test(line));
     assert.ok(prefix);assert.ok(command);
     const args=command.trim().slice('node --import tsx --test'.length);
@@ -576,14 +644,14 @@ test('real campaign runner executes whole once only in installed-browser argv',a
   await assert.rejects(check(workflow.replace(path,`${path} ${path}`)));
   await assert.rejects(check(workflow.replace('--test-concurrency=1 tests/unit/browser-journey','--test-concurrency=1 --test-name-pattern=oracle tests/unit/browser-journey')));
   await assert.rejects(check(workflow.replace('tests/unit/qa-campaign-cli.test.ts\n',`tests/unit/qa-campaign-cli.test.ts ${path}\n`)));
-  await assert.rejects(check(workflow.replace('PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \\','PLAYWRIGHT_BROWSERS_PATH="/tmp/uninstalled-browser" \\')));
+  await assert.rejects(check(workflow.replace('            PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers"\n','            PLAYWRIGHT_BROWSERS_PATH="/tmp/uninstalled-browser"\n')));
 });
 
 test('monitor browser runs one actual whole route with private output and no executable helper',async()=>{
   const workflow=await readFile(workflowUrl,'utf8');
   const check=async value=>{
     const step=consoleSteps(value).find(step=>step.includes('- name: Browser healthy and broken fixture controls'));
-    const prefix=step?.match(/^ {10}env -i \\\n[\s\S]*?(?=^ {12}node --import tsx --test)/mu)?.[0];
+    const prefix=pythonOwnerPrefix(step);
     const command=step?.split('\n').find(line=>/^ {12}node --import tsx --test /u.test(line));
     assert.ok(prefix);assert.ok(command);
     const args=command.trim().slice('node --import tsx --test'.length);
@@ -712,16 +780,17 @@ function validateRuntimeWorkflow(workflow) {
   const steps = consoleSteps(workflow);
   const isolated = steps.find((step) => /- name: Isolated Console runtime controls/u.test(step));
   assert.ok(isolated, 'isolated Console runtime step must exist');
-  assert.match(isolated, /shell: bash\n {8}env:\n {10}QA_RUNTIME_SHARD: \$\{\{ matrix\.shard \}\}\n {8}run: \|\n {10}set -euo pipefail\n/u);
-  assert.match(isolated, /env -i \\\n {12}PATH="\$\{PATH\}" \\\n {12}CI=true \\/u);
+  assert.match(isolated, /shell: bash\n {8}env:\n {10}QA_RUNTIME_SHARD: \$\{\{ matrix\.shard \}\}\n {10}QA_FIXTURE_PYTHON: \$\{\{ steps\.runtime-python\.outputs\.python-path \}\}\n {8}run: \|\n {10}set -euo pipefail\n/u);
+  assert.match(isolated, /qa_env=\(\n {12}PATH="\$\{PATH\}"\n {12}CI=true\n/u);
+  assert.ok(isolated.includes('env -i "${qa_env[@]}" \\\n'));
   const selector = workflow.slice(workflow.indexOf('      - name: Select verified CI impact')).split(/\n {6}- name: /u)[0];
   assert.match(selector, /shell: bash\n {8}run: \|\n {10}set -euo pipefail\n/u);
   assert.match(selector, /env -i \\\n/u, 'selector environment is isolated independently from Console');
-  assert.match(isolated, /QA_STARTER_REPO="\$\{GITHUB_WORKSPACE\}\/components\/kernel" \\/u);
-  assert.match(isolated, /QA_CONSOLE_STATE="\$\{qa_tmp\}\/receipts\.json" \\/u);
-  assert.match(isolated, /QA_CONSOLE_PRIVATE_ROOT="\$\{qa_tmp\}\/private" \\/u);
-  assert.match(isolated, /QA_REGISTRATION_STORE="\$\{qa_tmp\}\/store" \\/u);
-  assert.match(isolated, /QA_REGISTRATION_TARGET_REGISTRY="\$\{qa_tmp\}\/targets\.json" \\/u);
+  assert.match(isolated, /QA_STARTER_REPO="\$\{GITHUB_WORKSPACE\}\/components\/kernel"\n/u);
+  assert.match(isolated, /QA_CONSOLE_STATE="\$\{qa_tmp\}\/receipts\.json"\n/u);
+  assert.match(isolated, /QA_CONSOLE_PRIVATE_ROOT="\$\{qa_tmp\}\/private"\n/u);
+  assert.match(isolated, /QA_REGISTRATION_STORE="\$\{qa_tmp\}\/store"\n/u);
+  assert.match(isolated, /QA_REGISTRATION_TARGET_REGISTRY="\$\{qa_tmp\}\/targets\.json"\n/u);
   assert.match(isolated, /node --import tsx --test --test-concurrency=1 \\\n/u);
   assert.match(isolated, / {14}tests\/unit\/bridge-cli-authority\.test\.ts(?: \\)?(?:\n|$)/u,
     'A1 source-authority regression must be an executed test argument');
@@ -1186,8 +1255,9 @@ test('impact-dependent workflow wiring preserves bootstrap, shard isolation and 
     for (const match of value.matchAll(/^\s+uses: (.+)$/gmu)) assert.ok([
       'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1',
       'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0',
+      'actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0',
       'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2',
-    ].includes(match[1]), 'only existing pinned actions');
+    ].includes(match[1]), 'only explicitly accepted pinned actions');
     assert.equal([...value.matchAll(/^ {6}- /gmu)].length, [...value.matchAll(/^ {6}- name: /gmu)].length, 'no unnamed executable steps');
   };
   validate(workflow);

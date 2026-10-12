@@ -11,7 +11,7 @@ const rootUrl = new URL('../', import.meta.url);
 function actualRuntimeArgv(workflow) {
   const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu)?.[1];
   assert.ok(step, 'actual isolated runtime step');
-  const start = step.indexOf('          qa_files=('), end = step.indexOf('          env -i');
+  const start = step.indexOf('          qa_files=('), end = step.indexOf('          case "${QA_FIXTURE_PYTHON}"');
   assert.ok(start >= 0 && end > start, 'literal inventory and shard selector');
   const setup = step.slice(start, end);
   const command = step.match(/node --import tsx --test --test-concurrency=1 \\\n\s*"\$\{qa_selected\[@\]\}"/u);
@@ -36,6 +36,26 @@ const api = () => import('../tools/ci-impact.mjs');
 const change = (path, status = 'modified', baseMode = '100644', headMode = '100644') => ({ path, status, baseMode, headMode });
 const component = (id, paths) => ({ id, verified: true, baseCommit: '1'.repeat(40), headCommit: '2'.repeat(40),
   baseTree: '3'.repeat(40), headTree: paths.length ? '4'.repeat(40) : '3'.repeat(40), changedPaths: paths });
+
+test('D2 exact sources and eight owners retain compatibility without exempting neighboring helpers or bootstrap', async () => {
+  const {classifyImpact}=await api();
+  const paths=['serve.mjs','vite.config.ts','server/activity-config.mjs','src/lib/agent-activity.mjs','src/lib/agent-activity.d.mts','src/node/agent-activity.mjs',
+    'tests/fixtures/agent-activity-live.mjs','tests/fixtures/agent-activity-live.py','tools/agent-adapters/PROVENANCE.md',
+    'tools/agent-adapters/qa_agent_adapters/__init__.py','tools/agent-adapters/qa_agent_adapters/claude.py','tools/agent-adapters/qa_agent_adapters/clis.py',
+    'tools/agent-adapters/qa_agent_adapters/codex.py','tools/agent-adapters/qa_agent_adapters/compat.py','tools/agent-adapters/qa_agent_adapters/fixture_bridge.py',
+    'tests/unit/agent-activity.test.ts','tests/unit/agent-activity-store.test.ts','tests/unit/activity-config.test.ts','tests/integration/agent-adapter-fixture.test.ts',
+    'tests/unit/monitor-reader.test.ts','tests/unit/monitor-http.test.ts','tests/unit/portable-entrypoints.test.ts','tests/unit/primary-ui-monitor.test.ts'];
+  const input=paths=>({cohort:'pull_request',components:[component('kernel',[]),component('console',paths.map(path=>change(path)))]});
+  const expected={rootTests:true,freelandControls:false,kernelBuildContracts:true,kernelFull:false,kernelFocusedTests:[],consoleBuild:true,consoleRuntime:true,consoleBrowser:'all',consoleS01Lifecycle:true};
+  for(const path of paths)assert.deepEqual(classifyImpact(input([path])).selection,path.startsWith('tests/unit/')||path.startsWith('tests/integration/')?{...expected,consoleBuild:false,consoleBrowser:'none'}:expected,path);
+  assert.deepEqual(classifyImpact(input(paths)).selection,expected);
+  for(const neighbor of ['tools/agent-adapters/qa_agent_adapters/other.py','tests/fixtures/agent-activity-other.py'])assert.equal(classifyImpact(input([...paths,neighbor])).selection.kernelFull,true);
+  for(const mutate of [i=>{i.components[0].verified=false;},i=>{i.components[0].headTree='5'.repeat(40);}]){const i=input(paths);mutate(i);assert.equal(classifyImpact(i).selection.kernelFull,true);}
+  for(const path of paths.slice(0,15))for(const record of [change(path,'deleted','100644',null),change(path,'modified','100644','100755')])assert.equal(classifyImpact({cohort:'pull_request',components:[component('kernel',[]),component('console',[record])]}).selection.kernelFull,true,path);
+  const before=await readFile(new URL('../.github/workflows/qa-runtime.yml',import.meta.url),'utf8');
+  const after=before.replace('      - name: Isolated Console runtime controls','      - name: Set up fixture Python\n        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c\n      - name: Isolated Console runtime controls');
+  assert.equal(classifyImpact({...input(paths),rootChanges:[change('.github/workflows/qa-runtime.yml')],workflowBefore:before,workflowAfter:after}).selection.kernelFull,true);
+});
 
 test('unchanged Kernel exact producer mappings retain complete Console ownership and conservative unions', async () => {
   const {classifyImpact}=await api();
@@ -537,14 +557,20 @@ test('U03a actual browser-all shell supplies portable installed Chromium and fre
   assert.notEqual(consoleCommit, git(kernelRoot, 'rev-parse', 'HEAD'), 'fixture identities must differ');
   const output = join(dir, 'step-output');
   const record = join(dir, 'argv.json'); const installed = join(dir, 'installed-chromium');
+  const pythonPrefix=join(dir,'python'),python=join(pythonPrefix,'bin/python');
+  await mkdir(join(pythonPrefix,'bin'),{recursive:true});await mkdir(join(pythonPrefix,'lib'));
+  await writeFile(python,`#!${process.execPath}\nprocess.exit(0);\n`,{mode:0o755});
   await writeFile(join(bin, 'node'), `#!${process.execPath}\nconst fs=require('node:fs');\nif(process.argv.includes('--input-type=module')) { if(!process.argv.at(-1).includes('chromium.executablePath()')) process.exit(2); console.log(${JSON.stringify(installed)}); } else fs.writeFileSync(${JSON.stringify(record)},JSON.stringify({argv:process.argv.slice(2),env:process.env}));\n`, { mode: 0o755 });
   const result = spawnSync('/bin/bash', ['-c', block], { cwd: consoleRoot, env: { PATH: `${bin}:/usr/bin:/bin`, RUNNER_TEMP: dir,
-    GITHUB_WORKSPACE: workspace, GITHUB_OUTPUT: output, GITHUB_SHA: 'a'.repeat(40), GITHUB_TOKEN: 'must-not-reach-child',
+    GITHUB_WORKSPACE: workspace, GITHUB_OUTPUT: output, GITHUB_SHA: 'a'.repeat(40), GITHUB_TOKEN: 'must-not-reach-child', QA_FIXTURE_PYTHON:python,LD_LIBRARY_PATH:'/unrelated/inherited',
     ACTIONS_RUNTIME_TOKEN: 'must-not-reach-child', SYNTHETIC_PRIVATE_SENTINEL: 'must-not-reach-child' }, encoding: 'utf8', timeout: 10_000 });
   assert.equal(result.status, 0, result.stderr);
   const actual = JSON.parse(await readFile(record, 'utf8'));
   assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', '--test-concurrency=1', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/unit/qa-campaign-runner.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs', 'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
   assert.equal(actual.env.QA_PRIMARY_UI_CHROMIUM, installed);
+  assert.equal(actual.env.QA_AGENT_FIXTURE_PYTHON,python);
+  assert.equal(actual.env.LD_LIBRARY_PATH,join(pythonPrefix,'lib'));
+  assert.equal(actual.env.PYTHONDONTWRITEBYTECODE,'1');
   assert.equal(actual.env.QA_STARTER_REPO, join(dir, 'workspace/components/kernel'));
   assert.equal(actual.env.PLAYWRIGHT_BROWSERS_PATH, join(dir, 'qa-release-browsers'));
   assert.ok(actual.env.TMPDIR.startsWith(`${dir}/qa-browser.`));

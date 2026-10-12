@@ -9,6 +9,7 @@ const bounds = { timeout: 30_000, maxBuffer: 16 * 1024 * 1024, encoding: 'utf8',
 const groups = ['rootTests', 'freelandControls', 'kernelBuildContracts', 'kernelFull', 'kernelFocusedTests',
   'consoleBuild', 'consoleRuntime', 'consoleBrowser', 'consoleS01Lifecycle'];
 const runtimeTests = new Set([
+  'agent-activity', 'agent-activity-store', 'activity-config',
   'bridge-registration', 'first-evidence', 'i2-registration-http', 'readonly-http-broker', 'registration-runtime',
   'intake-build', 'qa-init-cli', 'campaign-dependency-scope', 'campaign-dependency-adapter', 'campaign-dependency-cli',
   'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'qa-product-method-triggers', 'kernel-fixture-authority', 'kernel-replace-authority', 'bridge-cli-authority',
@@ -28,6 +29,7 @@ const runtimeTests = new Set([
   'selected-campaign-consumer-lifecycle',
 ].map(name => `tests/unit/${name}.test.${name.startsWith('campaign-continuation-readback') ||
   ['selected-campaign-readback', 'selected-campaign-consumer-lifecycle'].includes(name) ? 'mjs' : 'ts'}`));
+runtimeTests.add('tests/integration/agent-adapter-fixture.test.ts');
 const finitePaths = new Set(['tests/fixtures/browser-action-sequence/check.ts', 'tests/unit/browser-action-sequence.test.ts']);
 const dependencyIntakeHelpers = new Set(['tests/fixtures/nuanu-readonly/fixture.ts', 'tests/fixtures/public-auth-readonly/fixture.ts']);
 const selectedReadHelpers = new Set(['tests/fixtures/selected-request-literal.ts']);
@@ -39,6 +41,11 @@ const consoleCompatibilityPaths = new Set([
   'tests/unit/qa-campaign-runner.test.ts',
 ]);
 const unchangedKernelConsolePaths = new Set([
+  'serve.mjs', 'vite.config.ts', 'server/activity-config.mjs', 'src/lib/agent-activity.mjs', 'src/lib/agent-activity.d.mts', 'src/node/agent-activity.mjs',
+  'tests/fixtures/agent-activity-live.mjs', 'tests/fixtures/agent-activity-live.py', 'tools/agent-adapters/PROVENANCE.md',
+  'tools/agent-adapters/qa_agent_adapters/__init__.py', 'tools/agent-adapters/qa_agent_adapters/claude.py',
+  'tools/agent-adapters/qa_agent_adapters/clis.py', 'tools/agent-adapters/qa_agent_adapters/codex.py',
+  'tools/agent-adapters/qa_agent_adapters/compat.py', 'tools/agent-adapters/qa_agent_adapters/fixture_bridge.py',
   'server/kernel-authority.mjs', 'server/registration-runtime.mjs', 'server/registration-runtime.d.mts',
   'server/monitor-http.mjs', 'server/monitor-owner-display.mjs', 'server/monitor-owner-reference.mjs', 'server/monitor-reader.mjs',
   'scripts/qa-init.ts', 'src/node/authored-checks.ts', 'src/node/qa-campaign-runner.ts', 'src/node/qa-monitor.mjs', 'src/node/qa-monitor.d.mts',
