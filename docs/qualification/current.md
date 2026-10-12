@@ -1,6 +1,12 @@
 # Current QA-agent source and execution entry
 
-## Current bounded owner-output source — 12 October 2026
+## Current combined UI and optional capture source — 13 October 2026
+
+PR45–48 are delivered; this carrier selects Console `afed2bc74e4da5fce8b32c9b244b851fbb6ccd87` / unchanged Kernel093 and reviewed root quality `4face7e`. Claude MAIN polish (including B1) and B2 are composed once over delivered91, retaining v4, observation rows and owner-output. Stored verdicts keep provenance; unnamed selectors stay factual, Now visibly limits productSlug-only association. Host125/native125 distinct affected bodies, compilers0/build0 and scripted drawer/mission/saved-report/current-workspace navigation passed; source-only retrieval/mirror proof is not agent efficacy. SAME combined affected AQA C0/I0/M0; FIRSTs remain separately attributed.
+
+Optional [passive capture](../../tools/passive-capture/README.md) is discoverable through the selected source's existing agent-observations reference. Root owners host98/native97P1S and four controlled static-browser variants passed; A5 is excluded, candidates are not confirmed bugs, managed/held-out qualification is unproven. No new product/provider/ToolShop run, runtime adoption or full V01 acceptance is implied. Prior real readonly Codex FAILED/exit1 and registered FAILED/UNKNOWN remain distinct; locked native Vite build closure is not claimed. User's temporary CI-wait waiver leaves workflows/protections/status truth unchanged; canonical ignored children, old owners and user viewers remain untouched.
+
+## Historical bounded owner-output source — 12 October 2026
 
 PR45/46/47 are delivered (97e5d8b /25862cb /676e6c43). This carrier selects Console `91efe4dcb8ee24aafcf78caa5f62a5ddb125521d` / unchanged Kernel093: explicit `codex-qa-owner-output` profile with exact owned output roots, registered preflight and closed owner environment, plus a bounded local-operator-only best-effort-redacted failed-turn diagnostic (not secret-free certified or provider text in UI/activity). SAME affected AQA C0/I0/M0. Controlled registered child persisted an observation, checkpoint1 and report; offline verification and independent monitor-reader reopen passed. Whole affected141P1F is retained, not relabeled: its sole literal NFD post-assert was corrected and closed by read-only remaining checks; narrow repairs3P, source/standard fixture compilers0/build0 are separately attributed.
 
@@ -116,7 +122,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `09300746bd7857e7a5973bd9d81065b746eb72d8` | DELIVERED PR41; historical derived-cache repair over delivered1ba; source-reviewed, host170P/typecheck0, native FIRST122P with remaining scope incomplete. PR41 own CI and ordinary delivery succeeded; public receipt and final guards unchanged. |
-| Console | `91efe4dcb8ee24aafcf78caa5f62a5ddb125521d` | Explicit owner-output source and local diagnostic accepted; controlled persistence/offline/reopen verified, source/fixture compilers0/build0. Whole141P1F and read-only remaining closure retained separately. Real readonly Codex FAILED/exit1/causeUNKNOWN; actual workspace-write/provider/native product UNRUN, registered/full V01 OPEN. Temporary CI-wait waiver is not hosted GREEN or runtime authority. |
+| Console | `afed2bc74e4da5fce8b32c9b244b851fbb6ccd87` | Combined reviewed UI over delivered91; host/native125 distinct affected bodies, compilers/build0, scripted drawer/mission/current-link proof. Existing owner-output/v4 retained; no ToolShop/full V01 or useful real-provider acceptance. Historical FIRSTs and CI-wait limits remain. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
