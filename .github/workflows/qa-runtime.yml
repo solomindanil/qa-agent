@@ -222,6 +222,8 @@ jobs:
               tests/unit/qa-monitor-producers.test.ts
               tests/unit/primary-ui-monitor.test.ts
               tests/unit/selected-campaign-consumer-lifecycle.test.mjs
+              tests/unit/campaign-dependency-readback.test.ts
+              tests/unit/campaign-observation.test.ts
           )
           case "${QA_RUNTIME_SHARD}" in
             a) qa_offset=0 ;;

@@ -91,7 +91,9 @@ const runtimeInventory = [
   "tests/unit/monitor-reader.test.ts",
   "tests/unit/qa-monitor-producers.test.ts",
   "tests/unit/primary-ui-monitor.test.ts",
-  "tests/unit/selected-campaign-consumer-lifecycle.test.mjs"
+  "tests/unit/selected-campaign-consumer-lifecycle.test.mjs",
+  "tests/unit/campaign-dependency-readback.test.ts",
+  "tests/unit/campaign-observation.test.ts"
 ];
 
 function validateRuntimeMatrix(workflow) {
@@ -160,9 +162,15 @@ test('two runtime cells execute exact prior inventory once with disjoint private
   validateRuntimeMatrix(workflow);
   const observed = await isolatedConsoleAcquisitionEnv(workflow);
   assert.deepEqual(observed.cells.map(cell => cell.argv), [runtimeInventory.filter((_, i) => i % 2 === 0), runtimeInventory.filter((_, i) => i % 2 === 1)]);
-  assert.equal(new Set(observed.argv).size, 76);
-  assert.equal(observed.argv.length, 76);
-  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[38,38]);
+  assert.equal(new Set(observed.argv).size, 78);
+  assert.equal(observed.argv.length, 78);
+  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[39,39]);
+  for (const path of ['tests/unit/campaign-dependency-readback.test.ts', 'tests/unit/campaign-observation.test.ts']) {
+    assert.equal(observed.argv.filter(value => value === path).length, 1, path);
+    const omitted = workflow.replace(`              ${path}\n`, '');
+    const missing = await isolatedConsoleAcquisitionEnv(omitted);
+    assert.equal(missing.argv.includes(path), false, 'literal omission is observable');
+  }
   for(const owner of ['tests/unit/agent-activity.test.ts','tests/unit/agent-activity-store.test.ts','tests/unit/activity-config.test.ts','tests/integration/agent-adapter-fixture.test.ts',
     'tests/unit/monitor-reader.test.ts','tests/unit/monitor-http.test.ts','tests/unit/portable-entrypoints.test.ts','tests/unit/primary-ui-monitor.test.ts'])assert.equal(observed.argv.filter(path=>path===owner).length,1,owner);
   const browser=workflowJob(workflow,'console-browser');

@@ -8,6 +8,27 @@ import { createHash } from 'node:crypto';
 
 const rootUrl = new URL('../', import.meta.url);
 
+test('public composition observation and dependency readback owners map and execute exactly once', async () => {
+  const { classifyImpact } = await api();
+  const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
+  const argv = actualRuntimeArgv(workflow);
+  for (const path of ['tests/unit/campaign-dependency-readback.test.ts', 'tests/unit/campaign-observation.test.ts']) {
+    const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path)])] });
+    assert.deepEqual(result.unsupportedChanges, [], path);
+    assert.equal(result.selection.consoleRuntime, true);
+    assert.equal(argv.filter(value => value === path).length, 1, path);
+    const removed = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, 'deleted', '100644', null)])] });
+    assert.deepEqual(removed.unsupportedChanges, [`unmapped or removed Console test: ${path}`]);
+    assert.equal(removed.selection.kernelFull, true);
+    const absent = workflow.replace(`              ${path}\n`, '');
+    assert.equal(actualRuntimeArgv(absent).includes(path), false);
+  }
+  const unknown = 'tests/unit/campaign-observation-unreviewed.test.ts';
+  const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(unknown)])] });
+  assert.deepEqual(result.unsupportedChanges, [`unmapped or removed Console test: ${unknown}`]);
+  assert.equal(result.selection.kernelFull, true);
+});
+
 function actualRuntimeArgv(workflow) {
   const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu)?.[1];
   assert.ok(step, 'actual isolated runtime step');
