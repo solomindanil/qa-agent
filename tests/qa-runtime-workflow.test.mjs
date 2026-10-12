@@ -92,8 +92,7 @@ const runtimeInventory = [
   "tests/unit/qa-monitor-producers.test.ts",
   "tests/unit/primary-ui-monitor.test.ts",
   "tests/unit/selected-campaign-consumer-lifecycle.test.mjs",
-  "tests/unit/campaign-dependency-readback.test.ts",
-  "tests/unit/campaign-observation.test.ts"
+  "tests/unit/campaign-dependency-readback.test.ts"
 ];
 
 function validateRuntimeMatrix(workflow) {
@@ -162,10 +161,10 @@ test('two runtime cells execute exact prior inventory once with disjoint private
   validateRuntimeMatrix(workflow);
   const observed = await isolatedConsoleAcquisitionEnv(workflow);
   assert.deepEqual(observed.cells.map(cell => cell.argv), [runtimeInventory.filter((_, i) => i % 2 === 0), runtimeInventory.filter((_, i) => i % 2 === 1)]);
-  assert.equal(new Set(observed.argv).size, 78);
-  assert.equal(observed.argv.length, 78);
-  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[39,39]);
-  for (const path of ['tests/unit/campaign-dependency-readback.test.ts', 'tests/unit/campaign-observation.test.ts']) {
+  assert.equal(new Set(observed.argv).size, 77);
+  assert.equal(observed.argv.length, 77);
+  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[39,38]);
+  for (const path of ['tests/unit/campaign-dependency-readback.test.ts']) {
     assert.equal(observed.argv.filter(value => value === path).length, 1, path);
     const omitted = workflow.replace(`              ${path}\n`, '');
     const missing = await isolatedConsoleAcquisitionEnv(omitted);
@@ -626,9 +625,9 @@ test('monitor runtime executes each whole control once with private default-off 
   await assert.rejects(check(workflow.replace('QA_MONITOR_ROOT="${qa_tmp}/monitor"','QA_MONITOR_ROOT="/tmp/shared-monitor"')));
 });
 
-test('real campaign runner executes whole once only in installed-browser argv',async()=>{
+test('real campaign runner and observation owners execute whole once only in installed-browser argv',async()=>{
   const workflow=await readFile(workflowUrl,'utf8');
-  const path='tests/unit/qa-campaign-runner.test.ts';
+  for (const path of ['tests/unit/qa-campaign-runner.test.ts','tests/unit/campaign-observation.test.ts']) {
   const check=async value=>{
     const runtime=await isolatedConsoleAcquisitionEnv(value);
     assert.equal(runtime.argv.includes(path),false,'no real browser unit in browserless runtime');
@@ -653,6 +652,7 @@ test('real campaign runner executes whole once only in installed-browser argv',a
   await assert.rejects(check(workflow.replace('--test-concurrency=1 tests/unit/browser-journey','--test-concurrency=1 --test-name-pattern=oracle tests/unit/browser-journey')));
   await assert.rejects(check(workflow.replace('tests/unit/qa-campaign-cli.test.ts\n',`tests/unit/qa-campaign-cli.test.ts ${path}\n`)));
   await assert.rejects(check(workflow.replace('            PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers"\n','            PLAYWRIGHT_BROWSERS_PATH="/tmp/uninstalled-browser"\n')));
+  }
 });
 
 test('monitor browser runs one actual whole route with private output and no executable helper',async()=>{

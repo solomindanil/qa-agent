@@ -223,7 +223,6 @@ jobs:
               tests/unit/primary-ui-monitor.test.ts
               tests/unit/selected-campaign-consumer-lifecycle.test.mjs
               tests/unit/campaign-dependency-readback.test.ts
-              tests/unit/campaign-observation.test.ts
           )
           case "${QA_RUNTIME_SHARD}" in
             a) qa_offset=0 ;;
@@ -432,7 +431,7 @@ jobs:
           )
           env -i "${qa_env[@]}" "${QA_FIXTURE_PYTHON}" -c 'import os,sys; assert sys.version_info[:2] == (3, 13) and sys.version_info.releaselevel == "final"; expected=os.environ["QA_AGENT_FIXTURE_PYTHON"]; assert os.path.realpath(sys.executable)==os.path.realpath(expected); assert os.path.realpath(sys.prefix)==os.path.realpath(os.path.dirname(os.path.dirname(expected))); print("fixture-python="+sys.executable+" version="+sys.version.split()[0]+" prefix="+sys.prefix+" lib="+os.environ["LD_LIBRARY_PATH"])'
           env -i "${qa_env[@]}" \
-            node --import tsx --test --test-concurrency=1 tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/unit/qa-campaign-runner.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs tests/e2e/selected-agent-request-finite-read-local.test.mjs tests/e2e/qa-monitor-local.test.mjs
+            node --import tsx --test --test-concurrency=1 tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/unit/qa-campaign-runner.test.ts tests/unit/campaign-observation.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs tests/e2e/selected-agent-request-finite-read-local.test.mjs tests/e2e/qa-monitor-local.test.mjs
       - name: Stage selected request evidence
         id: request-evidence
         if: always() && needs.impact.outputs.console-browser == 'all' && steps.browser-all.outcome != 'skipped'

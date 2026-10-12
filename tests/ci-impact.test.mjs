@@ -15,8 +15,13 @@ test('public composition observation and dependency readback owners map and exec
   for (const path of ['tests/unit/campaign-dependency-readback.test.ts', 'tests/unit/campaign-observation.test.ts']) {
     const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path)])] });
     assert.deepEqual(result.unsupportedChanges, [], path);
-    assert.equal(result.selection.consoleRuntime, true);
-    assert.equal(argv.filter(value => value === path).length, 1, path);
+    if (path.endsWith('campaign-observation.test.ts')) {
+      assert.equal(result.selection.consoleBrowser, 'all');
+      assert.equal(argv.includes(path), false, 'real browser owner never enters browserless runtime');
+    } else {
+      assert.equal(result.selection.consoleRuntime, true);
+      assert.equal(argv.filter(value => value === path).length, 1, path);
+    }
     const removed = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, 'deleted', '100644', null)])] });
     assert.deepEqual(removed.unsupportedChanges, [`unmapped or removed Console test: ${path}`]);
     assert.equal(removed.selection.kernelFull, true);
