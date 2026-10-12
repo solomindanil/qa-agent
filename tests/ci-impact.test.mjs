@@ -7,6 +7,24 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 const rootUrl = new URL('../', import.meta.url);
+
+function actualRuntimeArgv(workflow) {
+  const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu)?.[1];
+  assert.ok(step, 'actual isolated runtime step');
+  const start = step.indexOf('          qa_files=('), end = step.indexOf('          env -i');
+  assert.ok(start >= 0 && end > start, 'literal inventory and shard selector');
+  const setup = step.slice(start, end);
+  const command = step.match(/node --import tsx --test --test-concurrency=1 \\\n\s*"\$\{qa_selected\[@\]\}"/u);
+  assert.ok(command, 'actual quoted selected argv');
+  const args = command[0].slice('node --import tsx --test --test-concurrency=1'.length);
+  return ['a', 'b'].flatMap(shard => {
+    const result = spawnSync('/bin/bash', ['--noprofile', '--norc', '-c',
+      `set -euo pipefail\n${setup}"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`,
+      'qa-runtime-shard-argv', process.execPath], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', QA_RUNTIME_SHARD: shard } });
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout.trim().split('\n').at(-1));
+  });
+}
 const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') && !/TOKEN/u.test(key)));
 const env = { ...cleanEnv, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null',
   GIT_AUTHOR_NAME: 'Synthetic CI Test', GIT_AUTHOR_EMAIL: 'ci@example.invalid',
@@ -55,13 +73,25 @@ test('unchanged Kernel real verified workflow blobs admit only the three Console
   const f=await fixture();await mkdir(join(f.root,'.github/workflows'),{recursive:true});
   await writeFile(join(f.root,'.github/workflows/qa-runtime.yml'),workflow);f.baseCommit=f.commitHead();
   await f.publish('console','server/monitor-reader.mjs');
-  const changed=workflow.replace('tests/unit/agent-request-native.test.ts \\', 'tests/unit/agent-request-native.test.ts tests/unit/agent-request-sufficiency.test.ts \\');
+  const changed=workflow.replace('tests/unit/agent-request-native.test.ts\n', 'tests/unit/agent-request-native.test.ts tests/unit/agent-request-sufficiency.test.ts\n');
   assert.notEqual(changed,workflow);await writeFile(join(f.root,'.github/workflows/qa-runtime.yml'),changed);f.commitHead();
   const plan=await compute(f);assert.equal(plan.base.status,'verified');
   assert.equal(plan.components.find(item=>item.id==='kernel').baseTree,plan.components.find(item=>item.id==='kernel').headTree);
   assert.equal(plan.selection.kernelFull,false);assert.equal(plan.selection.consoleBrowser,'all');assert.equal(plan.selection.consoleRuntime,true);
   await writeFile(join(f.root,'.github/workflows/qa-runtime.yml'),changed.replace('node-version: 22.23.1','node-version: 24'));f.commitHead();
   assert.equal((await compute(f)).selection.kernelFull,true);
+});
+
+test('runtime matrix structural change remains conservative with unchanged Kernel', async () => {
+  const { classifyImpact } = await api();
+  const after = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
+  const matrix = '    strategy:\n      fail-fast: false\n      matrix:\n        shard: [a, b]\n';
+  assert.ok(after.includes(matrix));
+  const before = after.replace(matrix, '');
+  const result = classifyImpact({cohort:'pull_request', components:[component('kernel',[])],
+    rootChanges:[change('.github/workflows/qa-runtime.yml')], workflowBefore:before, workflowAfter:after});
+  assert.equal(result.selection.kernelFull, true);
+  assert.equal(result.selection.consoleRuntime, true);
 });
 
 test('many-path reasons fit output transport without dropping compatibility gates or paths', async () => {
@@ -354,11 +384,7 @@ test('observation CLI reader mapping admits added and modified controls but refu
 
 test('observation CLI reader executes in the existing isolated runtime argv', async () => {
   const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
-  const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu);
-  assert.ok(step, 'actual isolated runtime step must exist');
-  const command = step[1].match(/^\s*node --import tsx --test --test-concurrency=1 \\\n((?:\s+tests\/unit\/[^\n]+\n?)+)/mu);
-  assert.ok(command, 'actual test command and continuation argv must exist');
-  const argv = command[0].replace(/\\\n/gu, ' ').trim().split(/\s+/u);
+  const argv = actualRuntimeArgv(workflow);
   assert.equal(argv.filter(arg => arg === 'tests/unit/agent-observation-cli-reader.test.ts').length, 1);
 });
 
@@ -377,14 +403,7 @@ test('authority batching existing unit mapping admits changes but refuses deleti
 
 test('authority batching actual isolated runtime argv executes the existing unit exactly once', async () => {
   const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
-  const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu);
-  const command = step?.[1].match(/^\s*node --import tsx --test --test-concurrency=1 \\\n((?:\s+tests\/unit\/[^\n]+\n?)+)/mu);
-  assert.ok(command, 'actual isolated runtime command');
-  const args = command[0].replace(/\\\n/gu, ' ').trim().slice('node --import tsx --test --test-concurrency=1'.length);
-  const result = spawnSync('/bin/bash', ['--noprofile', '--norc', '-c',
-    `"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`,
-    'qa-authority-runtime-argv', process.execPath], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' } });
-  assert.equal(result.status, 0, result.stderr);
+  const result = {stdout:JSON.stringify(actualRuntimeArgv(workflow))};
   assert.equal(JSON.parse(result.stdout).filter(arg => arg === 'tests/unit/kernel-replace-authority.test.ts').length, 1);
 });
 
@@ -403,14 +422,7 @@ test('request foundation unit mapping admits changes but refuses deletion', asyn
 
 test('request foundation actual isolated runtime argv executes its unit exactly once', async () => {
   const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
-  const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu);
-  const command = step?.[1].match(/^\s*node --import tsx --test --test-concurrency=1 \\\n((?:\s+tests\/unit\/[^\n]+\n?)+)/mu);
-  assert.ok(command, 'actual isolated runtime command');
-  const args = command[0].replace(/\\\n/gu, ' ').trim().slice('node --import tsx --test --test-concurrency=1'.length);
-  const result = spawnSync('/bin/bash', ['--noprofile', '--norc', '-c',
-    `"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`,
-    'qa-request-foundation-runtime-argv', process.execPath], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' } });
-  assert.equal(result.status, 0, result.stderr);
+  const result = {stdout:JSON.stringify(actualRuntimeArgv(workflow))};
   assert.equal(JSON.parse(result.stdout).filter(arg => arg === 'tests/unit/agent-request-checkpoint.test.ts').length, 1);
 });
 
@@ -430,14 +442,7 @@ test('request report literal unit mappings admit changes without waiving deletio
 
 test('request report actual isolated runtime argv executes both new units exactly once', async () => {
   const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
-  const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu);
-  const command = step?.[1].match(/^\s*node --import tsx --test --test-concurrency=1 \\\n((?:\s+tests\/unit\/[^\n]+\n?)+)/mu);
-  assert.ok(command, 'actual isolated runtime command');
-  const args = command[0].replace(/\\\n/gu, ' ').trim().slice('node --import tsx --test --test-concurrency=1'.length);
-  const result = spawnSync('/bin/bash', ['--noprofile', '--norc', '-c',
-    `"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`,
-    'qa-request-report-runtime-argv', process.execPath], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' } });
-  assert.equal(result.status, 0, result.stderr);
+  const result = {stdout:JSON.stringify(actualRuntimeArgv(workflow))};
   const argv = JSON.parse(result.stdout);
   for (const path of ['tests/unit/agent-request-report.test.ts', 'tests/unit/agent-request-cli.test.ts']) {
     assert.equal(argv.filter(arg => arg === path).length, 1, path);
@@ -463,14 +468,7 @@ test('selected request literal mappings admit controls without waiving deletion'
 
 test('selected request actual isolated runtime argv executes its unit exactly once', async () => {
   const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
-  const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu);
-  const command = step?.[1].match(/^\s*node --import tsx --test --test-concurrency=1 \\\n((?:\s+tests\/unit\/[^\n]+\n?)+)/mu);
-  assert.ok(command);
-  const args = command[0].replace(/\\\n/gu, ' ').trim().slice('node --import tsx --test --test-concurrency=1'.length);
-  const result = spawnSync('/bin/bash', ['--noprofile', '--norc', '-c',
-    `"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`,
-    'qa-selected-request-runtime-argv', process.execPath], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' } });
-  assert.equal(result.status, 0, result.stderr);
+  const result = {stdout:JSON.stringify(actualRuntimeArgv(workflow))};
   assert.equal(JSON.parse(result.stdout).filter(arg => arg === 'tests/unit/selected-agent-request.test.ts').length, 1);
 });
 
@@ -508,10 +506,7 @@ test('U03a consumer and helper-only deltas select built browser-all compatibilit
 
 test('U03a actual runtime argv executes every ruled unit and retains existing readback controls', async () => {
   const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
-  const step = workflow.match(/^      - name: Isolated Console runtime controls\n([\s\S]*?)(?=^      - name:)/mu);
-  const command = step?.[1].match(/^\s*node --import tsx --test --test-concurrency=1 \\\n((?:\s+tests\/unit\/[^\n]+\n?)+)/mu);
-  assert.ok(command, 'actual isolated runtime command');
-  const argv = command[0].replace(/\\\n/gu, ' ').trim().split(/\s+/u);
+  const argv = actualRuntimeArgv(workflow);
   for (const path of [
     'tests/unit/selected-campaign-readback.test.mjs', 'tests/unit/selected-campaign-http.test.ts',
     'tests/unit/selected-campaign-projection.test.ts', 'tests/unit/primary-ui-read-client.test.ts',

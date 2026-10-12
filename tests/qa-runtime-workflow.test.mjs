@@ -9,6 +9,117 @@ import { promisify } from 'node:util';
 
 const workflowUrl = new URL('../.github/workflows/qa-runtime.yml', import.meta.url);
 const execFileAsync = promisify(execFile);
+const runtimeInventory = [
+  "tests/unit/portable-entrypoints.test.ts",
+  "tests/unit/runtime-paths.test.ts",
+  "tests/unit/qa-product-skill.test.ts",
+  "tests/unit/qa-product-method-triggers.test.ts",
+  "tests/unit/qa-campaign-cli.test.ts",
+  "tests/unit/authored-checks.test.ts",
+  "tests/unit/kernel-fixture-authority.test.ts",
+  "tests/unit/kernel-replace-authority.test.ts",
+  "tests/unit/bridge-cli-authority.test.ts",
+  "tests/unit/bridge-registration.test.ts",
+  "tests/unit/first-evidence.test.ts",
+  "tests/unit/i2-registration-http.test.ts",
+  "tests/unit/readonly-http-broker.test.ts",
+  "tests/unit/registration-runtime.test.ts",
+  "tests/unit/campaign-fixture-digests.test.ts",
+  "tests/unit/workspace-snapshot.test.ts",
+  "tests/unit/qa-outcomes-export.test.ts",
+  "tests/unit/request-admission.test.ts",
+  "tests/unit/agent-request-checkpoint.test.ts",
+  "tests/unit/agent-request-report.test.ts",
+  "tests/unit/agent-request-cli.test.ts",
+  "tests/unit/agent-request-native.test.ts",
+  "tests/unit/agent-request-native-cli.test.ts",
+  "tests/unit/agent-request-sufficiency.test.ts",
+  "tests/unit/selected-agent-request.test.ts",
+  "tests/unit/selected-agent-request-read.test.ts",
+  "tests/unit/ordinary-owner-read-cancellation.test.ts",
+  "tests/unit/qa-outcomes.test.ts",
+  "tests/unit/api-semantic-assertions.test.ts",
+  "tests/unit/qa-campaign-files-umask.test.ts",
+  "tests/unit/campaign-plan-concurrency.test.ts",
+  "tests/unit/agent-observation-bridge.test.ts",
+  "tests/unit/agent-observation-cli-reader.test.ts",
+  "tests/unit/agent-observation-view.test.ts",
+  "tests/unit/qa-agent-observation-cli.test.ts",
+  "tests/unit/qa-agent-observation-pair.test.ts",
+  "tests/unit/campaign-outcomes.test.ts",
+  "tests/unit/campaign-verdict-copy.test.ts",
+  "tests/unit/campaign-continuation-source-authority.test.ts",
+  "tests/unit/campaign-continuation-readback.test.mjs",
+  "tests/unit/campaign-continuation-readback-faults.test.mjs",
+  "tests/unit/selected-campaign-readback.test.mjs",
+  "tests/unit/selected-campaign-http.test.ts",
+  "tests/unit/selected-campaign-projection.test.ts",
+  "tests/unit/primary-ui-read-client.test.ts",
+  "tests/unit/primary-ui-selection.test.ts",
+  "tests/unit/primary-ui-projection.test.ts",
+  "tests/unit/primary-ui-report.test.ts",
+  "tests/unit/primary-ui-boundary.test.ts",
+  "tests/unit/primary-ui-routing.test.ts",
+  "tests/unit/primary-ui-preview.test.ts",
+  "tests/unit/primary-ui-evidence.test.ts",
+  "tests/unit/primary-ui-outcomes.test.ts",
+  "tests/unit/primary-ui-island.test.ts",
+  "tests/unit/primary-ui-original-input.test.ts",
+  "tests/unit/primary-ui-activity.test.ts",
+  "tests/unit/primary-ui-bounded.test.ts",
+  "tests/unit/primary-ui-demoted.test.ts",
+  "tests/unit/primary-ui-distributions.test.ts",
+  "tests/unit/primary-ui-gates.test.ts",
+  "tests/unit/primary-ui-mission-shell.test.ts",
+  "tests/unit/primary-ui-owner-shell.test.ts",
+  "tests/unit/primary-ui-phases.test.ts",
+  "tests/unit/primary-ui-timeline.test.ts",
+  "tests/unit/monitor-http-contract.test.ts",
+  "tests/unit/monitor-http.test.ts",
+  "tests/unit/monitor-owner-display.test.ts",
+  "tests/unit/monitor-owner-reference.test.ts",
+  "tests/unit/monitor-reader.test.ts",
+  "tests/unit/qa-monitor-producers.test.ts",
+  "tests/unit/primary-ui-monitor.test.ts",
+  "tests/unit/selected-campaign-consumer-lifecycle.test.mjs"
+];
+
+function validateRuntimeMatrix(workflow) {
+  const job = workflowJob(workflow, 'runtime-smoke');
+  assert.match(job, /    strategy:\n      fail-fast: false\n      matrix:\n        shard: \[a, b\]\n/u);
+  for (const key of ['strategy', 'matrix', 'shard', 'fail-fast']) assert.equal(job.match(new RegExp(`^ +${key}:`, 'gm'))?.length, 1, key);
+  assert.doesNotMatch(job, /\b(?:include|exclude|max-parallel|continue-on-error):/u);
+  assert.match(job, /    timeout-minutes: 35\n/u);
+}
+
+test('two runtime cells execute exact prior inventory once with disjoint private contexts', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  validateRuntimeMatrix(workflow);
+  const observed = await isolatedConsoleAcquisitionEnv(workflow);
+  assert.deepEqual(observed.cells.map(cell => cell.argv), [runtimeInventory.filter((_, i) => i % 2 === 0), runtimeInventory.filter((_, i) => i % 2 === 1)]);
+  assert.equal(new Set(observed.argv).size, 72);
+  assert.equal(observed.argv.length, 72);
+  assert.notEqual(observed.cells[0].env.QA_REGISTRATION_STORE, observed.cells[1].env.QA_REGISTRATION_STORE);
+  for (const cell of observed.cells) {
+    assert.equal(cell.offline, 'true'); assert.equal(cell.yes, 'false');
+    assert.equal(cell.env.QA_MONITOR, 'off');
+    assert.equal(cell.env.QA_MONITOR_ROOT, join(cell.env.TMPDIR, 'monitor'));
+    assert.equal(cell.argv.some(arg => arg.startsWith('--test-name-pattern')), false);
+    for (const [key, suffix] of [['QA_CONSOLE_STATE','receipts.json'], ['QA_CONSOLE_PRIVATE_ROOT','private'], ['QA_REGISTRATION_STORE','store'], ['QA_REGISTRATION_TARGET_REGISTRY','targets.json']]) {
+      assert.equal(cell.env[key], join(cell.env.TMPDIR, suffix));
+      assert.notEqual(observed.cells[0].env[key], observed.cells[1].env[key]);
+    }
+    assert.equal(cell.env.GITHUB_TOKEN, undefined);
+  }
+  for (const mutant of [workflow.replace('shard: [a, b]', 'shard: [a]'), workflow.replace('shard: [a, b]', 'shard: [a, a]'),
+    workflow.replace('fail-fast: false', 'fail-fast: true'), workflow.replace('shard: [a, b]', 'shard: [a, b]\n        exclude: [{shard: b}]')]) assert.throws(() => validateRuntimeMatrix(mutant));
+  for (const shard of ['', 'c']) await assert.rejects(isolatedConsoleAcquisitionEnv(workflow, [shard]));
+  for (const mutant of [workflow.replace(runtimeInventory[0], ''), workflow.replace(runtimeInventory[0], runtimeInventory[1]),
+    workflow.replace(runtimeInventory[0], 'tests/unit/unreviewed.test.ts')]) {
+    const changed = await isolatedConsoleAcquisitionEnv(mutant);
+    assert.notDeepEqual(changed.cells.map(cell => cell.argv), observed.cells.map(cell => cell.argv));
+  }
+});
 
 test('unchanged Kernel workflow guard preserves all non-Console boundaries and rejects hidden install or action changes',async()=>{
   const {classifyImpact}=await import('../tools/ci-impact.mjs');
@@ -17,7 +128,7 @@ test('unchanged Kernel workflow guard preserves all non-Console boundaries and r
   const selected=(after,path='.github/workflows/qa-runtime.yml')=>classifyImpact({cohort:'pull_request',components:[kernel],
     rootChanges:[{path,status:'modified',baseMode:'100644',headMode:'100644'}],workflowBefore:before,workflowAfter:after}).selection;
   const allowed=[before,
-    before.replace('tests/unit/agent-request-native.test.ts \\', 'tests/unit/agent-request-native.test.ts tests/unit/agent-request-sufficiency.test.ts \\'),
+    before.replace('tests/unit/agent-request-native.test.ts\n', 'tests/unit/agent-request-native.test.ts tests/unit/agent-request-sufficiency.test.ts\n'),
     before.replace('tests/e2e/qa-monitor-local.test.mjs','tests/e2e/qa-monitor-local.test.mjs tests/e2e/extra-local.test.mjs'),
     before.replace("const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');","const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto'); // bounded diagnostic")];
   for(const after of allowed){assert.equal(selected(after).kernelFull,false);assert.equal(selected(after).consoleBrowser,'all');}
@@ -286,7 +397,7 @@ function consoleSteps(workflow) {
     .filter((step) => /working-directory: components\/console/u.test(step));
 }
 
-async function isolatedConsoleAcquisitionEnv(workflow) {
+async function isolatedConsoleAcquisitionEnv(workflow, shards = ['a', 'b']) {
   const isolated = consoleSteps(workflow)
     .find((step) => /- name: Isolated Console runtime controls/u.test(step));
   assert.ok(isolated, 'isolated Console runtime step must exist');
@@ -295,21 +406,31 @@ async function isolatedConsoleAcquisitionEnv(workflow) {
   const nodeLine = '            node --import tsx --test --test-concurrency=1 \\\n';
   assert.ok(isolated.includes(nodeLine), 'fixed isolated Node gate must exist');
   const args = isolated.slice(isolated.indexOf(nodeLine) + nodeLine.length);
+  const setup = isolated.slice(isolated.indexOf('          qa_files=('), isolated.indexOf('          env -i'));
+  assert.ok(setup.startsWith('          qa_files=('), 'exact literal runtime inventory must exist');
+  assert.match(isolated, /QA_RUNTIME_SHARD: \$\{\{ matrix\.shard \}\}/u);
+  const cells = [];
+  for (const shard of shards) {
+  const privateTmp = await mkdtemp(join(tmpdir(), 'qa-runtime-cell-'));
   // Execute that prefix, replacing only the product command with a builtin Node reader.
   const { stdout } = await execFileAsync('/bin/bash', [
     '--noprofile', '--norc', '-c',
-    `${prefix}"$1" -e 'process.stdout.write(JSON.stringify({ offline: process.env.npm_config_offline, yes: process.env.npm_config_yes, argv: process.argv.slice(1), env:process.env }))' -- \\\n${args}`,
+    `set -euo pipefail\n${setup}${prefix}"$1" -e 'process.stdout.write(JSON.stringify({ offline: process.env.npm_config_offline, yes: process.env.npm_config_yes, argv: process.argv.slice(1), env:process.env }))' -- \\\n${args}`,
     'qa-runtime-env-control', process.execPath,
   ], {
     env: {
       PATH: `${dirname(process.execPath)}:/usr/bin:/bin`,
-      qa_tmp: tmpdir(),
+      qa_tmp: privateTmp,
+      QA_RUNTIME_SHARD: shard,
       GITHUB_WORKSPACE: new URL('../', import.meta.url).pathname,
       npm_config_offline: 'must-not-leak',
       npm_config_yes: 'must-not-leak',
+      GITHUB_TOKEN: 'must-not-leak',
     },
   });
-  return JSON.parse(stdout);
+  cells.push(JSON.parse(stdout.trim().split('\n').at(-1)));
+  }
+  return { ...cells[0], argv: cells.flatMap(cell => cell.argv), cells };
 }
 
 test('isolated Console child refuses npm network acquisition', async () => {
@@ -454,7 +575,7 @@ test('real campaign runner executes whole once only in installed-browser argv',a
   await assert.rejects(check(workflow.replace(path,'tests/unit/unreviewed-campaign.test.ts')));
   await assert.rejects(check(workflow.replace(path,`${path} ${path}`)));
   await assert.rejects(check(workflow.replace('--test-concurrency=1 tests/unit/browser-journey','--test-concurrency=1 --test-name-pattern=oracle tests/unit/browser-journey')));
-  await assert.rejects(check(workflow.replace('tests/unit/qa-campaign-cli.test.ts \\',`tests/unit/qa-campaign-cli.test.ts ${path} \\`)));
+  await assert.rejects(check(workflow.replace('tests/unit/qa-campaign-cli.test.ts\n',`tests/unit/qa-campaign-cli.test.ts ${path}\n`)));
   await assert.rejects(check(workflow.replace('PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \\','PLAYWRIGHT_BROWSERS_PATH="/tmp/uninstalled-browser" \\')));
 });
 
@@ -591,7 +712,7 @@ function validateRuntimeWorkflow(workflow) {
   const steps = consoleSteps(workflow);
   const isolated = steps.find((step) => /- name: Isolated Console runtime controls/u.test(step));
   assert.ok(isolated, 'isolated Console runtime step must exist');
-  assert.match(isolated, /shell: bash\n {8}run: \|\n {10}set -euo pipefail\n/u);
+  assert.match(isolated, /shell: bash\n {8}env:\n {10}QA_RUNTIME_SHARD: \$\{\{ matrix\.shard \}\}\n {8}run: \|\n {10}set -euo pipefail\n/u);
   assert.match(isolated, /env -i \\\n {12}PATH="\$\{PATH\}" \\\n {12}CI=true \\/u);
   const selector = workflow.slice(workflow.indexOf('      - name: Select verified CI impact')).split(/\n {6}- name: /u)[0];
   assert.match(selector, /shell: bash\n {8}run: \|\n {10}set -euo pipefail\n/u);
@@ -642,7 +763,7 @@ test('runtime workflow executes A1 in the isolated fail-closed Console gate', as
     ['association projection omitted', workflow.replace('tests/unit/qa-outcomes.test.ts', 'tests/unit/other-projection.test.ts')],
     ['fixture compiler omitted', workflow.replace('          ./node_modules/.bin/tsc -p tsconfig.fixture-repair.json --noEmit --incremental false\n', '')],
     ['fixture compiler suppression', workflow.replace('tsconfig.fixture-repair.json --noEmit --incremental false', 'tsconfig.fixture-repair.json --noEmit --incremental false || true')],
-    ['fixture test suppression', workflow.replace('tests/unit/campaign-fixture-digests.test.ts \\', 'tests/unit/campaign-fixture-digests.test.ts || true \\')],
+    ['fixture test suppression', workflow.replace('tests/unit/campaign-fixture-digests.test.ts\n', 'tests/unit/campaign-fixture-digests.test.ts || true\n')],
     ['isolation removed', workflow.replaceAll('env -i \\', 'env \\')],
     ['receipt state escapes temp', workflow.replace('QA_CONSOLE_STATE="${qa_tmp}/receipts.json"', 'QA_CONSOLE_STATE="/tmp/receipts.json"')],
     ['private root escapes temp', workflow.replace('QA_CONSOLE_PRIVATE_ROOT="${qa_tmp}/private"', 'QA_CONSOLE_PRIVATE_ROOT="/tmp/private"')],
@@ -943,8 +1064,11 @@ test('terminal selected-results checker actually rejects failures and incomplete
   for (const result of ['failure', 'cancelled', 'timed_out', 'skipped', '']) {
     assert.notEqual(run({ IMPACT_RESULT: result }).status, 0);
     assert.notEqual(run({ RUNTIME_RESULT: result }).status, 0);
+    assert.notEqual(run({ RUNTIME_RESULT: result, RUNTIME_MODE: 'selected-complete' }, { ...plan, selection: { ...selection, consoleRuntime: true } }).status, 0,
+      'successful mode from one cell cannot override the failed aggregate');
     assert.notEqual(run({ KERNEL_RESULT: result }, { ...plan, selection: { ...selection, kernelFull: true } }).status, 0);
   }
+  assert.notEqual(run({RUNTIME_MODE:''}, {...plan,selection:{...selection,consoleRuntime:true}}).status,0,'success without deterministic mode is incomplete');
   for (const invalid of [{}, { ...plan, qualification: 'PASS' }, { ...plan, unsupportedChanges: ['new test'] },
     { ...plan, selection: { ...selection, kernelFull: undefined } }, { ...plan, reasons: {} },
     { ...plan, reasons: { ...plan.reasons, consoleBrowser: undefined } }]) assert.notEqual(run({}, invalid).status, 0);
@@ -1012,7 +1136,7 @@ test('workflow job budgets retain the reviewed finite aggregate allowance and in
 test('impact-dependent workflow wiring preserves bootstrap, shard isolation and failure propagation', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   const validate = value => {
-    validateRuntimeWorkflow(value); validateRuntimeEventContract(value);
+    validateRuntimeWorkflow(value); validateRuntimeEventContract(value); validateRuntimeMatrix(value);
     assert.match(value, /kernel-regression:\n    needs: impact\n    if: needs\.impact\.outputs\.kernel-full == 'true'/u);
     assert.match(value, /runtime-smoke:\n    needs: impact/u);
     assert.match(value, /runtime-qualification:[\s\S]*?if: always\(\)\n    needs: \[impact, runtime-smoke, kernel-regression, console-dependency-intake, console-browser\]/u);

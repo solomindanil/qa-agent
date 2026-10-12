@@ -82,6 +82,10 @@ jobs:
     needs: impact
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [a, b]
     outputs:
       mode: ${{ steps.runtime-result.outputs.mode }}
     steps:
@@ -123,12 +127,98 @@ jobs:
         if: needs.impact.outputs.console-runtime == 'true'
         working-directory: components/console
         shell: bash
+        env:
+          QA_RUNTIME_SHARD: ${{ matrix.shard }}
         run: |
           set -euo pipefail
           qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-runtime.XXXXXX")"
           # Keep the fail-closed helper guard; remove runner-global Git helpers
           # only from this owned test environment, never from the host config.
           git config --show-origin --name-only --get-regexp '^(core\.(fsmonitor|hooksPath|sshCommand)|filter\.|include\.|includeIf\.|extensions\.|alias\.)' || test "$?" = 1
+          qa_files=(
+              tests/unit/portable-entrypoints.test.ts
+              tests/unit/runtime-paths.test.ts
+              tests/unit/qa-product-skill.test.ts
+              tests/unit/qa-product-method-triggers.test.ts
+              tests/unit/qa-campaign-cli.test.ts
+              tests/unit/authored-checks.test.ts
+              tests/unit/kernel-fixture-authority.test.ts
+              tests/unit/kernel-replace-authority.test.ts
+              tests/unit/bridge-cli-authority.test.ts
+              tests/unit/bridge-registration.test.ts
+              tests/unit/first-evidence.test.ts
+              tests/unit/i2-registration-http.test.ts
+              tests/unit/readonly-http-broker.test.ts
+              tests/unit/registration-runtime.test.ts
+              tests/unit/campaign-fixture-digests.test.ts
+              tests/unit/workspace-snapshot.test.ts
+              tests/unit/qa-outcomes-export.test.ts
+              tests/unit/request-admission.test.ts
+              tests/unit/agent-request-checkpoint.test.ts
+              tests/unit/agent-request-report.test.ts
+              tests/unit/agent-request-cli.test.ts
+              tests/unit/agent-request-native.test.ts
+              tests/unit/agent-request-native-cli.test.ts
+              tests/unit/agent-request-sufficiency.test.ts
+              tests/unit/selected-agent-request.test.ts
+              tests/unit/selected-agent-request-read.test.ts
+              tests/unit/ordinary-owner-read-cancellation.test.ts
+              tests/unit/qa-outcomes.test.ts
+              tests/unit/api-semantic-assertions.test.ts
+              tests/unit/qa-campaign-files-umask.test.ts
+              tests/unit/campaign-plan-concurrency.test.ts
+              tests/unit/agent-observation-bridge.test.ts
+              tests/unit/agent-observation-cli-reader.test.ts
+              tests/unit/agent-observation-view.test.ts
+              tests/unit/qa-agent-observation-cli.test.ts
+              tests/unit/qa-agent-observation-pair.test.ts
+              tests/unit/campaign-outcomes.test.ts
+              tests/unit/campaign-verdict-copy.test.ts
+              tests/unit/campaign-continuation-source-authority.test.ts
+              tests/unit/campaign-continuation-readback.test.mjs
+              tests/unit/campaign-continuation-readback-faults.test.mjs
+              tests/unit/selected-campaign-readback.test.mjs
+              tests/unit/selected-campaign-http.test.ts
+              tests/unit/selected-campaign-projection.test.ts
+              tests/unit/primary-ui-read-client.test.ts
+              tests/unit/primary-ui-selection.test.ts
+              tests/unit/primary-ui-projection.test.ts
+              tests/unit/primary-ui-report.test.ts
+              tests/unit/primary-ui-boundary.test.ts
+              tests/unit/primary-ui-routing.test.ts
+              tests/unit/primary-ui-preview.test.ts
+              tests/unit/primary-ui-evidence.test.ts
+              tests/unit/primary-ui-outcomes.test.ts
+              tests/unit/primary-ui-island.test.ts
+              tests/unit/primary-ui-original-input.test.ts
+              tests/unit/primary-ui-activity.test.ts
+              tests/unit/primary-ui-bounded.test.ts
+              tests/unit/primary-ui-demoted.test.ts
+              tests/unit/primary-ui-distributions.test.ts
+              tests/unit/primary-ui-gates.test.ts
+              tests/unit/primary-ui-mission-shell.test.ts
+              tests/unit/primary-ui-owner-shell.test.ts
+              tests/unit/primary-ui-phases.test.ts
+              tests/unit/primary-ui-timeline.test.ts
+              tests/unit/monitor-http-contract.test.ts
+              tests/unit/monitor-http.test.ts
+              tests/unit/monitor-owner-display.test.ts
+              tests/unit/monitor-owner-reference.test.ts
+              tests/unit/monitor-reader.test.ts
+              tests/unit/qa-monitor-producers.test.ts
+              tests/unit/primary-ui-monitor.test.ts
+              tests/unit/selected-campaign-consumer-lifecycle.test.mjs
+          )
+          case "${QA_RUNTIME_SHARD}" in
+            a) qa_offset=0 ;;
+            b) qa_offset=1 ;;
+            *) echo "Invalid runtime shard" >&2; exit 1 ;;
+          esac
+          qa_selected=()
+          for ((qa_index=qa_offset; qa_index<${#qa_files[@]}; qa_index+=2)); do
+            qa_selected+=("${qa_files[qa_index]}")
+          done
+          printf "Runtime shard %s: %s\n" "${QA_RUNTIME_SHARD}" "${qa_selected[*]}"
           env -i \
             PATH="${PATH}" \
             CI=true \
@@ -148,78 +238,7 @@ jobs:
             QA_MONITOR=off \
             QA_MONITOR_ROOT="${qa_tmp}/monitor" \
             node --import tsx --test --test-concurrency=1 \
-              tests/unit/portable-entrypoints.test.ts \
-              tests/unit/runtime-paths.test.ts \
-              tests/unit/qa-product-skill.test.ts \
-              tests/unit/qa-product-method-triggers.test.ts \
-              tests/unit/qa-campaign-cli.test.ts \
-              tests/unit/authored-checks.test.ts \
-              tests/unit/kernel-fixture-authority.test.ts \
-              tests/unit/kernel-replace-authority.test.ts \
-              tests/unit/bridge-cli-authority.test.ts \
-              tests/unit/bridge-registration.test.ts \
-              tests/unit/first-evidence.test.ts \
-              tests/unit/i2-registration-http.test.ts \
-              tests/unit/readonly-http-broker.test.ts \
-              tests/unit/registration-runtime.test.ts \
-              tests/unit/campaign-fixture-digests.test.ts \
-              tests/unit/workspace-snapshot.test.ts \
-              tests/unit/qa-outcomes-export.test.ts \
-              tests/unit/request-admission.test.ts \
-              tests/unit/agent-request-checkpoint.test.ts \
-              tests/unit/agent-request-report.test.ts \
-              tests/unit/agent-request-cli.test.ts \
-              tests/unit/agent-request-native.test.ts \
-              tests/unit/agent-request-native-cli.test.ts \
-              tests/unit/agent-request-sufficiency.test.ts \
-              tests/unit/selected-agent-request.test.ts \
-              tests/unit/selected-agent-request-read.test.ts \
-              tests/unit/ordinary-owner-read-cancellation.test.ts \
-              tests/unit/qa-outcomes.test.ts \
-              tests/unit/api-semantic-assertions.test.ts \
-              tests/unit/qa-campaign-files-umask.test.ts \
-              tests/unit/campaign-plan-concurrency.test.ts \
-              tests/unit/agent-observation-bridge.test.ts \
-              tests/unit/agent-observation-cli-reader.test.ts \
-              tests/unit/agent-observation-view.test.ts \
-              tests/unit/qa-agent-observation-cli.test.ts \
-              tests/unit/qa-agent-observation-pair.test.ts \
-              tests/unit/campaign-outcomes.test.ts \
-              tests/unit/campaign-verdict-copy.test.ts \
-              tests/unit/campaign-continuation-source-authority.test.ts \
-              tests/unit/campaign-continuation-readback.test.mjs \
-              tests/unit/campaign-continuation-readback-faults.test.mjs \
-              tests/unit/selected-campaign-readback.test.mjs \
-              tests/unit/selected-campaign-http.test.ts \
-              tests/unit/selected-campaign-projection.test.ts \
-              tests/unit/primary-ui-read-client.test.ts \
-              tests/unit/primary-ui-selection.test.ts \
-              tests/unit/primary-ui-projection.test.ts \
-              tests/unit/primary-ui-report.test.ts \
-              tests/unit/primary-ui-boundary.test.ts \
-            tests/unit/primary-ui-routing.test.ts \
-            tests/unit/primary-ui-preview.test.ts \
-            tests/unit/primary-ui-evidence.test.ts \
-            tests/unit/primary-ui-outcomes.test.ts \
-            tests/unit/primary-ui-island.test.ts \
-            tests/unit/primary-ui-original-input.test.ts \
-            tests/unit/primary-ui-activity.test.ts \
-            tests/unit/primary-ui-bounded.test.ts \
-            tests/unit/primary-ui-demoted.test.ts \
-            tests/unit/primary-ui-distributions.test.ts \
-            tests/unit/primary-ui-gates.test.ts \
-            tests/unit/primary-ui-mission-shell.test.ts \
-            tests/unit/primary-ui-owner-shell.test.ts \
-            tests/unit/primary-ui-phases.test.ts \
-            tests/unit/primary-ui-timeline.test.ts \
-              tests/unit/monitor-http-contract.test.ts \
-              tests/unit/monitor-http.test.ts \
-              tests/unit/monitor-owner-display.test.ts \
-              tests/unit/monitor-owner-reference.test.ts \
-              tests/unit/monitor-reader.test.ts \
-              tests/unit/qa-monitor-producers.test.ts \
-              tests/unit/primary-ui-monitor.test.ts \
-              tests/unit/selected-campaign-consumer-lifecycle.test.mjs
+              "${qa_selected[@]}"
       - name: Console runtime fixture compiler
         if: needs.impact.outputs.console-runtime == 'true' && needs.impact.outputs.console-build != 'true'
         working-directory: components/console
