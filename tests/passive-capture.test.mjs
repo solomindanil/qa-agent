@@ -1119,7 +1119,7 @@ test('partitions: each row names its own expectation, accepted at a bound and re
     ['empty', 'rejected: required'], ['length-at-min', 'satisfies this declared bound only; other constraints and business rules not evaluated'], ['length-under-min', 'rejected: beyond the declared bound'],
     ['length-at-max', 'satisfies this declared bound only; other constraints and business rules not evaluated'], ['length-over-max', 'rejected: beyond the declared bound'], ['type-malformed', 'rejected: malformed for the declared type'],
     ['pattern-outside', 'rejected: outside the declared pattern'], ['accept-inside', 'matches a declared file-picker type only; application acceptance not evaluated'],
-    ['accept-outside', 'rejected: not a declared file type (accept only filters the file picker, so the check is on the application)']]);
+    ['accept-outside', 'does not match a declared file-picker type; application handling and acceptance not evaluated']]);
   const md = toMarkdown([], [formState('desk', [declared('copies', 'number', { min: '1', max: '4', step: '1' })])]);
   assert.match(md, /^\| ID \| Field \| Partition \| Probe \| Expected \| Basis \| States \| Status \|$/m);
   assert.match(md, /^\| W002 \| copies `#copies` \| below-min \| `0` \| rejected: beyond the declared bound \| declared min=1, one declared step \(1\) below \| desk \| requires write authority — not executed \|$/m);

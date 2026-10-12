@@ -10,7 +10,7 @@ const AT = 'satisfies this declared bound only; other constraints and business r
 const EXPECTATION = { empty: 'rejected: required', 'length-at-min': AT, 'length-under-min': BEYOND, 'length-at-max': AT, 'length-over-max': BEYOND,
   'type-malformed': 'rejected: malformed for the declared type', 'pattern-outside': 'rejected: outside the declared pattern', 'at-min': AT, 'below-min': BEYOND,
   'at-max': AT, 'above-max': BEYOND, 'off-step': 'rejected: off the declared step', 'accept-inside': 'matches a declared file-picker type only; application acceptance not evaluated',
-  'accept-outside': 'rejected: not a declared file type (accept only filters the file picker, so the check is on the application)' };
+  'accept-outside': 'does not match a declared file-picker type; application handling and acceptance not evaluated' };
 const MAX_PROBE_LENGTH = 1_000_000; // characters; a longer length probe (a maxlength used as "unlimited") is not derived
 const SCOPE = 'Planned checks derived from declared field attributes only; not candidates. P01 never types: every row requires write authority and is not executed. '
   + "A field without a declared constraint gives no row, which does not mean it is unconstrained; HTML declarations supply test ideas, not a business oracle or permission to execute; any result belongs to the agent's own records.";
