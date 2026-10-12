@@ -203,6 +203,15 @@ jobs:
             tests/unit/primary-ui-outcomes.test.ts \
             tests/unit/primary-ui-island.test.ts \
             tests/unit/primary-ui-original-input.test.ts \
+            tests/unit/primary-ui-activity.test.ts \
+            tests/unit/primary-ui-bounded.test.ts \
+            tests/unit/primary-ui-demoted.test.ts \
+            tests/unit/primary-ui-distributions.test.ts \
+            tests/unit/primary-ui-gates.test.ts \
+            tests/unit/primary-ui-mission-shell.test.ts \
+            tests/unit/primary-ui-owner-shell.test.ts \
+            tests/unit/primary-ui-phases.test.ts \
+            tests/unit/primary-ui-timeline.test.ts \
               tests/unit/monitor-http-contract.test.ts \
               tests/unit/monitor-http.test.ts \
               tests/unit/monitor-owner-display.test.ts \

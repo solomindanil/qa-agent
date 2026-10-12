@@ -143,6 +143,31 @@ test('real campaign runner selects browser-all while production and removal reta
   assert.deepEqual(result.unsupportedChanges,[`unmapped or removed Console test: ${unknown}`]);
 });
 
+test('UI presentation units have literal owning mappings and fail closed on removed or unknown controls', async context => {
+  const { classifyImpact } = await api();
+  const names = ['activity', 'bounded', 'demoted', 'distributions', 'gates', 'mission-shell', 'owner-shell', 'phases', 'timeline'];
+  for (const name of names) {
+    const path = `tests/unit/primary-ui-${name}.test.ts`;
+    for (const status of ['added', 'modified', 'deleted']) await context.test(`${name} ${status}`, () => {
+      const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, status, status === 'added' ? null : '100644', status === 'deleted' ? null : '100644')])] });
+      for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) assert.equal(result.selection[key], true);
+      assert.equal(result.selection.kernelFull, status === 'deleted');
+      assert.equal(result.selection.consoleBuild, status === 'deleted');
+      assert.equal(result.selection.consoleBrowser, status === 'deleted' ? 'all' : 'none');
+      assert.deepEqual(result.unsupportedChanges, status === 'deleted' ? [`unmapped or removed Console test: ${path}`] : []);
+    });
+    for (const mode of ['100755', '120000']) {
+      const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path, 'modified', '100644', mode)])] });
+      assert.equal(result.selection.kernelFull, true);
+      assert.deepEqual(result.unsupportedChanges, [`unmapped or removed Console test: ${path}`]);
+    }
+  }
+  const unknown = 'tests/unit/primary-ui-unreviewed.test.ts';
+  const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(unknown)])] });
+  assert.equal(result.selection.kernelFull, true);
+  assert.deepEqual(result.unsupportedChanges, [`unmapped or removed Console test: ${unknown}`]);
+});
+
 test('fresh native units have literal owning mappings without waiving deletion or unknown tests', async context => {
   const { classifyImpact } = await api();
   for (const name of ['agent-request-native', 'agent-request-native-cli', 'agent-request-sufficiency']) {

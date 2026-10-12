@@ -21,6 +21,8 @@ const runtimeTests = new Set([
   'selected-campaign-readback', 'selected-campaign-http', 'selected-campaign-projection',
   'primary-ui-read-client', 'primary-ui-selection', 'primary-ui-projection', 'primary-ui-report', 'primary-ui-boundary',
   'primary-ui-routing', 'primary-ui-preview', 'primary-ui-evidence', 'primary-ui-outcomes', 'primary-ui-island', 'primary-ui-original-input',
+  'primary-ui-activity', 'primary-ui-bounded', 'primary-ui-demoted', 'primary-ui-distributions', 'primary-ui-gates',
+  'primary-ui-mission-shell', 'primary-ui-owner-shell', 'primary-ui-phases', 'primary-ui-timeline',
   'monitor-http-contract', 'monitor-http', 'monitor-owner-display', 'monitor-owner-reference',
   'monitor-reader', 'qa-monitor-producers', 'primary-ui-monitor',
   'selected-campaign-consumer-lifecycle',
