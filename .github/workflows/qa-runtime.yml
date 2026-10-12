@@ -123,12 +123,22 @@ jobs:
           ./node_modules/.bin/tsc --noEmit --incremental false
           ./node_modules/.bin/tsc -p tsconfig.fixture-repair.json --noEmit --incremental false
           ./node_modules/.bin/vite build
+      - name: Set up fixture Python
+        id: runtime-python
+        if: needs.impact.outputs.console-runtime == 'true'
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: '3.13'
+          check-latest: false
+          allow-prereleases: false
+          freethreaded: false
       - name: Isolated Console runtime controls
         if: needs.impact.outputs.console-runtime == 'true'
         working-directory: components/console
         shell: bash
         env:
           QA_RUNTIME_SHARD: ${{ matrix.shard }}
+          QA_FIXTURE_PYTHON: ${{ steps.runtime-python.outputs.python-path }}
         run: |
           set -euo pipefail
           qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-runtime.XXXXXX")"
@@ -136,6 +146,10 @@ jobs:
           # only from this owned test environment, never from the host config.
           git config --show-origin --name-only --get-regexp '^(core\.(fsmonitor|hooksPath|sshCommand)|filter\.|include\.|includeIf\.|extensions\.|alias\.)' || test "$?" = 1
           qa_files=(
+              tests/unit/agent-activity.test.ts
+              tests/unit/agent-activity-store.test.ts
+              tests/unit/activity-config.test.ts
+              tests/integration/agent-adapter-fixture.test.ts
               tests/unit/portable-entrypoints.test.ts
               tests/unit/runtime-paths.test.ts
               tests/unit/qa-product-skill.test.ts
@@ -208,6 +222,7 @@ jobs:
               tests/unit/qa-monitor-producers.test.ts
               tests/unit/primary-ui-monitor.test.ts
               tests/unit/selected-campaign-consumer-lifecycle.test.mjs
+              tests/unit/campaign-dependency-readback.test.ts
           )
           case "${QA_RUNTIME_SHARD}" in
             a) qa_offset=0 ;;
@@ -219,24 +234,36 @@ jobs:
             qa_selected+=("${qa_files[qa_index]}")
           done
           printf "Runtime shard %s: %s\n" "${QA_RUNTIME_SHARD}" "${qa_selected[*]}"
-          env -i \
-            PATH="${PATH}" \
-            CI=true \
-            npm_config_offline=true \
-            npm_config_yes=false \
-            GIT_CONFIG_NOSYSTEM=1 \
-            GIT_CONFIG_GLOBAL=/dev/null \
-            TSX_DISABLE_CACHE=1 \
-            NODE_DISABLE_COMPILE_CACHE=1 \
-            LANG=C.UTF-8 \
-            TMPDIR="${qa_tmp}" \
-            QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel" \
-            QA_CONSOLE_STATE="${qa_tmp}/receipts.json" \
-            QA_CONSOLE_PRIVATE_ROOT="${qa_tmp}/private" \
-            QA_REGISTRATION_STORE="${qa_tmp}/store" \
-            QA_REGISTRATION_TARGET_REGISTRY="${qa_tmp}/targets.json" \
-            QA_MONITOR=off \
-            QA_MONITOR_ROOT="${qa_tmp}/monitor" \
+          case "${QA_FIXTURE_PYTHON}" in /*/bin/python) ;; *) exit 1 ;; esac
+          [[ ! "${QA_FIXTURE_PYTHON}" =~ [[:cntrl:]:] ]]
+          test -x "${QA_FIXTURE_PYTHON}"
+          qa_python_prefix="${QA_FIXTURE_PYTHON%/bin/python}"
+          qa_python_lib="${qa_python_prefix}/lib"
+          test -d "${qa_python_lib}"
+          qa_env=(
+            PATH="${PATH}"
+            CI=true
+            npm_config_offline=true
+            npm_config_yes=false
+            GIT_CONFIG_NOSYSTEM=1
+            GIT_CONFIG_GLOBAL=/dev/null
+            TSX_DISABLE_CACHE=1
+            NODE_DISABLE_COMPILE_CACHE=1
+            LANG=C.UTF-8
+            TMPDIR="${qa_tmp}"
+            QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel"
+            QA_CONSOLE_STATE="${qa_tmp}/receipts.json"
+            QA_CONSOLE_PRIVATE_ROOT="${qa_tmp}/private"
+            QA_REGISTRATION_STORE="${qa_tmp}/store"
+            QA_REGISTRATION_TARGET_REGISTRY="${qa_tmp}/targets.json"
+            QA_MONITOR=off
+            QA_MONITOR_ROOT="${qa_tmp}/monitor"
+            QA_AGENT_FIXTURE_PYTHON="${QA_FIXTURE_PYTHON}"
+            PYTHONDONTWRITEBYTECODE=1
+            LD_LIBRARY_PATH="${qa_python_lib}"
+          )
+          env -i "${qa_env[@]}" "${QA_FIXTURE_PYTHON}" -c 'import os,sys; assert sys.version_info[:2] == (3, 13) and sys.version_info.releaselevel == "final"; expected=os.environ["QA_AGENT_FIXTURE_PYTHON"]; assert os.path.realpath(sys.executable)==os.path.realpath(expected); assert os.path.realpath(sys.prefix)==os.path.realpath(os.path.dirname(os.path.dirname(expected))); print("fixture-python="+sys.executable+" version="+sys.version.split()[0]+" prefix="+sys.prefix+" lib="+os.environ["LD_LIBRARY_PATH"])'
+          env -i "${qa_env[@]}" \
             node --import tsx --test --test-concurrency=1 \
               "${qa_selected[@]}"
       - name: Console runtime fixture compiler
@@ -356,11 +383,22 @@ jobs:
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/qa-release-browsers
         run: ./node_modules/.bin/playwright install --with-deps chromium
+      - name: Set up fixture Python
+        id: browser-python
+        if: needs.impact.outputs.console-browser == 'all'
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: '3.13'
+          check-latest: false
+          allow-prereleases: false
+          freethreaded: false
       - name: Browser healthy and broken fixture controls
         id: browser-all
         if: needs.impact.outputs.console-browser == 'all'
         working-directory: components/console
         shell: bash
+        env:
+          QA_FIXTURE_PYTHON: ${{ steps.browser-python.outputs.python-path }}
         run: |
           set -euo pipefail
           qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-browser.XXXXXX")"
@@ -368,20 +406,32 @@ jobs:
           qa_kernel="$(git -C "${GITHUB_WORKSPACE}/components/kernel" rev-parse HEAD)"
           printf 'request-dir=%s\nconsole-commit=%s\nkernel-commit=%s\n' "${qa_tmp}/selected-request" "${qa_source}" "${qa_kernel}" >> "${GITHUB_OUTPUT}"
           qa_chromium="$(env -i PATH="${PATH}" PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" node --input-type=module -e 'import {chromium} from "@playwright/test"; console.log(chromium.executablePath());')"
-          env -i \
-            PATH="${PATH}" \
-            TMPDIR="${qa_tmp}" \
-            QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel" \
-            QA_SELECTED_RUN_UI_DIR="${qa_tmp}/selected-run" \
-            QA_SELECTED_REQUEST_UI_DIR="${qa_tmp}/selected-request" \
-            QA_SELECTED_REQUEST_FINITE_DIR="${qa_tmp}/selected-request-finite" \
-            QA_MONITOR=off \
-            QA_MONITOR_ROOT="${qa_tmp}/monitor" \
-            QA_MONITOR_UI_DIR="${qa_tmp}/monitor-ui" \
-            QA_CONSUMER_SOURCE_COMMIT="${qa_source}" \
-            QA_PRIMARY_UI_CHROMIUM="${qa_chromium}" \
-            PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers" \
-            node --import tsx --test --test-concurrency=1 tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/unit/qa-campaign-runner.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs tests/e2e/selected-agent-request-finite-read-local.test.mjs tests/e2e/qa-monitor-local.test.mjs
+          case "${QA_FIXTURE_PYTHON}" in /*/bin/python) ;; *) exit 1 ;; esac
+          [[ ! "${QA_FIXTURE_PYTHON}" =~ [[:cntrl:]:] ]]
+          test -x "${QA_FIXTURE_PYTHON}"
+          qa_python_prefix="${QA_FIXTURE_PYTHON%/bin/python}"
+          qa_python_lib="${qa_python_prefix}/lib"
+          test -d "${qa_python_lib}"
+          qa_env=(
+            PATH="${PATH}"
+            TMPDIR="${qa_tmp}"
+            QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel"
+            QA_SELECTED_RUN_UI_DIR="${qa_tmp}/selected-run"
+            QA_SELECTED_REQUEST_UI_DIR="${qa_tmp}/selected-request"
+            QA_SELECTED_REQUEST_FINITE_DIR="${qa_tmp}/selected-request-finite"
+            QA_MONITOR=off
+            QA_MONITOR_ROOT="${qa_tmp}/monitor"
+            QA_MONITOR_UI_DIR="${qa_tmp}/monitor-ui"
+            QA_CONSUMER_SOURCE_COMMIT="${qa_source}"
+            QA_PRIMARY_UI_CHROMIUM="${qa_chromium}"
+            PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-release-browsers"
+            QA_AGENT_FIXTURE_PYTHON="${QA_FIXTURE_PYTHON}"
+            PYTHONDONTWRITEBYTECODE=1
+            LD_LIBRARY_PATH="${qa_python_lib}"
+          )
+          env -i "${qa_env[@]}" "${QA_FIXTURE_PYTHON}" -c 'import os,sys; assert sys.version_info[:2] == (3, 13) and sys.version_info.releaselevel == "final"; expected=os.environ["QA_AGENT_FIXTURE_PYTHON"]; assert os.path.realpath(sys.executable)==os.path.realpath(expected); assert os.path.realpath(sys.prefix)==os.path.realpath(os.path.dirname(os.path.dirname(expected))); print("fixture-python="+sys.executable+" version="+sys.version.split()[0]+" prefix="+sys.prefix+" lib="+os.environ["LD_LIBRARY_PATH"])'
+          env -i "${qa_env[@]}" \
+            node --import tsx --test --test-concurrency=1 tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/unit/qa-campaign-runner.test.ts tests/unit/campaign-observation.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs tests/e2e/selected-agent-request-finite-read-local.test.mjs tests/e2e/qa-monitor-local.test.mjs
       - name: Stage selected request evidence
         id: request-evidence
         if: always() && needs.impact.outputs.console-browser == 'all' && steps.browser-all.outcome != 'skipped'
