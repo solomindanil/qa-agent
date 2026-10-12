@@ -1,0 +1,17 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Fixture</title><style>body{font-family:Arial,sans-serif;margin:24px;background:#fff;color:#222}form{width:360px;margin-bottom:24px}label{display:block;margin-top:8px}input{display:block;width:100%;box-sizing:border-box;padding:6px 10px;border:1px solid #888}button{margin-top:12px}.upload{display:inline-block;padding:6px 10px;border:1px solid #888}</style></head><body><main>
+<form id="add-sensor" aria-labelledby="add-title"><h1 id="add-title">Add sensor</h1>
+<label for="sensor-name">Sensor name</label><input id="sensor-name" name="sensorName">
+<label for="threshold">Alert threshold (°C)</label><input id="threshold" name="threshold" type="number" min="0" max="50" step="0.5">
+<label for="calibration">Calibration file</label><input id="calibration" name="calibration" type="file" accept=".csv" multiple>
+<button type="submit">Add sensor</button></form>
+<form id="schedule" aria-labelledby="schedule-title"><h2 id="schedule-title">Watering schedule</h2>
+<label for="start">First day</label><input id="start" name="start" type="date" min="2026-03-01" max="2026-03-31" step="7">
+<label for="at">Time</label><input id="at" name="at" type="time" min="06:00" max="20:00">
+<label for="litres">Litres</label><input id="litres" name="litres" type="number" maxlength="3">
+<label for="zone">Zone code</label><input id="zone" name="zone" pattern="[A-Z]{2}[0-9]">
+<label for="batch">Batch code</label><input id="batch" name="batch" pattern="(?:[A-Z]{2}[0-9]{3})|(?:[A-Z]{2}[0-9]{3})|(?:[A-Z]{2}[0-9]{3})|(?:[A-Z]{2}[0-9]{3})|(?:[A-Z]{2}[0-9]{3})|(?:[A-Z]{2}[0-9]{3})|(?:[A-Z]{2}[0-9]{3})|(?:[A-Z]{2}[0-9]{3})|(?:[A-Z]{2}[0-9]{3})|(?:[A-Z]{2}[0-9]{3})|(?:[a-z]{4})">
+<label for="gain">Gain</label><input id="gain" name="gain" type="number" max="10" step="any">
+<label for="photo" class="upload">Add photo</label><input id="photo" name="photo" type="file" accept="image/*" style="display:none">
+<button type="submit">Save schedule</button></form>
+<aside inert><form id="probe"><label for="probe-id">Probe id</label><input id="probe-id" name="probeId" required maxlength="8"></form></aside>
+</main></body></html>
