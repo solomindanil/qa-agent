@@ -974,6 +974,25 @@ test('selected request evidence staging preserves only the literal bounded synth
     const { result, manifest } = await run(await fixture('success'));
     assert.notEqual(result.status, 0); assert.equal(manifest.files.filter(x => x.status === 'missing').length, 22);
   });
+  await context.test('optional registered failure diagnostic is retained without replacing required22', async () => {
+    const f = await fixture('failure');
+    const bytes = Buffer.from('{"syntheticFixtureOnly":true,"state":"actual-failure"}\n');
+    await writeFile(join(f.source, 'registered-monitor-failure.json'), bytes);
+    await writeFile(join(f.source, 'registered-unreviewed.json'), 'must not upload');
+    const {result,path,manifest} = await run(f); assert.equal(result.status,0,result.stderr);
+    assert.equal(manifest.files.length,22);assert.equal(manifest.consumerLedger,'missing');
+    assert.deepEqual(manifest.diagnostics.map(entry=>entry.name),['registered-monitor-failure.json']);
+    assert.equal(manifest.diagnostics[0].status,'accepted');
+    assert.deepEqual(await readFile(join(path,'registered-monitor-failure.json')),bytes);
+    assert.equal((await readdir(path)).includes('registered-unreviewed.json'),false);
+  });
+  for(const kind of ['symlink','hardlink','oversize']) await context.test(`optional registered diagnostic still refuses ${kind}`,async()=>{
+    const f=await fixture('failure'),leaf=join(f.source,'registered-monitor-failure.json');
+    if(kind==='oversize'){await writeFile(leaf,'');await truncate(leaf,16*1024*1024+1);}
+    else{const outside=join(f.root,'outside');await writeFile(outside,'not owned');if(kind==='symlink')await symlink(outside,leaf);else await link(outside,leaf);}
+    const {result,path,manifest}=await run(f);assert.notEqual(result.status,0);assert.equal(manifest.diagnostics[0].status,'refused');
+    assert.equal((await readdir(path)).includes('registered-monitor-failure.json'),false);
+  });
   for (const kind of ['symlink', 'hardlink', 'directory', 'directory-symlink', 'oversize', 'broad-root', 'escape', 'identity-drift', 'total-size']) {
     await context.test(`${kind} refuses unsafe payload but retains owned manifest`, async () => {
       const f = await fixture('failure'); const leaf = join(f.source, 'command-1.json');

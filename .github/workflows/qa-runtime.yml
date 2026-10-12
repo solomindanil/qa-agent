@@ -406,11 +406,12 @@ jobs:
             'opened-blocker-1.png', 'opened-blocker-2.png', 'opened-blocker-3.png', 'opened-blocker-4.png', 'opened-blocker-5.png', 'opened-blocker-6.png',
             'opened-plan.html', 'disclosed-strategy.json', 'opened-plan.png', 'historical-checkpoint1.png', 'injected-failure-unavailable.png',
             'registration-worker-diagnostic.json'];
+          const optionalNames = ['registered-monitor-failure.json'];
           const manifest = { schemaVersion: 1, syntheticFixtureOnly: true,
             rootCommit: process.env.ROOT_SOURCE_COMMIT || null, consoleCommit: process.env.CONSOLE_SOURCE_COMMIT || null,
             kernelCommit: process.env.KERNEL_SOURCE_COMMIT || null, runId: process.env.GITHUB_RUN_ID || null,
             attempt: process.env.GITHUB_RUN_ATTEMPT || null, browserOutcome: process.env.BROWSER_OUTCOME || 'unknown',
-            directoryStatus: 'refused', consumerLedger: 'missing', files: [], refusals: [] };
+            directoryStatus: 'refused', consumerLedger: 'missing', files: [], diagnostics: [], refusals: [] };
           const refuse = code => { if (!manifest.refusals.includes(code)) manifest.refusals.push(code); };
           for (const key of ['rootCommit', 'consoleCommit', 'kernelCommit']) if (!/^[a-f0-9]{40}$/.test(manifest[key] || '')) refuse('identity_unavailable');
           if (!/^[1-9][0-9]*$/.test(manifest.runId || '') || !/^[1-9][0-9]*$/.test(manifest.attempt || '')) refuse('run_identity_unavailable');
@@ -430,8 +431,8 @@ jobs:
             if (!same(parentStat, fs.lstatSync(parent)) || !same(sourceStat, fs.lstatSync(source)) ||
                 fs.realpathSync(parent) !== parent || fs.realpathSync(source) !== source) throw new Error('directory_drift');
           };
-          for (const name of names) {
-            const entry = { name, status: 'missing' }; manifest.files.push(entry);
+          for (const name of [...names, ...optionalNames]) {
+            const entry = { name, status: 'missing' }; (names.includes(name) ? manifest.files : manifest.diagnostics).push(entry);
             if (!safe) continue;
             let fd;
             try {
