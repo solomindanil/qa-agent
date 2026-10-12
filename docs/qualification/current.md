@@ -1,6 +1,10 @@
 # Current QA-agent source and execution entry
 
-## Local prepared composition — 12 October 2026
+## Current selected observation presentation — 12 October 2026
+
+PR45 is delivered by ordinary merge `97e5d8b90c82b2569682e593ebe2b847c802dc25`, Console34697bb/Kernel093, under the user's temporary CI-wait waiver, not fresh all-CI GREEN. This successor selects Console `ccf125fa050323d06ac4bc385a3bd7f4da25e230` / unchanged Kernel093: one readable bounded row per stored observation with literal payload/provenance, all obligation links and separate sampled integrity; no independently confirmed bug inference. SAME affected AQA C0/I0/M0; local selected4P + report owner12P, source compiler0 and UI build0. No mounted/native or full registered PASS is claimed. Prior registered FAILED/UNKNOWN, later stages unentered and full V01 OPEN remain. Final source delivery may use `[skip ci]`; workflows/protections remain unchanged. Canonical root adoption does not restore stale ignored children or update runtime/frozen owners; no provider/product/A6 acceptance.
+
+## Historical pre-PR45 local prepared composition — 12 October 2026
 
 Current delivery candidate: Console `34697bb19fcb55070c0e4569ca0de4e198e3a95f` / unchanged Kernel093, for ordinary successor PR45; PR44 is delivered `b7bd72c`. SAME affected source AQA C0/I0/M0 and local named corrections passed (SSR2P, bounded2P, selected1P, root3P, real observation-browser1P, UI build0). Own70df all Kernel groups and exact Linux Vite-import control passed, but runtime/browser/qualification FIRST remain red. Latest local registered consumer0P1F stops before changed Review; cause UNKNOWN, Review/later stages unentered and full V01 not accepted. User explicitly permits temporary merge without CI waiting: final commit may skip CI, no workflow/protection changes or invented GREEN. No real-provider, canonical/ignored-child, installed or frozen-owner adoption. Earlier snapshots below retain their original identity/status.
 
@@ -104,7 +108,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `09300746bd7857e7a5973bd9d81065b746eb72d8` | DELIVERED PR41; historical derived-cache repair over delivered1ba; source-reviewed, host170P/typecheck0, native FIRST122P with remaining scope incomplete. PR41 own CI and ordinary delivery succeeded; public receipt and final guards unchanged. |
-| Console | `34697bb19fcb55070c0e4569ca0de4e198e3a95f` | Coherent accepted source and bounded corrections, prepared for CI-wait-waived PR45 delivery. Exact Linux Vite-import passed70df; local registered failure/FIRST and full V01 remain open. No fresh all-CI GREEN or real-provider/product/CDN/A6 claim. Operator reference `skills/qa-product-v0/references/agent-request-checkpoints.md`. |
+| Console | `ccf125fa050323d06ac4bc385a3bd7f4da25e230` | Readable agent-reported observations over delivered PR45/34697bb; source AQA closed, local16P/compiler0/build0, no mounted/native claim. Exact inherited Linux Vite-import passed70df; registered FAILED/UNKNOWN/FIRST and full V01 OPEN remain. Temporary CI-wait waiver is not fresh all-CI GREEN or real-provider/product/CDN/A6 acceptance. Operator reference `skills/qa-product-v0/references/agent-request-checkpoints.md`. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
