@@ -102,7 +102,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `09300746bd7857e7a5973bd9d81065b746eb72d8` | DELIVERED PR41; historical derived-cache repair over delivered1ba; source-reviewed, host170P/typecheck0, native FIRST122P with remaining scope incomplete. PR41 own CI and ordinary delivery succeeded; public receipt and final guards unchanged. |
-| Console | `5a5cc42b5c71d606312db6603c8a9cfa11edec58` | PRIVATE docs-complete browser-readiness candidate over unchanged8d01; accepted source/proofs/limits above retained. Composed local batch, E6 actual merge and own delivery gates remain separate. No product/CDN/A6 or measured usefulness claim. Operator reference `skills/qa-product-v0/references/agent-request-checkpoints.md`. |
+| Console | `e84f788c3bde452119e6fc5a3d3f9ffc7f9e1dd2` | PRIVATE coherent D2/E7/v4/method/result-first candidate; accepted source and bounded composed checks above, not delivered. Locked Linux Vite-import control remains pending; PR45 historical Kernel FIRST/qualification red is not cleared. Fresh own selected gates remain mandatory. No real-provider/product/CDN/A6 or measured usefulness claim. Operator reference `skills/qa-product-v0/references/agent-request-checkpoints.md`. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
