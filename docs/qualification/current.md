@@ -1,6 +1,12 @@
 # Current QA-agent source and execution entry
 
-## Current selected observation presentation — 12 October 2026
+## Current bounded read-only host source — 12 October 2026
+
+PR45 is delivered `97e5d8b`; PR46 is delivered `25862cbaee73f3fec170e15300cbf547f0b72938`. This carrier selects Console `68d6e38da80918e550eb89ca29524e8bc8b60b5b` / unchanged Kernel093, preserving exact PR46 observation rows and adding the accepted Codex `gpt-6.1-sol` / `codex-read-only` host activity route. SAME affected AQA C0/I0/M0; original five-owner148P and I1/I2 affected three-owner92P, source/fixture compiler0 and UI build0 remain separately attributed, with genuine FIRST retained. Mounted v2, Linux and actual provider/auth/model are UNRUN; runtime conformance and usage remain unknown when unobserved. This read-only connection cannot write normal QA owner outputs or close full V01. Inherited registered FAILED/UNKNOWN and later unentered stages remain. User permits `[skip ci]`/ordinary merge without CI waiting, not fabricated GREEN or protection/workflow changes. Source delivery does not authorize provider launch or adopt canonical ignored children, runtime or frozen A6.
+
+Source-inspection entry: [host invocation](../../components/console/scripts/qa-agent-host-activity.mjs) and [typed explicit input](../../components/console/src/node/agent-host-activity.d.mts), supported route `codex` / `gpt-6.1-sol` / `codex-read-only`. Inputs are explicit with no defaults; an actual existing-auth real turn remains UNRUN and requires separate action-time authority. This is not a write-capable full-QA entry.
+
+## Historical PR46 observation presentation — 12 October 2026
 
 PR45 is delivered by ordinary merge `97e5d8b90c82b2569682e593ebe2b847c802dc25`, Console34697bb/Kernel093, under the user's temporary CI-wait waiver, not fresh all-CI GREEN. This successor selects Console `ccf125fa050323d06ac4bc385a3bd7f4da25e230` / unchanged Kernel093: one readable bounded row per stored observation with literal payload/provenance, all obligation links and separate sampled integrity; no independently confirmed bug inference. SAME affected AQA C0/I0/M0; local selected4P + report owner12P, source compiler0 and UI build0. No mounted/native or full registered PASS is claimed. Prior registered FAILED/UNKNOWN, later stages unentered and full V01 OPEN remain. Final source delivery may use `[skip ci]`; workflows/protections remain unchanged. Canonical root adoption does not restore stale ignored children or update runtime/frozen owners; no provider/product/A6 acceptance.
 
@@ -108,7 +114,7 @@ This is a dated projection of the manifest, not a second version registry. If it
 | Component | Exact manifest source | Role and evidence |
 | --- | --- | --- |
 | Kernel | `09300746bd7857e7a5973bd9d81065b746eb72d8` | DELIVERED PR41; historical derived-cache repair over delivered1ba; source-reviewed, host170P/typecheck0, native FIRST122P with remaining scope incomplete. PR41 own CI and ordinary delivery succeeded; public receipt and final guards unchanged. |
-| Console | `ccf125fa050323d06ac4bc385a3bd7f4da25e230` | Readable agent-reported observations over delivered PR45/34697bb; source AQA closed, local16P/compiler0/build0, no mounted/native claim. Exact inherited Linux Vite-import passed70df; registered FAILED/UNKNOWN/FIRST and full V01 OPEN remain. Temporary CI-wait waiver is not fresh all-CI GREEN or real-provider/product/CDN/A6 acceptance. Operator reference `skills/qa-product-v0/references/agent-request-checkpoints.md`. |
+| Console | `68d6e38da80918e550eb89ca29524e8bc8b60b5b` | Bounded Codex read-only host activity over delivered PR46/ccf observation rows; source AQA closed, original148P + affected92P/compiler0/build0 separately scoped. Mounted v2/Linux/provider UNRUN; read-only profile cannot persist normal QA owner outputs. Inherited registered FAILED/UNKNOWN/FIRST/full V01 OPEN remain; temporary CI-wait waiver is not fresh hosted GREEN or provider/product/A6 authority. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Active specialist source, adopted locally; [P2-A semantic repair and qualification](p2-semantic-repair-20260920.md) |
 | Reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Historical, **inactive**; never substitute it for Kernel |
 
