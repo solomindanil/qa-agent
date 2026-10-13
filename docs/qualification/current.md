@@ -15,10 +15,12 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
-These local successors are **not a new public delivery or adoption of a frozen owner**.
-Public PR49/root a817 and its earlier delivery receipts are retained history;
-no fresh remote/CI verification is claimed here. CI-wait waivers never manufacture
-GREEN, change workflow/protection or authorize product/provider execution.
+These sources were locally qualified in the bounded scopes below. Their public
+integration is tracked in [PR #50](https://github.com/solomindanil/qa-agent/pull/50);
+consult its actual head/base and merge/check results rather than inferring delivery
+from this document. Public PR49/root a817 and earlier receipts are historical.
+Publication/restoration never adopts or migrates a frozen owner. CI-wait waivers
+never manufacture GREEN, change workflow/protection or authorize product/provider execution.
 
 ## Start and resume safely
 
