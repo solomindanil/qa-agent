@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "49d172680c545a62b604b41ba4c3843c2447e2f4",
-      "tree": "480bb4be5236c33b5e908e3d991323cf61a1b63f",
-      "bundle": "sources/candidates/console-pr50-compatibility-49d1726.bundle",
-      "sha256": "513331c4928bf19a7c95ec4653c0ee855e08498b1ca50dcb95f5b59a2c9394f7",
+      "commit": "edda146c4be80951fd533b72cadd4cbd0e575bcc",
+      "tree": "7c3c3fb98e55a3057b89575a11bb0d5330b94641",
+      "bundle": "sources/candidates/console-ci-fixture-edda146.bundle",
+      "sha256": "37c049d1a530a8c5d01bf45cba21d28c8ca71e6c5f9d09da07ab86f93c6fb774",
       "runtimeAuthority": true,
-      "qualification": "Reviewed PR50 compatibility successor49d over test-only Python portability949 and graph-entry952; Kernel6d unchanged. Minimal legacy projector normalization, stale fixture/pin/label contracts and exact root inventory wiring; SAME Astra scoped C0/I0/M0. Legacy projection7P, focused static3P/browser2P, q05 24 distinct scoped passes, compiler0; corrected retained synthetic owner UI ready109 observations+2 remainder in9.507s, protected bytes unchanged, cleanup confirmed. Final applicable Linux subset30P0F/191.996s, wrapper218.899s exit0/noOOM/cleanup; includes one existing registered synthetic CLI consumer, excludes Python>=3.13 supervisor/diagnostic bodies on cached3.11.2. Earlier inventory Linux6+2 belongs949; graph host30/Linux30/root2/typechecks0 belong952. FIRST root438P3F and corrected6P retained; actual CI failures/Kernel timeout UNKNOWN are not relabeled GREEN. No full source-suite, product/provider/native-product/V01 acceptance or frozen-owner adoption. Exact public integration/check results: https://github.com/solomindanil/qa-agent/pull/50; limits and prior attribution: docs/qualification/current.md."
+      "qualification": "Reviewed test-only CI fixture successor edda over PR50 Console49d, production bytes identical; Kernel6d unchanged. Four exact tests correct Overview transition, mixed-index mock contracts/fail-fast witness, quoted task argv and whole-identifier drift injection; SAME affected source reviews accepted. Named local browser1P + HTTP5P + memory pair/task2P are separate focused receipts, not whole CI GREEN. Actual PR50 FIRST browser124P1F, runtimeA886P2F1S, runtimeB1033P5cancelled1S, Kernel workspace433P1F/30000ms UNKNOWN retained; remaining Kernel was pending at last22:19 read. Targeted Linux HTTP5+drift-pair1 passed6P0F/96.474s, wrapper129.781s exit0/noOOM/cleanup; cachedPython3.11 excludes >=3.13 task-entry and browser bodies. Inherited graph/compatibility attribution and exact limits remain in docs/qualification/current.md. PR50 merge e765 is historical production delivery; this successor's public integration is established only by its actual PR/readback, never inferred as frozen-owner adoption. No product/provider/fullV01 claim."
     },
     {
       "id": "freeland",

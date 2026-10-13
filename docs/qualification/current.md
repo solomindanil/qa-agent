@@ -9,16 +9,18 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `49d172680c545a62b604b41ba4c3843c2447e2f4` | Reviewed PR50 legacy-report compatibility and stale-fixture successor over test-only949 and graph-entry952; predecessors retained. |
+| Console | `edda146c4be80951fd533b72cadd4cbd0e575bcc` | Reviewed test-only CI fixture successor; production bytes identical to PR50 Console49d, predecessors retained. |
 | Kernel | `6d38980ab77621f4c1fe85872985600a3cf13c9f` | Unchanged local accepted memory foundation; native graph/denominator unchanged. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
-These sources were locally qualified in the bounded scopes below. Their public
-integration is tracked in [PR #50](https://github.com/solomindanil/qa-agent/pull/50);
-consult its actual head/base and merge/check results rather than inferring delivery
-from this document. Public PR49/root a817 and earlier receipts are historical.
+PR50's production sources were locally qualified in the bounded scopes below.
+Their integration is tracked in [PR #50](https://github.com/solomindanil/qa-agent/pull/50);
+it was merged into develop as `e7659c88b214cd87b8957a180434022142dacebf`.
+For the selected test-only successor, consult its actual integration PR/readback;
+do not infer its delivery or CI result from this document or PR50. Public PR49/root
+a817 and earlier receipts are historical.
 Publication/restoration never adopts or migrates a frozen owner. CI-wait waivers
 never manufacture GREEN, change workflow/protection or authorize product/provider execution.
 
@@ -40,7 +42,7 @@ This is guidance, not runtime migration or warning suppression.
 
 | Existing plan family | Implemented / locally verified | Delivered / remaining / next |
 | --- | --- | --- |
-| U01/U02, B02/L00 | Current/saved request reports, Graph/Coverage/Plan and truthful pending/unknown boundaries. Local baseline fix accepted by SAME Astra; final affected owner54P0F, compiler/build0. | PR50 pending merge. Continue through ordinary owner admission, not developer fixture shortcuts. Independent INVALID_MEMBER discovery warning remains. |
+| U01/U02, B02/L00 | Current/saved request reports, Graph/Coverage/Plan and truthful pending/unknown boundaries. Local baseline fix accepted by SAME Astra; final affected owner54P0F, compiler/build0. | PR50 delivered at e7659c88 with PR50's Console49d/Kernel6d. Continue through ordinary owner admission, not developer fixture shortcuts. Independent INVALID_MEMBER discovery warning remains. |
 | Q04/Q05 | Finite synthetic persistence example8P (earlier owning36P); bounded A7b usability owners21P/14P, CLI3P, reference/Timeline controls; original FIRSTs retained. | No full Q04/Q05 or sufficiency/product verdict acceptance. Future checks require genuine supported owner evidence, not declaration/link counts. |
 | K01/K02/L02 | Existing guarded Kernel API now has restored advisory Console CLI/reference; SAME Astra GO, host30P including healthy/broken HTTP200 content consumer, root2P/typechecks0 and same30 affected Linux bodies30P0F/224.36s (Node22.23.3 arm64, wrapper exit0/262.96s, no OOM, own cleanup confirmed). Memory predecessors retained. | PR43 remains historical unmerged, not wholesale adoption. No hosted CI, causal uplift, full L02/V01, autonomous reuse or general memory benefit claim; applicability and full remainder stay explicit. |
 | P01, Q02/T00 | Passive capture/detectors/declared input partitions and existing skill/tool routing are available source; outputs are candidates/planned checks, never PASS. | Claude's final generic prototype package was received and design-triaged, NOT adopted here. Do not infer completeness from no candidates. |
@@ -48,6 +50,16 @@ This is guidance, not runtime migration or warning suppression.
 | V01 / U03b | Source and bounded consumer mechanisms above are usable within stated scope. | Full V01 and comparable evolution history remain OPEN. UI stale-choice proposal remains pending; no speculative UI/runtime repair. |
 
 ### Latest bounded rental and read-only UI evidence
+
+The reviewed test-only successor corrects the monitor fixture's Graph→Overview
+transition, mixed discovery mocks, quoted task argv and drift injection. Scoped
+host receipts are browser1P + HTTP5P + memory pair/task2P, not whole CI GREEN.
+PR50 FIRST remains browser124P1F, runtimeA886P2F1S, runtimeB1033P5cancelled1S;
+Kernel workspace433P1F is an unchanged30000ms timeout with causeUNKNOWN.
+Remaining Kernel was still pending at the sole22:19 read. Targeted Linux Node22.23.3
+arm64 passed6P0F/96.474s (HTTP5 + drift-pair1), wrapper129.781s natural0/noOOM,
+own cleanup confirmed. CachedPython3.11 cannot prove the >=3.13 task-entry body;
+no browser body was selected there. Source publication never migrates frozen owners.
 
 PR50's minimal legacy-format projector repair reached the retained synthetic
 109-observation request through actual selected admission: ready109 +2 remainder
