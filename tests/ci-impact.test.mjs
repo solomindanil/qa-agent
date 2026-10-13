@@ -12,7 +12,7 @@ test('public composition observation and dependency readback owners map and exec
   const { classifyImpact } = await api();
   const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
   const argv = actualRuntimeArgv(workflow);
-  for (const path of ['tests/unit/campaign-dependency-readback.test.ts', 'tests/unit/campaign-observation.test.ts']) {
+  for (const path of ['tests/unit/campaign-dependency-readback.test.ts', 'tests/unit/campaign-observation.test.ts', 'tests/unit/qa-graph-recommendations-cli.test.ts', 'tests/unit/journey-check-recommendations-consumer.test.ts']) {
     const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path)])] });
     assert.deepEqual(result.unsupportedChanges, [], path);
     if (path.endsWith('campaign-observation.test.ts')) {
@@ -592,7 +592,7 @@ test('U03a actual browser-all shell supplies portable installed Chromium and fre
     ACTIONS_RUNTIME_TOKEN: 'must-not-reach-child', SYNTHETIC_PRIVATE_SENTINEL: 'must-not-reach-child' }, encoding: 'utf8', timeout: 10_000 });
   assert.equal(result.status, 0, result.stderr);
   const actual = JSON.parse(await readFile(record, 'utf8'));
-  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', '--test-concurrency=1', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/unit/qa-campaign-runner.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs', 'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
+  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', '--test-concurrency=1', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/unit/qa-campaign-runner.test.ts', 'tests/unit/campaign-observation.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs', 'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
   assert.equal(actual.env.QA_PRIMARY_UI_CHROMIUM, installed);
   assert.equal(actual.env.QA_AGENT_FIXTURE_PYTHON,python);
   assert.equal(actual.env.LD_LIBRARY_PATH,join(pythonPrefix,'lib'));

@@ -153,6 +153,7 @@ jobs:
               tests/unit/portable-entrypoints.test.ts
               tests/unit/runtime-paths.test.ts
               tests/unit/qa-product-skill.test.ts
+              tests/unit/qa-graph-recommendations-cli.test.ts
               tests/unit/qa-product-method-triggers.test.ts
               tests/unit/qa-campaign-cli.test.ts
               tests/unit/authored-checks.test.ts
@@ -223,6 +224,7 @@ jobs:
               tests/unit/primary-ui-monitor.test.ts
               tests/unit/selected-campaign-consumer-lifecycle.test.mjs
               tests/unit/campaign-dependency-readback.test.ts
+              tests/unit/journey-check-recommendations-consumer.test.ts
           )
           case "${QA_RUNTIME_SHARD}" in
             a) qa_offset=0 ;;

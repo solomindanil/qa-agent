@@ -23,6 +23,7 @@ const runtimeInventory = [
   "tests/unit/portable-entrypoints.test.ts",
   "tests/unit/runtime-paths.test.ts",
   "tests/unit/qa-product-skill.test.ts",
+  "tests/unit/qa-graph-recommendations-cli.test.ts",
   "tests/unit/qa-product-method-triggers.test.ts",
   "tests/unit/qa-campaign-cli.test.ts",
   "tests/unit/authored-checks.test.ts",
@@ -92,7 +93,8 @@ const runtimeInventory = [
   "tests/unit/qa-monitor-producers.test.ts",
   "tests/unit/primary-ui-monitor.test.ts",
   "tests/unit/selected-campaign-consumer-lifecycle.test.mjs",
-  "tests/unit/campaign-dependency-readback.test.ts"
+  "tests/unit/campaign-dependency-readback.test.ts",
+  "tests/unit/journey-check-recommendations-consumer.test.ts"
 ];
 
 function validateRuntimeMatrix(workflow) {
@@ -161,10 +163,10 @@ test('two runtime cells execute exact prior inventory once with disjoint private
   validateRuntimeMatrix(workflow);
   const observed = await isolatedConsoleAcquisitionEnv(workflow);
   assert.deepEqual(observed.cells.map(cell => cell.argv), [runtimeInventory.filter((_, i) => i % 2 === 0), runtimeInventory.filter((_, i) => i % 2 === 1)]);
-  assert.equal(new Set(observed.argv).size, 77);
-  assert.equal(observed.argv.length, 77);
-  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[39,38]);
-  for (const path of ['tests/unit/campaign-dependency-readback.test.ts']) {
+  assert.equal(new Set(observed.argv).size, 79);
+  assert.equal(observed.argv.length, 79);
+  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[40,39]);
+  for (const path of ['tests/unit/campaign-dependency-readback.test.ts','tests/unit/qa-graph-recommendations-cli.test.ts','tests/unit/journey-check-recommendations-consumer.test.ts']) {
     assert.equal(observed.argv.filter(value => value === path).length, 1, path);
     const omitted = workflow.replace(`              ${path}\n`, '');
     const missing = await isolatedConsoleAcquisitionEnv(omitted);
@@ -946,7 +948,7 @@ test('the permanent browser command actually receives the accepted finite regres
     'qa-permanent-browser-argv', process.execPath], { env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` } });
   assert.deepEqual(JSON.parse(stdout), ['--test-concurrency=1', 'tests/unit/browser-journey.test.ts',
     'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts',
-    'tests/unit/qa-campaign-runner.test.ts',
+    'tests/unit/qa-campaign-runner.test.ts', 'tests/unit/campaign-observation.test.ts',
     'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs',
     'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
 });

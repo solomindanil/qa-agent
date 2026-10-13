@@ -40,6 +40,13 @@ preserving earlier entries, and opens the returned Markdown through its normal
 file-opening mechanism. No managed workspace is created for a demo. Missing
 destination/authority is reported while independent in-chat analysis continues.
 
+For an existing registered Starter workspace, `--product` / `owner.product` is
+the exact current registered `product.slug`, not its display label, project title
+or a guessed directory name; use verified registration/readback and retain the
+same canonical workspace and `qa-product-v0` ([checkpoint binding](../components/console/skills/qa-product-v0/references/agent-request-checkpoints.md)).
+Intake read success alone is not owning admission. Preserve an unbound/mismatched
+capture; a separately authorized new capture retains it and true chronology—no rebinding or backdating.
+
 This helper needs only Node >=22.12.0 and its complete qa-check bundle, not a
 running child runtime, docs, browser or MCP. The intake result is NOT_EVALUATED,
 caller-authored/unattested, with managed execution binding not_owner_attested;
@@ -141,7 +148,97 @@ npm run dev -- --host 127.0.0.1 --port 5173
 
 The dev server serves the UI and the bridge directly from source; it needs no Console build. Port 5173 is strict, so a second server on that port fails instead of moving. `npm run serve` (default port 8791) runs the same bridge but serves only a prebuilt `dist-primary-ui/` bundle: without one, `/api/*` answers while the page itself returns 404. Use `serve` only where an operator already built that bundle in the selected checkout; `npm run build` writes inside the Console child, so do not run it in a frozen or shared clone. The Console README's "serves the built `dist/`" refers to this `dist-primary-ui/` output.
 
-In the UI, choose the workspace in the selector (it lists managed workspaces that are direct children of a `QA_WORKSPACE_ROOTS` entry, or of the parent of `QA_WORKSPACE` when no roots are set; `QA_WORKSPACE` is optional), open **Requests**, and on the saved request use **Open checkpoint K**, which opens its recorded latest checkpoint. An older checkpoint is opened from that report's **Immutable checkpoint history** card. The selected view verifies before it shows facts and is bounded at 240 seconds. Without the UI, read or export the same checkpoint with `read-agent-request` or `export-agent-request` as described in [agent-request checkpoints](../components/console/skills/qa-product-v0/references/agent-request-checkpoints.md). Opening or reading a report does not authorize product actions.
+When the Console opens the mission monitor, choose the exact mission in its
+**Mission** selector, then the desired checkpoint in **Saved report history**.
+That is a saved display, not current admission. Follow **Open verified report**
+to acquire a separate current owner read for that exact request/checkpoint;
+pending, unavailable or background re-verification is not a ready report.
+If explicitly configured, `QA_MONITOR_ROOT` is a dedicated private discovery
+directory shared exactly by producer and viewer—not `notes/.qa-monitor` or its
+`v1` journal tree. This advice does not migrate or repair an existing root.
+
+In the workspace view, choose the workspace in the selector (it lists managed workspaces that are direct children of a `QA_WORKSPACE_ROOTS` entry, or of the parent of `QA_WORKSPACE` when no roots are set; `QA_WORKSPACE` is optional), open **Requests**, and on the saved request use **Open checkpoint K**, which opens its recorded latest checkpoint. An older checkpoint is opened from that report's **Immutable checkpoint history** card. The selected view verifies before it shows facts and is bounded at 240 seconds. Without the UI, read or export the same checkpoint with `read-agent-request` or `export-agent-request` as described in [agent-request checkpoints](../components/console/skills/qa-product-v0/references/agent-request-checkpoints.md). Opening or reading a report does not authorize product actions.
+
+### Read usage and timing without inferring missing measurements
+
+In the mission activity card, read the observed timestamps, terminal status and
+usage together with their source. Configured CLI/model/version describes the
+launch, not proof that every background request used that model. Supervisor
+activity and a successful process exit are not a QA verdict.
+
+Codex unmetered or absent cost is **unknown**, not a numeric `$0`. An explicit
+Claude zero remains a measured CLI-reported estimate; it is not an invoice or
+exclusive-model billing proof. Missing usage cannot establish that a run was free.
+
+The Timeline shows recorded command intervals and their observed window, not
+whole-agent walltime or discovery→verification→report phase latency. Overlapping
+commands remain separate: do not sum parallel intervals into elapsed time.
+A missing finish stays “finish not recorded”; it does not mean “still running”.
+Agent activity retains an observed cancelled/failed/unknown status rather than
+turning cancellation or incomplete observation into successful completion.
+
+Use those observations to locate recorded work and uncertainty. Setup, review,
+retry overhead and end-to-end QA phase totals are not measured merely because
+some command timestamps exist. Evolution comparisons are currently unavailable:
+a current campaign receipt is not a cohort or a compatible cross-run history.
+See the selected Console's activity card, Timeline and Evolution views for the
+same distinctions; the source selection is in [the current entry](qualification/current.md).
+
+### Prepare a new hosted request with product memory
+
+Use the manifest-selected Console/Kernel pair in a separate verified checkout
+for a new launch. Restoring source does not change a running campaign, install
+host skills or grant product authority. Existing campaigns keep their frozen
+source, owner, request and unknown outcomes. The Console UI reads activity and
+reports; it does not currently provide an agent-start or memory-configuration
+launcher.
+
+Read the complete source `qa-product-v0` skill and its
+[ordinary memory cycle](../components/console/skills/qa-product-v0/references/agent-memory.md#ordinary-memory-enabled-task-cycle).
+The supervising agent or trusted operator prepares the existing
+[HostActivityInput](../components/console/src/node/agent-host-activity.d.mts)
+from the selected registered workspace, exact saved request, approved host and
+private output roots. The person supplies scope and authority, not hand-written
+JSON, note IDs or a ready-made product dossier. The existing
+[host entry](../components/console/scripts/qa-agent-host-activity.mjs) takes one
+explicit local JSON filepath, bounded at 65,536 bytes; this is not a stdin recipe or a new registration
+command. Keep that input private and invoke it from its actual selected source.
+For owner-output, use the selected `starterRepo` and manifest-derived
+`starterExpectedSha` plus the existing verified `writableOutputRoots`. Claude
+also requires its exact executable/configuration; the browser gateway is a
+separately admitted capability. Memory does not imply browser access.
+
+Memory is an explicit trusted launch capability. Set
+`memoryAccess: 'current_owner'` for an admitted memory-enabled profile when the
+selected workspace is the memory home. This supports a new request under the
+same owner: existing knowledge is recalled afresh, and a missing writable
+self-association can be initialized during checked startup. Omission preserves
+the existing no-memory behavior. Read-only access cannot initialize a home;
+Claude read-only does not admit memory. A pre-existing foreign association is
+not reset by `current_owner`.
+
+For a different campaign, the trusted launch must supply the explicitly
+verified `memoryHomeWorkspacePath` and admitted `evidenceWorkspacePaths`, with
+the required existing association. Owner IDs and product names are not paths
+or routing authority. There is no automatic cross-campaign home registry or
+same-name join in this source. An unresolved home is a routing gap; continue
+independent permitted QA while preserving that gap, rather than migrating an
+old owner or inventing a directory.
+
+After successful preparation, use the actual absolute task command emitted by
+the host, including its task-help command, from the actor's notes directory.
+The agent chooses recall terms, reads exact evidence, performs permitted checks
+and saves one to three useful explicit claims, or explains why no claim should
+be saved. Preserve saved, failed, unknown and not-attempted outcomes separately.
+Reconciliation uses the retained original operation key and payload in that
+same captured request; a new request cannot recover an earlier request's
+unknown intent by generating a replacement key.
+
+Keep the complete QA remainder and memory limitations in the ordinary owning
+checkpoint, then read back and reopen that exact report/export. Storage success,
+historical PASS and retrieved dependencies do not establish current product
+acceptance. The current local engineering checks do not prove a real provider
+used the knowledge or that the memory improves testing decisions.
 
 ## 4. Supply lane-specific capabilities and authority
 
