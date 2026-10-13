@@ -9,7 +9,7 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `edda146c4be80951fd533b72cadd4cbd0e575bcc` | Reviewed test-only CI fixture successor; production bytes identical to PR50 Console49d, predecessors retained. |
+| Console | `5c5ba674c34544cd5bfbb30d65341d4838165aee` | Reviewed two-file fixture successor; non-test bytes identical to PR51 Consoleedda and PR50 Console49d, predecessors retained. |
 | Kernel | `6d38980ab77621f4c1fe85872985600a3cf13c9f` | Unchanged local accepted memory foundation; native graph/denominator unchanged. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
@@ -51,7 +51,17 @@ This is guidance, not runtime migration or warning suppression.
 
 ### Latest bounded rental and read-only UI evidence
 
-The reviewed test-only successor corrects the monitor fixture's Graph→Overview
+The current two-file test-only successor retires the unused pinned viewer before
+fixture restart and observes actual thumbnail body/hash completion within unchanged
+limits. SAME affected reviews accepted it; host owning38P + lifecycle1P and separate
+Linux owning38P + lifecycle1P passed. The named browser used existing nativearm64
+Playwright1.62.1 image dcc5531e/cachedNode22.23.3, natural0/noOOM/own cleanup.
+Earlier node:22 lacked13browserlibs, testUNENTERED/exit2; that FIRST is retained.
+PR51 browser125P1F/96genericerrors remains historical FIRST: leaked viewer established,
+but individual error attribution and thumbnail CI cause are not proved. No full
+registered replay, product QA, frozen-owner adoption or V01 acceptance follows.
+
+Predecessor Consoleedda corrects the monitor fixture's Graph→Overview
 transition, mixed discovery mocks, quoted task argv and drift injection. Scoped
 host receipts are browser1P + HTTP5P + memory pair/task2P, not whole CI GREEN.
 PR50 FIRST remains browser124P1F, runtimeA886P2F1S, runtimeB1033P5cancelled1S;

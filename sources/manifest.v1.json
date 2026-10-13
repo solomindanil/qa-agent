@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "edda146c4be80951fd533b72cadd4cbd0e575bcc",
-      "tree": "7c3c3fb98e55a3057b89575a11bb0d5330b94641",
-      "bundle": "sources/candidates/console-ci-fixture-edda146.bundle",
-      "sha256": "37c049d1a530a8c5d01bf45cba21d28c8ca71e6c5f9d09da07ab86f93c6fb774",
+      "commit": "5c5ba674c34544cd5bfbb30d65341d4838165aee",
+      "tree": "bb87ee9e736b455e0a37753a340a81feddf2fb7a",
+      "bundle": "sources/candidates/console-fixture-lifecycle-5c5ba67.bundle",
+      "sha256": "1cf65b4ad7aab61ef54c25aad4af7b578b9c35237e44696c638e76d24212cc11",
       "runtimeAuthority": true,
-      "qualification": "Reviewed test-only CI fixture successor edda over PR50 Console49d, production bytes identical; Kernel6d unchanged. Four exact tests correct Overview transition, mixed-index mock contracts/fail-fast witness, quoted task argv and whole-identifier drift injection; SAME affected source reviews accepted. Named local browser1P + HTTP5P + memory pair/task2P are separate focused receipts, not whole CI GREEN. Actual PR50 FIRST browser124P1F, runtimeA886P2F1S, runtimeB1033P5cancelled1S, Kernel workspace433P1F/30000ms UNKNOWN retained; remaining Kernel was pending at last22:19 read. Targeted Linux HTTP5+drift-pair1 passed6P0F/96.474s, wrapper129.781s exit0/noOOM/cleanup; cachedPython3.11 excludes >=3.13 task-entry and browser bodies. Inherited graph/compatibility attribution and exact limits remain in docs/qualification/current.md. PR50 merge e765 is historical production delivery; this successor's public integration is established only by its actual PR/readback, never inferred as frozen-owner adoption. No product/provider/fullV01 claim."
+      "qualification": "Reviewed two-file test-only fixture successor5c5 over PR51 Consoleedda; every non-test byte identical, Kernel6d unchanged. Retires freshlyPinned4 after its required historical checks and before restart; thumbnail fixture observes actual body/hash completion within unchanged500turn/30s limits. SAME scoped C0/I0/M0 on exact d8f9+c7ed; host owning38P plus lifecycle1P, separate nativeLinux38P plus namedbrowser1P. Browser native used existing Playwright1.62.1-noble arm64 image dcc5531e with explicit cachedNode22.23.3/same-lockdeps; natural0/noOOM/cleanup. Earlier node:22 preflight lacked13browserlibs, bodyUNENTERED/exit2, preserved. Actual PR51 browser125P1F/96genericerrors remains FIRST; leaked viewer is established but individual error attribution and thumbnail CI cause remain unconfirmed. Full registered/UI/source/Kernel suites not replayed; old timeout/CI limits, predecessor evidence and V01 OPEN remain. Current bounded facts: docs/qualification/current.md; public integration requires actual PR/head/base/merge/check readback, never runtime adoption."
     },
     {
       "id": "freeland",
