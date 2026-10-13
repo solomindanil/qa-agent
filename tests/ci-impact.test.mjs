@@ -8,11 +8,39 @@ import { createHash } from 'node:crypto';
 
 const rootUrl = new URL('../', import.meta.url);
 
+test('PR50 exact public source owners and helpers retain routing and literal execution', async () => {
+  const {classifyImpact}=await api(),workflow=await readFile(new URL('../.github/workflows/qa-runtime.yml',import.meta.url),'utf8');
+  const runtime=["tests/unit/agent-memory-browser-compat.test.ts","tests/unit/agent-memory-browser-contract.test.ts","tests/unit/agent-memory-evidence-reader.test.ts","tests/unit/agent-memory-host-grant.test.ts","tests/unit/agent-memory-image.test.ts","tests/unit/agent-memory-ordinary-report.test.ts","tests/unit/agent-memory-primary-integrity.test.ts","tests/unit/agent-memory-report-ui.test.ts","tests/unit/agent-memory-task-cycle.test.ts","tests/unit/agent-memory-task-entry.test.ts","tests/unit/agent-memory-task-help.test.ts","tests/unit/agent-memory-task-host-input.test.ts","tests/unit/agent-memory-task.test.ts","tests/unit/agent-memory-write-recovery.test.ts","tests/unit/agent-request-grounded-contract.test.ts","tests/unit/agent-request-grounded-io.test.ts","tests/unit/agent-request-grounded-owner.test.ts","tests/unit/agent-request-grounded-ui.test.ts","tests/unit/live-mapping.test.ts","tests/unit/qa-browser-gateway.test.mjs","tests/unit/qa-memory-cli.test.ts","tests/unit/qa-memory-pair.test.ts"],browser=["tests/integration/agent-memory-browser-composition.test.ts","tests/integration/qa-browser-gateway.test.mjs"];
+  const runtimeArgv=actualRuntimeArgv(workflow);
+  const line=workflow.split('\n').find(line=>line.includes('node --import tsx --test --test-concurrency=1 tests/unit/browser-journey.test.ts'));
+  assert.ok(line);
+  const browserArgv=spawnSync('/bin/bash',['--noprofile','--norc','-c',`"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' -- ${line.trim().slice('node --import tsx --test --test-concurrency=1'.length)}`,'browser-owner-argv',process.execPath],{encoding:'utf8',env:{PATH:'/usr/bin:/bin'}});
+  assert.equal(browserArgv.status,0,browserArgv.stderr);const browserPaths=JSON.parse(browserArgv.stdout);
+  const cases=[...runtime.map(path=>[path,true,false]),...browser.map(path=>[path,false,true]),
+    ['tests/fixtures/qa-browser-gateway.mjs',false,true],
+    ['tests/helpers/grounded-request.ts',true,true],
+    ['tests/unit/fixtures/journey-check-recommendations-consumer.ts',true,false]];
+  for(const [path,wantRuntime,wantBrowser] of cases){
+    const result=classifyImpact({cohort:'pull_request',components:[component('console',[change(path)])]});
+    assert.deepEqual(result.unsupportedChanges,[],path);
+    assert.equal(result.selection.consoleRuntime,wantRuntime,path);
+    assert.equal(result.selection.consoleBrowser,wantBrowser?'all':'none',path);
+    if(runtime.includes(path)){assert.equal(runtimeArgv.filter(x=>x===path).length,1,path);assert.equal(browserPaths.includes(path),false,path);}
+    if(browser.includes(path)){assert.equal(browserPaths.filter(x=>x===path).length,1,path);assert.equal(runtimeArgv.includes(path),false,path);}
+    for(const record of [change(path,'deleted','100644',null),change(path,'modified','100644','100755')]){
+      const refused=classifyImpact({cohort:'pull_request',components:[component('console',[record])]});
+      assert.deepEqual(refused.unsupportedChanges,[`unmapped or removed Console test: ${path}`]);
+    }
+  }
+  const unknown='tests/helpers/grounded-request-unreviewed.ts';
+  assert.deepEqual(classifyImpact({cohort:'pull_request',components:[component('console',[change(unknown)])]}).unsupportedChanges,[`unmapped or removed Console test: ${unknown}`]);
+});
+
 test('public composition observation and dependency readback owners map and execute exactly once', async () => {
   const { classifyImpact } = await api();
   const workflow = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
   const argv = actualRuntimeArgv(workflow);
-  for (const path of ['tests/unit/campaign-dependency-readback.test.ts', 'tests/unit/campaign-observation.test.ts']) {
+  for (const path of ['tests/unit/campaign-dependency-readback.test.ts', 'tests/unit/campaign-observation.test.ts', 'tests/unit/qa-graph-recommendations-cli.test.ts', 'tests/unit/journey-check-recommendations-consumer.test.ts']) {
     const result = classifyImpact({ cohort: 'pull_request', components: [component('console', [change(path)])] });
     assert.deepEqual(result.unsupportedChanges, [], path);
     if (path.endsWith('campaign-observation.test.ts')) {
@@ -592,12 +620,13 @@ test('U03a actual browser-all shell supplies portable installed Chromium and fre
     ACTIONS_RUNTIME_TOKEN: 'must-not-reach-child', SYNTHETIC_PRIVATE_SENTINEL: 'must-not-reach-child' }, encoding: 'utf8', timeout: 10_000 });
   assert.equal(result.status, 0, result.stderr);
   const actual = JSON.parse(await readFile(record, 'utf8'));
-  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', '--test-concurrency=1', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/unit/qa-campaign-runner.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs', 'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
+  assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', '--test-concurrency=1', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/unit/qa-campaign-runner.test.ts', 'tests/unit/campaign-observation.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs', 'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs', 'tests/integration/agent-memory-browser-composition.test.ts', 'tests/integration/qa-browser-gateway.test.mjs']);
   assert.equal(actual.env.QA_PRIMARY_UI_CHROMIUM, installed);
   assert.equal(actual.env.QA_AGENT_FIXTURE_PYTHON,python);
   assert.equal(actual.env.LD_LIBRARY_PATH,join(pythonPrefix,'lib'));
   assert.equal(actual.env.PYTHONDONTWRITEBYTECODE,'1');
   assert.equal(actual.env.QA_STARTER_REPO, join(dir, 'workspace/components/kernel'));
+  assert.equal(actual.env.QA_STARTER_EXPECTED_SHA, git(kernelRoot, 'rev-parse', 'HEAD'));
   assert.equal(actual.env.PLAYWRIGHT_BROWSERS_PATH, join(dir, 'qa-release-browsers'));
   assert.ok(actual.env.TMPDIR.startsWith(`${dir}/qa-browser.`));
   assert.equal(actual.env.QA_SELECTED_RUN_UI_DIR, join(actual.env.TMPDIR, 'selected-run'));

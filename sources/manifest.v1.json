@@ -4,22 +4,22 @@
     {
       "id": "kernel",
       "path": "components/kernel",
-      "commit": "09300746bd7857e7a5973bd9d81065b746eb72d8",
-      "tree": "20995a692dc6f84dd4d190d17e9650ba312f2068",
-      "bundle": "sources/candidates/kernel-registration-cache-0930074.bundle",
-      "sha256": "c82dc88cec983beae18f3073a4787850f8ab595737ce2c4305ebdb381b0d5bd1",
+      "commit": "6d38980ab77621f4c1fe85872985600a3cf13c9f",
+      "tree": "b93f2aad27c3cbf346f9087ac339dacd4244ef5f",
+      "bundle": "sources/candidates/kernel-memory-foundation-6d38980.bundle",
+      "sha256": "e29e26417f13cbbc8b91b3dd4bec4a814af9e747a5851c7baf7e6e2d9b3950d2",
       "runtimeAuthority": true,
-      "qualification": "UNCHANGED selected Kernel093, delivered with PR44 normal merge b7bd72. PR45 later injected registration/job race FIRST remains unresolved; no observer/timeout repair adopted here and no gate transferred. Current: docs/qualification/current.md."
+      "qualification": "LOCAL isolated product-memory foundation candidate; same Astra source review and affected repairs accepted. Immutable scoped v2 knowledge, explicit associations, exact primary references, bounded derived retrieval and supervised recovery. Recorded local mechanism checks are separate from acceptance: 1001 functional reuse passed1/1 with unchanged480s bound, fixed 10k not run/readiness not accepted, ordinary producer/SRL unstarted. Native graph/denominator unchanged; no existing-owner adoption. Public integration/check results: https://github.com/solomindanil/qa-agent/pull/50; current bounded scope: docs/qualification/current.md."
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "afed2bc74e4da5fce8b32c9b244b851fbb6ccd87",
-      "tree": "ceb0b2cc044ea2c529053704976669c58940ca79",
-      "bundle": "sources/candidates/console-ui-quality-afed2bc.bundle",
-      "sha256": "2d671856ace377403830d0572930768262d0493d98813527c13ebdc99568ace4",
+      "commit": "49d172680c545a62b604b41ba4c3843c2447e2f4",
+      "tree": "480bb4be5236c33b5e908e3d991323cf61a1b63f",
+      "bundle": "sources/candidates/console-pr50-compatibility-49d1726.bundle",
+      "sha256": "513331c4928bf19a7c95ec4653c0ee855e08498b1ca50dcb95f5b59a2c9394f7",
       "runtimeAuthority": true,
-      "qualification": "Reviewed MAIN polish including B1 plus B2 composed over delivered91; bounded stored-verdict provenance, factual selector wording, owner summary/drawer/thumbnails/timeline and conditional passive-capture reference. SAME combined AQA C0/I0/M0. Host125 and native125 distinct affected bodies; source/fixture compilers0/build0; scripted delivery/drawer/mission/current-link checks passed, not actual owner/provider or ToolShop acceptance. Existing v4/observation/owner-output retained; all FIRSTs and registered UNKNOWN/full V01 OPEN remain. CI-wait waiver is not hosted GREEN or runtime adoption. Current: docs/qualification/current.md."
+      "qualification": "Reviewed PR50 compatibility successor49d over test-only Python portability949 and graph-entry952; Kernel6d unchanged. Minimal legacy projector normalization, stale fixture/pin/label contracts and exact root inventory wiring; SAME Astra scoped C0/I0/M0. Legacy projection7P, focused static3P/browser2P, q05 24 distinct scoped passes, compiler0; corrected retained synthetic owner UI ready109 observations+2 remainder in9.507s, protected bytes unchanged, cleanup confirmed. Final applicable Linux subset30P0F/191.996s, wrapper218.899s exit0/noOOM/cleanup; includes one existing registered synthetic CLI consumer, excludes Python>=3.13 supervisor/diagnostic bodies on cached3.11.2. Earlier inventory Linux6+2 belongs949; graph host30/Linux30/root2/typechecks0 belong952. FIRST root438P3F and corrected6P retained; actual CI failures/Kernel timeout UNKNOWN are not relabeled GREEN. No full source-suite, product/provider/native-product/V01 acceptance or frozen-owner adoption. Exact public integration/check results: https://github.com/solomindanil/qa-agent/pull/50; limits and prior attribution: docs/qualification/current.md."
     },
     {
       "id": "freeland",

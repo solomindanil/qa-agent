@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile, mkdtemp, mkdir, writeFile, chmod, symlink, link, lstat, realpath, truncate, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { execFile, spawnSync } from 'node:child_process';
+import { execFile, execFileSync, spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { promisify } from 'node:util';
@@ -13,7 +13,7 @@ function pythonOwnerPrefix(step) {
   const array=step?.match(/^ {10}qa_env=\(\n[\s\S]*?^ {10}\)\n/mu)?.[0];
   assert.ok(array,'actual shared assignment array');
   assert.ok(step.includes('          env -i "${qa_env[@]}" \\\n'));
-  return 'QA_FIXTURE_PYTHON=/tmp/selected-python/bin/python\nqa_python_lib=/tmp/selected-python/lib\n'+array+'          env -i "${qa_env[@]}" \\\n';
+  return 'QA_FIXTURE_PYTHON=/tmp/selected-python/bin/python\nqa_python_lib=/tmp/selected-python/lib\nqa_kernel=0123456789012345678901234567890123456789\n'+array+'          env -i "${qa_env[@]}" \\\n';
 }
 const runtimeInventory = [
   "tests/unit/agent-activity.test.ts",
@@ -23,6 +23,7 @@ const runtimeInventory = [
   "tests/unit/portable-entrypoints.test.ts",
   "tests/unit/runtime-paths.test.ts",
   "tests/unit/qa-product-skill.test.ts",
+  "tests/unit/qa-graph-recommendations-cli.test.ts",
   "tests/unit/qa-product-method-triggers.test.ts",
   "tests/unit/qa-campaign-cli.test.ts",
   "tests/unit/authored-checks.test.ts",
@@ -92,7 +93,30 @@ const runtimeInventory = [
   "tests/unit/qa-monitor-producers.test.ts",
   "tests/unit/primary-ui-monitor.test.ts",
   "tests/unit/selected-campaign-consumer-lifecycle.test.mjs",
-  "tests/unit/campaign-dependency-readback.test.ts"
+  "tests/unit/campaign-dependency-readback.test.ts",
+  "tests/unit/journey-check-recommendations-consumer.test.ts",
+  "tests/unit/agent-memory-browser-compat.test.ts",
+  "tests/unit/agent-memory-browser-contract.test.ts",
+  "tests/unit/agent-memory-evidence-reader.test.ts",
+  "tests/unit/agent-memory-host-grant.test.ts",
+  "tests/unit/agent-memory-image.test.ts",
+  "tests/unit/agent-memory-ordinary-report.test.ts",
+  "tests/unit/agent-memory-primary-integrity.test.ts",
+  "tests/unit/agent-memory-report-ui.test.ts",
+  "tests/unit/agent-memory-task-cycle.test.ts",
+  "tests/unit/agent-memory-task-entry.test.ts",
+  "tests/unit/agent-memory-task-help.test.ts",
+  "tests/unit/agent-memory-task-host-input.test.ts",
+  "tests/unit/agent-memory-task.test.ts",
+  "tests/unit/agent-memory-write-recovery.test.ts",
+  "tests/unit/agent-request-grounded-contract.test.ts",
+  "tests/unit/agent-request-grounded-io.test.ts",
+  "tests/unit/agent-request-grounded-owner.test.ts",
+  "tests/unit/agent-request-grounded-ui.test.ts",
+  "tests/unit/live-mapping.test.ts",
+  "tests/unit/qa-browser-gateway.test.mjs",
+  "tests/unit/qa-memory-cli.test.ts",
+  "tests/unit/qa-memory-pair.test.ts"
 ];
 
 function validateRuntimeMatrix(workflow) {
@@ -129,6 +153,15 @@ test('D2 cleaned Python preflight and owners share selected lib only and refuse 
   const root=await mkdtemp(join(tmpdir(),'qa-python-wiring-'));
   const prefix=join(root,'installation'),python=join(prefix,'bin/python'),lib=join(prefix,'lib'),witness=join(root,'preflight.json');
   await mkdir(join(prefix,'bin'),{recursive:true});await mkdir(lib);
+  const kernel = join(root, 'components/kernel');
+  await mkdir(kernel, {recursive:true});
+  const gitEnv = {PATH:process.env.PATH,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',
+    GIT_AUTHOR_NAME:'Synthetic owner',GIT_AUTHOR_EMAIL:'ci@example.invalid',
+    GIT_COMMITTER_NAME:'Synthetic owner',GIT_COMMITTER_EMAIL:'ci@example.invalid'};
+  for (const args of [['init','--template='],['-c','core.hooksPath=/dev/null','commit','--allow-empty','-m','Synthetic Kernel identity']]) {
+    const result = spawnSync('git', args, {cwd:kernel,env:gitEnv,encoding:'utf8'});
+    assert.equal(result.status, 0, result.stderr);
+  }
   const fake=async status=>{
     await writeFile(python,`#!${process.execPath}\nconst fs=require('node:fs');fs.writeFileSync(${JSON.stringify(witness)},JSON.stringify({argv:process.argv.slice(2),env:process.env}));process.exit(${status});\n`);await chmod(python,0o755);
   };
@@ -139,7 +172,7 @@ test('D2 cleaned Python preflight and owners share selected lib only and refuse 
     const script=step.slice(start,end)+`"$1" -e 'console.log(JSON.stringify(process.env))'`;
     const run=selected=>spawnSync('/bin/bash',['--noprofile','--norc','-c',`set -euo pipefail\n${script}`,'qa-python-env',process.execPath],{encoding:'utf8',env:{
       PATH:`${dirname(process.execPath)}:/usr/bin:/bin`,QA_FIXTURE_PYTHON:selected,LD_LIBRARY_PATH:'/unrelated/inherited',PYTHONPATH:'/unrelated/python',PYTHONHOME:'/unrelated/home',GITHUB_TOKEN:'must-not-leak',
-      qa_tmp:root,GITHUB_WORKSPACE:root,RUNNER_TEMP:root,qa_source:'a'.repeat(40),qa_chromium:'/owned/chromium'}});
+      qa_tmp:root,GITHUB_WORKSPACE:root,RUNNER_TEMP:root,qa_source:'a'.repeat(40),qa_kernel:'b'.repeat(40),qa_chromium:'/owned/chromium'}});
     await fake(0);const result=run(python);assert.equal(result.status,0,result.stderr);
     const preflight=JSON.parse(await readFile(witness,'utf8')),owner=JSON.parse(result.stdout);
     assert.deepEqual(preflight.env,owner,'same actual assignment list');
@@ -151,7 +184,7 @@ test('D2 cleaned Python preflight and owners share selected lib only and refuse 
     await fake(7);const failed=run(python);assert.notEqual(failed.status,0);assert.equal(failed.stdout,'','failed interpreter preflight prevents owner');
     await fake(0);
     const malformed=script.replace('LD_LIBRARY_PATH="${qa_python_lib}"','LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"');
-    const changed=spawnSync('/bin/bash',['--noprofile','--norc','-c',`set -euo pipefail\n${malformed}`,'qa-python-env',process.execPath],{encoding:'utf8',env:{PATH:`${dirname(process.execPath)}:/usr/bin:/bin`,QA_FIXTURE_PYTHON:python,LD_LIBRARY_PATH:'/unrelated/inherited',qa_tmp:root,GITHUB_WORKSPACE:root,RUNNER_TEMP:root,qa_source:'a'.repeat(40),qa_chromium:'/owned/chromium'}});
+    const changed=spawnSync('/bin/bash',['--noprofile','--norc','-c',`set -euo pipefail\n${malformed}`,'qa-python-env',process.execPath],{encoding:'utf8',env:{PATH:`${dirname(process.execPath)}:/usr/bin:/bin`,QA_FIXTURE_PYTHON:python,LD_LIBRARY_PATH:'/unrelated/inherited',qa_tmp:root,GITHUB_WORKSPACE:root,RUNNER_TEMP:root,qa_source:'a'.repeat(40),qa_kernel:'b'.repeat(40),qa_chromium:'/owned/chromium'}});
     assert.equal(changed.status,0,changed.stderr);assert.notEqual(JSON.parse(changed.stdout).LD_LIBRARY_PATH,lib,'inherited-loader mutation is observable');
   }
 });
@@ -161,10 +194,11 @@ test('two runtime cells execute exact prior inventory once with disjoint private
   validateRuntimeMatrix(workflow);
   const observed = await isolatedConsoleAcquisitionEnv(workflow);
   assert.deepEqual(observed.cells.map(cell => cell.argv), [runtimeInventory.filter((_, i) => i % 2 === 0), runtimeInventory.filter((_, i) => i % 2 === 1)]);
-  assert.equal(new Set(observed.argv).size, 77);
-  assert.equal(observed.argv.length, 77);
-  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[39,38]);
-  for (const path of ['tests/unit/campaign-dependency-readback.test.ts']) {
+  assert.equal(new Set(observed.argv).size, 101);
+  assert.equal(observed.argv.length, 101);
+  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[51,50]);
+  assert.equal(observed.env.QA_STARTER_EXPECTED_SHA, execFileSync('git', ['-C', new URL('../components/kernel', import.meta.url).pathname, 'rev-parse', 'HEAD'], {encoding:'utf8'}).trim());
+  for (const path of ['tests/unit/campaign-dependency-readback.test.ts','tests/unit/qa-graph-recommendations-cli.test.ts','tests/unit/journey-check-recommendations-consumer.test.ts']) {
     assert.equal(observed.argv.filter(value => value === path).length, 1, path);
     const omitted = workflow.replace(`              ${path}\n`, '');
     const missing = await isolatedConsoleAcquisitionEnv(omitted);
@@ -744,6 +778,7 @@ test('fixture compiler invocation receives a portable project and no-output flag
 
 const fixtureRoots = [
   'scripts/qa-campaign.ts',
+  'scripts/qa-browser-native-read.mts',
   'tests/fixtures/kernel-i1-authority.ts',
   'tests/fixtures/qa-campaign-evidence.ts',
   'tests/fixtures/nuanu-readonly/fixture.ts',
@@ -758,6 +793,7 @@ const fixtureRoots = [
   'tests/unit/qa-outcomes-export.test.ts',
   'tests/unit/request-admission.test.ts',
   'tests/unit/qa-outcomes.test.ts',
+  'tests/integration/agent-memory-browser-composition.test.ts',
 ];
 
 function validateFixtureConfig(config) {
@@ -946,9 +982,10 @@ test('the permanent browser command actually receives the accepted finite regres
     'qa-permanent-browser-argv', process.execPath], { env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` } });
   assert.deepEqual(JSON.parse(stdout), ['--test-concurrency=1', 'tests/unit/browser-journey.test.ts',
     'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts',
-    'tests/unit/qa-campaign-runner.test.ts',
+    'tests/unit/qa-campaign-runner.test.ts', 'tests/unit/campaign-observation.test.ts',
     'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs',
-    'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs']);
+    'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs',
+    'tests/integration/agent-memory-browser-composition.test.ts', 'tests/integration/qa-browser-gateway.test.mjs']);
 });
 
 function nodeBody(workflow, stepName) {
