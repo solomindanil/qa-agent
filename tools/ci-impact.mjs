@@ -31,6 +31,33 @@ const runtimeTests = new Set([
 ].map(name => `tests/unit/${name}.test.${name.startsWith('campaign-continuation-readback') ||
   ['selected-campaign-readback', 'selected-campaign-consumer-lifecycle'].includes(name) ? 'mjs' : 'ts'}`));
 runtimeTests.add('tests/integration/agent-adapter-fixture.test.ts');
+runtimeTests.add('tests/unit/agent-memory-browser-compat.test.ts');
+runtimeTests.add('tests/unit/agent-memory-browser-contract.test.ts');
+runtimeTests.add('tests/unit/agent-memory-evidence-reader.test.ts');
+runtimeTests.add('tests/unit/agent-memory-host-grant.test.ts');
+runtimeTests.add('tests/unit/agent-memory-image.test.ts');
+runtimeTests.add('tests/unit/agent-memory-ordinary-report.test.ts');
+runtimeTests.add('tests/unit/agent-memory-primary-integrity.test.ts');
+runtimeTests.add('tests/unit/agent-memory-report-ui.test.ts');
+runtimeTests.add('tests/unit/agent-memory-task-cycle.test.ts');
+runtimeTests.add('tests/unit/agent-memory-task-entry.test.ts');
+runtimeTests.add('tests/unit/agent-memory-task-help.test.ts');
+runtimeTests.add('tests/unit/agent-memory-task-host-input.test.ts');
+runtimeTests.add('tests/unit/agent-memory-task.test.ts');
+runtimeTests.add('tests/unit/agent-memory-write-recovery.test.ts');
+runtimeTests.add('tests/unit/agent-request-grounded-contract.test.ts');
+runtimeTests.add('tests/unit/agent-request-grounded-io.test.ts');
+runtimeTests.add('tests/unit/agent-request-grounded-owner.test.ts');
+runtimeTests.add('tests/unit/agent-request-grounded-ui.test.ts');
+runtimeTests.add('tests/unit/live-mapping.test.ts');
+runtimeTests.add('tests/unit/qa-browser-gateway.test.mjs');
+runtimeTests.add('tests/unit/qa-memory-cli.test.ts');
+runtimeTests.add('tests/unit/qa-memory-pair.test.ts');
+const gatewayBrowserInputs = new Set(['tests/fixtures/qa-browser-gateway.mjs',
+  'tests/helpers/grounded-request.ts',
+  'tests/integration/agent-memory-browser-composition.test.ts', 'tests/integration/qa-browser-gateway.test.mjs']);
+const groundedRuntimeInputs = new Set(['tests/helpers/grounded-request.ts',
+  'tests/unit/fixtures/journey-check-recommendations-consumer.ts']);
 const finitePaths = new Set(['tests/fixtures/browser-action-sequence/check.ts', 'tests/unit/browser-action-sequence.test.ts']);
 const dependencyIntakeHelpers = new Set(['tests/fixtures/nuanu-readonly/fixture.ts', 'tests/fixtures/public-auth-readonly/fixture.ts']);
 const selectedReadHelpers = new Set(['tests/fixtures/selected-request-literal.ts']);
@@ -184,7 +211,12 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
       if (ordinary(record) && consoleCompatibilityPaths.has(record.path)) { compatibility(why); continue; }
       if (ordinary(record) && safePath(record.path) && verifiedUnchangedKernel && unchangedKernelConsolePaths.has(record.path)) { compatibility(why); continue; }
       if (ordinary(record) && finitePaths.has(record.path)) { enable('consoleBrowser', why, 'finite'); continue; }
-      if (ordinary(record) && (runtimeTests.has(record.path) || dependencyIntakeHelpers.has(record.path) || selectedReadHelpers.has(record.path) || /^(?:skills|\.claude\/skills)\/.+\.md$/u.test(record.path))) {
+      if (ordinary(record) && gatewayBrowserInputs.has(record.path)) {
+        enable('consoleBrowser', why, 'all');
+        if (groundedRuntimeInputs.has(record.path)) for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) enable(key, why);
+        continue;
+      }
+      if (ordinary(record) && (runtimeTests.has(record.path) || groundedRuntimeInputs.has(record.path) || dependencyIntakeHelpers.has(record.path) || selectedReadHelpers.has(record.path) || /^(?:skills|\.claude\/skills)\/.+\.md$/u.test(record.path))) {
         for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) enable(key, why); continue;
       }
       if (ordinary(record) && (/^(?:src\/(?:components|primary-ui|styles)\/|src\/(?:App\.tsx|main\.tsx|index\.css)$|public\/|index\.html$)/u.test(record.path) ||

@@ -9,7 +9,7 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `952f6d85f0288c00146e269ae5e875ac39b4080f` | Local accepted journey recommendation entry port; retains baseline display, A7b usability, Q04 and memory/browser predecessors. |
+| Console | `49d172680c545a62b604b41ba4c3843c2447e2f4` | Reviewed PR50 legacy-report compatibility and stale-fixture successor over test-only949 and graph-entry952; predecessors retained. |
 | Kernel | `6d38980ab77621f4c1fe85872985600a3cf13c9f` | Unchanged local accepted memory foundation; native graph/denominator unchanged. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
@@ -40,14 +40,25 @@ This is guidance, not runtime migration or warning suppression.
 
 | Existing plan family | Implemented / locally verified | Delivered / remaining / next |
 | --- | --- | --- |
-| U01/U02, B02/L00 | Current/saved request reports, Graph/Coverage/Plan and truthful pending/unknown boundaries. Local baseline fix accepted by SAME Astra; final affected owner54P0F, compiler/build0. | Local successor only. Continue through ordinary owner admission, not developer fixture shortcuts. Independent INVALID_MEMBER discovery warning remains. |
+| U01/U02, B02/L00 | Current/saved request reports, Graph/Coverage/Plan and truthful pending/unknown boundaries. Local baseline fix accepted by SAME Astra; final affected owner54P0F, compiler/build0. | PR50 pending merge. Continue through ordinary owner admission, not developer fixture shortcuts. Independent INVALID_MEMBER discovery warning remains. |
 | Q04/Q05 | Finite synthetic persistence example8P (earlier owning36P); bounded A7b usability owners21P/14P, CLI3P, reference/Timeline controls; original FIRSTs retained. | No full Q04/Q05 or sufficiency/product verdict acceptance. Future checks require genuine supported owner evidence, not declaration/link counts. |
 | K01/K02/L02 | Existing guarded Kernel API now has restored advisory Console CLI/reference; SAME Astra GO, host30P including healthy/broken HTTP200 content consumer, root2P/typechecks0 and same30 affected Linux bodies30P0F/224.36s (Node22.23.3 arm64, wrapper exit0/262.96s, no OOM, own cleanup confirmed). Memory predecessors retained. | PR43 remains historical unmerged, not wholesale adoption. No hosted CI, causal uplift, full L02/V01, autonomous reuse or general memory benefit claim; applicability and full remainder stay explicit. |
-| P01, Q02/T00 | Passive capture/detectors/declared input partitions and existing skill/tool routing are available source; outputs are candidates/planned checks, never PASS. | Claude's generic prototypes/pilot workflow remain pending final package/design/adoption. Do not import unfinished code, add lifecycle or infer completeness from no candidates. |
+| P01, Q02/T00 | Passive capture/detectors/declared input partitions and existing skill/tool routing are available source; outputs are candidates/planned checks, never PASS. | Claude's final generic prototype package was received and design-triaged, NOT adopted here. Do not infer completeness from no candidates. |
 | O00, N00 | Guide explains unknown cost, CLI estimates, recorded intervals vs walltime/cohorts; exact registered product.slug and canonical owner entry clarified. Current entry is now compact. | No full QA-phase/setup/review/retry measurement, causal prevention or unattended entry proof. |
 | V01 / U03b | Source and bounded consumer mechanisms above are usable within stated scope. | Full V01 and comparable evolution history remain OPEN. UI stale-choice proposal remains pending; no speculative UI/runtime repair. |
 
 ### Latest bounded rental and read-only UI evidence
+
+PR50's minimal legacy-format projector repair reached the retained synthetic
+109-observation request through actual selected admission: ready109 +2 remainder
+in9.507s, protected workspace/store/packet bytes and modes unchanged, own cleanup
+confirmed. This is not a full original E2E or product/V01 acceptance. Final scoped
+Linux30P0F/191.996s (wrapper218.899s, natural0/noOOM/cleanup) includes an existing
+registered synthetic CLI consumer; Python>=3.13 supervisor/diagnostic bodies were
+not run on cached3.11.2. Earlier Linux6+2 belongs949; graph30 belongs952.
+Source/compiler and scoped SAME reviews accepted the repairs; original CI FIRSTs,
+root438P3F and corrected6P remain attributed. Unchanged Kernel30000ms failures
+remain causeUNKNOWN; a CI-wait waiver does not turn old failed or pending jobs GREEN.
 
 The separate rental continuation was accepted only at its declared bounded scope.
 No full-product, general memory-benefit or new live result is inferred here.

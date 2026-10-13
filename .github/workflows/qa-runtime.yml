@@ -225,6 +225,28 @@ jobs:
               tests/unit/selected-campaign-consumer-lifecycle.test.mjs
               tests/unit/campaign-dependency-readback.test.ts
               tests/unit/journey-check-recommendations-consumer.test.ts
+              tests/unit/agent-memory-browser-compat.test.ts
+              tests/unit/agent-memory-browser-contract.test.ts
+              tests/unit/agent-memory-evidence-reader.test.ts
+              tests/unit/agent-memory-host-grant.test.ts
+              tests/unit/agent-memory-image.test.ts
+              tests/unit/agent-memory-ordinary-report.test.ts
+              tests/unit/agent-memory-primary-integrity.test.ts
+              tests/unit/agent-memory-report-ui.test.ts
+              tests/unit/agent-memory-task-cycle.test.ts
+              tests/unit/agent-memory-task-entry.test.ts
+              tests/unit/agent-memory-task-help.test.ts
+              tests/unit/agent-memory-task-host-input.test.ts
+              tests/unit/agent-memory-task.test.ts
+              tests/unit/agent-memory-write-recovery.test.ts
+              tests/unit/agent-request-grounded-contract.test.ts
+              tests/unit/agent-request-grounded-io.test.ts
+              tests/unit/agent-request-grounded-owner.test.ts
+              tests/unit/agent-request-grounded-ui.test.ts
+              tests/unit/live-mapping.test.ts
+              tests/unit/qa-browser-gateway.test.mjs
+              tests/unit/qa-memory-cli.test.ts
+              tests/unit/qa-memory-pair.test.ts
           )
           case "${QA_RUNTIME_SHARD}" in
             a) qa_offset=0 ;;
@@ -254,6 +276,7 @@ jobs:
             LANG=C.UTF-8
             TMPDIR="${qa_tmp}"
             QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel"
+            QA_STARTER_EXPECTED_SHA="$(git -C "${GITHUB_WORKSPACE}/components/kernel" rev-parse HEAD)"
             QA_CONSOLE_STATE="${qa_tmp}/receipts.json"
             QA_CONSOLE_PRIVATE_ROOT="${qa_tmp}/private"
             QA_REGISTRATION_STORE="${qa_tmp}/store"
@@ -418,6 +441,7 @@ jobs:
             PATH="${PATH}"
             TMPDIR="${qa_tmp}"
             QA_STARTER_REPO="${GITHUB_WORKSPACE}/components/kernel"
+            QA_STARTER_EXPECTED_SHA="${qa_kernel}"
             QA_SELECTED_RUN_UI_DIR="${qa_tmp}/selected-run"
             QA_SELECTED_REQUEST_UI_DIR="${qa_tmp}/selected-request"
             QA_SELECTED_REQUEST_FINITE_DIR="${qa_tmp}/selected-request-finite"
@@ -433,7 +457,7 @@ jobs:
           )
           env -i "${qa_env[@]}" "${QA_FIXTURE_PYTHON}" -c 'import os,sys; assert sys.version_info[:2] == (3, 13) and sys.version_info.releaselevel == "final"; expected=os.environ["QA_AGENT_FIXTURE_PYTHON"]; assert os.path.realpath(sys.executable)==os.path.realpath(expected); assert os.path.realpath(sys.prefix)==os.path.realpath(os.path.dirname(os.path.dirname(expected))); print("fixture-python="+sys.executable+" version="+sys.version.split()[0]+" prefix="+sys.prefix+" lib="+os.environ["LD_LIBRARY_PATH"])'
           env -i "${qa_env[@]}" \
-            node --import tsx --test --test-concurrency=1 tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/unit/qa-campaign-runner.test.ts tests/unit/campaign-observation.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs tests/e2e/selected-agent-request-finite-read-local.test.mjs tests/e2e/qa-monitor-local.test.mjs
+            node --import tsx --test --test-concurrency=1 tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/unit/qa-campaign-runner.test.ts tests/unit/campaign-observation.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs tests/e2e/selected-agent-request-finite-read-local.test.mjs tests/e2e/qa-monitor-local.test.mjs tests/integration/agent-memory-browser-composition.test.ts tests/integration/qa-browser-gateway.test.mjs
       - name: Stage selected request evidence
         id: request-evidence
         if: always() && needs.impact.outputs.console-browser == 'all' && steps.browser-all.outcome != 'skipped'

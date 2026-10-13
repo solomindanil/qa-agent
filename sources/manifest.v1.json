@@ -9,17 +9,17 @@
       "bundle": "sources/candidates/kernel-memory-foundation-6d38980.bundle",
       "sha256": "e29e26417f13cbbc8b91b3dd4bec4a814af9e747a5851c7baf7e6e2d9b3950d2",
       "runtimeAuthority": true,
-      "qualification": "LOCAL isolated product-memory foundation candidate; same Astra source review and affected repairs accepted. Immutable scoped v2 knowledge, explicit associations, exact primary references, bounded derived retrieval and supervised recovery. Recorded local mechanism checks are separate from acceptance: 1001 functional reuse passed1/1 with unchanged480s bound, fixed 10k not run/readiness not accepted, ordinary producer/SRL unstarted. Native graph/denominator unchanged; no public CI/push or existing-owner adoption. Current: docs/qualification/current.md."
+      "qualification": "LOCAL isolated product-memory foundation candidate; same Astra source review and affected repairs accepted. Immutable scoped v2 knowledge, explicit associations, exact primary references, bounded derived retrieval and supervised recovery. Recorded local mechanism checks are separate from acceptance: 1001 functional reuse passed1/1 with unchanged480s bound, fixed 10k not run/readiness not accepted, ordinary producer/SRL unstarted. Native graph/denominator unchanged; no existing-owner adoption. Public integration/check results: https://github.com/solomindanil/qa-agent/pull/50; current bounded scope: docs/qualification/current.md."
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "952f6d85f0288c00146e269ae5e875ac39b4080f",
-      "tree": "363e3714e635690b33850ccf7793896ac2d86871",
-      "bundle": "sources/candidates/console-graph-entry-952f6d8.bundle",
-      "sha256": "8694608d6f4f053af9dd18b90ef4fbcb29e424fb4e2b3144212d371d9f97878b",
+      "commit": "49d172680c545a62b604b41ba4c3843c2447e2f4",
+      "tree": "480bb4be5236c33b5e908e3d991323cf61a1b63f",
+      "bundle": "sources/candidates/console-pr50-compatibility-49d1726.bundle",
+      "sha256": "513331c4928bf19a7c95ec4653c0ee855e08498b1ca50dcb95f5b59a2c9394f7",
       "runtimeAuthority": true,
-      "qualification": "LOCAL accepted Console port of existing journey recommendation entry over29f on unchangedKernel6d; exact nine-path source from frozen8e with current skill additions preserved, SAME Astra C0/I0/M0. Advisory CLI/recipe, host30P including synthetic HTTP200 healthy and broken json_pointer_mismatch consumer, root literal wiring2P/source+owning typechecks0. LinuxUNRUN; missing-entry FIRST retained. PR43 historical unmerged, not adopted wholesale. Prior baseline/A7b/Q04/memory histories unchanged; no product/provider/native-product/fullK01/K02/L02/V01 acceptance or frozen-owner/public adoption. Current: docs/qualification/current.md."
+      "qualification": "Reviewed PR50 compatibility successor49d over test-only Python portability949 and graph-entry952; Kernel6d unchanged. Minimal legacy projector normalization, stale fixture/pin/label contracts and exact root inventory wiring; SAME Astra scoped C0/I0/M0. Legacy projection7P, focused static3P/browser2P, q05 24 distinct scoped passes, compiler0; corrected retained synthetic owner UI ready109 observations+2 remainder in9.507s, protected bytes unchanged, cleanup confirmed. Final applicable Linux subset30P0F/191.996s, wrapper218.899s exit0/noOOM/cleanup; includes one existing registered synthetic CLI consumer, excludes Python>=3.13 supervisor/diagnostic bodies on cached3.11.2. Earlier inventory Linux6+2 belongs949; graph host30/Linux30/root2/typechecks0 belong952. FIRST root438P3F and corrected6P retained; actual CI failures/Kernel timeout UNKNOWN are not relabeled GREEN. No full source-suite, product/provider/native-product/V01 acceptance or frozen-owner adoption. Exact public integration/check results: https://github.com/solomindanil/qa-agent/pull/50; limits and prior attribution: docs/qualification/current.md."
     },
     {
       "id": "freeland",
