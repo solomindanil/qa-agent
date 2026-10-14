@@ -4,22 +4,22 @@
     {
       "id": "kernel",
       "path": "components/kernel",
-      "commit": "dbc9520d034276c2e9c9a93e6df486d623277508",
-      "tree": "33821b6371f51be123d1a46b27497a63e7998130",
-      "bundle": "sources/candidates/kernel-memory-lossless.bundle",
-      "sha256": "fd9287c62b27ddb271e3d8effbde1106bc01ec03de9b966a760040f23aad2a62",
+      "commit": "f797d24aab1e7cbc55b88e380f756af4c771b775",
+      "tree": "8a58e4844ca4b35b4815bcf7b8f7ae75b92be011",
+      "bundle": "sources/candidates/kernel-compatible-continuation.bundle",
+      "sha256": "284a5ee0549f1248df87b1e43ef7f54cc285b1de5eb66db7946dfb1e3c0bf0f3",
       "runtimeAuthority": true,
-      "qualification": "LOCAL SAME actual Astra GO bounded lossless memory dbc9520 over22d08: stored-v2/mixed physical32KiB; compact draft/v1/direct-v1 remain16KiB; aggregate receipt reasons32, global budgets unchanged. Nine exact Kernel files including new lossless owner/helper, no cropping/splitting/migration. FIRST writer/reference failures and recovery guard-removal allocation mutation retained. Affected Kernel34P0F then final recovery1P0F/6deselected overlapping, final source/tests typing0; host only. Linux bodies UNENTERED daemon unavailable. Old readers not forward compatible; no fullKernel/10k-scale/general reliability/product/V01 replay or owner adoption. Prior bounded receipt/identity/authority guards preserved. Current facts: docs/qualification/current.md."
+      "qualification": "LOCAL compatible-authored continuation candidate f797d24 overdbc9520: shared owning exact transaction proof, unchanged normative graph/full profile, exact validated native inventory snapshot/accounting and explicit v6 format. Targeted proof/native/schema controls and source typing passed; independently valid same-ID normative drift refused. Prior bounded lossless-v2 memory remains unchanged (stored/mixed32KiB, draft/v1/direct-v1 16KiB, aggregate reasons32). FIRST preserved; Linux/fullKernel/product/V01 not qualified, no migration/owner adoption. Final combined SAME Astra carrier review pending. Current facts: docs/qualification/current.md."
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "dd6ab8c19bf7c38800bbceff16f9cac5c641842a",
-      "tree": "49a9b74c3da7c50f5b1f78ea80d9523f3b5436b5",
-      "bundle": "sources/candidates/console-runtime-fixtures.bundle",
-      "sha256": "9f70b3b21f5586ea01885302fcd565d174f4fc569add5602f8c20c209602d078",
+      "commit": "e04d56c56519ea1956a4ce9b444d9d5c4f3cedfa",
+      "tree": "4727775fecea2eded079e9caa317411a61fa5c7b",
+      "bundle": "sources/candidates/console-compatible-continuation.bundle",
+      "sha256": "0e834b523cb9f7a51b06266e81797dc4ee55ec63e05e68b904b531e69753d7e1",
       "runtimeAuthority": true,
-      "qualification": "LOCAL SAME actual Astra GO two-test-only stale-fixture correction dd6ab8c over68e58ca: existing exact Kernel pin and obsolete-pin/activity-empty refusal; accepted UI request-branch hash and sensitive refresh-wiring reversal. FIRST0P2F to host affected5P0F. Linux unexecuted missing prior caches; no runtime/authority/UI semantic change or whole CI GREEN. Inherited: LOCAL SAME actual Astra combined GO for two identical generic original-image handoff references68e58ca overcb1925a, unchanged Kerneldbc9520 peer pin. Authorized originals remain external to text-only exports; one existing bounded reader opens selected images, retains provenance/identity/state/viewport unknowns and opened/missing/wrong-state/unreviewed scope. Host existing skill-owner24P0F; LinuxNode22.23.3 dependency-free source/mirror/readback only, not Linux owner/browser qualification. ONE fresh offline synthetic FIRST supported healthy image, identified pixel contradiction to authored healthy prose, retained wrong-state/missing image gaps. Image-open claims reader-attributed, no tool audit; elapsed/costunknown, no baseline/causal uplift/general visual reliability/fullQ claim. No new image API/store/schema/v9 attachment/base64/detector/reader, private packet publication, product/ToolShop/V01 replay or owner adoption. Prior memory/Qmethod/Q04/UI source and qualifications inherited unchanged, not rerun; memory old-reader incompatibility and Linux/test-inclusive typing limits remain. Current facts: docs/qualification/current.md."
+      "qualification": "LOCAL compatible-authored continuation candidate e04d56c overdd6ab8c paired Kernelf797d24: explicit v6 predecessor/history/report/export/monitor, writer-owned pre-change baseline and exact authorized URL; opt-in current_owner grantv2 and durable same-operation association CAS intent. Anonymous read_only/no-secret unchanged request/normative authority only; strict v5/grantv1 preserved. Main request-bound owning composition1P0F147.50s includes preserved v5 bytes, synthetic native receipt accounting/compound remainder and same-session note save/read. Worker durable/unknown/exact-input controls separately attributed; main resolver1P0F13.38s and CLI1P0F close affected review findings. Source typing/build0 with existing chunk warning. Complete fixture grant9234B<16384; larger owner refused, no universal fit. FIRST retained. Linux/fullCI/product/V01/generalQ not qualified, no migration/frozen-owner adoption. Prior Qmethod/UI/image/lossless qualifications inherited without replay. Final SAME Astra carrier review pending. Current facts: docs/qualification/current.md."
     },
     {
       "id": "freeland",

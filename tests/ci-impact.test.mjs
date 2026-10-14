@@ -67,6 +67,19 @@ test('primary delivery mounted argv executes complete existing config with owned
   assert.throws(()=>requireOwner(workflow.replace('node node_modules/@playwright/test/cli.js test','node --version')),'Absent mounted execution cannot pass');
 });
 
+test('compatible continuation owners route to and execute once in the existing runtime lane',async()=>{
+ const {classifyImpact}=await api(),workflow=await readFile(new URL('../.github/workflows/qa-runtime.yml',import.meta.url),'utf8');
+ for(const path of ['tests/unit/agent-request-compatible-owner.test.ts','tests/unit/agent-request-compatible.test.ts','tests/unit/compatible-request-admission.test.ts']){
+   const selected=classifyImpact({cohort:'pull_request',components:[component('console',[change(path,'added',null,'100644')])]});
+   assert.deepEqual(selected.unsupportedChanges,[],path);assert.equal(selected.selection.consoleRuntime,true,path);
+   const requireOwner=source=>assert.equal(actualRuntimeArgv(source).filter(arg=>arg===path).length,1,path);
+   requireOwner(workflow);
+   assert.throws(()=>requireOwner(workflow.replace(`              ${path}\n`,'')),'An omitted invocation cannot pass by mapping alone');
+   for(const record of [change(path,'deleted','100644',null),change(path,'modified','100644','100755')])assert.deepEqual(classifyImpact({cohort:'pull_request',components:[component('console',[record])]}).unsupportedChanges,[`unmapped or removed Console test: ${path}`]);
+ }
+ const unknown='tests/unit/compatible-request-unreviewed.test.ts';
+ assert.deepEqual(classifyImpact({cohort:'pull_request',components:[component('console',[change(unknown)])]}).unsupportedChanges,[`unmapped or removed Console test: ${unknown}`]);
+});
 test('PR50 exact public source owners and helpers retain routing and literal execution', async () => {
   const {classifyImpact}=await api(),workflow=await readFile(new URL('../.github/workflows/qa-runtime.yml',import.meta.url),'utf8');
   const runtime=["tests/unit/agent-memory-browser-compat.test.ts","tests/unit/agent-memory-browser-contract.test.ts","tests/unit/agent-memory-evidence-reader.test.ts","tests/unit/agent-memory-host-grant.test.ts","tests/unit/agent-memory-image.test.ts","tests/unit/agent-memory-ordinary-report.test.ts","tests/unit/agent-memory-primary-integrity.test.ts","tests/unit/agent-memory-report-ui.test.ts","tests/unit/agent-memory-task-cycle.test.ts","tests/unit/agent-memory-task-entry.test.ts","tests/unit/agent-memory-task-help.test.ts","tests/unit/agent-memory-task-host-input.test.ts","tests/unit/agent-memory-task.test.ts","tests/unit/agent-memory-write-recovery.test.ts","tests/unit/agent-request-grounded-contract.test.ts","tests/unit/agent-request-grounded-io.test.ts","tests/unit/agent-request-grounded-owner.test.ts","tests/unit/agent-request-grounded-ui.test.ts","tests/unit/live-mapping.test.ts","tests/unit/qa-browser-gateway.test.mjs","tests/unit/qa-memory-cli.test.ts","tests/unit/qa-memory-pair.test.ts"],browser=["tests/integration/agent-memory-browser-composition.test.ts","tests/integration/qa-browser-gateway.test.mjs"];
