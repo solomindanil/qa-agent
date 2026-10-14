@@ -9,12 +9,21 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `514673fcdf096a1662e5b08560b2aa70d97a18cb` | Mechanical Kernel22d08b4 peer pin over delivered SAME Astra-reviewed Q05/Q06 method67ec; Q04/method predecessors retained. |
+| Console | `0cfb4e214d82d5d788fa4b62937c7fd4c2495845` | SAME Astra-reviewed retained request-model display; four exact files carried onto514673f, preserving Qmethod67ec and Kernel22d08b4 peer pin. |
 | Kernel | `22d08b466595f51f4afc76366f40e6f40d6db89b` | SAME Astra-reviewed bounded note-receipt read before parsing over11afe; existing16KiB/reason limits and native graph/denominator unchanged. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+Retained model display: SAME Astra scoped source GO. Four reviewed UI files carried
+unchanged from tested Console163f/Kernel11afe onto the selected pair above; host11P,
+mounted1P, source/test strict typing0 and build0 (existing warnings). ROOT's existing
+trace-frame spotcheck is separately attributed. Same-selection preparing/unreachable
+retains last-verified facts while current model/evidence/download admission stays
+unavailable; changed/refused/missing selection and incompatible basis still clear.
+Linux FIRST entered no unit/typing/build/mounted bodies; missing cached build/native
+dependencies left the corrected attempt unrun. No Linux PASS, platform/whole-UI,
+visual/accessibility/product qualification or V01 replay is claimed.
 Bounded memory receipt repair: SAME actual Astra GO for three owning Kernel files.
 FIRST3 failures retained; earlier host18P then exact-final sensitive host1P/14deselected
 and typing0, exact-final nativeLinux18P/typing0 (626.84s), natural0/own cleanup.
