@@ -9,12 +9,21 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `68e58caa3715ef3b1186b7bf21f51924048cb7cb` | SAME Astra-reviewed original-image external handoff method overcb1925a; lossless memory, Kerneldbc9520 peer pin and prior Qmethod/UI retained. |
+| Console | `dd6ab8c19bf7c38800bbceff16f9cac5c641842a` | SAME Astra-reviewed two-fixture correction over68e58ca; runtime unchanged, original-image method, lossless memory, Kerneldbc9520 peer pin and prior Qmethod/UI retained. |
 | Kernel | `dbc9520d034276c2e9c9a93e6df486d623277508` | SAME Astra-reviewed finite lossless-v2 capacity over22d08; graph/denominator and global budgets unchanged. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+Bounded runtime-fixture correction: SAME actual Astra GO for two Console tests only.
+The Claude staging fixture now uses the existing exact Kernel pin and still refuses
+the obsolete pin before activity creation; S2's literal request-branch guard tracks
+the accepted retained-facts/stale timestamp change and rejects its reversal.
+Host FIRST0P2F → affected5P0F; Linux unexecuted (previous caches absent), no installs.
+No runtime/authority/UI behavior change or full-suite/CI GREEN claim. PR62 terminal
+5 SUCCESS/2 FAILURE/2 SKIPPED and PR63 8 SUCCESS/2 FAILURE/1 CANCELLED retained;
+both runtime-smoke(b) logs show the same two stale-fixture failures, not timeouts.
+Their prior results are not relabelled PASS by this local repair; FIRST retained.
 Bounded opt-in pooled style: SAME actual Astra GO for root tools/tests only;
 `detect.mjs --pooled` analyses already authorized saved facts, adding low-confidence
 candidates and non-candidate spread context without changing default bytes/IDs or
