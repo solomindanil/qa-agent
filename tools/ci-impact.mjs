@@ -65,7 +65,7 @@ const groundedRuntimeInputs = new Set(['tests/helpers/grounded-request.ts',
   'tests/unit/fixtures/journey-check-recommendations-consumer.ts']);
 const finitePaths = new Set(['tests/fixtures/browser-action-sequence/check.ts', 'tests/unit/browser-action-sequence.test.ts']);
 const dependencyIntakeHelpers = new Set(['tests/fixtures/nuanu-readonly/fixture.ts', 'tests/fixtures/public-auth-readonly/fixture.ts']);
-const runtimeFixtures = new Set(['tests/fixtures/nuanu-readonly/serve.ts']);
+const runtimeFixtures = new Set(['tests/fixtures/nuanu-readonly/serve.ts', 'tests/fixtures/nuanu-readonly/README.md']);
 const selectedReadHelpers = new Set(['tests/fixtures/selected-request-literal.ts']);
 const consoleCompatibilityPaths = new Set([
   'server/agent-observation-cli.mjs', 'server/bridge.mjs', 'server/selected-campaign-readback.mjs',
