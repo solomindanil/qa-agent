@@ -9,12 +9,25 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `0cfb4e214d82d5d788fa4b62937c7fd4c2495845` | SAME Astra-reviewed retained request-model display; four exact files carried onto514673f, preserving Qmethod67ec and Kernel22d08b4 peer pin. |
-| Kernel | `22d08b466595f51f4afc76366f40e6f40d6db89b` | SAME Astra-reviewed bounded note-receipt read before parsing over11afe; existing16KiB/reason limits and native graph/denominator unchanged. |
+| Console | `cb1925afd4d0dfa8733677756a201e6c1cecaed4` | SAME Astra-reviewed lossless memory reader/owner plus mechanical Kerneldbc9520 peer pin over0cfb4e2; prior Qmethod/UI retained. |
+| Kernel | `dbc9520d034276c2e9c9a93e6df486d623277508` | SAME Astra-reviewed finite lossless-v2 capacity over22d08; graph/denominator and global budgets unchanged. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+Bounded lossless memory: SAME actual Astra GO for exact11 source/owner/helper files.
+Stored-v2 records and mixed physical reads32KiB; compact draft/v1/direct-v1 stay16KiB;
+aggregate receipt reasons32, unrelated/global budgets unchanged. No cropping or
+splitting; old readers are not forward compatible, frozen owners remain unchanged.
+Host Kernel34P0F then repaired recovery1P0F/6deselected (overlapping), exact-final
+Kernel source/tests typing0; Console owner6P0F then final2P0F (overlapping), source
+typing0. Separate Console test-inclusive probes retain old fixture/vendor failures
+and are NOT qualified. Actual ordinary paired synthetic save retained8345-byte
+draft as27774-byte canonical record with two root references/all22 exact reasons,
+provenance/unknowns, read/recall/replay;32 reasons/+1 boundaries and recovery
+allocation mutation are sensitive. FIRST writer/reference/typing failures retained.
+Linux bodies UNENTERED; no full memory/scale/performance/product/V01 acceptance,
+old frozen-intent retry or original failed save success is inferred.
 Retained model display: SAME Astra scoped source GO. Four reviewed UI files carried
 unchanged from tested Console163f/Kernel11afe onto the selected pair above; host11P,
 mounted1P, source/test strict typing0 and build0 (existing warnings). ROOT's existing
@@ -31,6 +44,25 @@ This bounds reads before parsing and retains lawful skipped-v2 receipts through 
 verification; it does not raise capacity, make the oversized V01 note save succeed,
 prove 10k scale/full memory reliability or replay V01. Pre-body setup failures and
 possible prior donor-cache write remain disclosed; no terminal final OOM claim.
+Bounded native-fact reconciliation: SAME actual Astra accepted one fresh-reader
+FIRST on an offline synthetic packet using the unchanged method. It challenged
+Alpha's authored success against an independently required status200 assertion's
+failure without inventing absent raw actual; preserved healthy expected403 Beta;
+and retained Gamma's passed prefix plus unlinked/not-reached compound remainder.
+Reader-reported window58s, cost unknown; frozen inputs and FIRST retained.
+No method/runtime defect or new code was justified; this is not causal uplift,
+general reliability, full Q04/Q05/Q06 completion, live acceptance or V01 replay.
+Root-only CI closure: [PR59](https://github.com/solomindanil/qa-agent/pull/59)
+merged `0add4f7f576077d87dac721a4291216b1e664aeb`, wiring the existing refresh
+unit and complete mounted owner into existing lanes; affected host12P0F after
+preserved owning394P1F. [PR60](https://github.com/solomindanil/qa-agent/pull/60)
+merged `96315602f031f127cc1ae348e149781c65a80124`, reconciling the independent
+literal inventory/omission guard: FIRST57P1F then58P0F. Actual head/base selectors
+and source identities verified; component pins unchanged. PR59 CI FIRST720P1F1skip
+is retained, not relabelled; PR60 delivery readback had checks IN_PROGRESS,
+not whole CI GREEN. Linux root bodies were UNENTERED (daemon unavailable),
+separate from the UI Linux dependency gap. New primary report/trace upload
+retention after runner expiry remains limited. No product/UI/V01 replay.
 PR50's production sources were locally qualified in the bounded scopes below.
 Their integration is tracked in [PR #50](https://github.com/solomindanil/qa-agent/pull/50);
 it was merged into develop as `e7659c88b214cd87b8957a180434022142dacebf`.
@@ -80,7 +112,7 @@ This is guidance, not runtime migration or warning suppression.
 | K01/K02/L02 | Existing guarded Kernel API now has restored advisory Console CLI/reference; SAME Astra GO, host30P including healthy/broken HTTP200 content consumer, root2P/typechecks0 and same30 affected Linux bodies30P0F/224.36s (Node22.23.3 arm64, wrapper exit0/262.96s, no OOM, own cleanup confirmed). Memory predecessors retained. | PR43 remains historical unmerged, not wholesale adoption. No hosted CI, causal uplift, full L02/V01, autonomous reuse or general memory benefit claim; applicability and full remainder stay explicit. |
 | P01, Q02/T00; B02/Q05 discovery | Explicit saved-data lexical index and opt-in partitions-v2 adopted in the bounded source slice; mirrored delivered-root discovery and early supported-new-request v5 selection. SAME Astra GO after retained reversed-label FIRST0P1F; host70+24+1 and exact nativeLinux70+24+1 passed, natural0/noOOM/owncleanup65.427s. | Defaults/v1/capture/detect/reached and owner/gateway contracts unchanged; no auto capture/new hints/hidden metadata, migration or renderer change. Null/unknown ideas are not norms, lexical mentions are not dispositions/qualified owner evidence. P01 usefulness and Q05/Q06 completeness remain OPEN. |
 | O00, N00 | Guide explains unknown cost, CLI estimates, recorded intervals vs walltime/cohorts; exact registered product.slug and canonical owner entry clarified. Current entry is now compact. | No full QA-phase/setup/review/retry measurement, causal prevention or unattended entry proof. |
-| V01 / U03b | Fresh bounded ordinary registration FIRST passed; SAME actual Astra accepted bounded V01 on 14 October: no-doc catalogue → safe stop → fresh same-request continuation → live/history/report/export. | Bounded Q04 guard and Q05/Q06 method above do not close broader quality/remainder scope; continue applicable K02/L02/S01/S02 and demonstrated gaps. U03b, broader product/host qualification and global plan remain OPEN. UI is not wholly stable; no speculative repair. |
+| V01 / U03b | Fresh bounded ordinary registration FIRST passed; SAME actual Astra accepted bounded V01 on 14 October: no-doc catalogue → safe stop → fresh same-request continuation → live/history/report/export. | Priority remains Q04/Q05/Q06 factual quality/remainder; memory/UI proceed only on demonstrated gaps. Bounded guards/method/native-FIRST do not close broader quality scope; then applicable K02/L02/S01/S02. U03b, broader product/host qualification and global plan remain OPEN. UI is not wholly stable; no speculative repair or V01 replay. |
 
 ### Accepted bounded V01 · 14 October 2026
 
