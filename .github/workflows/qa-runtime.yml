@@ -244,6 +244,9 @@ jobs:
               tests/unit/agent-request-grounded-io.test.ts
               tests/unit/agent-request-grounded-owner.test.ts
               tests/unit/agent-request-grounded-ui.test.ts
+              tests/unit/agent-request-compatible-owner.test.ts
+              tests/unit/agent-request-compatible.test.ts
+              tests/unit/compatible-request-admission.test.ts
               tests/unit/live-mapping.test.ts
               tests/unit/qa-browser-gateway.test.mjs
               tests/unit/qa-memory-cli.test.ts

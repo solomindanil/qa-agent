@@ -9,12 +9,25 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `dd6ab8c19bf7c38800bbceff16f9cac5c641842a` | SAME Astra-reviewed two-fixture correction over68e58ca; runtime unchanged, original-image method, lossless memory, Kerneldbc9520 peer pin and prior Qmethod/UI retained. |
-| Kernel | `dbc9520d034276c2e9c9a93e6df486d623277508` | SAME Astra-reviewed finite lossless-v2 capacity over22d08; graph/denominator and global budgets unchanged. |
+| Console | `e04d56c56519ea1956a4ce9b444d9d5c4f3cedfa` | Explicit compatible authored-check continuation, v6 history/report/export/monitor and opt-in current_owner grant v2; prior Qmethod/UI/lossless memory retained. |
+| Kernel | `f797d24aab1e7cbc55b88e380f756af4c771b775` | Shared owning compatibility proof and exact issued native-authority inventory; prior lossless memory, normative graph/denominator and global budgets preserved. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+Bounded compatible continuation is opt-in for anonymous read_only/no-secret checks
+with unchanged request, normative authority and exact base URL. Explicit v6 keeps
+immutable v5 predecessor bytes, historical capture basis and compound remainder;
+legacy v5/grant v1 remain strict. Hosted v5 requires a genuine pre-change grant v2;
+missing/post-change baseline refuses, without migration or retrospective authority.
+One request-bound synthetic owning composition passed, including report/export and
+same-session self-home note save/read; native captures used a controlled boundary,
+not live/sealed execution. Complete grant9234B fits the unchanged16384B cap only for
+that fixture; a larger owner refused before launch. Durable restart/unknown-CAS and
+exact-input controls are separately worker-attributed. Affected resolver and CLI
+RED→GREEN preserve unread related execution and exact baseline refusal. Source
+typing/build passed (existing chunk warning); Linux/full CI not qualified. FIRSTs
+retained; no product/V01 replay, universal availability or full Q04–Q06 closure.
 Bounded runtime-fixture correction: SAME actual Astra GO for two Console tests only.
 The Claude staging fixture now uses the existing exact Kernel pin and still refuses
 the obsolete pin before activity creation; S2's literal request-branch guard tracks
