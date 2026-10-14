@@ -208,6 +208,70 @@ For owner-output, use the selected `starterRepo` and manifest-derived
 also requires its exact executable/configuration; the browser gateway is a
 separately admitted capability. Memory does not imply browser access.
 
+For an already captured and announced request, the trusted operator can assemble
+this private Claude owner-output input. Placeholders are not runnable values or
+authority: resolve canonical absolute paths, the manifest Kernel SHA, the actual
+Claude executable SHA-256 and authorized bounds before saving the JSON.
+
+```json
+{
+  "executable": "/ABS/CLAUDE",
+  "executableSha256": "ACTUAL_EXECUTABLE_SHA256",
+  "pythonExecutable": "/ABS/PYTHON",
+  "workingDirectory": "/ABS/REGISTERED_WORKSPACE",
+  "prompt": "Authorized scope and selected source instructions",
+  "requestPath": "/ABS/NOTES/SAVED_REQUEST.json",
+  "monitorRoot": "/ABS/MONITOR",
+  "activityRoot": "/ABS/CONSOLE/.local/host-activity",
+  "deadlineMs": 600000,
+  "route": {"cli": "claude", "model": "claude-opus-5-5", "profileId": "claude-qa-owner-output"},
+  "starterRepo": "/ABS/KERNEL",
+  "starterExpectedSha": "MANIFEST_KERNEL_COMMIT",
+  "writableOutputRoots": ["/ABS/MONITOR", "/ABS/NOTES"],
+  "claudeConfiguration": {
+    "runDirectory": "/ABS/CONSOLE/.local/host-activity/UNIQUE_CONFIG",
+    "maxTurns": 12,
+    "maxBudgetUsd": 0.5,
+    "loopbackOrigins": [],
+    "externalAssets": null,
+    "trustedPath": "/ABS/TRUSTED_BIN:/usr/bin:/bin"
+  },
+  "memoryAccess": "current_owner"
+}
+```
+
+Run the existing entry from the selected Console, not a historical operator script:
+
+```sh
+node scripts/qa-agent-host-activity.mjs /ABS/PRIVATE/host-input.json
+```
+
+`workingDirectory` must equal the captured request's registered workspace. The
+supervisor derives the effective Claude cwd from its plain external notes directory;
+do not substitute notes for the registered workspace in the input. `writableOutputRoots`
+is the sorted, unique exact set of notes, monitor and any separately admitted memory
+home outside that workspace; the workspace is added internally. Roots must not overlap
+each other, source or protected activity/configuration. With memory enabled,
+`activityRoot` is exactly the selected Console's `.local/host-activity`;
+`runDirectory` is a unique strict descendant. The source checks the pinned executable
+and currently requires Claude Code `2.1.295`; these placeholders do not bypass it.
+
+Omit `memoryAccess` for an intentionally no-memory launch; unavailable memory is
+not an empty recalled corpus. Omit `browserGateway` without separately admitted
+browser capability. When admitted, its existing [configuration](../components/console/src/node/agent-host-activity.d.mts)
+requires `rootSourceDirectory` (the normal root checkout), `productOrigins`,
+`externalAssets`, `allowedMethods`, `attachmentTypes`, `reportOrigin`, and
+`native: {requestPath, intakeReportPath, approvalStoreRoot, allowedSideEffects, timeoutMs}`.
+Gateway product origins must match `claudeConfiguration.loopbackOrigins` exactly,
+and both external-assets declarations must match. The current gateway admits explicit
+HTTP loopback origins with ports; the report origin is distinct. Select methods,
+attachments and native effects from actual authority, not this example. Do not insert
+unknown optional keys or null capability objects. After admission the host supplies
+`QA_BROWSER_GATEWAY_FILE` for the [fixed actor client](../components/console/skills/qa-product-v0/references/browser-gateway.md),
+not a caller-created token or endpoint. `imageCapability` is a separate optional
+memory-delivery declaration (`available` or `unavailable`); `available` requires an
+admitted writable memory launch and is not proof of browser access or pixel inspection.
+
 Memory is an explicit trusted launch capability. Set
 `memoryAccess: 'current_owner'` for an admitted memory-enabled profile when the
 selected workspace is the memory home. This supports a new request under the
