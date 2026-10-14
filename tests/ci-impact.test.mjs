@@ -87,6 +87,23 @@ const git = (cwd, ...args) => execFileSync('git', ['-c', 'core.hooksPath=/dev/nu
   { cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const api = () => import('../tools/ci-impact.mjs');
+test('saved-data derived modules and their exact owners select root source safety only', async () => {
+ const { classifyImpact } = await api();
+ const paths = ['tools/passive-capture/triage-coverage.mjs', 'tools/passive-capture/README.md',
+  'tests/passive-capture-triage-coverage.test.mjs', 'tests/passive-capture-partitions-v2.test.mjs'];
+ const expected = { rootTests: true, freelandControls: false, kernelBuildContracts: false, kernelFull: false, kernelFocusedTests: [],
+  consoleBuild: false, consoleRuntime: false, consoleBrowser: 'none', consoleS01Lifecycle: false };
+ const input = records => ({ cohort: 'pull_request', rootChanges: records, components: [component('kernel', []), component('console', [])] });
+ for (const path of paths) for (const record of [change(path), change(path, 'added', null)]) {
+  assert.deepEqual(classifyImpact(input([record])).selection, expected, path);
+ }
+ for (const path of paths) for (const record of [change(path, 'deleted', '100644', null), change(path, 'modified', '100644', '100755')]) {
+  assert.equal(classifyImpact(input([record])).selection.kernelFull, true, path);
+ }
+ assert.equal(classifyImpact(input([change('tools/passive-capture/triage-unreviewed.mjs')])).selection.kernelFull, true);
+ assert.equal(classifyImpact(input([change('tools/passive-capture/partitions.mjs')])).selection.kernelFull, true,
+  'shared v1 partition functions remain consumed by the Console gateway; retain conservative fallback');
+});
 const change = (path, status = 'modified', baseMode = '100644', headMode = '100644') => ({ path, status, baseMode, headMode });
 const component = (id, paths) => ({ id, verified: true, baseCommit: '1'.repeat(40), headCommit: '2'.repeat(40),
   baseTree: '3'.repeat(40), headTree: paths.length ? '4'.repeat(40) : '3'.repeat(40), changedPaths: paths });

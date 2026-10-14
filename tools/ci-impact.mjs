@@ -87,6 +87,10 @@ const unchangedKernelRootPaths = new Set([
   'tests/qa-monitor.test.mjs', 'tests/qa-request-cli.test.mjs', 'tests/generic-skill-bundles.test.mjs',
 ]);
 const rootPolicyTestPaths = new Set(['tests/ci-impact.test.mjs', 'tests/qa-runtime-workflow.test.mjs']);
+// Exact saved-data CLI/docs and owning tests. Shared partitions.mjs retains its
+// conservative fallback because its v1 functions are consumed by the gateway.
+const rootDerivedAnalysisPaths = new Set(['tools/passive-capture/triage-coverage.mjs', 'tools/passive-capture/README.md',
+  'tests/passive-capture-triage-coverage.test.mjs', 'tests/passive-capture-partitions-v2.test.mjs']);
 // Duplicate source routing is distinct from runtime qualification: a workflow
 // edit still needs FULL on its PR. The selector itself cannot dedupe its checks.
 const duplicatePrRootPaths = new Set([...rootPolicyTestPaths, '.github/workflows/qa-runtime.yml']);
@@ -179,7 +183,7 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
   if (['integration', 'tag', 'manual'].includes(cohort)) { full(`full ${cohort} qualification boundary`); broad = true; }
   if (unknownReasons.length) { full(`unknown impact: ${unknownReasons.join('; ')}`); broad = true; }
   for (const record of rootChanges) if (!doc(record) && !record.sourceMetadata) {
-    if (ordinary(record) && rootPolicyTestPaths.has(record.path)) {
+    if (ordinary(record) && (rootPolicyTestPaths.has(record.path) || rootDerivedAnalysisPaths.has(record.path))) {
       enable('rootTests', `root policy assertion delta: ${record.path}`); continue;
     }
     if (ordinary(record) && safePath(record.path) && verifiedUnchangedKernel &&
