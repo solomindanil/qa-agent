@@ -27,6 +27,7 @@ const runtimeInventory = [
   "tests/unit/qa-product-method-triggers.test.ts",
   "tests/unit/qa-campaign-cli.test.ts",
   "tests/unit/authored-checks.test.ts",
+  "tests/unit/nuanu-fixture-launcher.test.ts",
   "tests/unit/kernel-fixture-authority.test.ts",
   "tests/unit/kernel-replace-authority.test.ts",
   "tests/unit/bridge-cli-authority.test.ts",
@@ -198,9 +199,9 @@ test('two runtime cells execute exact prior inventory once with disjoint private
   validateRuntimeMatrix(workflow);
   const observed = await isolatedConsoleAcquisitionEnv(workflow);
   assert.deepEqual(observed.cells.map(cell => cell.argv), [runtimeInventory.filter((_, i) => i % 2 === 0), runtimeInventory.filter((_, i) => i % 2 === 1)]);
-  assert.equal(new Set(observed.argv).size, 105);
-  assert.equal(observed.argv.length, 105);
-  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[53,52]);
+  assert.equal(new Set(observed.argv).size, 106);
+  assert.equal(observed.argv.length, 106);
+  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[53,53]);
   assert.equal(observed.env.QA_STARTER_EXPECTED_SHA, execFileSync('git', ['-C', new URL('../components/kernel', import.meta.url).pathname, 'rev-parse', 'HEAD'], {encoding:'utf8'}).trim());
   for (const path of ['tests/unit/campaign-dependency-readback.test.ts','tests/unit/qa-graph-recommendations-cli.test.ts','tests/unit/journey-check-recommendations-consumer.test.ts','tests/unit/primary-ui-request-islands-refresh.test.ts']) {
     assert.equal(observed.argv.filter(value => value === path).length, 1, path);
