@@ -15,10 +15,8 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
-Bounded CLI usability repair: unknown/absent commands now list all twenty supported
-verbs from the existing argument registry, including author/apply/export/read-outcomes.
-No new help command: help still refuses with exit1. SAME Astra scoped GO; owning
-FIRST0P1F→focused2P0F preserves ordinary run admission. Linux/full CI not claimed.
+CLI diagnostic lists twenty verbs from the existing registry; no help command added
+(help still exits1), SAME Astra scoped GO with owning FIRST0P1F→2P0F; Linux/full CI unqualified.
 S01 G1 only: SAME actual Astra scoped GO for the standalone owned loopback fixture,
 one owning test and mechanical docs/routing. Six immutable modes; explicit IPv4 port
 except80, no fallback/control route, READY after bind and SIGTERM socket retirement.
