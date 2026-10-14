@@ -208,6 +208,7 @@ jobs:
               tests/unit/primary-ui-original-input.test.ts
               tests/unit/primary-ui-activity.test.ts
               tests/unit/primary-ui-bounded.test.ts
+              tests/unit/primary-ui-request-islands-refresh.test.ts
               tests/unit/primary-ui-demoted.test.ts
               tests/unit/primary-ui-distributions.test.ts
               tests/unit/primary-ui-gates.test.ts
@@ -458,6 +459,14 @@ jobs:
           env -i "${qa_env[@]}" "${QA_FIXTURE_PYTHON}" -c 'import os,sys; assert sys.version_info[:2] == (3, 13) and sys.version_info.releaselevel == "final"; expected=os.environ["QA_AGENT_FIXTURE_PYTHON"]; assert os.path.realpath(sys.executable)==os.path.realpath(expected); assert os.path.realpath(sys.prefix)==os.path.realpath(os.path.dirname(os.path.dirname(expected))); print("fixture-python="+sys.executable+" version="+sys.version.split()[0]+" prefix="+sys.prefix+" lib="+os.environ["LD_LIBRARY_PATH"])'
           env -i "${qa_env[@]}" \
             node --import tsx --test --test-concurrency=1 tests/unit/browser-journey.test.ts tests/unit/public-input-campaign.test.ts tests/unit/browser-action-sequence.test.ts tests/unit/qa-campaign-runner.test.ts tests/unit/campaign-observation.test.ts tests/e2e/selected-campaign-local.test.mjs tests/e2e/selected-agent-request-local.test.mjs tests/e2e/selected-agent-request-finite-read-local.test.mjs tests/e2e/qa-monitor-local.test.mjs tests/integration/agent-memory-browser-composition.test.ts tests/integration/qa-browser-gateway.test.mjs
+          # Match existing loopback fixtures: OS-allocated owned port, no reuse/retry.
+          # The preview's strictPort check fails closed if that port is taken later.
+          qa_primary_port="$(env -i "${qa_env[@]}" node --input-type=module -e 'import {createServer} from "node:net"; const server=createServer(); server.listen(0,"127.0.0.1",()=>{const port=server.address().port; server.close(()=>console.log(port));});')"
+          env -i "${qa_env[@]}" \
+            QA_PRIMARY_UI_DELIVERY_DIR="${qa_tmp}/primary-ui-delivery" \
+            QA_PRIMARY_UI_DELIVERY_PORT="${qa_primary_port}" \
+            node node_modules/@playwright/test/cli.js test \
+              --config=playwright.primary-ui-delivery.config.ts
       - name: Stage selected request evidence
         id: request-evidence
         if: always() && needs.impact.outputs.console-browser == 'all' && steps.browser-all.outcome != 'skipped'

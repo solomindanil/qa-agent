@@ -23,7 +23,7 @@ const runtimeTests = new Set([
   'selected-campaign-readback', 'selected-campaign-http', 'selected-campaign-projection',
   'primary-ui-read-client', 'primary-ui-selection', 'primary-ui-projection', 'primary-ui-report', 'primary-ui-boundary',
   'primary-ui-routing', 'primary-ui-preview', 'primary-ui-evidence', 'primary-ui-outcomes', 'primary-ui-island', 'primary-ui-original-input',
-  'primary-ui-activity', 'primary-ui-bounded', 'primary-ui-demoted', 'primary-ui-distributions', 'primary-ui-gates',
+  'primary-ui-activity', 'primary-ui-bounded', 'primary-ui-request-islands-refresh', 'primary-ui-demoted', 'primary-ui-distributions', 'primary-ui-gates',
   'primary-ui-mission-shell', 'primary-ui-owner-shell', 'primary-ui-phases', 'primary-ui-timeline',
   'monitor-http-contract', 'monitor-http', 'monitor-owner-display', 'monitor-owner-reference',
   'monitor-reader', 'qa-monitor-producers', 'primary-ui-monitor',
@@ -54,6 +54,7 @@ runtimeTests.add('tests/unit/qa-browser-gateway.test.mjs');
 runtimeTests.add('tests/unit/qa-memory-cli.test.ts');
 runtimeTests.add('tests/unit/qa-memory-pair.test.ts');
 const gatewayBrowserInputs = new Set(['tests/fixtures/qa-browser-gateway.mjs',
+  'tests/e2e/primary-ui-delivery.spec.ts',
   'tests/helpers/grounded-request.ts',
   'tests/integration/agent-memory-browser-composition.test.ts', 'tests/integration/qa-browser-gateway.test.mjs']);
 const groundedRuntimeInputs = new Set(['tests/helpers/grounded-request.ts',

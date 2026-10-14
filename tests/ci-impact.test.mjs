@@ -2,11 +2,70 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdtemp, mkdir, readFile, writeFile, copyFile, realpath, chmod, symlink, rename, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 const rootUrl = new URL('../', import.meta.url);
+
+test('primary delivery changed owners route without accepting unknown removed or nonordinary tests', async context => {
+  const {classifyImpact}=await api();
+  for(const [path,browser] of [['tests/unit/primary-ui-request-islands-refresh.test.ts',false],['tests/e2e/primary-ui-delivery.spec.ts',true]]){
+    for(const [status,before,after] of [['added',null,'100644'],['modified','100644','100644'],['deleted','100644',null],['modified','100644','100755']]){
+      await context.test(`${path} ${status} ${after}`,()=>{
+        const result=classifyImpact({cohort:'pull_request',components:[component('console',[change(path,status,before,after)])]});
+        const ordinary=status!=='deleted'&&after==='100644';
+        assert.deepEqual(result.unsupportedChanges,ordinary?[]:[`unmapped or removed Console test: ${path}`]);
+        assert.equal(result.selection.kernelFull,!ordinary,'Known ordinary owner must not widen full Kernel');
+        assert.equal(result.selection.consoleRuntime,ordinary?!browser:true);
+        assert.equal(result.selection.consoleBrowser,ordinary?(browser?'all':'none'):'all');
+      });
+    }
+  }
+  for(const path of ['tests/unit/primary-ui-request-islands-unreviewed.test.ts','tests/e2e/primary-ui-delivery-unreviewed.spec.ts']){
+    const result=classifyImpact({cohort:'pull_request',components:[component('console',[change(path)])]});
+    assert.deepEqual(result.unsupportedChanges,[`unmapped or removed Console test: ${path}`]);
+  }
+});
+
+test('primary delivery unit appears once in actual existing runtime shard argv', async()=>{
+  const workflow=await readFile(new URL('../.github/workflows/qa-runtime.yml',import.meta.url),'utf8');
+  const path='tests/unit/primary-ui-request-islands-refresh.test.ts';
+  const requireOwner=source=>assert.equal(actualRuntimeArgv(source).filter(arg=>arg===path).length,1);
+  requireOwner(workflow);
+  assert.throws(()=>requireOwner(workflow.replace(path,'tests/unit/primary-ui-request-islands-unreviewed.test.ts')),'Missing literal execution owner must fail');
+});
+
+// Execute the actual existing-lane shell command with only the external
+// Playwright entry replaced by an argv/env recorder. No UI body or dependency.
+function actualPrimaryDeliveryInvocation(workflow){
+  const step=workflow.match(/^      - name: Browser healthy and broken fixture controls\n([\s\S]*?)(?=^      - name:)/mu)?.[1];
+  assert.ok(step,'Existing browser-all lane');
+  const start=step.indexOf('          qa_primary_port=');
+  assert.ok(start>=0,'Owned ephemeral preview port allocation');
+  const original=step.slice(start);
+  assert.ok(original.includes('node node_modules/@playwright/test/cli.js test'),'Actual Playwright owning entry');
+  const recorder='process.stdout.write(JSON.stringify({argv:process.argv.slice(1),dir:process.env.QA_PRIMARY_UI_DELIVERY_DIR,port:process.env.QA_PRIMARY_UI_DELIVERY_PORT,kernel:process.env.QA_STARTER_REPO,sha:process.env.QA_STARTER_EXPECTED_SHA,chromium:process.env.QA_PRIMARY_UI_CHROMIUM}))';
+  const command=original.replace('node node_modules/@playwright/test/cli.js test',`${JSON.stringify(process.execPath)} -e ${JSON.stringify(recorder)} -- test`);
+  const shell='set -euo pipefail\nqa_tmp=/owned/qa-browser-unique\nqa_env=(PATH="'+dirname(process.execPath)+':/usr/bin:/bin" QA_STARTER_REPO=/controlled/kernel QA_STARTER_EXPECTED_SHA=paired-source QA_PRIMARY_UI_CHROMIUM=/controlled/chromium)\n'+command;
+  const executed=spawnSync('/bin/bash',['--noprofile','--norc','-c',shell],{encoding:'utf8',env:{PATH:'/usr/bin:/bin'}});
+  assert.equal(executed.status,0,executed.stderr);
+  return JSON.parse(executed.stdout.trim());
+}
+test('primary delivery mounted argv executes complete existing config with owned environment and no hiding filter',async()=>{
+  const workflow=await readFile(new URL('../.github/workflows/qa-runtime.yml',import.meta.url),'utf8');
+  const requireOwner=source=>{
+    const result=actualPrimaryDeliveryInvocation(source);
+    assert.deepEqual(result.argv,['test','--config=playwright.primary-ui-delivery.config.ts']);
+    assert.equal(result.dir,'/owned/qa-browser-unique/primary-ui-delivery');
+    assert.ok(Number(result.port)>=1024&&Number(result.port)<=65535);
+    assert.equal(result.kernel,'/controlled/kernel');assert.equal(result.sha,'paired-source');assert.equal(result.chromium,'/controlled/chromium');
+  };
+  requireOwner(workflow);
+  assert.throws(()=>requireOwner(workflow.replace('--config=playwright.primary-ui-delivery.config.ts','--config=playwright.config.ts')),'Wrong config cannot certify mapped owner');
+  assert.throws(()=>requireOwner(workflow.replace('--config=playwright.primary-ui-delivery.config.ts','--config=playwright.primary-ui-delivery.config.ts --grep=unrelated')),'Filters cannot hide an owning body');
+  assert.throws(()=>requireOwner(workflow.replace('node node_modules/@playwright/test/cli.js test','node --version')),'Absent mounted execution cannot pass');
+});
 
 test('PR50 exact public source owners and helpers retain routing and literal execution', async () => {
   const {classifyImpact}=await api(),workflow=await readFile(new URL('../.github/workflows/qa-runtime.yml',import.meta.url),'utf8');
@@ -627,17 +686,26 @@ test('U03a actual browser-all shell supplies portable installed Chromium and fre
   const consoleCommit = git(consoleRoot, 'rev-parse', 'HEAD');
   assert.notEqual(consoleCommit, git(kernelRoot, 'rev-parse', 'HEAD'), 'fixture identities must differ');
   const output = join(dir, 'step-output');
-  const record = join(dir, 'argv.json'); const installed = join(dir, 'installed-chromium');
+  const record = join(dir, 'argv.jsonl'); const installed = join(dir, 'installed-chromium');
   const pythonPrefix=join(dir,'python'),python=join(pythonPrefix,'bin/python');
   await mkdir(join(pythonPrefix,'bin'),{recursive:true});await mkdir(join(pythonPrefix,'lib'));
   await writeFile(python,`#!${process.execPath}\nprocess.exit(0);\n`,{mode:0o755});
-  await writeFile(join(bin, 'node'), `#!${process.execPath}\nconst fs=require('node:fs');\nif(process.argv.includes('--input-type=module')) { if(!process.argv.at(-1).includes('chromium.executablePath()')) process.exit(2); console.log(${JSON.stringify(installed)}); } else fs.writeFileSync(${JSON.stringify(record)},JSON.stringify({argv:process.argv.slice(2),env:process.env}));\n`, { mode: 0o755 });
+  const allocator='import {createServer} from "node:net"; const server=createServer(); server.listen(0,"127.0.0.1",()=>{const port=server.address().port; server.close(()=>console.log(port));});';
+  await writeFile(join(bin, 'node'), `#!${process.execPath}\nconst fs=require('node:fs');\nif(process.argv.includes('--input-type=module')) { if(process.argv.at(-1).includes('chromium.executablePath()')) console.log(${JSON.stringify(installed)}); else if(JSON.stringify(process.argv.slice(2))===JSON.stringify(['--input-type=module','-e',${JSON.stringify(allocator)}])) console.log('39187'); else process.exit(2); } else fs.appendFileSync(${JSON.stringify(record)},JSON.stringify({argv:process.argv.slice(2),env:process.env})+'\\n');\n`, { mode: 0o755 });
   const result = spawnSync('/bin/bash', ['-c', block], { cwd: consoleRoot, env: { PATH: `${bin}:/usr/bin:/bin`, RUNNER_TEMP: dir,
     GITHUB_WORKSPACE: workspace, GITHUB_OUTPUT: output, GITHUB_SHA: 'a'.repeat(40), GITHUB_TOKEN: 'must-not-reach-child', QA_FIXTURE_PYTHON:python,LD_LIBRARY_PATH:'/unrelated/inherited',
     ACTIONS_RUNTIME_TOKEN: 'must-not-reach-child', SYNTHETIC_PRIVATE_SENTINEL: 'must-not-reach-child' }, encoding: 'utf8', timeout: 10_000 });
   assert.equal(result.status, 0, result.stderr);
-  const actual = JSON.parse(await readFile(record, 'utf8'));
+  const calls=(await readFile(record,'utf8')).trim().split('\n').map(line=>JSON.parse(line));
+  assert.equal(calls.length,2,'Both existing node suite and complete mounted owner must execute once');
+  const [actual,mounted]=calls;
   assert.deepEqual(actual.argv, ['--import', 'tsx', '--test', '--test-concurrency=1', 'tests/unit/browser-journey.test.ts', 'tests/unit/public-input-campaign.test.ts', 'tests/unit/browser-action-sequence.test.ts', 'tests/unit/qa-campaign-runner.test.ts', 'tests/unit/campaign-observation.test.ts', 'tests/e2e/selected-campaign-local.test.mjs', 'tests/e2e/selected-agent-request-local.test.mjs', 'tests/e2e/selected-agent-request-finite-read-local.test.mjs', 'tests/e2e/qa-monitor-local.test.mjs', 'tests/integration/agent-memory-browser-composition.test.ts', 'tests/integration/qa-browser-gateway.test.mjs']);
+  assert.deepEqual(mounted.argv,['node_modules/@playwright/test/cli.js','test','--config=playwright.primary-ui-delivery.config.ts']);
+  assert.equal(mounted.env.QA_PRIMARY_UI_DELIVERY_DIR,join(actual.env.TMPDIR,'primary-ui-delivery'));
+  assert.equal(mounted.env.QA_PRIMARY_UI_DELIVERY_PORT,'39187');
+  assert.equal(actual.env.QA_PRIMARY_UI_DELIVERY_DIR,undefined);
+  assert.equal(actual.env.QA_PRIMARY_UI_DELIVERY_PORT,undefined);
+  for(const actual of calls){
   assert.equal(actual.env.QA_PRIMARY_UI_CHROMIUM, installed);
   assert.equal(actual.env.QA_AGENT_FIXTURE_PYTHON,python);
   assert.equal(actual.env.LD_LIBRARY_PATH,join(pythonPrefix,'lib'));
@@ -660,6 +728,7 @@ test('U03a actual browser-all shell supplies portable installed Chromium and fre
   assert.ok(emitted.includes(`kernel-commit=${git(kernelRoot, 'rev-parse', 'HEAD')}\n`));
   assert.equal(actual.env.GITHUB_TOKEN, undefined); assert.equal(actual.env.ACTIONS_RUNTIME_TOKEN, undefined);
   assert.equal(actual.env.SYNTHETIC_PRIVATE_SENTINEL, undefined);
+  }
   assert.equal((await readFile(record, 'utf8')).includes('tests/fixtures/selected-campaign-consumer-lifecycle.mjs'), false);
 });
 
