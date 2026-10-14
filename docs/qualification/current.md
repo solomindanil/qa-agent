@@ -9,7 +9,7 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `f2f41aff327335f7d745d814098188258065dc6f` | Reviewed optional saved-data/early-v5 references over5c5, then normal exact Kernel11afe pin; predecessors retained. |
+| Console | `163f1fba24b98f4b2be9364b15e987bb8de48186` | SAME Astra R1-reviewed finite Q04 visible persistence guard/test repair overf2f; normal exact Kernel11afe pin and predecessors retained. |
 | Kernel | `11afe971d6877ea7448ec709138d343aa7edffc3` | Reviewed bounded in-process registration claims ordering over memory foundation6d; native graph/denominator unchanged. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
@@ -21,18 +21,21 @@ it was merged into develop as `e7659c88b214cd87b8957a180434022142dacebf`.
 PR52's predecessor merged at `e0485640d86a49ac6d494a4ae032c8b7004c2609`.
 Its actual readback is source-safety/impact/runtimeA/dependency-intake SUCCESS,
 console-browser FAILURE, runtimeB CANCELLED, runtime-qualification FAILURE,
-full Kernel SKIPPED—not whole CI GREEN. The coupled sources above were delivered
+full Kernel SKIPPED—not whole CI GREEN. Predecessor Consolef2f/Kernel11afe were delivered
 in [PR #53](https://github.com/solomindanil/qa-agent/pull/53), merged into develop
 as `1e71882121eeed389b2314fa8b0695b7c7fa2b4f`; reviewed head
 `1e563aea1d83204378c4b648dfe8a61c92a0359a` and merge share tree
 `e0c79196906728198a30eb45ddde371120fbbacc`. Delivery does not reattribute
 predecessor CI or establish whole CI GREEN or product/V01 acceptance.
-ROOT's single 14 October read of PR53's own [run 38502400901](https://github.com/solomindanil/qa-agent/actions/runs/38502400901)
-showed impact/dependency-intake SUCCESS, console-browser SUCCESS at 03:10:07 UTC,
-runtime-smoke(a) SUCCESS at 03:12:21 UTC and Full Kernel workspace/service SUCCESS;
-runtime-smoke(b) CANCELLED at 03:18:08 UTC, cause UNKNOWN; Full Kernel remaining
-still IN_PROGRESS. Source-safety runs 38502400905/38502390643 were SUCCESS.
-This snapshot is not whole CI GREEN; no retry or old-timeout diagnosis was run.
+Terminal 14 October readback of PR53's own [run 38502400901](https://github.com/solomindanil/qa-agent/actions/runs/38502400901)
+shows impact/dependency-intake, console-browser, runtime-smoke(a), Full Kernel
+workspace/service and both source-safety runs SUCCESS. Full Kernel remaining
+finished FAILURE:1551P3F1skip (two agent-memory-recall failures and one frozen
+agent-memory-scale protocol failure); runtime-smoke(b) CANCELLED, cause UNKNOWN,
+and runtime-qualification FAILURE. This is not whole CI GREEN; no retry or
+old-timeout diagnosis was run. [PR54](https://github.com/solomindanil/qa-agent/pull/54),
+merged at root04ff1eb, finished all6 applicable checks SUCCESS and3 policy SKIPPED;
+that documentation delivery does not reattribute PR53's failures.
 Public PR49/roota817 and earlier receipts remain historical.
 Publication/restoration never adopts or migrates a frozen owner. CI-wait waivers
 never manufacture GREEN, change workflow/protection or authorize product/provider execution.
@@ -56,7 +59,7 @@ This is guidance, not runtime migration or warning suppression.
 | Existing plan family | Implemented / locally verified | Delivered / remaining / next |
 | --- | --- | --- |
 | U01/U02, B02/L00 | Current/saved request reports, Graph/Coverage/Plan and truthful pending/unknown boundaries. Local baseline fix accepted by SAME Astra; final affected owner54P0F, compiler/build0. | PR50 delivered at e7659c88 with PR50's Console49d/Kernel6d. Continue through ordinary owner admission, not developer fixture shortcuts. Independent INVALID_MEMBER discovery warning remains. |
-| Q04/Q05 | Finite synthetic persistence example8P (earlier owning36P); bounded A7b usability owners21P/14P, CLI3P, reference/Timeline controls; original FIRSTs retained. | No full Q04/Q05 or sufficiency/product verdict acceptance. Future checks require genuine supported owner evidence, not declaration/link counts. |
+| Q04/Q05 | Finite visible persistence repair: FIRST7P3F exposed hidden and screenshot-time visibility-only false PASS; initial guardde31954 host/Linux affected owner38P0F plus exact two-file typing0. SAME Astra I1 test-only successor163f1fb moves witness checks outside helper catch: lost-control mutation10P0F→7P3F, final host/Linux persistence10P0F and typing0; SAME Astra R1 GO. Earlier persistence8P/owner36P and A7b21P/14P/CLI3P retained, not rerun or credited anew. | Only bounded synthetic rendered-postcondition guard; no full Q04/Q05/Q06, native-sealed verdict, product acceptance or V01 rerun. No generic visual oracle; one-save/no-retry and authoritative identity/token guards unchanged. |
 | K01/K02/L02 | Existing guarded Kernel API now has restored advisory Console CLI/reference; SAME Astra GO, host30P including healthy/broken HTTP200 content consumer, root2P/typechecks0 and same30 affected Linux bodies30P0F/224.36s (Node22.23.3 arm64, wrapper exit0/262.96s, no OOM, own cleanup confirmed). Memory predecessors retained. | PR43 remains historical unmerged, not wholesale adoption. No hosted CI, causal uplift, full L02/V01, autonomous reuse or general memory benefit claim; applicability and full remainder stay explicit. |
 | P01, Q02/T00; B02/Q05 discovery | Explicit saved-data lexical index and opt-in partitions-v2 adopted in the bounded source slice; mirrored delivered-root discovery and early supported-new-request v5 selection. SAME Astra GO after retained reversed-label FIRST0P1F; host70+24+1 and exact nativeLinux70+24+1 passed, natural0/noOOM/owncleanup65.427s. | Defaults/v1/capture/detect/reached and owner/gateway contracts unchanged; no auto capture/new hints/hidden metadata, migration or renderer change. Null/unknown ideas are not norms, lexical mentions are not dispositions/qualified owner evidence. P01 usefulness and Q05/Q06 completeness remain OPEN. |
 | O00, N00 | Guide explains unknown cost, CLI estimates, recorded intervals vs walltime/cohorts; exact registered product.slug and canonical owner entry clarified. Current entry is now compact. | No full QA-phase/setup/review/retry measurement, causal prevention or unattended entry proof. |
@@ -65,7 +68,7 @@ This is guidance, not runtime migration or warning suppression.
 ### Accepted bounded V01 · 14 October 2026
 
 The accepted consumer used root 1e718821, Console f2f41af and Kernel 11afe97,
-the delivered identities above. Actor A saved the catalogue witness and genuine
+that historical delivered pair, not the later Q04 guard. Actor A saved the catalogue witness and genuine
 detail/return remainder at a safe stop. Fresh actor B discovered the same request
 and continued only the remainder, preserving A's completed work and evidence.
 Final checkpoint 3, live/history/reopened report and offline export agree.
