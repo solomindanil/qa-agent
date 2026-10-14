@@ -1,6 +1,6 @@
 # Current QA-agent source and execution entry
 
-This is the single current source/consumer entry, updated 14 October 2026.
+This is the single current source/consumer entry, updated 15 October 2026.
 Read [AGENTS](../../AGENTS.md), the [manifest](../../sources/manifest.v1.json),
 [getting started](../getting-started.md) and the [single global plan](../superpowers/plans/2026-10-05-universal-qa-product-plan.md).
 Dated plan observations and historical delivery/CI instructions are not fresh authority.
@@ -21,9 +21,28 @@ except80, no fallback/control route, READY after bind and SIGTERM socket retirem
 Host8P0F, strict two-entry typing0; exact runtime routing and inventory1P+1P106/[53,53].
 FIRST missing-entry/port80 failures retained; old qualified unit/factory and independent
 normative clauses unchanged. Linux UNENTERED (approved caches absent), no installation
-or whole CI/native-run claim. G2/G4 ordinary persisted registration→author/run/export,
-fresh actor and S02 remain unexecuted by this slice; old helper/pins are historical,
-current source and loopback scope must be resolved before reuse. No V01/product replay.
+or whole CI claim. Bounded S01-1 ordinary persisted registration→author/apply→validate→
+native run→export/offline read executed on a new developer-owned synthetic loopback
+workspace, without the historical factory. Urgent status200/count1/exact-array assertions
+passed; seven blocked targets remained and verdict stayed NEEDS_HUMAN. Wrong/partial
+response controls passed status/count but failed the array predicate: INCONCLUSIVE,
+not a captured specific actual value. Timeout/truncated/unavailable transport stayed
+ENV_BLOCKED with assertions not_reached. Fresh IDs and stale-scope refusal retained;
+no new run directory on refusal, zero traffic source-established rather than measured.
+One fresh ordinary consumer independently ran/exported/verified its selected result
+and retained Completed unexecuted/sorting unknown; disclosed source diagnostic clues
+limit blindness. SAME Astra accepted bounded execution/reuse exit, not full S01/S02.
+One explicitly scoped successor added Completed clause3 on the same GET/issues
+interface while preserving the urgent definition/assertions. New owning check IDs
+did not inherit historical PASS: one new run passed both checks (six assertions),
+with seven blockers and NEEDS_HUMAN retained. The unmapped Completed journey is
+still blocked, not closed by prose or the interface result. Successor export verified
+offline; a premature read during export correctly refused PACKET_INCOMPLETE, then
+the post-terminal read verified the finished packet. FIRST/history stayed intact.
+Owned servers retired with processes/listeners gone; no new consumer or source fix.
+Native original-request binding remains unavailable; offline verification checks saved
+bytes; authority was validated at capture, not live deployment authority. Old helper/pins
+are historical. No V01/product replay.
 Bounded compatible continuation is opt-in for anonymous read_only/no-secret checks
 with unchanged request, normative authority and exact base URL. Explicit v6 keeps
 immutable v5 predecessor bytes, historical capture basis and compound remainder;
