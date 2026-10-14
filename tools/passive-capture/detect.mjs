@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 // Run the passive detectors over all states captured in one evidence dir:
-//   node tools/passive-capture/detect.mjs <evidence-dir> [--dictionary <word list, one word per line>]
+//   node tools/passive-capture/detect.mjs <evidence-dir> [--dictionary <word list, one word per line>] [--pooled]
 // Writes <evidence-dir>/passive/candidates.json and candidates.md. Every row needs a disposition from the agent. Without a word
 // list the rare-variant family is reported as unassessed. Also writes partitions.json: input partitions derived from declared field
-// attributes, planned checks that are not candidates and are never executed here (P01 never types).
+// attributes, planned checks that are not candidates and are never executed here (P01 never types). --pooled (opt-in) adds the pooled-style
+// detectors (pooled-outlier, form-font, sibling-color), a `pooled` section in candidates.json and one in candidates.md; without it the
+// output is unchanged.
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { styleOutliers, crossStateAlignment, inputPaddingOutliers, primaryActionGeometry, optionFontOutliers, crossStateProperties, crossStateCoverage,
-  brokenImageCandidates, imageCoverage } from './style-detectors.mjs';
+  brokenImageCandidates, imageCoverage, pooledPropertySpread, formFontOutlier, formFontCoverage, siblingColorDrift, siblingColorCoverage } from './style-detectors.mjs';
 import { computedContrast, contrastCoverage, axeCandidates, nameCandidates, positiveTabindexCandidates, ungroupedChoiceCandidates, imgAltCandidates,
   focusOrderCandidates } from './a11y-detectors.mjs';
 import { textHygieneCandidates } from './text-markers.mjs';
@@ -34,24 +36,31 @@ export function byViewport(states) {
 const crossPage = (states) => byViewport(states).flatMap(([w, group]) => [...crossStateAlignment(group), ...crossStateProperties(group), ...inputPaddingOutliers(group),
   ...primaryActionGeometry(group)].map((c) => ({ ...c, key: `${c.key}@${w}` })));
 
+// Pooled style (opt-in): low-confidence candidates that carry their basis. `property` is one pooledPropertySpread result, computed once.
+const pooledCandidates = (states, property) => [...property.outliers, ...states.flatMap((s) => [...formFontOutlier(s), ...siblingColorDrift(s)])];
+
 // A candidate may carry a rank (an array compared element by element, higher first). Within one merged row the best-ranked
 // candidate gives the headline, severity and confidence, and evidence is ordered by rank; equal ranks keep their order.
 const byRank = (a, b) => { for (let i = 0; i < Math.max(a.rank.length, b.rank.length); i += 1) if ((a.rank[i] ?? 0) !== (b.rank[i] ?? 0)) return (b.rank[i] ?? 0) - (a.rank[i] ?? 0); return 0; };
-export function runDetectors(states, { dictionary = null } = {}) {
+function mergeRows(raw) {
+  const groups = new Map();
+  for (const c of raw) { if (!groups.has(c.key)) groups.set(c.key, []); groups.get(c.key).push(c); }
+  return [...groups.values()].map((group) => {
+    const ordered = group.every((c) => c.rank) ? [...group].sort(byRank) : group; const [head] = ordered;
+    return { detector: head.detector, severity: head.severity, confidence: head.confidence, what: head.what,
+      states: [...new Set(group.map((c) => c.evidence.state))], evidence: ordered.slice(0, MAX_EVIDENCE).map((c) => c.evidence), ...(head.basis ? { basis: head.basis } : {}) };
+  }).sort((a, b) => ORDER[a.severity] - ORDER[b.severity] || a.detector.localeCompare(b.detector));
+}
+// Pooled rows (opt-in) come after the default rows and are numbered after them, so a default row keeps its id in a pooled run.
+export function runDetectors(states, { dictionary = null, pooled = false, pooledProperty = null } = {}) {
   const raw = [
     ...states.flatMap((s) => [...styleOutliers(s), ...optionFontOutliers(s), ...computedContrast(s), ...axeCandidates(s), ...nameCandidates(s), ...textHygieneCandidates(s),
       ...brokenImageCandidates(s), ...positiveTabindexCandidates(s), ...ungroupedChoiceCandidates(s), ...imgAltCandidates(s), ...focusOrderCandidates(s)]),
     ...crossPage(states),
     ...states.flatMap((s) => labelMismatchCandidates(s)), ...rareVariantCandidates(states, { dictionary }),
   ];
-  const groups = new Map();
-  for (const c of raw) { if (!groups.has(c.key)) groups.set(c.key, []); groups.get(c.key).push(c); }
-  return [...groups.values()].map((group) => {
-    const ordered = group.every((c) => c.rank) ? [...group].sort(byRank) : group; const [head] = ordered;
-    return { detector: head.detector, severity: head.severity, confidence: head.confidence, what: head.what,
-      states: [...new Set(group.map((c) => c.evidence.state))], evidence: ordered.slice(0, MAX_EVIDENCE).map((c) => c.evidence) };
-  }).sort((a, b) => ORDER[a.severity] - ORDER[b.severity] || a.detector.localeCompare(b.detector))
-    .map((c, i) => ({ id: `P${String(i + 1).padStart(3, '0')}`, ...c }));
+  const extra = pooled ? mergeRows(pooledCandidates(states, pooledProperty ?? pooledPropertySpread(states))) : [];
+  return [...mergeRows(raw), ...extra].map((c, i) => ({ id: `P${String(i + 1).padStart(3, '0')}`, ...c }));
 }
 
 const readIndex = async (dir) => (await readFile(join(dir, 'passive', 'index.jsonl'), 'utf8')).split('\n').filter(Boolean).map((line) => JSON.parse(line));
@@ -105,7 +114,53 @@ function wordingLines(wording, dictionary) {
   rareGap: notCompared.length ? [`Rare words not compared: ${notCompared.join('; ')}.`] : [] };
 }
 
-export function toMarkdown(list, states, { reached = reachedRemainder(null, states), duplicates = [], dictionary = null, partitions = partitionWorklist(states) } = {}) {
+// Pooled-style summary (opt-in): spread rows, which are not candidates, and what each pooled detector compared or left out. `property`
+// is the pooledPropertySpread result the rows came from, so one run computes it once.
+const sumCounts = (a, b) => Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === 'number' ? v + b[k] : sumCounts(v, b[k])]));
+const NO_FACTS = { facts: { elements: [], fields: [], controls: [] } };
+export function pooledSummary(states, property = pooledPropertySpread(states)) {
+  const { spread, coverage } = property;
+  return { spread, coverage: { properties: coverage, formFont: states.map((s) => formFontCoverage(s)).reduce(sumCounts, formFontCoverage(NO_FACTS)),
+    siblingColor: states.map((s) => siblingColorCoverage(s)).reduce(sumCounts, siblingColorCoverage(NO_FACTS)) } };
+}
+const SPREAD_REASON = { 'no-clear-majority': () => 'no clear majority', 'majority-on-one-route': () => 'the majority is on one route',
+  'state-change-on-route': (r) => `a capture of the same route has the majority value: ${r.sameRoute.join(', ')}`,
+  'multi-property-variant': (r) => `differs in 2 or more look properties: ${r.variants.join(', ')}` };
+const spreadValue = (prop, value) => (prop === 'width' ? `${value}%` : value);
+// The report lists at most this many spread rows; candidates.json keeps all of them.
+const MAX_SPREAD_ROWS = 40;
+function pooledLines(summary) {
+  const { spread, coverage: { properties: p, formFont: f, siblingColor: g } } = summary;
+  const esc = (s) => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
+  const row = (r) => `| ${esc(r.subject)} | ${r.prop} | ${esc([...r.distribution.map((d) => `${spreadValue(r.prop, d.value)} (${d.states.join(', ')})`),
+    ...(r.mixed.length ? [`mixed within the state (${r.mixed.join(', ')})`] : [])].join('; '))} | ${esc(SPREAD_REASON[r.reason](r))} |`;
+  const omitted = spread.length - MAX_SPREAD_ROWS;
+  return ['', '## Pooled style (opt-in): spread rows and coverage, not candidates', '',
+    `Pooled properties: ${p.pools} pool(s) by origin, viewport width and role; ${p.kindsCompared} kind(s) seen in 2 or more states were compared, ${p.kindsInOneState} seen in one state were not; `
+      + `${p.comparisons} property comparison(s): ${p.agreed} agreed, ${p.outliers} gave a pooled-outlier candidate, ${p.spread} spread row(s) below; ${p.withoutVotes} lacked two state values; `
+      + `${p.interactiveItems} interactive item(s) (links, buttons, controls and items inside one) were compared without colour, background and weight`
+      + `${p.statesNotPooled ? `; ${p.statesNotPooled} state(s) without a parseable origin were not pooled` : ''}. A state votes with a value more than half of its items share; `
+      + 'a candidate needs 75 % of the voting states, at least 3 of them on at least 2 routes, an odd state whose route has no capture with the majority value, '
+      + 'and an odd state differing in one look property only (another property counts when its most shared value is such a majority or no other state holds the odd value); '
+      + 'a spread row lists the distribution without picking a side. The absence of candidates or spread rows does not establish PASS.',
+    'Missing role or viewport means unknown, not equal identity; same-role/viewport comparability is not established for such pools. The current capture/CLI supplies no role qualification.',
+    `A representative merged basis is not independent proof for every occurrence; path-selector collisions are possible and evidence is capped at ${MAX_EVIDENCE} occurrences. Inspect original saved facts/images for applicability and state; candidate counts are not unique bugs or additional coverage.`,
+    `Form fonts: ${f.forms} form(s) with text-bearing members; font family compared in ${f.familyCompared} form(s) and font size within ${f.sizeCompared} group(s) of one role and `
+      + 'sub-kind (submit buttons, other buttons and links apart; labels of text fields and of choices apart) in one form; '
+      + `not compared: ${f.excluded.glyph} icon glyph(s), ${f.excluded.monospace} monospace text(s), ${f.ambiguous} label or help text(s) not named by fields of one form alone `
+      + '(fields of several forms, in no form or not shown, or more such elements than fields naming the text), '
+      + `${f.notLocated.label} label(s), ${f.notLocated.help} help text(s) and ${f.notLocated.control} control text(s) not located in the element facts, `
+      + `${f.roleConvention} member(s) sharing another face with every member of their role, and ${f.singleRoleFamily} form(s) whose most shared family is held by one role only. `
+      + 'Form membership is inferred from saved text and counts, not exact DOM ownership. The absence of candidates does not establish PASS.',
+    'Help-text font detection is UNSUPPORTED on the current capture base: field hint facts are absent. Synthetic hint controls exercise detector logic only; no hint collector is added.',
+    `Sibling colours: ${g.groupsCompared} group(s) of 4 or more look-alike items compared; ${g.groupsSmall} smaller group(s), ${g.interactive} interactive item(s) and `
+      + `${g.glyph} glyph item(s) not compared; ${g.backgroundUnknown} grouped item(s) with an unknown background. The absence of candidates does not establish PASS.`,
+    ...(spread.length ? ['', '| Kind | Property | Distribution | Reason |', '| --- | --- | --- | --- |', ...spread.slice(0, MAX_SPREAD_ROWS).map(row),
+      ...(omitted > 0 ? ['', `${omitted} more spread row(s) are not shown here; candidates.json lists all ${spread.length} under pooled.spread.`] : [])] : ['No spread row.'])];
+}
+
+export function toMarkdown(list, states, { reached = reachedRemainder(null, states), duplicates = [], dictionary = null, partitions = partitionWorklist(states), pooled = false,
+  summary = null } = {}) {
   const axeRan = states.filter((s) => s.axe?.available).length;
   const REASON = { unsupported_colour: 'unsupported colour', image: 'image background', translucent: 'translucent background', layer: 'image or gradient layer under the text',
     decorative_glyph: 'separator glyph between text' };
@@ -136,10 +191,10 @@ export function toMarkdown(list, states, { reached = reachedRemainder(null, stat
     'A candidate is not a finding. Give every row a disposition in your existing notes: **finding** after your own sufficient check (then record it with record-observation), **hypothesis** with its basis and the missing evidence, **dismissed: <reason>**, or **unassessed** with the reason and the follow-up.', '',
     '| ID | Detector | Severity | Confidence | What | States | Evidence | Disposition |', '| --- | --- | --- | --- | --- | --- | --- | --- |',
     ...list.map((c) => `| ${c.id} | ${c.detector} | ${c.severity} | ${c.confidence} | ${esc(c.what).slice(0, 240)} | ${c.states.length} | ${esc(c.evidence[0].shot)} \`${esc(c.evidence[0].selector).slice(0, 80)}\` | |`),
-    ...partitionLines(partitions)].join('\n') + '\n';
+    ...(pooled ? pooledLines(summary ?? pooledSummary(states)) : []), ...partitionLines(partitions)].join('\n') + '\n';
 }
 
-const USAGE = 'usage: detect.mjs <evidence-dir> [--dictionary <word list, one word per line>]';
+const USAGE = 'usage: detect.mjs <evidence-dir> [--dictionary <word list, one word per line>] [--pooled]';
 function rareVariantSummary(states, dictionary) {
   if (!dictionary) return { assessed: false, reason: 'no dictionary supplied' };
   const { assessed, reason, capturedWords, knownWords, knownShare } = wordingCoverage(states, { dictionary }).rare;
@@ -149,11 +204,16 @@ function rareVariantLine(r) {
   if (r.assessed) return `assessed (${r.dictionaryWords} dictionary words; knows ${r.knownWords} of ${r.capturedWords} captured words)`;
   return r.reason === UNFIT ? `unassessed (${UNFIT}: it knows ${r.knownWords} of ${r.capturedWords} captured words)` : `unassessed (${r.reason})`;
 }
+// <dir>, then at most one `--dictionary <list>` (the list right after its flag) and at most one `--pooled`, in either order.
 function parseArgs(argv) {
   const [dir, ...rest] = argv;
   if (!dir || dir.startsWith('--')) return null;
-  if (rest.length === 0) return { dir, dictionary: null };
-  return rest.length === 2 && rest[0] === '--dictionary' && rest[1] ? { dir, dictionary: rest[1] } : null;
+  let dictionary = null; let pooled = false;
+  for (let i = 0; i < rest.length; i += 1) {
+    if (rest[i] === '--pooled' && !pooled) pooled = true;
+    else if (rest[i] === '--dictionary' && dictionary === null && rest[i + 1] && rest[i + 1] !== '--pooled') { dictionary = rest[i + 1]; i += 1; } else return null;
+  }
+  return { dir, dictionary, pooled };
 }
 
 async function main() {
@@ -162,19 +222,21 @@ async function main() {
   const { dir } = args;
   const dictionary = args.dictionary ? await loadDictionary(args.dictionary) : null;
   const states = await loadStates(dir);
-  const list = runDetectors(states, { dictionary });
+  const pooledProperty = args.pooled ? pooledPropertySpread(states) : null;
+  const list = runDetectors(states, { dictionary, pooled: args.pooled, pooledProperty });
   const reached = reachedRemainder(await loadReached(dir), states);
+  const pooled = args.pooled ? pooledSummary(states, pooledProperty) : null;
   const duplicates = duplicateLabels(await readIndex(dir));
   const rareVariant = rareVariantSummary(states, dictionary);
   await writeFile(join(dir, 'passive', 'candidates.json'), JSON.stringify({ states: states.map((s) => s.label), count: list.length,
-    contrastCoverage: Object.fromEntries(states.map((s) => [s.label, contrastCoverage(s)])), reached, duplicateLabels: duplicates, rareVariant, candidates: list }, null, 1));
+    contrastCoverage: Object.fromEntries(states.map((s) => [s.label, contrastCoverage(s)])), reached, duplicateLabels: duplicates, rareVariant, candidates: list, ...(pooled ? { pooled } : {}) }, null, 1));
   const partitions = partitionWorklist(states);
   await writeFile(join(dir, 'passive', 'partitions.json'), JSON.stringify(partitions, null, 1));
-  await writeFile(join(dir, 'passive', 'candidates.md'), toMarkdown(list, states, { reached, duplicates, dictionary, partitions }));
+  await writeFile(join(dir, 'passive', 'candidates.md'), toMarkdown(list, states, { reached, duplicates, dictionary, partitions, pooled: args.pooled, summary: pooled }));
   const by = {}; for (const c of list) by[c.detector] = (by[c.detector] ?? 0) + 1;
   console.log(JSON.stringify({ states: states.length, candidates: list.length, byDetector: by,
     reachedNotCaptured: reached.ledger === 'recorded' ? reached.uncaptured.length : 'unknown (no reached.jsonl)', duplicateLabels: duplicates.length,
-    rareVariant: rareVariantLine(rareVariant), partitions: `${partitions.count} planned, not executed` }));
+    rareVariant: rareVariantLine(rareVariant), partitions: `${partitions.count} planned, not executed`, ...(pooled ? { pooled: `${pooled.spread.length} spread row(s), not candidates` } : {}) }));
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) await main();

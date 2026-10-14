@@ -40,6 +40,61 @@ touched, and capture files are created only if absent, so an earlier capture is 
 `candidates.md` says `rare-variant: unassessed (no dictionary supplied)`; `candidates.json` carries `rareVariant`
 with the assessment/reason, dictionary size and distinct captured/known-word denominator and share. The list must match the page language and know at least half of the captured words of four or more letters, directly or as regular English inflections. Otherwise this family is unassessed with no row. No system dictionary is selected automatically. LF, CRLF and CR are supported; a line with multiple words, an empty or unreadable list is refused. A missing modern, domain, compound or irregular word can remain a candidate; German mid-sentence capitalized nouns can be read as names. The fit guard is not a quality score.
 
+### Optional pooled-style analysis of already saved facts
+
+Standalone invocation from any cwd, with absolute tool/evidence paths:
+
+```sh
+node /ABS/TOOLBOX/tools/passive-capture/detect.mjs /ABS/OWN/EVIDENCE --pooled
+node /ABS/TOOLBOX/tools/passive-capture/detect.mjs /ABS/OWN/EVIDENCE --dictionary /ABS/WORDS --pooled
+```
+
+Opt-in analysis only: no second crawl, collector, gateway wiring, role acquisition
+or default enablement. Use only the existing authorized derived-output invocation
+in your own evidence directory; tool adoption does not permit overwriting frozen or
+gateway-owned evidence. Outputs remain `passive/candidates.json`, `candidates.md`
+and unchanged `partitions.json`. Without `--pooled`, default bytes/IDs are unchanged.
+The flag and optional `--dictionary FILE` may appear in either order, once each;
+malformed/repeated flags refuse with exit2.
+
+- `pooled-outlier`: per evidence-dir origin, viewport width and supplied role;
+  75% of voters, at least3 agreeing states on2 query-stripped routes. Fewer than4
+  states cannot give an outlier. Repeated captures weight votes; query-stripped
+  routes are not independent or identical semantic states. Same-route differences
+  and multi-property variants stay contextual spread.
+- `form-font`: inferred members from saved text/counts, **not exact DOM ownership**;
+  4 members/75% dominance, family spanning2 roles; sizes within role/sub-kind.
+  Ambiguous/not-located members are counted, not compared.
+- `sibling-color`:4 or more non-interactive siblings,75% of the others agreeing;
+  shared two-colour patterns and multi-property variants excluded.
+
+Thresholds are heuristics, not design norms, calibrated confidence or proof of
+fixture independence. Candidates are low severity/confidence; an odd state may be
+intended. Interactive colour/background/weight, table cells, glyphs, generic
+monospace, unknown/image/gradient backgrounds and ambiguous members stay excluded.
+Named monospace without a generic family can compare: convention false positives
+remain possible. Suppression proves no design intent or absence of a bug.
+**Help-text font detection is UNSUPPORTED on this capture base:** `hint` facts are
+absent; synthetic hint controls test logic only. No hint collector is included.
+
+Missing role/viewport means unknown, not equal identity; same-role/viewport
+comparability is not established for such pools. Current capture/CLI supplies no
+role qualification. Pure functions honour supplied nonblank roles and refuse
+malformed ones. Six-level path selectors can collide; inferred members/locators
+can miss or falsely associate elements. Inspect original saved facts and authorized
+images before an applicable conclusion.
+
+Pooled candidates append after default IDs, which identify this capture/output
+snapshot, not durable objects across changed inputs. Optional `basis` is a
+representative merged basis, not independent proof for every occurrence; existing
+evidence cap6 remains. Additive default/pooled duplicates may describe the same
+property, not extra coverage or unique bugs. During agent triage, associate possible
+duplicates by object/state/property; no automatic suppression or identity engine. `pooled.spread` is
+contextual distribution, **not candidates/dispositions or triage denominator**.
+JSON keeps every spread row; Markdown shows at most40 with the exact omitted count.
+Counts do not establish completeness or utility. **The absence of candidates or
+spread rows does not establish PASS.**
+
 **What one capture writes** under `passive/`:
 - `<label>.facts.json`: computed style, geometry, accessible names and labels, active context; focusable elements
   (tabindex attribute, box, text direction), radio/checkbox sets sharing a name with their grouping container, and images

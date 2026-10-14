@@ -3,15 +3,16 @@
 // (what must and must not be flagged per fixture), axe presence, written artifacts and privacy canaries.
 // Not a product check; it never leaves file:// URLs.
 //   node tools/passive-capture/browser-control.mjs --playwright-from <dir with node_modules/playwright> --out <dir> [--axe <axe.min.js>] [--dictionary <word list>]
+// The pooled-style fixtures (opt-in detectors) are captured into <out>/pooled, apart from the default pool, whose expectations stay as they are.
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { mkdir, readdir, readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { captureState } from './capture.mjs';
-import { loadStates, runDetectors, toMarkdown } from './detect.mjs';
-import { loadReached, reachedRemainder, trackReached } from './reached.mjs';
+import { loadStates, runDetectors, toMarkdown, pooledSummary } from './detect.mjs';
+import { loadReached, reachedRemainder, trackReached, routeOf } from './reached.mjs';
 import { contrastCoverage } from './a11y-detectors.mjs';
-import { imageCoverage } from './style-detectors.mjs';
+import { imageCoverage, formFontCoverage, siblingColorCoverage, siblingColorDrift, baseSig } from './style-detectors.mjs';
 import { wordingCoverage, loadDictionary } from './text-wording.mjs';
 import { partitionWorklist } from './partitions.mjs';
 
@@ -123,6 +124,84 @@ const CONSTRAINT_FACTS = { 'loans-register': { fullName: { required: true, maxle
 const CONSTRAINT_KEYS = new Set(['required', 'readonly', 'multiple', 'minlength', 'maxlength', 'min', 'max', 'step', 'pattern', 'accept', 'autocomplete', 'inputmode']);
 // The whole fixture pool: only its e-mail fields declare anything, so only their malformed rows.
 const POOL_PARTITIONS = [['b1', 'type-malformed', MAILFORM], ['b2', 'type-malformed', MAILFORM], ['b3', 'type-malformed', MAILFORM], ['b4', 'type-malformed', MAILFORM], ['e', 'type-malformed', MAILFORM]];
+// Pooled style (opt-in). The pooled fixtures are captured into their own evidence dir, so the default pool and its expectations are
+// unchanged; the default run of every set gives no pooled row. Each set is evaluated alone with { pooled: true }, then the whole pooled
+// dir: exact pooled-outlier, form-font and sibling-color rows and exact spread rows (not candidates). D-A loan desks: one panel title per
+// page, so the per-page and in-state comparisons starve; three pages agree and the fines page draws the title in another colour. D-B
+// bench pages: the reading unit is grey on two and green on two: a spread row, no side picked. D-A renewal form: one help text in
+// Georgia, and a glyph button in a symbol face left out. D-B probe form, healthy: smaller help texts, a monospace serial field, glyph
+// buttons (one named by a visually hidden word, so only its glyph facts leave it out) and both actions in one display face. D-B status
+// tags: one of six drifts; three zone tags, alternating rows of five and six, a navigation whose current link has its own colour and
+// script tabs built from anchors without href (not controls; only their tag marks them interactive) give none. D-A tags, healthy: genre tags in a palette, rating stars, two of
+// six loan badges in a status colour and a staff pick in another colour and background give none, each held back by its own guard.
+// Review fixes, healthy real-page patterns that must give no row: D-A nav pages whose current link (utility classes, so a path-keyed kind of
+// one link per page) has its own colour through aria-current; a D-A join form with five text-field labels, a smaller checkbox label, a
+// footer newsletter label "Email" whose input is in no form, a footer note "Optional" (a serif face) beside two "Optional" field hints and a
+// footer branch finder (its own Postcode label, in no form);
+// a D-B sign-in form with a larger submit beside a smaller toggle and two links;
+// D-A patron pages whose contact page is captured again, with a query, after the harness marks it submitted (its labels turn red): a state
+// change on that route, so a spread row and no candidate.
+// This base's page facts name no help text of a field (no field hint), so a help text is never a form member here: the renewal form's
+// Georgia help text gives no form-font row, the help-text members of both forms are 0 and the join form's two "Optional" hints are
+// owned by no field. Should hint facts be captured, the exact rows and coverage below fail and must be revisited.
+const POOLED_STATES = ['loans-pooled-desk', 'loans-pooled-renew', 'loans-pooled-return', 'loans-pooled-fines-odd', 'sensors-pooled-north', 'sensors-pooled-south',
+  'sensors-pooled-east', 'sensors-pooled-west', 'loans-form-fonts', 'sensors-form-fonts', 'sensors-status-tags', 'loans-tags-healthy',
+  'loans-nav-desk', 'loans-nav-renew', 'loans-nav-return', 'loans-nav-fines', 'loans-join-healthy', 'sensors-signin-healthy',
+  'loans-patron-contact', 'loans-patron-reading', 'loans-patron-notices', 'loans-patron-contact-error'];
+// A capture of a fixture under another label, after a harness step on the page (the fixtures hold no script).
+// The error capture is reached with a query, as a form submitted by GET leaves it; the route drops query values, so it is the contact route.
+const POOLED_CAPTURES = { 'loans-patron-contact-error': { fixture: 'loans-patron-contact', query: '?attempt=2', before: () => document.body.classList.add('submitted') } };
+const NAV_PAGES = POOLED_STATES.slice(12, 16); const PATRON = POOLED_STATES.slice(18, 21);
+const POOLED_KINDS = ['pooled-outlier', 'form-font', 'sibling-color'];
+const DESKS = POOLED_STATES.slice(0, 3); const BENCHES = POOLED_STATES.slice(4, 8);
+const PANEL_ROW = ['loans-pooled-fines-odd', 'pooled-outlier', /^Pooled items "Fines due" have color rgb\(138, 31, 31\) in loans-pooled-fines-odd; 3 of 4 pooled states \(on 3 routes\) have color rgb\(31, 58, 95\); /];
+const TAG_ROW = ['sensors-status-tags', 'sibling-color', /^Look-alike item "Online" has color rgb\(30, 90, 140\); 5 of 5 other items of its kind in this state have rgb\(30, 110, 60\), 5 of them with the same text; /];
+const UNIT_SPREAD = ['item|div.reading>span.reading-unit', 'color', 'no-clear-majority', [['rgb(90, 90, 90)', BENCHES.slice(0, 2)], ['rgb(30, 110, 60)', BENCHES.slice(2)]], [], []];
+const PATRON_SPREAD = ['item|div.patron-field>label.patron-label', 'color', 'state-change-on-route', [['rgb(31, 58, 95)', PATRON], ['rgb(200, 0, 0)', ['loans-patron-contact-error']]], [],
+  ['loans-patron-contact-error']];
+const POOLED_SETS = {
+  'D-A healthy desks': [DESKS, [], []], 'D-A desks, one odd title': [[...DESKS, 'loans-pooled-fines-odd'], [PANEL_ROW], []],
+  'D-B benches two and two': [BENCHES, [], [UNIT_SPREAD]], 'D-B benches agree': [BENCHES.slice(0, 2), [], []],
+  'D-A renewal form': [['loans-form-fonts'], [], []], 'D-B probe form': [['sensors-form-fonts'], [], []],
+  'D-B status tags': [['sensors-status-tags'], [TAG_ROW], []], 'D-A healthy tags': [['loans-tags-healthy'], [], []],
+  'D-A nav, current link by aria-current': [NAV_PAGES, [], []], 'D-A join form, footer label outside': [['loans-join-healthy'], [], []],
+  'D-B sign-in form': [['sensors-signin-healthy'], [], []], 'D-A patron pages': [PATRON, [], []],
+  'D-A patron pages, one error capture': [[...PATRON, 'loans-patron-contact-error'], [], [PATRON_SPREAD]],
+  pool: [POOLED_STATES, [PANEL_ROW, TAG_ROW], [UNIT_SPREAD, PATRON_SPREAD]],
+};
+const NO_FORM = { forms: 0, familyCompared: 0, sizeCompared: 0, members: { label: 0, field: 0, control: 0, option: 0, help: 0 }, excluded: { glyph: 0, monospace: 0 },
+  notLocated: { label: 0, help: 0, control: 0 }, ambiguous: 0, roleConvention: 0, singleRoleFamily: 0 };
+const POOLED_COVERAGE = {
+  'loans-form-fonts': [{ ...NO_FORM, forms: 1, familyCompared: 1, sizeCompared: 2, members: { label: 4, field: 4, control: 1, option: 1, help: 0 }, excluded: { glyph: 1, monospace: 0 } },
+    { groupsCompared: 1, groupsSmall: 0, interactive: 2, glyph: 0, backgroundUnknown: 0 }],
+  'sensors-form-fonts': [{ ...NO_FORM, forms: 1, familyCompared: 1, sizeCompared: 1, members: { label: 4, field: 3, control: 2, option: 1, help: 0 }, excluded: { glyph: 2, monospace: 1 }, roleConvention: 2 },
+    { groupsCompared: 1, groupsSmall: 1, interactive: 5, glyph: 0, backgroundUnknown: 0 }],
+  'sensors-status-tags': [NO_FORM, { groupsCompared: 4, groupsSmall: 1, interactive: 9, glyph: 0, backgroundUnknown: 0 }],
+  'loans-tags-healthy': [NO_FORM, { groupsCompared: 3, groupsSmall: 0, interactive: 0, glyph: 5, backgroundUnknown: 0 }],
+  // Ambiguous: the two Email labels (form and footer); the three "Optional" texts are owned by no field here (no hint facts), so none of
+  // them is a member or ambiguous. Four text-field labels and five fields are size-compared; the checkbox label is a member alone in its
+  // group. The footer Postcode label names only a field in no form: not a member and no form of its own.
+  'loans-join-healthy': [{ ...NO_FORM, forms: 1, familyCompared: 1, sizeCompared: 2, members: { label: 5, field: 5, control: 1, option: 0, help: 0 }, ambiguous: 2 },
+    { groupsCompared: 1, groupsSmall: 2, interactive: 3, glyph: 0, backgroundUnknown: 0 }],
+  // Submit, toggle and links are three sub-kinds of control, none with four members.
+  'sensors-signin-healthy': [{ ...NO_FORM, forms: 1, familyCompared: 1, sizeCompared: 0, members: { label: 2, field: 2, control: 4, option: 0, help: 0 } },
+    { groupsCompared: 0, groupsSmall: 1, interactive: 4, glyph: 0, backgroundUnknown: 0 }],
+};
+const POOLED_PROPERTIES = { pools: 1, statesNotPooled: 0, kindsCompared: 22, kindsInOneState: 50, comparisons: 98, agreed: 95, outliers: 1, spread: 2, withoutVotes: 24, interactiveItems: 47 };
+// Each guard on the healthy tags page is what holds its row back: loosened, the shared status colour (two overdue badges), the staff pick
+// (colour and background) and the palette (others that do not agree) each give rows.
+const LOOSENED = [[{ minCluster: 3 }, 2, /^Look-alike item "Overdue" has color rgb\(138, 31, 31\)/], [{ minVariantProps: 3 }, 2, /^Look-alike item "Staff pick" has /],
+  [{ share: 0.2 }, 5, /^Look-alike item "(History|Gardening|Poetry|Science|Travel)" has color /]];
+// The default fixture pool in pooled mode: exactly the three seeded cross-page defects (form4's narrow primary action, the 15px catalogue
+// titles, the narrower threshold fields), no form-font or sibling-color row, and spread rows for one note kind that the card and wording
+// pages draw at 16px in dark grey and the sensor lists at 13px in mid grey (five pages against four: no side is picked).
+const MAIN_POOLED = [['form4', 'pooled-outlier', /^Pooled primary actions "Send" have width 25% of their form \(80 of 320px\) in form4; 4 of 5 pooled states \(on 4 routes\) /],
+  ['loans-catalogue-3-odd', 'pooled-outlier', /^Pooled items "Tides and Moons" have fontSize 15px in loans-catalogue-3-odd; 3 of 4 pooled states \(on 3 routes\) have fontSize 14px; /],
+  ['sensors-list-3-odd', 'pooled-outlier', /^Pooled fields "o-air" have width 50% of their container \(180 of 360px\) in sensors-list-3-odd; 3 of 4 pooled states \(on 3 routes\) /]];
+const NOTE_16 = ['cards', 'loans-wording-healthy', 'loans-wording-broken', 'sensors-wording-healthy', 'sensors-wording-broken']; const NOTE_13 = ['sensors-list-1', 'sensors-list-2', 'sensors-list-3', 'sensors-list-3-odd'];
+const MAIN_SPREAD = [['item|main>p.note', 'fontSize', 'no-clear-majority', [['16px', NOTE_16], ['13px', NOTE_13]], [], []],
+  ['item|main>p.note', 'color', 'no-clear-majority', [['rgb(34, 34, 34)', NOTE_16], ['rgb(85, 85, 85)', NOTE_13]], [], []]];
+let pooledRun = null;
 const INPUT_METHODS = new Set(['fill', 'type', 'press', 'pressSequentially', 'click', 'dblclick', 'tap', 'check', 'uncheck', 'setChecked', 'selectOption', 'setInputFiles', 'focus', 'hover',
   'dispatchEvent', 'dragAndDrop', 'keyboard', 'mouse', 'touchscreen', 'locator', 'getByRole', 'getByLabel', 'getByText', '$', '$$', 'goto', 'reload', 'goBack', 'goForward', 'route']);
 const MUST_NOT = [['scope-native-modal', 'style'], ['scope-inert', 'style'], ['scope-modal-under-inert', 'style'], ['privacy', 'a11y-name'], ['privacy', 'text-hygiene']];
@@ -187,6 +266,15 @@ async function partitionSet(fixture, typed, dir) {
   await captureState(spy, { dir, label: fixture, axeSource: args.axe ?? null });
   return { dir, touched, events: await page.evaluate(() => globalThis.inputEvents) };
 }
+async function pooledSet(dir) {
+  const page = await openPage();
+  for (const label of POOLED_STATES) {
+    const { fixture = label, query = '', before = null } = POOLED_CAPTURES[label] ?? {};
+    await page.goto(`${FIXTURES}${fixture}.html${query}`); if (before) await page.evaluate(before);
+    await captureState(page, { dir, label, axeSource: args.axe ?? null });
+  }
+  return { dir };
+}
 async function checkRefusal({ dir, page }) {
   const index = () => readFile(join(dir, 'passive', 'index.jsonl'), 'utf8'); const before = await index();
   const outcome = await captureState(page, { dir, label: 'Returns', axeSource: args.axe ?? null }).then(() => 'captured', (error) => error.message);
@@ -209,6 +297,7 @@ try {
   for (const [name, [fixture, typed]] of Object.entries(PARTITION_SETS)) {
     partitionRuns[name] = await partitionSet(fixture, typed, join(args.out, `partitions-${fixture}`)).catch((error) => ({ error }));
   }
+  pooledRun = await pooledSet(join(args.out, 'pooled')).catch((error) => ({ error }));
 } finally { await browser.close(); }
 
 const states = await loadStates(args.out);
@@ -347,6 +436,71 @@ for (const [name, [fixture, typed, wantRows, wantCoverage]] of Object.entries(PA
     if (JSON.stringify(got) !== JSON.stringify(want)) fail(`constraint facts ${fixture} ${field}: ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
   }
 }
+// Pooled style: opt-in only, exact rows and spread rows per set and over the pooled dir, the coverage the rows rely on, each healthy-tags
+// guard shown to be the reason, and over the default pool exactly the seeded cross-page defects; pooled adds rows and changes none.
+const POOLED_REPORT = {};
+const pooledRows = (subset) => runDetectors(subset, { dictionary, pooled: true }).filter((c) => POOLED_KINDS.includes(c.detector));
+const spreadOf = (subset) => pooledSummary(subset).spread.map((r) => [r.kind, r.prop, r.reason, r.distribution.map((d) => [d.value, d.states]), r.variants, r.sameRoute]);
+function checkPooledRows(name, subset, wantRows, wantSpread) {
+  const got = pooledRows(subset); const seen = wantRows.filter(([state, kind, re]) => got.some((c) => c.detector === kind && c.states.join() === state && re.test(c.what)));
+  if (got.length !== wantRows.length || seen.length !== wantRows.length) fail(`pooled ${name}: ${got.length} rows, expected ${wantRows.length}: ${got.map((c) => `${c.detector}@${c.states.join(',')}: ${c.what}`).join(' | ')}`);
+  if (!got.every((c) => c.confidence === 'low' && c.basis)) fail(`pooled ${name}: a row lacks low confidence or its basis`);
+  if (runDetectors(subset, { dictionary }).some((c) => POOLED_KINDS.includes(c.detector) || c.basis)) fail(`pooled ${name}: a pooled row without the opt-in`);
+  const spread = spreadOf(subset);
+  if (JSON.stringify(spread) !== JSON.stringify(wantSpread)) fail(`pooled ${name} spread: ${JSON.stringify(spread)}, expected ${JSON.stringify(wantSpread)}`);
+  POOLED_REPORT[name] = { rows: got.map((c) => `${c.detector} ${c.states.join(',')}: ${c.what}`), spread: spread.length };
+}
+if (!pooledRun || pooledRun.error) fail(`pooled: ${pooledRun?.error?.message.split('\n')[0] ?? 'not run'}`);
+else {
+  const pooledStates = await loadStates(pooledRun.dir); const byLabel = (labels) => pooledStates.filter((s) => labels.includes(s.label));
+  for (const [name, [labels, wantRows, wantSpread]] of Object.entries(POOLED_SETS)) checkPooledRows(name, byLabel(labels), wantRows, wantSpread);
+  const starved = runDetectors(byLabel([...DESKS, 'loans-pooled-fines-odd']), { dictionary }).filter((c) => ['style', 'alignment', 'property-outlier'].includes(c.detector));
+  if (starved.length) fail(`pooled: the per-page and in-state style detectors were expected to starve on the desks: ${starved.map((c) => c.what).join(' | ')}`);
+  for (const [label, [form, sibling]] of Object.entries(POOLED_COVERAGE)) {
+    const [state] = byLabel([label]); const got = [formFontCoverage(state), siblingColorCoverage(state)];
+    if (JSON.stringify(got) !== JSON.stringify([form, sibling])) fail(`pooled coverage at ${label}: ${JSON.stringify(got)}, expected ${JSON.stringify([form, sibling])}`);
+  }
+  const properties = pooledSummary(pooledStates).coverage.properties;
+  if (JSON.stringify(properties) !== JSON.stringify(POOLED_PROPERTIES)) fail(`pooled property coverage: ${JSON.stringify(properties)}, expected ${JSON.stringify(POOLED_PROPERTIES)}`);
+  const [tags] = byLabel(['loans-tags-healthy']);
+  for (const [opts, n, re] of LOOSENED) {
+    const got = siblingColorDrift(tags, opts);
+    if (got.length !== n || !got.every((c) => re.test(c.what))) fail(`pooled healthy tags with ${JSON.stringify(opts)}: ${got.length} rows, expected ${n} matching ${re}`);
+  }
+  const factsAt = (label) => byLabel([label])[0].facts;
+  const probe = factsAt('sensors-form-fonts'); const renew = factsAt('loans-form-fonts');
+  if (!/monospace/.test(probe.fields.find((f) => f.name === 'serial')?.style.fontFamily ?? '')) fail('pooled: the serial field must carry its monospace family');
+  if (!['±', '✎'].every((t) => probe.elements.find((e) => e.text === t)?.glyph) || !renew.elements.find((e) => e.text === '⋯')?.glyph) fail('pooled: glyph buttons must carry glyph facts');
+  if (!/[A-Za-z]/.test(probe.controls.find((c) => c.name?.text?.startsWith('✎'))?.name.text ?? '')) fail('pooled: the rename button must be named by its hidden word');
+  if (factsAt('sensors-status-tags').controls.some((c) => c.sel.includes('range-tab'))) fail('pooled: anchors without href must not be controls');
+  // The traps the review fixtures set are present in the captured facts, so their empty result is the guard's doing.
+  for (const label of NAV_PAGES) {
+    const links = factsAt(label).elements.filter((e) => e.tag === 'a'); const current = links.filter((e) => e.style.color === 'rgb(200, 90, 0)');
+    if (links.length !== 4 || current.length !== 1 || !links.every((e) => / > li:nth-of-type\(\d\) > a\.px-2\.text-sm$/.test(e.sel) && e.sig === 'a.px-2.text-sm' && baseSig(e.sig) === 'a' && baseSig(e.parentSig) === 'li')) {
+      fail(`pooled: ${label} must hold four path-keyed utility-class links, one in the current colour: ${JSON.stringify(links.map((e) => [e.sel, e.sig, e.style.color]))}`);
+    }
+  }
+  const join = factsAt('loans-join-healthy');
+  const footerLabel = join.elements.find((e) => e.tag === 'label' && e.text === 'Email' && e.style.fontSize === '12px');
+  if (!footerLabel || join.fields.find((f) => f.name === 'nl')?.form !== -1 || join.fields.find((f) => f.name === 'email')?.form !== 0) fail('pooled: the footer Email label and its input in no form');
+  if (join.fields.find((f) => f.name === 'agree')?.label?.source !== 'label-wrap' || !join.elements.some((e) => e.text === 'I agree to the loan terms' && e.style.fontSize === '14px')) {
+    fail('pooled: the 14px checkbox label wrapping its box');
+  }
+  const signin = factsAt('sensors-signin-healthy');
+  const sizes = Object.fromEntries(signin.controls.filter((c) => c.form === 0).map((c) => [c.name?.text, [c.tag, c.type, signin.elements.find((e) => e.sel === c.sel)?.style.fontSize]]));
+  if (JSON.stringify(sizes) !== JSON.stringify({ Show: ['button', 'button', '14px'], 'Sign in': ['button', 'submit', '16px'], 'Forgot passcode?': ['a', null, '14px'], 'Request access': ['a', null, '14px'] })) {
+    fail(`pooled: sign-in controls ${JSON.stringify(sizes)}`);
+  }
+  const [contact, error] = byLabel(['loans-patron-contact', 'loans-patron-contact-error']).sort((a, b) => a.label.length - b.label.length);
+  const labelColour = (st) => [...new Set(st.facts.elements.filter((e) => e.tag === 'label').map((e) => e.style.color))];
+  if (contact.url === error.url || routeOf(contact.url) !== routeOf(error.url) || JSON.stringify([labelColour(contact), labelColour(error)]) !== JSON.stringify([['rgb(31, 58, 95)'], ['rgb(200, 0, 0)']])) {
+    fail(`pooled: the error capture must be the contact route, another URL, with red labels: ${JSON.stringify([contact.url, error.url, labelColour(contact), labelColour(error)])}`);
+  }
+}
+const mainPooled = runDetectors(states, { dictionary, pooled: true });
+if (JSON.stringify(mainPooled.slice(0, list.length)) !== JSON.stringify(list)) fail('pooled mode changed a default row of the default pool, its id included');
+if (list.some((c) => POOLED_KINDS.includes(c.detector) || c.basis)) fail('the default run of the default pool has a pooled row');
+checkPooledRows('default pool', states, MAIN_POOLED, MAIN_SPREAD);
 const files = await readdir(join(args.out, 'passive'));
 const unexpectedFiles = files.filter((f) => !/\.(facts\.json|axe\.json|png)$|^(index|reached)\.jsonl$|^candidates\.(json|md)$/.test(f));
 if (unexpectedFiles.length) fail(`unexpected artifacts written: ${unexpectedFiles.join(', ')}`);
@@ -362,6 +516,6 @@ for (const f of files.filter((x) => !x.endsWith('.png'))) {
   }
 }
 console.log(JSON.stringify({ axe: withAxe ? 'requested' : 'not requested', dictionary: dictionary ? `${dictionary.size} words` : 'none', captures: entries.map((e) => ({ label: e.label, ms: e.ms, axe: e.axe })), candidates: list.map((c) => `${c.id} ${c.detector} ${c.states.join(',')}: ${c.what}`), reached,
-  partitions: Object.fromEntries(Object.entries(partitions).map(([k, w]) => [k, { count: w.count, coverage: w.coverage }])), failures }, null, 1));
+  partitions: Object.fromEntries(Object.entries(partitions).map(([k, w]) => [k, { count: w.count, coverage: w.coverage }])), pooled: POOLED_REPORT, failures }, null, 1));
 if (failures.length) { console.error(`BROWSER CONTROL FAIL (${failures.length})`); process.exit(1); }
 console.log('BROWSER CONTROL PASS');

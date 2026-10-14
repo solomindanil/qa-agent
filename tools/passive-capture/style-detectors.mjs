@@ -1,5 +1,7 @@
 // Offline detectors over captured facts: consistency of look-alike elements within and across reached states, and failed images.
 // Every function is pure and returns candidates; none of them is a verdict.
+import { routeOf } from './reached.mjs';
+
 const UTILITY = /^(text|align|justify|float|fw|fs|lh|font|m[trblxyse]?|p[trblxyse]?|d|order|w|h|bg|border|rounded|shadow|gap|flex|items|self|place|col|row)-/;
 const SKIP_TAGS = new Set(['td', 'th', 'option']);
 const MAX_ITEM_TEXT = 60;
@@ -253,3 +255,370 @@ export function brokenImageCandidates(state) {
     what: `Image finished loading without a decoded size (naturalWidth 0): the source failed or is not an image; in ${state.label}, ${loaded} of ${loaded + failed} assessed images loaded. The source URL is not stored; an environment cause is possible`,
     evidence: evidence(state, i.sel) }));
 }
+
+// ---- Pooled style (opt-in: runDetectors(states, { pooled: true }) or detect.mjs --pooled). ----
+// Three detectors that need no per-page majority. Every row is a low-confidence candidate with its basis, never a defect claim, and
+// no expectation is read from UI text or convention: a value is held only to other captured values of the same kind.
+// The look properties compared are those already in the facts. A background is known only as a solid colour found on the element or
+// an ancestor; an assumed page white, a faded holder, an image, a layer or a translucent background stays unknown and is not compared.
+const LOOK_PROPS = ['textAlign', 'fontFamily', 'fontSize', 'fontWeight', 'color', 'background'];
+const POOLED_PROPS = { item: LOOK_PROPS, field: [...LOOK_PROPS.slice(0, 5), 'width'], primary: ['width'] };
+const POOLED = { minStates: 2, majority: 0.75, minAgree: 3, minRoutes: 2, minVariantProps: 2 };
+const knownBackground = (e) => (e.bg?.kind === 'solid' && !e.bg.assumed && e.bg.opacity === undefined ? e.bg.color : undefined);
+const percentOf = (w, of) => (of > 0 ? Math.round((100 * w) / of) : undefined);
+// A font family is compared by the first family of its computed list, unquoted: the browser's default face of an input ("Arial") and a
+// page stack that starts with it ("Arial, sans-serif") are one family.
+const firstFamily = (value) => (value === undefined ? undefined : String(value).split(',')[0].trim().replace(/^["']|["']$/g, ''));
+// text-align matters for a text element only in a block box; a field or control aligns its own content whatever its display.
+const lookOf = (e, prop, type) => {
+  if (prop === 'background') return knownBackground(e);
+  if (prop === 'textAlign') return type === 'item' && !alignable(e) ? undefined : alignOf(e.style?.textAlign);
+  return prop === 'fontFamily' ? firstFamily(e.style?.fontFamily) : e.style?.[prop];
+};
+const roleOf = (state) => {
+  if (state.role === undefined || state.role === null) return null;
+  if (typeof state.role !== 'string' || !state.role.trim()) throw new TypeError('role must be a non-empty string');
+  return state.role.trim();
+};
+const originOf = (url) => { try { return new URL(url).origin; } catch { return null; } };
+// A form's primary action as in the geometry detector: its last submit button, or its only button; its width is read relative to
+// the form, whose width the form's fields carry (containerW). A form without such a field has an unknown width.
+function primaryOf(state, form) {
+  const buttons = (state.facts.controls ?? []).filter((c) => c.form === form && inspectable(c) && (c.tag === 'button' || c.tag === 'input'));
+  const submits = buttons.filter((b) => b.type === 'submit' || (b.tag === 'button' && b.type == null));
+  return [...(submits.length ? submits : buttons.length === 1 ? buttons : [])].sort((a, b) => a.rect.y - b.rect.y).at(-1) ?? null;
+}
+const formWidthOf = (state, form) => (state.facts.fields ?? []).find((f) => f.form === form && inspectable(f) && placed(f.rect) && f.containerW > 0)?.containerW;
+// Interactive items: links, buttons, summaries, controls and items inside a control. They often mark the current or selected item by
+// colour, background or weight (a current-page link through aria-current or a class that baseSig strips), so those are not compared.
+const INTERACTIVE_TAGS = new Set(['a', 'button', 'summary']);
+const STATE_MARKS = new Set(['color', 'background', 'fontWeight']);
+const interactiveIn = (state) => {
+  const sels = (state.facts.controls ?? []).map((c) => c.sel);
+  return (e) => INTERACTIVE_TAGS.has(e.tag) || sels.some((s) => e.sel === s || e.sel.startsWith(`${s} > `));
+};
+
+// kind -> entries of one state: text items keyed as in `style`, text-like fields as in `property-outlier`, and primary actions. An
+// interactive item keeps its family, size and alignment; its colour, background and weight are unknown, so it does not vote with them.
+function pooledKinds(state) {
+  const kinds = new Map(); const add = (key, entry) => kinds.set(key, [...(kinds.get(key) ?? []), entry]);
+  const interactive = interactiveIn(state); let interactiveItems = 0;
+  const valueOf = (e, p, type, of, unmarked) => (unmarked && STATE_MARKS.has(p) ? undefined : p === 'width' ? percentOf(e.rect.w, of) : lookOf(e, p, type));
+  const entry = (e, type, name, of, unmarked = false) => ({ sel: e.sel, name, w: e.rect?.w, of,
+    values: Object.fromEntries(POOLED_PROPS[type].map((p) => [p, valueOf(e, p, type, of, unmarked)])) });
+  for (const e of state.facts.elements ?? []) {
+    if (!repeatedItem(e)) continue;
+    const unmarked = interactive(e); if (unmarked) interactiveItems += 1;
+    add(`item|${groupKey(e)}`, entry(e, 'item', e.text, undefined, unmarked));
+  }
+  for (const f of state.facts.fields ?? []) {
+    if (inspectable(f) && f.textLike && f.sig !== undefined && placed(f.rect)) add(`field|${f.tag}|${f.type}|${groupKey(f)}`, entry(f, 'field', f.name || f.id || f.placeholder || f.sel, f.containerW));
+  }
+  for (let form = 0; form < (state.facts.formCount ?? 0); form += 1) {
+    const c = primaryOf(state, form); if (c) add(`primary|${groupKey(c)}`, entry(c, 'primary', c.name?.text || c.sel, formWidthOf(state, form)));
+  }
+  return { kinds, interactiveItems };
+}
+// A state votes with a value more than half of its items with a known value share; with no such value it is mixed and does not vote.
+function stateVote(entries, prop) {
+  const known = entries.filter((x) => x.values[prop] !== undefined); if (!known.length) return null;
+  const m = majorityOf(known.map((x) => x.values[prop]));
+  return m.share > 0.5 ? { value: m.value, sample: known.find((x) => x.values[prop] === m.value) } : { mixed: true };
+}
+const pooledSame = (prop, tol) => (prop !== 'width' ? (a, b) => a.value === b.value : (a, b) => Math.abs(a.value - b.value) <= tol.pct || Math.abs(a.sample.w - b.sample.w) <= tol.px);
+const typeOf = (kind) => kind.slice(0, kind.indexOf('|'));
+const SUBJECT = { item: 'items', field: 'fields', primary: 'primary actions' };
+const describeValue = (prop, v, type) => (prop !== 'width' ? `${prop} ${v.value}`
+  : `width ${v.value}% of their ${type === 'primary' ? 'form' : 'container'} (${v.sample.w} of ${v.sample.of}px)`);
+const describeOdd = (prop, odd, type) => {
+  const byValue = new Map(); for (const v of odd) byValue.set(v.value, [...(byValue.get(v.value) ?? []), v]);
+  return [...byValue.values()].map((vs) => `${describeValue(prop, vs[0], type)} in ${vs.map((v) => v.state.label).join(', ')}`).join(' and ');
+};
+const distributionOf = (voters) => {
+  const byValue = new Map(); for (const v of voters) byValue.set(v.value, [...(byValue.get(v.value) ?? []), v.state.label]);
+  return [...byValue].map(([value, states]) => ({ value, states })).sort((a, b) => b.states.length - a.states.length);
+};
+
+function compareProps(rows, type, tol) {
+  const votes = {};
+  for (const prop of POOLED_PROPS[type]) {
+    const cast = rows.map((r) => ({ state: r.state, vote: stateVote(r.entries, prop) }));
+    const voters = cast.filter((c) => c.vote && !c.vote.mixed).map((c) => ({ state: c.state, value: c.vote.value, sample: c.vote.sample }));
+    const mixed = cast.filter((c) => c.vote?.mixed).map((c) => c.state.label);
+    if (voters.length < 2) { votes[prop] = { voters, mixed }; continue; }
+    const same = pooledSame(prop, tol); const { top, n } = sharedValue(voters, same);
+    votes[prop] = { voters, mixed, top, n, same, cluster: voters.filter((v) => same(v, top)), odd: voters.filter((v) => !same(v, top)) };
+  }
+  return votes;
+}
+// Look properties in which a state's vote differs from the kind: two or more make it a variant. A property counts only when that does not
+// depend on capture order: the kind's most shared value is a clear majority and the state's value is another, or no other voting state
+// holds the state's value. A tie (two against two) is no difference of either side.
+const lookDifferences = (votes, state, isClear) => LOOK_PROPS.filter((p) => {
+  const v = votes[p]; const mine = v?.top ? v.voters.find((x) => x.state === state) : undefined; if (!mine) return false;
+  return (isClear(v) && !v.same(mine, v.top)) || !v.voters.some((x) => x !== mine && v.same(x, mine));
+}).length;
+const routeKey = (state) => routeOf(state.url) ?? state.url;
+const labelsOf = (voters) => voters.map((x) => x.state.label);
+// One pool per origin, viewport width and role; a state whose URL has no parseable origin is not pooled.
+function poolsOf(states) {
+  const pools = new Map(); let notPooled = 0;
+  for (const s of states) {
+    const role = roleOf(s); const origin = originOf(s.url);
+    if (origin === null) { notPooled += 1; continue; }
+    const viewport = s.facts?.viewport?.w ?? null; const key = `${origin}|${viewport}|${role ?? ''}`;
+    if (!pools.has(key)) pools.set(key, { pool: { origin, viewport, role }, states: [] }); pools.get(key).states.push(s);
+  }
+  return { pools, notPooled };
+}
+// The outcome of one compared property with odd states: which odd states are a state change on a majority route, which are variants,
+// which are named, and the reasons of its spread rows.
+function oddOutcome(v, votes, { isClear, minRoutes, minVariantProps }) {
+  const majorityRoutes = new Set(v.cluster.map((x) => routeKey(x.state))); const routes = majorityRoutes.size;
+  const clear = isClear(v); const held = clear && routes >= minRoutes;
+  const sameRoute = held ? v.odd.filter((x) => majorityRoutes.has(routeKey(x.state))) : [];
+  const variants = held ? v.odd.filter((x) => !sameRoute.includes(x) && lookDifferences(votes, x.state, isClear) >= minVariantProps) : [];
+  const named = held ? v.odd.filter((x) => !sameRoute.includes(x) && !variants.includes(x)) : [];
+  const reasons = !clear ? ['no-clear-majority'] : routes < minRoutes ? ['majority-on-one-route']
+    : [...(sameRoute.length ? ['state-change-on-route'] : []), ...(variants.length ? ['multi-property-variant'] : [])];
+  return { routes, sameRoute, variants, named, reasons };
+}
+
+// Pools all captured states of one origin, viewport width and role (when the state carries one) and compares, for each kind seen in
+// two or more of them, every look property, and for fields and primary actions their width relative to the form or container.
+// A clear majority (a share of the voting states, from at least minAgree states on at least minRoutes routes) names the odd states in
+// one pooled-outlier candidate. No clear majority, a majority from one route, an odd state whose own route also has a capture with the
+// majority value (a validation error or a selected state of that page), or an odd state that differs in two or more look properties
+// gives a spread row that lists the distribution without picking a side. Spread rows are not candidates.
+export function pooledPropertySpread(states, { minStates = POOLED.minStates, majority = POOLED.majority, minAgree = POOLED.minAgree, minRoutes = POOLED.minRoutes,
+  minVariantProps = POOLED.minVariantProps, widthTolerance = WIDTH_TOLERANCE } = {}) {
+  const { pools, notPooled } = poolsOf(states);
+  const thresholds = { majority, minAgree, minRoutes, minVariantProps };
+  const coverage = { pools: pools.size, statesNotPooled: notPooled, kindsCompared: 0, kindsInOneState: 0, comparisons: 0, agreed: 0, outliers: 0, spread: 0, withoutVotes: 0,
+    interactiveItems: 0 };
+  const isClear = (v) => v.n / v.voters.length >= majority && v.n >= minAgree;
+  const outliers = []; const spread = [];
+  for (const [poolKey, { pool, states: members }] of pools) {
+    const perKind = new Map();
+    for (const state of members) {
+      const { kinds, interactiveItems } = pooledKinds(state); coverage.interactiveItems += interactiveItems;
+      for (const [kind, entries] of kinds) perKind.set(kind, [...(perKind.get(kind) ?? []), { state, entries }]);
+    }
+    for (const [kind, rows] of perKind) {
+      if (rows.length < minStates) { coverage.kindsInOneState += 1; continue; }
+      coverage.kindsCompared += 1;
+      const type = typeOf(kind); const votes = compareProps(rows, type, widthTolerance);
+      for (const prop of POOLED_PROPS[type]) {
+        const v = votes[prop];
+        if (!v.top) { coverage.withoutVotes += 1; continue; }
+        coverage.comparisons += 1;
+        if (!v.odd.length) { coverage.agreed += 1; continue; }
+        const { routes, sameRoute, variants, named, reasons } = oddOutcome(v, votes, { isClear, minRoutes, minVariantProps });
+        const [example] = v.voters;
+        for (const reason of reasons) {
+          spread.push({ pool, kind, subject: `${SUBJECT[type]} "${example.sample.name}"`, prop, reason, distribution: distributionOf(v.voters),
+            variants: reason === 'multi-property-variant' ? labelsOf(variants) : [], sameRoute: reason === 'state-change-on-route' ? labelsOf(sameRoute) : [], mixed: v.mixed,
+            example: { state: example.state.label, selector: example.sample.sel } });
+        }
+        if (!named.length) continue;
+        coverage.outliers += 1;
+        const what = `Pooled ${SUBJECT[type]} "${named[0].sample.name}" have ${describeOdd(prop, named, type)}; ${v.n} of ${v.voters.length} pooled states (on ${routes} routes) have `
+          + `${describeValue(prop, v.top, type)}; a majority across captured states, not a design rule, so the odd state may be the intended one`;
+        const basis = { pool, kind, prop, majority: { value: v.top.value, states: labelsOf(v.cluster), routes },
+          odd: named.map((x) => ({ state: x.state.label, value: x.value, ...(prop === 'width' ? { px: x.sample.w, of: x.sample.of } : {}) })),
+          variants: labelsOf(variants), sameRoute: labelsOf(sameRoute), mixed: v.mixed, voters: v.voters.length, thresholds };
+        for (const x of named) outliers.push({ detector: 'pooled-outlier', key: `pooled|${poolKey}|${kind}|${prop}`, severity: 'low', confidence: 'low', what, evidence: evidence(x.state, x.sample.sel), basis });
+      }
+    }
+  }
+  coverage.spread = spread.length;
+  return { outliers, spread, coverage };
+}
+
+// Form fonts. Members of one form are located through facts only: its text-like fields (their own text), the option lists of its
+// selects (size only), its controls whose text the control itself draws (an input's value or native name, or a button holding its
+// own text), and the elements whose own text equals the label or help text of fields of that form alone. Every field names its texts,
+// a field in no form or not shown (disabled, inactive, off the page) as "outside": a text named by fields of several forms or outside
+// one, or carried by more rendered elements than fields name it, is ambiguous. Ambiguous texts and a label or help text with text in a
+// child element are counted, not compared. Icon glyphs (the glyph facts, or a control text without a letter or digit) and text in a
+// generic monospace family are left out.
+const MONO_GENERICS = new Set(['monospace', 'ui-monospace']);
+const monospace = (family) => String(family ?? '').split(',').some((f) => MONO_GENERICS.has(f.trim().replace(/^["']|["']$/g, '').toLowerCase()));
+const ALNUM = /[\p{L}\p{N}]/u;
+const LABEL_SOURCES = new Set(['label-for', 'label-wrap']);
+const OWN_TEXT_SOURCES = new Set(['value', 'native-default']);
+const FORM_ROLES = ['label', 'field', 'control', 'option', 'help'];
+const ROLE_NAME = { label: 'label', field: 'field', control: 'control', option: 'options', help: 'help text' };
+// Sizes are compared within one role and sub-kind: a label's sub-kind is its field's (text for inputs that take text, selects and
+// textareas; else the field's type, such as checkbox); a control is a link, a submit button (a button without a type submits) or
+// another button.
+const SIZE_GROUP = { 'label:text': 'text-field labels', 'label:mixed': 'labels', 'field:field': 'fields', 'option:option': 'option lists', 'help:help': 'help texts',
+  'control:submit': 'submit buttons', 'control:button': 'buttons', 'control:link': 'links' };
+const groupName = (group) => SIZE_GROUP[group] ?? `${group.slice(group.indexOf(':') + 1)} labels`;
+const fieldKind = (f) => (f.textLike ? 'text' : String(f.type ?? f.tag));
+const controlKind = (c) => {
+  if (c.tag === 'a') return 'link';
+  const type = String(c.type ?? '').toLowerCase();
+  if (c.tag === 'button') return type === 'button' || type === 'reset' ? 'button' : 'submit';
+  return c.tag === 'input' && (type === 'submit' || type === 'image') ? 'submit' : 'button';
+};
+const OUTSIDE = 'outside';
+
+const isLiveField = (f) => inspectable(f) && placed(f.rect) && f.form >= 0;
+// element -> [role, owner, count] or null. owner: the owners naming its text (a live field's form, or OUTSIDE), the sub-kinds of the live
+// fields naming it and how many fields do; count: how many rendered elements carry the text where it would be located (label elements for
+// a label text, any element for a reference or a hint).
+function textLocator(fields, shown) {
+  const owners = (pick) => fields.reduce((m, f) => {
+    const t = pick(f); if (!t) return m;
+    const prev = m.get(t) ?? { owners: new Set(), kinds: new Set(), claims: 0 };
+    const live = isLiveField(f);
+    return m.set(t, { owners: new Set([...prev.owners, live ? f.form : OUTSIDE]), kinds: live ? new Set([...prev.kinds, fieldKind(f)]) : prev.kinds, claims: prev.claims + 1 });
+  }, new Map());
+  const byLabel = owners((f) => (LABEL_SOURCES.has(f.label?.source) ? f.label.text : null));
+  const byReference = owners((f) => (f.label?.source === 'aria-labelledby' ? f.label.text : null));
+  const byHint = owners((f) => f.hint ?? null);
+  const counted = (pick) => shown.reduce((m, e) => (pick(e) ? m.set(e.text, (m.get(e.text) ?? 0) + 1) : m), new Map());
+  const asLabel = (e) => e.tag === 'label' && byLabel.has(e.text);
+  const counts = { label: counted(asLabel), reference: counted((e) => byReference.has(e.text)), hint: counted((e) => byHint.has(e.text)) };
+  return (e) => (asLabel(e) ? ['label', byLabel.get(e.text), counts.label] : byReference.has(e.text) ? ['label', byReference.get(e.text), counts.reference]
+    : byHint.has(e.text) ? ['help', byHint.get(e.text), counts.hint] : null);
+}
+
+function formMembers(state) {
+  const { elements = [], fields = [], controls = [] } = state.facts;
+  const cov = { members: Object.fromEntries(FORM_ROLES.map((r) => [r, 0])), excluded: { glyph: 0, monospace: 0 }, notLocated: { label: 0, help: 0, control: 0 }, ambiguous: 0 };
+  const live = fields.filter(isLiveField); const shown = elements.filter(comparable); const locate = textLocator(fields, shown);
+  const members = []; const seen = new Set(); const located = { label: new Set(), help: new Set() };
+  const take = (role, kind, form, sel, text, style, glyph) => {
+    if (seen.has(sel)) return; seen.add(sel);
+    const why = glyph ? 'glyph' : monospace(style?.fontFamily) ? 'monospace' : null;
+    if (why) { cov.excluded[why] += 1; return; }
+    cov.members[role] += 1; members.push({ role, kind, form, sel, text, fontFamily: firstFamily(style?.fontFamily), fontSize: style?.fontSize });
+  };
+  for (const e of shown) {
+    const found = locate(e); if (!found) continue;
+    const [role, owner, count] = found;
+    located[role].add(e.text);
+    if (owner.owners.size > 1 || count.get(e.text) > owner.claims) { cov.ambiguous += 1; continue; }
+    const [form] = owner.owners; if (form === OUTSIDE) continue;
+    const kind = role === 'help' ? 'help' : owner.kinds.size === 1 ? [...owner.kinds][0] : 'mixed';
+    take(role, kind, form, e.sel, e.text, e.style, Boolean(e.glyph));
+  }
+  for (const f of live) {
+    if (LABEL_SOURCES.has(f.label?.source) || f.label?.source === 'aria-labelledby') cov.notLocated.label += f.label.text && !located.label.has(f.label.text) ? 1 : 0;
+    if (f.hint && !located.help.has(f.hint)) cov.notLocated.help += 1;
+    const name = f.name || f.id || f.label?.text || f.sel;
+    if (f.textLike) take('field', 'field', f.form, f.sel, name, f.style, false);
+    const sizes = majorityOf((f.options ?? []).map((o) => o.fontSize));
+    if (f.tag === 'select' && sizes.share > 0.5) {
+      cov.members.option += 1; members.push({ role: 'option', kind: 'option', form: f.form, sel: `${f.sel} option`, text: `${name} options`, fontSize: sizes.value });
+    }
+  }
+  const firstBySel = new Map(); for (const e of elements) if (!firstBySel.has(e.sel)) firstBySel.set(e.sel, e);
+  for (const c of controls) {
+    if (!inspectable(c) || !(c.form >= 0)) continue;
+    const text = c.name?.text ?? '';
+    if (OWN_TEXT_SOURCES.has(c.name?.source)) take('control', controlKind(c), c.form, c.sel, text, c.style, !ALNUM.test(text));
+    else if (c.name?.source === 'text') {
+      const own = firstBySel.get(c.sel);
+      if (own) take('control', controlKind(c), c.form, c.sel, text, own.style, Boolean(own.glyph) || !ALNUM.test(text)); else cov.notLocated.control += 1;
+    }
+  }
+  return { members, cov };
+}
+
+// A dominant family must be shared by members of at least minDominantRoles roles: one held by a single role (all fields left in the
+// browser's default face) is that role's convention, not the form's.
+function formFontAnalysis(state, { minMembers = 4, dominant = 0.75, minDominantRoles = 2 } = {}) {
+  const { members, cov } = formMembers(state);
+  const forms = new Map(); for (const m of members) forms.set(m.form, [...(forms.get(m.form) ?? []), m]);
+  const coverage = { forms: forms.size, familyCompared: 0, sizeCompared: 0, ...cov, roleConvention: 0, singleRoleFamily: 0 };
+  const thresholds = { minMembers, dominant, minDominantRoles }; const out = [];
+  const rolesOf = (group, prop, value) => FORM_ROLES.filter((r) => group.some((x) => x.role === r && x[prop] === value));
+  const flag = (form, odd, prop, group, scope) => {
+    const top = majorityOf(group.map((x) => x[prop])).value; const n = group.filter((x) => x[prop] === top).length;
+    out.push({ detector: 'form-font', key: `form-font|${odd.sel}|${prop}|${odd[prop]}`, severity: 'low', confidence: 'low',
+      what: `Form text "${odd.text}" (${ROLE_NAME[odd.role]}) has ${prop} ${odd[prop]}; ${n} of ${group.length} ${scope === 'form' ? 'text-bearing members' : groupName(scope)} of its form have ${top}; `
+        + 'icon glyphs and monospace text are not compared; low confidence: a designed face for one element is a legitimate dismissal; membership is inferred from saved text and counts, not exact DOM ownership',
+      evidence: evidence(state, odd.sel), basis: { form, role: odd.role, prop, value: odd[prop], scope, dominant: { value: top, members: n, of: group.length, roles: rolesOf(group, prop, top) }, thresholds } });
+  };
+  const odds = (group, prop) => { const m = majorityOf(group.map((x) => x[prop])); return m.share >= dominant ? group.filter((x) => x[prop] !== m.value) : []; };
+  for (const [form, list] of forms) {
+    // Family across the whole form; an odd family shared by every member of its role (two or more) is that role's convention.
+    const family = list.filter((m) => m.fontFamily !== undefined);
+    if (family.length >= minMembers) {
+      coverage.familyCompared += 1;
+      const spans = rolesOf(family, 'fontFamily', majorityOf(family.map((x) => x.fontFamily)).value).length >= minDominantRoles;
+      if (!spans && odds(family, 'fontFamily').length) coverage.singleRoleFamily += 1;
+      for (const odd of spans ? odds(family, 'fontFamily') : []) {
+        const role = family.filter((x) => x.role === odd.role);
+        if (role.length >= 2 && role.every((x) => x.fontFamily === odd.fontFamily)) coverage.roleConvention += 1; else flag(form, odd, 'fontFamily', family, 'form');
+      }
+    }
+    // Size within one role and sub-kind only: labels, fields, help texts and controls legitimately differ from each other in size, and so
+    // do submit buttons, other buttons and links, and the labels of text fields and of choices. Groups go in role order, then by name.
+    const sized = new Map(); for (const m of list) if (m.fontSize !== undefined) sized.set(`${m.role}:${m.kind}`, [...(sized.get(`${m.role}:${m.kind}`) ?? []), m]);
+    const roleRank = (g) => FORM_ROLES.indexOf(g.slice(0, g.indexOf(':')));
+    for (const [scope, group] of [...sized].sort(([a], [b]) => roleRank(a) - roleRank(b) || (a < b ? -1 : a > b ? 1 : 0))) {
+      if (group.length < minMembers) continue;
+      coverage.sizeCompared += 1;
+      for (const odd of odds(group, 'fontSize')) flag(form, odd, 'fontSize', group, scope);
+    }
+  }
+  return { out, coverage };
+}
+export const formFontOutlier = (state, opts) => formFontAnalysis(state, opts).out;
+export const formFontCoverage = (state, opts) => formFontAnalysis(state, opts).coverage;
+
+// Sibling colours. Look-alike items of one state (keyed as in `style`, short text, rendered and active) that are not interactive
+// (links, buttons, summaries, controls and items inside a control often mark the current or selected item by colour) and not glyphs
+// (rating stars, separators). In a group with minGroup or more known values, an item whose colour or background is its own (shared
+// with fewer than minCluster items: a value shared by two or more is a pattern or second variant) while at least `share` of the other
+// items agree on another value is a candidate, unless it also differs from them in another look property (a designed state).
+const siblingValue = (e, prop) => (prop === 'background' ? knownBackground(e) : e.style?.color);
+const SIBLING_LOOK = ['color', 'background', 'fontWeight', 'fontFamily', 'fontSize', 'textAlign'];
+const siblingLook = (e, prop) => (prop === 'color' || prop === 'background' ? siblingValue(e, prop) : lookOf(e, prop, 'item'));
+const siblingDifferences = (m, others) => SIBLING_LOOK.filter((p) => {
+  const mine = siblingLook(m, p); const theirs = others.map((e) => siblingLook(e, p)).filter((v) => v !== undefined);
+  return mine !== undefined && theirs.length > 0 && mine !== majorityOf(theirs).value;
+}).length;
+
+function siblingAnalysis(state, { minGroup = 4, share = 0.75, minCluster = 2, minVariantProps = 2 } = {}) {
+  const interactive = interactiveIn(state);
+  const coverage = { groupsCompared: 0, groupsSmall: 0, interactive: 0, glyph: 0, backgroundUnknown: 0 };
+  const groups = new Map();
+  for (const e of state.facts.elements ?? []) {
+    if (!comparable(e) || SKIP_TAGS.has(e.tag) || e.text.length > MAX_ITEM_TEXT) continue;
+    if (interactive(e)) { coverage.interactive += 1; continue; }
+    if (e.glyph) { coverage.glyph += 1; continue; }
+    const key = groupKey(e); groups.set(key, [...(groups.get(key) ?? []), e]);
+  }
+  const thresholds = { minGroup, share, minCluster, minVariantProps }; const out = [];
+  for (const [kind, all] of groups) {
+    if (all.length < 2) continue;
+    coverage.backgroundUnknown += all.filter((e) => knownBackground(e) === undefined).length;
+    let compared = false;
+    for (const prop of ['color', 'background']) {
+      const known = all.filter((e) => siblingValue(e, prop) !== undefined); if (known.length < minGroup) continue;
+      compared = true;
+      for (const m of known) {
+        const value = siblingValue(m, prop);
+        if (known.filter((e) => siblingValue(e, prop) === value).length >= minCluster) continue;
+        const others = known.filter((e) => e !== m); const dom = majorityOf(others.map((e) => siblingValue(e, prop)));
+        if (dom.share < share || siblingDifferences(m, others) >= minVariantProps) continue;
+        const n = others.filter((e) => siblingValue(e, prop) === dom.value).length;
+        const sameText = others.filter((e) => e.text === m.text && siblingValue(e, prop) === dom.value).length;
+        out.push({ detector: 'sibling-color', key: `sibling-color|${kind}|${prop}|${value}`, severity: 'low', confidence: 'low',
+          what: `Look-alike item "${m.text}" has ${prop} ${value}; ${n} of ${others.length} other items of its kind in this state have ${dom.value}, `
+            + `${sameText ? sameText : 'none'} of them with the same text; low confidence: a status colour or a designed state is a legitimate dismissal`,
+          evidence: evidence(state, m.sel), basis: { kind, prop, value, dominant: { value: dom.value, members: n, of: others.length }, group: known.length,
+            sameTextWithDominant: sameText, thresholds } });
+      }
+    }
+    if (compared) coverage.groupsCompared += 1; else coverage.groupsSmall += 1;
+  }
+  return { out, coverage };
+}
+export const siblingColorDrift = (state, opts) => siblingAnalysis(state, opts).out;
+export const siblingColorCoverage = (state, opts) => siblingAnalysis(state, opts).coverage;
