@@ -179,6 +179,25 @@ Not-rendered contrast is a separate authored-style candidate, not a currently vi
   cites the capture files. See `components/console/skills/qa-product-v0/references/agent-observations.md`.
 - **Do not count candidates as defects.**
 
+## Optional saved-data lexical index and partitions v2
+
+Resolve this delivered README and the adjacent `triage-coverage.mjs` to an absolute path; use Node from the existing operator-selected trusted PATH. From any notes cwd:
+
+```sh
+node ABS_ROOT/tools/passive-capture/triage-coverage.mjs --out DERIVED --notes SELECTED_NOTES reader=EVIDENCE_DIR
+node ABS_ROOT/tools/passive-capture/triage-coverage.mjs --partitions-v2 --out DERIVED --notes SELECTED_NOTES reader=EVIDENCE_DIR staff=OTHER_EVIDENCE_DIR
+```
+
+All placeholders are explicit authorized paths, not machine defaults. Each evidence directory must already hold `passive/index.jsonl` and detector `candidates.json`; optional `--observations FILE_OR_DIR` reads selected JSON strings as lexical citations, not qualified stored observations. No capture, navigation, upload, row execution, owner/checkpoint write or gateway action occurs. A missing trusted runtime or delivered source is unavailable, not permission to install or use another checkout.
+
+Default output is only `triage-coverage.json` and `.md`, a deterministic lexical mention index and reviewer artifact navigation. `mentionFound` does not establish disposition correctness: negated, shared, ordinal-only, stale or copied text may match. Counts are not quality, PASS, sufficiency, U−V or a completion gate. Compare original text, pointer/digest, cited and uncited artifacts and missing/skipped sources; ordinary owner readback remains separate. Explicitly exclude pasted generated reports from selected notes; never use generated output as independent evidence.
+
+`--partitions-v2` additionally writes `partitions-v2.json` and `.md` in DERIVED, with one separately labelled worklist per supplied evidence directory, never a cross-role merge. It composes existing saved facts with optional pure v2 inference; `detect.mjs`, v1 `passive/partitions.json`, exact reached remainder and collection defaults are unchanged. Latest capture per label is not full history: duplicate labels/earlier captures, missing artifact names and absent hint facts stay qualified. Old facts without `fileInputs` leave help-text/aria-required/hidden-file applicability unassessed (`hintFactsMissing`); this command collects no new facts. Stated/inferred ideas retain `expectation:null`, `applicability:unknown` and source, not a norm or verdict. Declared v1 rows retain their expectations, with the explicit v2 duplicate-identity suggestion exception downgraded to inferred/null. Confidence is a source class, not a probability. W/P IDs are navigation references; recording an actual observation still needs its registered check/target/oracle binding and existing authority.
+
+DERIVED must be outside every supplied and canonical evidence/notes/JSON-input container, including a selected file's parent, but within already-authorized output roots. A layout such as selected `notes/triage-inputs` and output `notes/derived` works only when both are disjoint from selected evidence. `--notes notes --out notes/derived` refuses. Do not silently copy/reclassify inputs or invent an output grant. Never write these extra files into gateway-owned passive inventory. All selected input validation and all output-leaf checks complete before writes; symlink leaves, non-regular leaves and multiply-linked leaves refuse, with no companion publication. Ordinary singly-linked reports may be replaced. These are cooperative static-path protections, not a same-UID concurrent filesystem-race sandbox or transactional publication guarantee.
+
+Retained outputs copy source text/provenance and existing page-controlled hints, which may contain personal data despite value exclusion; select and handle them under existing retention authority. No hint/hidden-input extractor extension or auto-capture is delivered. Successful analysis proves only these supplied saved inputs were processed, not full state coverage, usefulness, recall or an independent review.
+
 ## Controls
 - **Unit controls:** `node --test tests/passive-capture.test.mjs`, run by root CI. Each detector is checked against a
   healthy input, an injected failure and a healthy sibling. The checks cover:
