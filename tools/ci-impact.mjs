@@ -52,6 +52,7 @@ runtimeTests.add('tests/unit/agent-request-grounded-ui.test.ts');
 runtimeTests.add('tests/unit/agent-request-compatible-owner.test.ts');
 runtimeTests.add('tests/unit/agent-request-compatible.test.ts');
 runtimeTests.add('tests/unit/compatible-request-admission.test.ts');
+runtimeTests.add('tests/unit/nuanu-fixture-launcher.test.ts');
 runtimeTests.add('tests/unit/live-mapping.test.ts');
 runtimeTests.add('tests/unit/qa-browser-gateway.test.mjs');
 runtimeTests.add('tests/unit/qa-memory-cli.test.ts');
@@ -64,6 +65,7 @@ const groundedRuntimeInputs = new Set(['tests/helpers/grounded-request.ts',
   'tests/unit/fixtures/journey-check-recommendations-consumer.ts']);
 const finitePaths = new Set(['tests/fixtures/browser-action-sequence/check.ts', 'tests/unit/browser-action-sequence.test.ts']);
 const dependencyIntakeHelpers = new Set(['tests/fixtures/nuanu-readonly/fixture.ts', 'tests/fixtures/public-auth-readonly/fixture.ts']);
+const runtimeFixtures = new Set(['tests/fixtures/nuanu-readonly/serve.ts']);
 const selectedReadHelpers = new Set(['tests/fixtures/selected-request-literal.ts']);
 const consoleCompatibilityPaths = new Set([
   'server/agent-observation-cli.mjs', 'server/bridge.mjs', 'server/selected-campaign-readback.mjs',
@@ -224,7 +226,7 @@ export function classifyImpact({ cohort, rootChanges = [], components = [], unkn
         if (groundedRuntimeInputs.has(record.path)) for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) enable(key, why);
         continue;
       }
-      if (ordinary(record) && (runtimeTests.has(record.path) || groundedRuntimeInputs.has(record.path) || dependencyIntakeHelpers.has(record.path) || selectedReadHelpers.has(record.path) || /^(?:skills|\.claude\/skills)\/.+\.md$/u.test(record.path))) {
+      if (ordinary(record) && (runtimeTests.has(record.path) || runtimeFixtures.has(record.path) || groundedRuntimeInputs.has(record.path) || dependencyIntakeHelpers.has(record.path) || selectedReadHelpers.has(record.path) || /^(?:skills|\.claude\/skills)\/.+\.md$/u.test(record.path))) {
         for (const key of ['kernelBuildContracts', 'consoleRuntime', 'consoleS01Lifecycle']) enable(key, why); continue;
       }
       if (ordinary(record) && (/^(?:src\/(?:components|primary-ui|styles)\/|src\/(?:App\.tsx|main\.tsx|index\.css)$|public\/|index\.html$)/u.test(record.path) ||

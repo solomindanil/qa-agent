@@ -67,9 +67,9 @@ test('primary delivery mounted argv executes complete existing config with owned
   assert.throws(()=>requireOwner(workflow.replace('node node_modules/@playwright/test/cli.js test','node --version')),'Absent mounted execution cannot pass');
 });
 
-test('compatible continuation owners route to and execute once in the existing runtime lane',async()=>{
+test('compatible continuation and S01 fixture owners route to and execute once in the existing runtime lane',async()=>{
  const {classifyImpact}=await api(),workflow=await readFile(new URL('../.github/workflows/qa-runtime.yml',import.meta.url),'utf8');
- for(const path of ['tests/unit/agent-request-compatible-owner.test.ts','tests/unit/agent-request-compatible.test.ts','tests/unit/compatible-request-admission.test.ts']){
+ for(const path of ['tests/unit/agent-request-compatible-owner.test.ts','tests/unit/agent-request-compatible.test.ts','tests/unit/compatible-request-admission.test.ts','tests/unit/nuanu-fixture-launcher.test.ts']){
    const selected=classifyImpact({cohort:'pull_request',components:[component('console',[change(path,'added',null,'100644')])]});
    assert.deepEqual(selected.unsupportedChanges,[],path);assert.equal(selected.selection.consoleRuntime,true,path);
    const requireOwner=source=>assert.equal(actualRuntimeArgv(source).filter(arg=>arg===path).length,1,path);
@@ -77,6 +77,10 @@ test('compatible continuation owners route to and execute once in the existing r
    assert.throws(()=>requireOwner(workflow.replace(`              ${path}\n`,'')),'An omitted invocation cannot pass by mapping alone');
    for(const record of [change(path,'deleted','100644',null),change(path,'modified','100644','100755')])assert.deepEqual(classifyImpact({cohort:'pull_request',components:[component('console',[record])]}).unsupportedChanges,[`unmapped or removed Console test: ${path}`]);
  }
+ const fixture='tests/fixtures/nuanu-readonly/serve.ts';
+ assert.deepEqual(classifyImpact({cohort:'pull_request',components:[component('console',[change(fixture,'added',null,'100644')])]}).unsupportedChanges,[]);
+ assert.equal(classifyImpact({cohort:'pull_request',components:[component('console',[change(fixture,'added',null,'100644')])]}).selection.consoleRuntime,true);
+ assert.deepEqual(classifyImpact({cohort:'pull_request',components:[component('console',[change(fixture,'deleted','100644',null)])]}).unsupportedChanges,[`unmapped or removed Console test: ${fixture}`]);
  const unknown='tests/unit/compatible-request-unreviewed.test.ts';
  assert.deepEqual(classifyImpact({cohort:'pull_request',components:[component('console',[change(unknown)])]}).unsupportedChanges,[`unmapped or removed Console test: ${unknown}`]);
 });

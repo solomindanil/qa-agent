@@ -9,12 +9,21 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `e04d56c56519ea1956a4ce9b444d9d5c4f3cedfa` | Explicit compatible authored-check continuation, v6 history/report/export/monitor and opt-in current_owner grant v2; prior Qmethod/UI/lossless memory retained. |
+| Console | `59637949041312d43ebccfbd8bbed5a6e68ffb85` | Bounded S01 G1 standalone fixture launcher over e04d56c; compatible authored continuation and prior Qmethod/UI/lossless memory retained. |
 | Kernel | `f797d24aab1e7cbc55b88e380f756af4c771b775` | Shared owning compatibility proof and exact issued native-authority inventory; prior lossless memory, normative graph/denominator and global budgets preserved. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+S01 G1 only: SAME actual Astra scoped GO for the standalone owned loopback fixture,
+one owning test and mechanical docs/routing. Six immutable modes; explicit IPv4 port
+except80, no fallback/control route, READY after bind and SIGTERM socket retirement.
+Host8P0F, strict two-entry typing0; exact runtime routing and inventory1P+1P106/[53,53].
+FIRST missing-entry/port80 failures retained; old qualified unit/factory and independent
+normative clauses unchanged. Linux UNENTERED (approved caches absent), no installation
+or whole CI/native-run claim. G2/G4 ordinary persisted registration→author/run/export,
+fresh actor and S02 remain unexecuted by this slice; old helper/pins are historical,
+current source and loopback scope must be resolved before reuse. No V01/product replay.
 Bounded compatible continuation is opt-in for anonymous read_only/no-secret checks
 with unchanged request, normative authority and exact base URL. Explicit v6 keeps
 immutable v5 predecessor bytes, historical capture basis and compound remainder;
