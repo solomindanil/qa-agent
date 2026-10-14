@@ -9,12 +9,24 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `cb1925afd4d0dfa8733677756a201e6c1cecaed4` | SAME Astra-reviewed lossless memory reader/owner plus mechanical Kerneldbc9520 peer pin over0cfb4e2; prior Qmethod/UI retained. |
+| Console | `68e58caa3715ef3b1186b7bf21f51924048cb7cb` | SAME Astra-reviewed original-image external handoff method overcb1925a; lossless memory, Kerneldbc9520 peer pin and prior Qmethod/UI retained. |
 | Kernel | `dbc9520d034276c2e9c9a93e6df486d623277508` | SAME Astra-reviewed finite lossless-v2 capacity over22d08; graph/denominator and global budgets unchanged. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+Bounded visual evidence handoff: SAME actual Astra source+FIRST GO for two mirrored
+generic references. Authorized original images stay in an existing external lane,
+not managed v9 attachments; the same bounded reader opens selected originals and
+keeps identity/state/viewport/capture unknowns plus missing/wrong-state/unreviewed
+scope. ONE fresh offline synthetic reader supported the healthy frame, detected
+a pixel contradiction to authored healthy prose, and retained wrong-state/missing
+image gaps. Opening is reader-attributed, not a tool-audited capture; time/cost
+unknown. Host skill-owner24P0F; Linux22.23.3 source/mirror/readback only, not owner
+or visual qualification. FIRST retained; no controlled baseline/causal uplift,
+general visual reliability/full Q04/Q05/Q06, product/ToolShop or V01 claim.
+PR61 terminal readback:8 SUCCESS,2 FAILURE,1 CANCELLED—not whole CI GREEN;
+its scoped local memory acceptance and historical FIRST remain separately attributed.
 Bounded lossless memory: SAME actual Astra GO for exact11 source/owner/helper files.
 Stored-v2 records and mixed physical reads32KiB; compact draft/v1/direct-v1 stay16KiB;
 aggregate receipt reasons32, unrelated/global budgets unchanged. No cropping or
