@@ -15,6 +15,16 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+Bounded opt-in pooled style: SAME actual Astra GO for root tools/tests only;
+`detect.mjs --pooled` analyses already authorized saved facts, adding low-confidence
+candidates and non-candidate spread context without changing default bytes/IDs or
+partitions. Host affected199P0F; Linux22.23.3 198P0F/1 existing system-dictionary
+skip; local file-fixture browser PASS and8 sets/32 same-facts default byte-equalities.
+FIRST qualification failures retained. Role/viewport comparability is unknown when
+missing, membership inferred, basis representative/cap6; help-font capture remains
+UNSUPPORTED. No collector/gateway/default/CI-policy/component change, precision or
+usefulness/general Q/P01/V01 claim. Existing conservative full-impact CI selection
+is retained; scoped local results are not full CI GREEN or product acceptance.
 Bounded visual evidence handoff: SAME actual Astra source+FIRST GO for two mirrored
 generic references. Authorized original images stay in an existing external lane,
 not managed v9 attachments; the same bounded reader opens selected originals and
