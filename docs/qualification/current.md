@@ -21,8 +21,18 @@ it was merged into develop as `e7659c88b214cd87b8957a180434022142dacebf`.
 PR52's predecessor merged at `e0485640d86a49ac6d494a4ae032c8b7004c2609`.
 Its actual readback is source-safety/impact/runtimeA/dependency-intake SUCCESS,
 console-browser FAILURE, runtimeB CANCELLED, runtime-qualification FAILURE,
-full Kernel SKIPPED—not whole CI GREEN. The new coupled sources above are locally
-reviewed; public delivery and checks require their own exact PR/readback.
+full Kernel SKIPPED—not whole CI GREEN. The coupled sources above were delivered
+in [PR #53](https://github.com/solomindanil/qa-agent/pull/53), merged into develop
+as `1e71882121eeed389b2314fa8b0695b7c7fa2b4f`; reviewed head
+`1e563aea1d83204378c4b648dfe8a61c92a0359a` and merge share tree
+`e0c79196906728198a30eb45ddde371120fbbacc`. Delivery does not reattribute
+predecessor CI or establish whole CI GREEN or product/V01 acceptance.
+ROOT's single 14 October read of PR53's own [run 38502400901](https://github.com/solomindanil/qa-agent/actions/runs/38502400901)
+showed impact/dependency-intake SUCCESS, console-browser SUCCESS at 03:10:07 UTC,
+runtime-smoke(a) SUCCESS at 03:12:21 UTC and Full Kernel workspace/service SUCCESS;
+runtime-smoke(b) CANCELLED at 03:18:08 UTC, cause UNKNOWN; Full Kernel remaining
+still IN_PROGRESS. Source-safety runs 38502400905/38502390643 were SUCCESS.
+This snapshot is not whole CI GREEN; no retry or old-timeout diagnosis was run.
 Public PR49/roota817 and earlier receipts remain historical.
 Publication/restoration never adopts or migrates a frozen owner. CI-wait waivers
 never manufacture GREEN, change workflow/protection or authorize product/provider execution.
@@ -50,9 +60,45 @@ This is guidance, not runtime migration or warning suppression.
 | K01/K02/L02 | Existing guarded Kernel API now has restored advisory Console CLI/reference; SAME Astra GO, host30P including healthy/broken HTTP200 content consumer, root2P/typechecks0 and same30 affected Linux bodies30P0F/224.36s (Node22.23.3 arm64, wrapper exit0/262.96s, no OOM, own cleanup confirmed). Memory predecessors retained. | PR43 remains historical unmerged, not wholesale adoption. No hosted CI, causal uplift, full L02/V01, autonomous reuse or general memory benefit claim; applicability and full remainder stay explicit. |
 | P01, Q02/T00; B02/Q05 discovery | Explicit saved-data lexical index and opt-in partitions-v2 adopted in the bounded source slice; mirrored delivered-root discovery and early supported-new-request v5 selection. SAME Astra GO after retained reversed-label FIRST0P1F; host70+24+1 and exact nativeLinux70+24+1 passed, natural0/noOOM/owncleanup65.427s. | Defaults/v1/capture/detect/reached and owner/gateway contracts unchanged; no auto capture/new hints/hidden metadata, migration or renderer change. Null/unknown ideas are not norms, lexical mentions are not dispositions/qualified owner evidence. P01 usefulness and Q05/Q06 completeness remain OPEN. |
 | O00, N00 | Guide explains unknown cost, CLI estimates, recorded intervals vs walltime/cohorts; exact registered product.slug and canonical owner entry clarified. Current entry is now compact. | No full QA-phase/setup/review/retry measurement, causal prevention or unattended entry proof. |
-| V01 / U03b | Source and bounded consumer mechanisms above are usable within stated scope. | Full V01 and comparable evolution history remain OPEN. UI stale-choice proposal remains pending; no speculative UI/runtime repair. |
+| V01 / U03b | Fresh bounded ordinary registration FIRST passed; SAME actual Astra accepted bounded V01 on 14 October: no-doc catalogue → safe stop → fresh same-request continuation → live/history/report/export. | One evidenced Q04/Q05/Q06 quality gap in actual checks/remainder is next, then applicable K02/L02/S01/S02. U03b, broader product/host qualification and global plan remain OPEN. UI is not wholly stable; no speculative repair. |
 
-### Latest bounded rental and read-only UI evidence
+### Accepted bounded V01 · 14 October 2026
+
+The accepted consumer used root 1e718821, Console f2f41af and Kernel 11afe97,
+the delivered identities above. Actor A saved the catalogue witness and genuine
+detail/return remainder at a safe stop. Fresh actor B discovered the same request
+and continued only the remainder, preserving A's completed work and evidence.
+Final checkpoint 3, live/history/reopened report and offline export agree.
+B's final Plan visits were updating/unavailable. ROOT separately read the same
+checkpoint 3 Plan current-ready at 03:30:48.317 UTC; this completes the final
+Plan witness, not a product rerun or evidence attributed to B.
+
+All five request obligations remain: 3 observed-as-expected, 1 partial, 1 excluded;
+0 confirmed issues, 1 unactivated route-label candidate, actionable remainder 1.
+All 5 remain in sufficiency remainder (zero declared/sampled sufficient).
+Native Graph 3 nodes/0 edges and Coverage 3 targets are separate from request 5:
+0 runnable/3 proposed/3 unresolved, not executed coverage or native PASS.
+Plan showed 3 proposed automated/0 manual/5 blockers/3 unresolved oracles,
+BASELINE_APPROVAL_REQUIRED/NOT_EVALUATED. Existing healthy/broken/unknown,
+partial/blocked/omission, continuation and report-identity source controls were
+reused; no rerun or new test count is attributed to this acceptance.
+
+FIRSTs/limits remain: periodic re-verification withdraws model/download admission
+while retaining stale report facts, then recovers; UI is not wholly stable.
+Memory note save failed MEMORY_LIMIT_EXCEEDED and expanded qualification reads
+failed QUALIFICATION_LIMITATIONS_LIMIT_EXCEEDED; no new memory-save/recall PASS.
+Earlier denial is not erased by the later bounded empty recall.
+Caller `r.output.trim()` removed the canonical terminal LF (5441→5440), so cp3's
+typed dossier parsing fails; complete raw reasoning and categorized notes remain
+readable. Fresh offline byte reproduction is not recovered original stdout.
+Evidence is caller-authored/unattested; original screenshot pixels and precise
+capture times were not retained. Actual credential-free anonymity, deployed build,
+whole-actor time and cost remain unknown. Internal identity/price consistency is
+not business-price correctness.
+This accepts the bounded V01 card, not whole-product PASS, full Q/K/U/O/P,
+universal portability, continuous freshness or measured quality/speed uplift.
+
+### Retained bounded registration, rental and read-only UI evidence
 
 The selected registration successor orders only claims inspection through existing
 journal-authorized receipt repair within the supported in-process runtime. SAME
@@ -64,8 +110,10 @@ timeout, termination137/noOOM/owncleanup. Their causes remain UNKNOWN and other
 bodies unassessed—not whole owner or CI GREEN. Original PR52 browser126P1F and
 registration claim-path refusal remain FIRSTs; exact hosted interleaving was not
 retained. No cross-process recovery, frozen-owner adoption or product/V01
-acceptance follows. Next is one authorized fresh ordinary registration and its
-same-request two-context saved-report continuation, not the old109-observation replay.
+acceptance follows. The authorized fresh bounded ordinary registration FIRST
+passed on the delivered pair. Its same-request saved-report/UI/fresh continuation
+was subsequently accepted only in the bounded V01 case above, not the
+old109-observation replay or broader product/host qualification.
 
 The retained5c5 test-only predecessor retires the unused pinned viewer before
 fixture restart and observes actual thumbnail body/hash completion within unchanged
