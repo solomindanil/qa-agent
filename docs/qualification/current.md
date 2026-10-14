@@ -9,12 +9,19 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `67ec74c9d5b263254416613359ca054880357077` | SAME Astra-reviewed Q05/Q06 one-reader bidirectional evidence/remainder method over delivered Q04 source163f; normal exact Kernel11afe pin and predecessors retained. |
-| Kernel | `11afe971d6877ea7448ec709138d343aa7edffc3` | Reviewed bounded in-process registration claims ordering over memory foundation6d; native graph/denominator unchanged. |
+| Console | `514673fcdf096a1662e5b08560b2aa70d97a18cb` | Mechanical Kernel22d08b4 peer pin over delivered SAME Astra-reviewed Q05/Q06 method67ec; Q04/method predecessors retained. |
+| Kernel | `22d08b466595f51f4afc76366f40e6f40d6db89b` | SAME Astra-reviewed bounded note-receipt read before parsing over11afe; existing16KiB/reason limits and native graph/denominator unchanged. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+Bounded memory receipt repair: SAME actual Astra GO for three owning Kernel files.
+FIRST3 failures retained; earlier host18P then exact-final sensitive host1P/14deselected
+and typing0, exact-final nativeLinux18P/typing0 (626.84s), natural0/own cleanup.
+This bounds reads before parsing and retains lawful skipped-v2 receipts through final
+verification; it does not raise capacity, make the oversized V01 note save succeed,
+prove 10k scale/full memory reliability or replay V01. Pre-body setup failures and
+possible prior donor-cache write remain disclosed; no terminal final OOM claim.
 PR50's production sources were locally qualified in the bounded scopes below.
 Their integration is tracked in [PR #50](https://github.com/solomindanil/qa-agent/pull/50);
 it was merged into develop as `e7659c88b214cd87b8957a180434022142dacebf`.
