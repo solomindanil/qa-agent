@@ -9,12 +9,16 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `59637949041312d43ebccfbd8bbed5a6e68ffb85` | Bounded S01 G1 standalone fixture launcher over e04d56c; compatible authored continuation and prior Qmethod/UI/lossless memory retained. |
+| Console | `bbf4f643516ae26a13611189eaff83023291609f` | Existing command diagnostic corrected over5963794; bounded S01 launcher/continuation and prior Qmethod/UI/lossless memory retained. |
 | Kernel | `f797d24aab1e7cbc55b88e380f756af4c771b775` | Shared owning compatibility proof and exact issued native-authority inventory; prior lossless memory, normative graph/denominator and global budgets preserved. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+Bounded CLI usability repair: unknown/absent commands now list all twenty supported
+verbs from the existing argument registry, including author/apply/export/read-outcomes.
+No new help command: help still refuses with exit1. SAME Astra scoped GO; owning
+FIRST0P1F→focused2P0F preserves ordinary run admission. Linux/full CI not claimed.
 S01 G1 only: SAME actual Astra scoped GO for the standalone owned loopback fixture,
 one owning test and mechanical docs/routing. Six immutable modes; explicit IPv4 port
 except80, no fallback/control route, READY after bind and SIGTERM socket retirement.
