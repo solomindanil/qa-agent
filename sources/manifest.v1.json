@@ -4,22 +4,22 @@
     {
       "id": "kernel",
       "path": "components/kernel",
-      "commit": "f797d24aab1e7cbc55b88e380f756af4c771b775",
-      "tree": "8a58e4844ca4b35b4815bcf7b8f7ae75b92be011",
-      "bundle": "sources/candidates/kernel-compatible-continuation.bundle",
-      "sha256": "284a5ee0549f1248df87b1e43ef7f54cc285b1de5eb66db7946dfb1e3c0bf0f3",
+      "commit": "2bcfa7fbe681aaf50a4048ec4b515cafb0d4349b",
+      "tree": "a54a2b2133bde26ccd73b43dc456e775658c61e9",
+      "bundle": "sources/candidates/kernel-first-check-authoring.bundle",
+      "sha256": "b4e6554a2be6eab83215becd8ec43e9c7daa5fb2f5561b8551de296566d07f4e",
       "runtimeAuthority": true,
-      "qualification": "LOCAL compatible-authored continuation candidate f797d24 overdbc9520: shared owning exact transaction proof, unchanged normative graph/full profile, exact validated native inventory snapshot/accounting and explicit v6 format. Targeted proof/native/schema controls and source typing passed; independently valid same-ID normative drift refused. Prior bounded lossless-v2 memory remains unchanged (stored/mixed32KiB, draft/v1/direct-v1 16KiB, aggregate reasons32). FIRST preserved; Linux/fullKernel/product/V01 not qualified, no migration/owner adoption. Final combined SAME actual Astra scoped GO C0/I0/M0. Current facts: docs/qualification/current.md."
+      "qualification": "SAME Astra scoped GO: narrow first-check pure builder overf797 using existing knowledge revision validation; applicable unassigned journey and anonymous read_only API guards, original provenance and v1 behavior retained. Earlier affected owner32P0F, final lookup/context/NFC3P plus owning1P0F and typing0; FIRST/setup failures preserved. Prior compatible continuation/lossless memory and budgets unchanged. Linux/fullKernel/product/V01 not qualified, no migration/owner adoption or whole Q/S closure. Current facts: docs/qualification/current.md."
     },
     {
       "id": "console",
       "path": "components/console",
-      "commit": "bbf4f643516ae26a13611189eaff83023291609f",
-      "tree": "c563d6eeffb6f94bc75b0a5d3558ab878996fea0",
-      "bundle": "sources/candidates/console-command-diagnostic.bundle",
-      "sha256": "947b2d08f5db79da127bfbe4c2c7172458564a4a451337509fe120726330fd1b",
+      "commit": "b80bc01b869c24b6431f258fc101fa110da0d858",
+      "tree": "e81ba6a92d6b1557741c150aa648ee142b3bfc93",
+      "bundle": "sources/candidates/console-first-check-authoring.bundle",
+      "sha256": "d0ce66c774cff7ee71a0df03e0b71ff284bd316dacc9b2ebdce4b39ce9691b61",
       "runtimeAuthority": true,
-      "qualification": "SAME actual Astra scoped GO: bounded CLI error-message correction derives supported verbs from existing argument registry; no new help command/dispatch/authority. Owning FIRST0P1F to focused2P0F, diffcheck0. Existing runtime owner unchanged; Linux/full CI not qualified, no product/runtime replay. Prior G1, compatible continuation and bounded execution acceptance/limits retained; current facts docs/qualification/current.md."
+      "qualification": "SAME Astra scoped GO: explicit v2 standalone unbound first-check authoring with exact retained citation, context refusal before writes, existing preview/publication/plan recovery and unchanged v1. Earlier affected owner32P0F; final lookup/context/NFC3P plus owning1P0F retain old check and remaining1, exact unknown recovery and no run/PASS; source typing0. FIRST preserved. Linux/full CI/native product execution unqualified; no whole Q/S closure or V01 replay. Prior diagnostic/G1/continuation limits retained; current facts docs/qualification/current.md."
     },
     {
       "id": "freeland",
