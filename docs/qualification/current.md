@@ -9,12 +9,21 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `44aad238b677d452df00970d9b68e5113cecb67a` | Bounded pointer-resolution distinction overb80bc01; prior first-check authoring, diagnostic, launcher/continuation and Qmethod/UI/lossless memory retained. |
+| Console | `1a67798c51df0cd61f9e32a884e5e5e41e07bf88` | Explicit retained-strategy native export projection over44aad238; prior pointer, first-check, launcher/continuation and Qmethod/UI/lossless memory retained. |
 | Kernel | `2bcfa7fbe681aaf50a4048ec4b515cafb0d4349b` | Narrow first-check builder overf797; existing compatibility proof, native-authority inventory and budgets preserved. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+Retained strategy: SAME Astra scoped GO for explicit native-v7
+`reportProjection: retained_strategy.v1`. New export view/Markdown includes the full
+captured draft and unexecuted proposals as author declaration, not verified norm,
+permission or result. Exact proposal/catalog/graph bindings refuse inconsistency;
+missing draft is unavailable. Legacy marker-absent bytes/repeat and live/UI defaults
+remain unchanged; old strict readers may reject new markers. Pure owner32P0F/1 existing
+skip, live6P, binding2P, synthetic export/offline1P and targeted typing0. Literal legacy
+copy stayed byte-identical; all four proposals, including two unexecuted, retained.
+FIRST preserved; no Linux/full CI/native product qualification or whole Q/S closure.
 API pointer evidence: SAME Astra scoped GO distinguishes an unresolved complete
 pointer (`json_pointer_missing`) from resolved unequal (`json_pointer_mismatch`),
 without retaining selected values/types/keys/excerpts/hashes. Legacy mismatch remains
