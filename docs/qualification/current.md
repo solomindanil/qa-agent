@@ -9,12 +9,20 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `b80bc01b869c24b6431f258fc101fa110da0d858` | Bounded first-check authoring overbbf4f64; prior diagnostic, launcher/continuation and Qmethod/UI/lossless memory retained. |
+| Console | `44aad238b677d452df00970d9b68e5113cecb67a` | Bounded pointer-resolution distinction overb80bc01; prior first-check authoring, diagnostic, launcher/continuation and Qmethod/UI/lossless memory retained. |
 | Kernel | `2bcfa7fbe681aaf50a4048ec4b515cafb0d4349b` | Narrow first-check builder overf797; existing compatibility proof, native-authority inventory and budgets preserved. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+API pointer evidence: SAME Astra scoped GO distinguishes an unresolved complete
+pointer (`json_pointer_missing`) from resolved unequal (`json_pointer_mismatch`),
+without retaining selected values/types/keys/excerpts/hashes. Legacy mismatch remains
+ambiguous; decoded-text UTF8 length/hash is not raw transport or selected actual.
+API owner16P0F, nonvacuous accounting1P0F, synthetic export/offline preservation1P0F;
+source/export-test typing0. Existing test-inclusive API fixture literal typing errors
+remain unqualified, as do Linux/full CI/native product execution. FIRST preserved;
+no UI/Kernel/DTO changes, old-receipt reinterpretation or V01 replay.
 Bounded first-check creation: SAME Astra scoped GO. Explicit v2 creates an anonymous
 read_only API check for an existing applicable unassigned journey, retaining exact
 declared source citation/trust, old checks and unselected remainder. Standalone
