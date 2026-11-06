@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "1a67798c51df0cd61f9e32a884e5e5e41e07bf88",
-      "tree": "df00ba5075e9e35e0ef6fc898ff174a4a2ca4524",
-      "bundle": "sources/candidates/console-retained-strategy.bundle",
-      "sha256": "53649f2972cec1a7350f394174e87a3031ec6d100083236bfae1282c02dcd5c0",
+      "commit": "4a50bd06fbe7c99e7f99bff32274ba3f1ea848a2",
+      "tree": "64dce2ae249961e70a79c159a573527c1df164c3",
+      "bundle": "sources/candidates/console-s1-test-design.bundle",
+      "sha256": "cdd7758a8407a5f3989d4b7ee6f92136591522b221a21a7c1f2712065765a5e2",
       "runtimeAuthority": true,
-      "qualification": "SAME Astra scoped GO: explicit retained_strategy.v1 native-v7 report projection preserves complete declared strategy, not verified norm/authority/result. Legacy marker-absent and live/UI defaults unchanged; exact reference guards reused. Pure report owner32P0F1 existing skip, live6P, binding2P, synthetic export/offline1P; targeted typing0. Literal prechange copied packet bytes/repeat unchanged, four proposals including two unexecuted retained. FIRST preserved; Linux/full CI/native product execution and whole Q/S closure unqualified; no V01 replay. Prior pointer/first-check/continuation limits retained; current facts docs/qualification/current.md."
+      "qualification": "Claude-authored documentation slice over 1a67798: qa-product-v0 references test-design.md, surface-checklists.md and finding-report.md, routed from SKILL.md, product-analysis.md and tester-handoff.md; .claude mirror byte-identical. One fresh-context independent review (Claude subagent, not Astra) returned GO-with-fixes (1 Critical severity-enum mismatch, 9 Important); all fixed. qa-product-skill + method-triggers 42P0F, including new routing/anchor/guard/severity-enum parity tests; three negative controls fail as expected. Console typecheck: 0 errors in changed files (pre-existing errors with Kernel deps absent). No full test:unit, Linux CI, runtime code change or product execution."
     },
     {
       "id": "freeland",
