@@ -5,6 +5,7 @@ Use this page to distinguish current operating instructions from dated evidence.
 | Need | Current entry |
 | --- | --- |
 | What this workspace contains | [Architecture](architecture.md) |
+| First Starter run and report | [Quickstart](quickstart.md) |
 | Fresh-clone and optional Starter setup | [Getting started](getting-started.md) |
 | Exact selected source | [Manifest](../sources/manifest.v1.json) and [source delivery](../sources/README.md) |
 | Existing product/campaign owner | [Product routing](../products/README.md) |
