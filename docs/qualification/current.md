@@ -9,7 +9,7 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `4a50bd06fbe7c99e7f99bff32274ba3f1ea848a2` | qa-product-v0 test-design, surface-checklist and finding-report references over 1a67798; prior retained-strategy projection, pointer, first-check, launcher/continuation and Qmethod/UI/lossless memory retained. |
+| Console | `0578e473d8067fd42a5f6177e93cb4db8c2cf8d6` | qa-product-v0 blind-first evidence reader, sourced report numbers and reader brief over 4a50bd0; test-design, surface-checklist and finding-report references over 1a67798; prior retained-strategy projection, pointer, first-check, launcher/continuation and Qmethod/UI/lossless memory retained. |
 | Kernel | `2bcfa7fbe681aaf50a4048ec4b515cafb0d4349b` | Narrow first-check builder overf797; existing compatibility proof, native-authority inventory and budgets preserved. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
@@ -22,6 +22,14 @@ SKILL/product-analysis/tester-handoff; finding severity equals the record enum
 findings fixed; skill tests 42P0F with routing/anchor/guard/enum-parity tests and three failing
 negative controls. No runtime change, full test:unit, Linux CI or product execution; Astra AQA
 may still be requested.
+Independent reader and report numbers (S2 of the same plan): documentation only. The bounded
+independent evidence reader first maps clauses to raw evidence, then opens the author's
+assessments; every report number is exact with a named source or a labelled estimate, with the
+full denominator and one disposition per row; tester-handoff gains the reader brief. Codex/Astra
+AQA waived by the owner for this slice; one fresh-context Claude review found 2 High, 5 Medium,
+3 Low, all fixed. Skill tests 43P0F; the new test fails on the S1 text. Three synthetic reader
+controls (healthy, removed outcome, inflated headline), one run each, behaved as expected; not a
+measured uplift. No runtime change, full test:unit, Linux CI or product execution.
 Retained strategy: SAME Astra scoped GO for explicit native-v7
 `reportProjection: retained_strategy.v1`. New export view/Markdown includes the full
 captured draft and unexecuted proposals as author declaration, not verified norm,
