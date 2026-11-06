@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "4a50bd06fbe7c99e7f99bff32274ba3f1ea848a2",
-      "tree": "64dce2ae249961e70a79c159a573527c1df164c3",
-      "bundle": "sources/candidates/console-s1-test-design.bundle",
-      "sha256": "cdd7758a8407a5f3989d4b7ee6f92136591522b221a21a7c1f2712065765a5e2",
+      "commit": "0578e473d8067fd42a5f6177e93cb4db8c2cf8d6",
+      "tree": "cc995ca9440b656e2b2d725cc34c2e709fcb42de",
+      "bundle": "sources/candidates/console-s2-blind-review.bundle",
+      "sha256": "e536b92ffa053f90b5f1c9b003ba1c2b7efae4d1c6d7a46f308dde4799d31c81",
       "runtimeAuthority": true,
-      "qualification": "Claude-authored documentation slice over 1a67798: qa-product-v0 references test-design.md, surface-checklists.md and finding-report.md, routed from SKILL.md, product-analysis.md and tester-handoff.md; .claude mirror byte-identical. One fresh-context independent review (Claude subagent, not Astra) returned GO-with-fixes (1 Critical severity-enum mismatch, 9 Important); all fixed. qa-product-skill + method-triggers 42P0F, including new routing/anchor/guard/severity-enum parity tests; three negative controls fail as expected. Console typecheck: 0 errors in changed files (pre-existing errors with Kernel deps absent). No full test:unit, Linux CI, runtime code change or product execution."
+      "qualification": "Claude-authored documentation slice S2 over 4a50bd0 (S1): qa-product-v0 independent evidence reader maps clauses to raw evidence before opening author assessments (product-analysis), report numbers are exact with a named source or a labelled estimate with full denominator and one disposition per row (evidence-closure-checklist), and a reader brief (tester-handoff); .claude mirror byte-identical. Codex/Astra AQA waived by the owner for this slice; one fresh-context Claude review returned 2 High, 5 Medium, 3 Low, all fixed. qa-product-skill + method-triggers 43P0F; the new test fails on the S1 text. Three synthetic reader controls (healthy, removed outcome, inflated headline) behaved as expected, one run each, no A/B. No full test:unit, Linux CI, runtime code change or product execution."
     },
     {
       "id": "freeland",
