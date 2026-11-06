@@ -9,12 +9,19 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `1a67798c51df0cd61f9e32a884e5e5e41e07bf88` | Explicit retained-strategy native export projection over44aad238; prior pointer, first-check, launcher/continuation and Qmethod/UI/lossless memory retained. |
+| Console | `4a50bd06fbe7c99e7f99bff32274ba3f1ea848a2` | qa-product-v0 test-design, surface-checklist and finding-report references over 1a67798; prior retained-strategy projection, pointer, first-check, launcher/continuation and Qmethod/UI/lossless memory retained. |
 | Kernel | `2bcfa7fbe681aaf50a4048ec4b515cafb0d4349b` | Narrow first-check builder overf797; existing compatibility proof, native-authority inventory and budgets preserved. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+Test-design references (S1 of the external-ideas adoption plan): documentation only. New
+`test-design.md`, `surface-checklists.md` and `finding-report.md` in qa-product-v0, routed from
+SKILL/product-analysis/tester-handoff; finding severity equals the record enum
+(critical/high/medium/low). One fresh-context Claude review (not Astra) GO-with-fixes, all
+findings fixed; skill tests 42P0F with routing/anchor/guard/enum-parity tests and three failing
+negative controls. No runtime change, full test:unit, Linux CI or product execution; Astra AQA
+may still be requested.
 Retained strategy: SAME Astra scoped GO for explicit native-v7
 `reportProjection: retained_strategy.v1`. New export view/Markdown includes the full
 captured draft and unexecuted proposals as author declaration, not verified norm,
