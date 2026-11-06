@@ -18,6 +18,8 @@ Restore uses local reviewed Git bundles. It creates independent component reposi
 
 ## Choose the work
 
+To see one complete run first, from a clone to a Markdown report against a public example page, follow the [Quickstart](docs/quickstart.md).
+
 For an ordinary QA request, including a product without documentation, start at [Agent entry](docs/getting-started.md#agent-entry-without-changing-installed-skills). The agent preserves the full request, resolves the product and available capabilities, and reports missing prerequisites before dependent execution. No universal full-product launch command or implicit setup is promised. An existing clone or campaign is not automatically switched, reset or migrated by these instructions.
 
 For the selected source's optional live Console monitor, follow the [early request capture recipe](skills/qa-check/references/request-intake.md#optional-live-monitor-before-registration) and [Console setup](components/console/README.md#live-mission-monitor). Use the same explicit owner-selected private `QA_MONITOR_ROOT` for the root helper, Console and owning commands; carry the exact saved request path as `QA_MONITOR_REQUEST`. Monitoring can begin before a managed workspace exists. It shows recorded command activity and independently verified saved reports, not arbitrary host/tool activity or a product verdict. Select these source instructions explicitly: publication does not update an old installed skill or an existing frozen campaign.
@@ -26,6 +28,7 @@ For the selected source's optional live Console monitor, follow the [early reque
 | --- | --- |
 | Agent session | [AGENTS.md](AGENTS.md) (or [CLAUDE.md](CLAUDE.md)), then the [current checkpoint](docs/qualification/current.md) |
 | New or existing product QA | [Product routing](products/README.md), [source skills](skills/README.md), then the selected complete specialist skill |
+| First run and report in about 15 minutes | [Quickstart](docs/quickstart.md) |
 | Fresh operator setup | [Getting started](docs/getting-started.md) |
 | Architecture and supported boundaries | [Architecture](docs/architecture.md) and [documentation index](docs/README.md) |
 | Bug backlog and fix prompts | [qa-bugfix](skills/qa-bugfix/SKILL.md), using the product-selected tracker |
