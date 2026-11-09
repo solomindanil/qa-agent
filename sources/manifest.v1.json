@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "0578e473d8067fd42a5f6177e93cb4db8c2cf8d6",
-      "tree": "cc995ca9440b656e2b2d725cc34c2e709fcb42de",
-      "bundle": "sources/candidates/console-s2-blind-review.bundle",
-      "sha256": "e536b92ffa053f90b5f1c9b003ba1c2b7efae4d1c6d7a46f308dde4799d31c81",
+      "commit": "07a0e8a074cc5d7c9a1d4c07a0c0cf3d6b20fb8a",
+      "tree": "c1fcb7bfebab372d5ff0b00899d139c6d55c9ac8",
+      "bundle": "sources/candidates/console-ci-drift-07a0e8a.bundle",
+      "sha256": "061c507d879665a02c68ca3e51ebd23b40ff30a2709087011f6ad540e162db20",
       "runtimeAuthority": true,
-      "qualification": "Claude-authored documentation slice S2 over 4a50bd0 (S1): qa-product-v0 independent evidence reader maps clauses to raw evidence before opening author assessments (product-analysis), report numbers are exact with a named source or a labelled estimate with full denominator and one disposition per row (evidence-closure-checklist), and a reader brief (tester-handoff); .claude mirror byte-identical. Codex/Astra AQA waived by the owner for this slice; one fresh-context Claude review returned 2 High, 5 Medium, 3 Low, all fixed. qa-product-skill + method-triggers 43P0F; the new test fails on the S1 text. Three synthetic reader controls (healthy, removed outcome, inflated headline) behaved as expected, one run each, no A/B. No full test:unit, Linux CI, runtime code change or product execution."
+      "qualification": "Claude-authored CI-drift repair over 0578e47 (S2). Product fix: MemoryReportReferenceV2Schema (src/lib/agent-memory-report.ts) mirrors the owning Kernel V2 rule after Kernel f797d24 admitted v6 (formats v4/v5/v6; v5|v6 pair with v5_execution), so a valid v6 reference in saved reasoning is no longer refused by the report view. Stale controls left by 4963701 (explicit v6) and b80bc01 (Kernel pin 2bcfa7f): v6 'unsupported' sentinels become v7 with positive v6 assertions; dbc9520 pin literals in four test/fixture files and the kernel-fixture-authority tripwire become 2bcfa7f, which now also refuses f797d24 and dbc9520. No test skipped or weakened. Fixes the 15 isolated-runtime and 2 browser failures seen in CI runs 38691503773 (develop) and 42200442637 (PR #74). Local macOS env -i reproduction, Node 22.23.1, Python 3.13.14: every affected file passes (report-ui 15, grounded-io 9, kernel-fixture-authority 13, sufficiency 17, request-cli 6, bridge-cli-authority 9, adapter-fixture 78, evidence-reader 7, browser composition+gateway 17, schema consumers 45); both tsc configs clean; the new v6 report-ui case fails on the unfixed schema; cold bundle restore and root packaging 754P0F. One fresh-context Claude review APPROVE (3 Low). No Linux CI rerun, full test:unit or product execution yet."
     },
     {
       "id": "freeland",

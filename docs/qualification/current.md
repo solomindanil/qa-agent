@@ -9,12 +9,20 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `0578e473d8067fd42a5f6177e93cb4db8c2cf8d6` | qa-product-v0 blind-first evidence reader, sourced report numbers and reader brief over 4a50bd0; test-design, surface-checklist and finding-report references over 1a67798; prior retained-strategy projection, pointer, first-check, launcher/continuation and Qmethod/UI/lossless memory retained. |
+| Console | `07a0e8a074cc5d7c9a1d4c07a0c0cf3d6b20fb8a` | v6 memory report references mirror the owning Kernel V2 rule, and stale Kernel-pin/v6-sentinel controls are refreshed, over 0578e47; qa-product-v0 blind-first evidence reader, sourced report numbers and reader brief over 4a50bd0; test-design, surface-checklist and finding-report references over 1a67798; prior retained-strategy projection, pointer, first-check, launcher/continuation and Qmethod/UI/lossless memory retained. |
 | Kernel | `2bcfa7fbe681aaf50a4048ec4b515cafb0d4349b` | Narrow first-check builder overf797; existing compatibility proof, native-authority inventory and budgets preserved. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
 
 The manifest is the registry; verify its selected bytes before source-dependent work.
+CI-drift repair (07a0e8a over 0578e47): the 15 isolated-runtime and 2 browser failures in CI
+runs 38691503773/42200442637 were deterministic, not environmental. One product defect: Console's
+memory report reference schema refused v6 after Kernel f797d24 admitted it; it now mirrors the
+owning rule. The rest were stale controls left by 4963701 (v6 used as the unsupported sentinel,
+now v7 with positive v6 checks) and b80bc01 (Kernel pin literal dbc9520, now 2bcfa7f, with both
+predecessors refused). No test skipped or weakened. Every affected file passes locally under the
+workflow's `env -i` isolation; the new v6 check fails on the unfixed schema; root 754P0F; one
+fresh-context Claude review APPROVE. No Linux CI rerun, full test:unit or product execution yet.
 Test-design references (S1 of the external-ideas adoption plan): documentation only. New
 `test-design.md`, `surface-checklists.md` and `finding-report.md` in qa-product-v0, routed from
 SKILL/product-analysis/tester-handoff; finding severity equals the record enum
