@@ -151,7 +151,7 @@ function actualRuntimeArgv(workflow) {
   const command = step.match(/node --import tsx --test --test-concurrency=1 \\\n\s*"\$\{qa_selected\[@\]\}"/u);
   assert.ok(command, 'actual quoted selected argv');
   const args = command[0].slice('node --import tsx --test --test-concurrency=1'.length);
-  return ['a', 'b'].flatMap(shard => {
+  return ['a', 'b', 'c', 'd'].flatMap(shard => {
     const result = spawnSync('/bin/bash', ['--noprofile', '--norc', '-c',
       `set -euo pipefail\n${setup}"$1" -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' --${args}`,
       'qa-runtime-shard-argv', process.execPath], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', QA_RUNTIME_SHARD: shard } });
@@ -256,7 +256,7 @@ test('unchanged Kernel real verified workflow blobs admit only the three Console
 test('runtime matrix structural change remains conservative with unchanged Kernel', async () => {
   const { classifyImpact } = await api();
   const after = await readFile(new URL('../.github/workflows/qa-runtime.yml', import.meta.url), 'utf8');
-  const matrix = '    strategy:\n      fail-fast: false\n      matrix:\n        shard: [a, b]\n';
+  const matrix = '    strategy:\n      fail-fast: false\n      matrix:\n        shard: [a, b, c, d]\n';
   assert.ok(after.includes(matrix));
   const before = after.replace(matrix, '');
   const result = classifyImpact({cohort:'pull_request', components:[component('kernel',[])],
