@@ -77,7 +77,7 @@ test('compatible continuation and S01 fixture owners route to and execute once i
    assert.throws(()=>requireOwner(workflow.replace(`              ${path}\n`,'')),'An omitted invocation cannot pass by mapping alone');
    for(const record of [change(path,'deleted','100644',null),change(path,'modified','100644','100755')])assert.deepEqual(classifyImpact({cohort:'pull_request',components:[component('console',[record])]}).unsupportedChanges,[`unmapped or removed Console test: ${path}`]);
  }
- for(const fixture of ['tests/fixtures/nuanu-readonly/serve.ts','tests/fixtures/nuanu-readonly/README.md']){
+ for(const fixture of ['tests/fixtures/nuanu-readonly/serve.ts','tests/fixtures/nuanu-readonly/README.md','tests/fixtures/qa-outcomes-legacy-v7.json']){
    assert.deepEqual(classifyImpact({cohort:'pull_request',components:[component('console',[change(fixture,'added',null,'100644')])]}).unsupportedChanges,[]);
    assert.equal(classifyImpact({cohort:'pull_request',components:[component('console',[change(fixture,'added',null,'100644')])]}).selection.consoleRuntime,true);
    assert.deepEqual(classifyImpact({cohort:'pull_request',components:[component('console',[change(fixture,'deleted','100644',null)])]}).unsupportedChanges,[`unmapped or removed Console test: ${fixture}`]);
@@ -481,7 +481,7 @@ test('authored command units have literal owning mappings without waiving deleti
 
 test('dependency intake literal mappings select runtime without accepting deleted or unknown tests', async context => {
   const { classifyImpact } = await api();
-  const paths = ['tests/unit/intake-build.test.ts', 'tests/unit/qa-init-cli.test.ts',
+  const paths = ['tests/unit/intake-build.test.ts', 'tests/unit/intake-contract-error.test.ts', 'tests/unit/qa-init-cli.test.ts',
     'tests/unit/campaign-dependency-scope.test.ts', 'tests/unit/campaign-dependency-adapter.test.ts',
     'tests/unit/campaign-dependency-cli.test.ts', 'tests/fixtures/nuanu-readonly/fixture.ts',
     'tests/fixtures/public-auth-readonly/fixture.ts'];

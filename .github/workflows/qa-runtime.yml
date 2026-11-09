@@ -651,6 +651,7 @@ jobs:
             PLAYWRIGHT_BROWSERS_PATH="${RUNNER_TEMP}/qa-dependency-browsers" \
             node --import tsx --test --test-concurrency=1 \
               tests/unit/intake-build.test.ts \
+              tests/unit/intake-contract-error.test.ts \
               tests/unit/qa-init-cli.test.ts \
               tests/unit/campaign-dependency-scope.test.ts \
               tests/unit/campaign-dependency-adapter.test.ts \

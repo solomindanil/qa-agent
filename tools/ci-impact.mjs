@@ -11,7 +11,7 @@ const groups = ['rootTests', 'freelandControls', 'kernelBuildContracts', 'kernel
 const runtimeTests = new Set([
   'agent-activity', 'agent-activity-store', 'activity-config',
   'bridge-registration', 'first-evidence', 'i2-registration-http', 'readonly-http-broker', 'registration-runtime',
-  'intake-build', 'qa-init-cli', 'campaign-dependency-scope', 'campaign-dependency-adapter', 'campaign-dependency-cli',
+  'intake-build', 'intake-contract-error', 'qa-init-cli', 'campaign-dependency-scope', 'campaign-dependency-adapter', 'campaign-dependency-cli',
   'campaign-dependency-readback', 'qa-graph-recommendations-cli', 'journey-check-recommendations-consumer',
   'portable-entrypoints', 'runtime-paths', 'qa-product-skill', 'qa-product-method-triggers', 'kernel-fixture-authority', 'kernel-replace-authority', 'bridge-cli-authority',
   'campaign-fixture-digests', 'workspace-snapshot', 'qa-outcomes-export', 'request-admission', 'agent-request-checkpoint', 'qa-outcomes',
@@ -65,7 +65,8 @@ const groundedRuntimeInputs = new Set(['tests/helpers/grounded-request.ts',
   'tests/unit/fixtures/journey-check-recommendations-consumer.ts']);
 const finitePaths = new Set(['tests/fixtures/browser-action-sequence/check.ts', 'tests/unit/browser-action-sequence.test.ts']);
 const dependencyIntakeHelpers = new Set(['tests/fixtures/nuanu-readonly/fixture.ts', 'tests/fixtures/public-auth-readonly/fixture.ts']);
-const runtimeFixtures = new Set(['tests/fixtures/nuanu-readonly/serve.ts', 'tests/fixtures/nuanu-readonly/README.md']);
+const runtimeFixtures = new Set(['tests/fixtures/nuanu-readonly/serve.ts', 'tests/fixtures/nuanu-readonly/README.md',
+  'tests/fixtures/qa-outcomes-legacy-v7.json']);
 const selectedReadHelpers = new Set(['tests/fixtures/selected-request-literal.ts']);
 const consoleCompatibilityPaths = new Set([
   'server/agent-observation-cli.mjs', 'server/bridge.mjs', 'server/selected-campaign-readback.mjs',

@@ -400,7 +400,7 @@ test('browser split completion records only all or finite while runtime excludes
   }
 });
 
-const dependencyIntakeTests = ['tests/unit/intake-build.test.ts', 'tests/unit/qa-init-cli.test.ts',
+const dependencyIntakeTests = ['tests/unit/intake-build.test.ts', 'tests/unit/intake-contract-error.test.ts', 'tests/unit/qa-init-cli.test.ts',
   'tests/unit/campaign-dependency-scope.test.ts', 'tests/unit/campaign-dependency-adapter.test.ts',
   'tests/unit/campaign-dependency-cli.test.ts'];
 
@@ -421,7 +421,7 @@ function dependencyIntakeJob(workflow) {
   assert.match(job, /- name: Record dependency intake completion\n {8}id: dependency-result\n {8}run: echo 'mode=selected-complete' >> "\$GITHUB_OUTPUT"/u);
   assert.doesNotMatch(job, /continue-on-error|--test-name-pattern|--test-reporter-destination|--retries|npm run build|npm run typecheck/u);
   const command = job.match(/^ {12}node --import tsx --test --test-concurrency=1 \\\n((?: {14}tests\/unit\/[^\n]+\n?)+)/mu)?.[0];
-  assert.ok(command, 'all five controls must be a sequential actual command');
+  assert.ok(command, 'all six controls must be a sequential actual command');
   assert.deepEqual(command.replace(/\\\n/gu, ' ').trim().split(/\s+/u),
     ['node', '--import', 'tsx', '--test', '--test-concurrency=1', ...dependencyIntakeTests]);
   assert.match(workflow, /needs: \[impact, runtime-smoke, kernel-regression, console-dependency-intake, console-browser\]/u);
