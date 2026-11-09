@@ -5,6 +5,8 @@ Read [AGENTS](../../AGENTS.md), the [manifest](../../sources/manifest.v1.json),
 [getting started](../getting-started.md) and the [single global plan](../superpowers/plans/2026-10-05-universal-qa-product-plan.md).
 Dated plan observations and historical delivery/CI instructions are not fresh authority.
 
+Direction, 9 November 2026: the owner accepted the [pivot plan](../superpowers/plans/2026-11-09-pivot-find-bugs.md) after the [direction review](../reviews/2026-11-09-direction-review.md). From here a slice is accepted by its measurement table on the reference products (bugs found/missed, time to first useful check, zero false PASS); memory, continuation, request-intake and UI-monitor expansion are frozen; the process note per slice is one line. PR #77 (`bc749c3`) and #78 (`3718ace`) were merged on that decision while the Kernel scale-protocol test still fails CI; moving that protocol to nightly is pivot slice S0.
+
 ## Selected source
 
 | Component | Exact manifest source | Current role |

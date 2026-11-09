@@ -2,11 +2,15 @@
 
 Read [the current entry](../qualification/current.md) for accepted source, delivery limits and next action; this roadmap is not a second current pin or queue.
 
+## Direction pivot (9 November 2026)
+
+The [adversarial direction review](../reviews/2026-11-09-direction-review.md) found that the Console/Kernel runtime had confirmed no product defect in 2026 while agent-led work found about 150, and that the independent ToolShop evaluator counted 8/94 then 3/94 against a target of 85. The owner accepted the [pivot plan](../superpowers/plans/2026-11-09-pivot-find-bugs.md) with its defaults: it is now the active queue. Slices are accepted by measured delta on the reference products (bugs found/missed, time to first useful check, zero false PASS), not by a qualification document; memory, continuation, request-intake and UI-monitor expansion are frozen until the runtime finds its first confirmed bug. The sections below are retained as history of the previous queue.
+
 ## Historical local-memory checkpoint (13 October 2026)
 
 Current isolated memory-entry readiness is locally complete on Console2b8cc21 / unchanged Kernel6d, after accepted48b memory/gateway composition. Actual Sol6.1 added side-effect-free six-operation task help and the exact trusted host help command; three quick controls and one affected ordinary entry control passed, same independent Astra GO. [New hosted request preparation](../getting-started.md#prepare-a-new-hosted-request-with-product-memory) records explicit owner/routing and recovery limits. Original evidence and no live/provider/adoption claim remain in [current qualification](../qualification/current.md). Peer A7b stays frozen; wait for its real owner/UI/export/reader result to select the minimal remaining V01 continuation. No excluded comparison, prewritten dossier, 10k or large-response successor is automatically scheduled.
 
-The [universal QA-product implementation plan](../superpowers/plans/2026-10-05-universal-qa-product-plan.md) is the one current global queue: 51 active cards and nine deferred optional MCP cards. Its dependencies and priority order govern implementation; [current qualification](../qualification/current.md) records actual delivery and the next bounded action. Publishing a card does not close its acceptance exit.
+The [universal QA-product implementation plan](../superpowers/plans/2026-10-05-universal-qa-product-plan.md) remains the card inventory (51 active cards and nine deferred optional MCP cards); since the 9 November pivot only cards that serve bug-finding on the reference products are scheduled, in the pivot plan's order; [current qualification](../qualification/current.md) records actual delivery and the next bounded action. Publishing a card does not close its acceptance exit.
 
 The [23 September unified plan](../superpowers/plans/2026-09-23-unified-qa-agent-implementation-plan.md) and its [no-loss comparison](../reviews/2026-09-23-global-plan-reconciliation.md) are historical lineage, not a second active queue. P/W/I obligations and accepted bounded results retain their original evidence and limits; the current plan preserves that continuity rather than restarting them.
 
