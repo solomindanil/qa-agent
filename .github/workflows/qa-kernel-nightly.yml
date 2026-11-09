@@ -1,0 +1,60 @@
+name: QA Kernel nightly
+
+# Pivot slice S0 (docs/superpowers/plans/2026-11-09-pivot-find-bugs.md): the fixed
+# 10k canonical-record scale protocol has its own 20/30-minute ceilings and does not
+# fit the hosted runner inside the qa-runtime budget, so it runs here on a schedule
+# instead of blocking every push. It is excluded from the "remaining" Kernel group
+# in qa-runtime.yml. A failure here is a protocol/performance signal, not a gate.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-kernel-nightly
+  cancel-in-progress: false
+
+jobs:
+  kernel-scale-protocol:
+    name: Kernel fixed 10k scale protocol
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.23.1
+          package-manager-cache: false
+      - name: Restore and verify pinned components
+        run: |
+          node tools/workspace.mjs restore
+          node tools/workspace.mjs verify
+      - name: Install exact Kernel dependencies
+        working-directory: components/kernel
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run the scale protocol in isolation
+        working-directory: components/kernel
+        shell: bash
+        run: |
+          set -euo pipefail
+          qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-kernel-nightly.XXXXXX")"
+          env -i \
+            PATH="${PATH}" \
+            CI=true \
+            LANG=C.UTF-8 \
+            TMPDIR="${qa_tmp}" \
+            GIT_CONFIG_NOSYSTEM=1 \
+            GIT_CONFIG_GLOBAL=/dev/null \
+            npm test -- tests/kernel/agent-memory-scale.test.ts --reporter=verbose
+      - name: Verify source integrity after the protocol
+        if: always()
+        run: node tools/workspace.mjs verify
