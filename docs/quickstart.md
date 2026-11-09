@@ -52,7 +52,7 @@ source "$QA_DEMO/env.sh" && cd "$QA_AGENT_ROOT/components/console"
 
 ## 4. Describe the target and register it
 
-The `description` inside `briefText` must be exactly the same as the top-level `description`, otherwise `qa-init` rejects the file without saying which field is wrong.
+The structured brief's `product` must match the normalized top-level product name and description. A mismatch is reported as `INTAKE_BRIEF_PRODUCT_MISMATCH` at `briefText.product`.
 
 ```sh
 cat > "$QA_DEMO/answers.json" <<'EOF'
@@ -97,7 +97,7 @@ npm run --silent qa-campaign -- export-outcomes --workspace "$W" --run-id RUN_ID
   --target-registry "$QA_REGISTRATION_TARGET_REGISTRY" --approval-store "$QA_CONSOLE_PRIVATE_ROOT/oracle-approvals"
 ```
 
-For a short view, read `verdict`, `checks` and `blockedTargets` in the run's `receipt.json` under `$W/tests/campaign-runs/`. The exported `$QA_DEMO/out/first-run/report.md` is long and mostly JSON. Read `Per-attempt assertion accounting` for each check's result, then `Limitations and remainder`. `Registered coverage targets` shows the targets as recorded at registration, before approval, so even the passed ones appear there as `coverage_gap`.
+For a short view, read `verdict`, `checks` and `blockedTargets` in the run's `receipt.json` under `$W/tests/campaign-runs/`. The exported `$QA_DEMO/out/first-run/report.md` is long and mostly JSON. Read `Per-attempt assertion accounting` for each check's result, then `Limitations and remainder`. `Registered coverage targets (model snapshot)` preserves the registered model. `Selected planned checks` shows this run's check results and blockers; `Selected campaign envelope` retains their oracle basis.
 
 ## What this run does and does not show
 

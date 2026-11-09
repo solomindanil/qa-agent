@@ -9,7 +9,7 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 | Component | Exact manifest source | Current role |
 | --- | --- | --- |
-| Console | `07a0e8a074cc5d7c9a1d4c07a0c0cf3d6b20fb8a` | v6 memory report references mirror the owning Kernel V2 rule, and stale Kernel-pin/v6-sentinel controls are refreshed, over 0578e47; qa-product-v0 blind-first evidence reader, sourced report numbers and reader brief over 4a50bd0; test-design, surface-checklist and finding-report references over 1a67798; prior retained-strategy projection, pointer, first-check, launcher/continuation and Qmethod/UI/lossless memory retained. |
+| Console | `0ddb645589ab483447777c0c596bd520302b832d` | Typed intake diagnostics (code and field path, no input values) and versioned native-v7 coverage presentation over 07a0e8a; v6 memory report references and refreshed Kernel-pin controls over 0578e47; qa-product-v0 blind-first evidence reader, sourced report numbers and reader brief over 4a50bd0; test-design, surface-checklist and finding-report references over 1a67798; prior retained-strategy projection, pointer, first-check, launcher/continuation and Qmethod/UI/lossless memory retained. |
 | Kernel | `2bcfa7fbe681aaf50a4048ec4b515cafb0d4349b` | Narrow first-check builder overf797; existing compatibility proof, native-authority inventory and budgets preserved. |
 | Freeland | `0ea2df10f1b6d613e01d50011c269ca0fa999877` | Specialized frozen product lane; no authority transfer. |
 | Inactive reporting reference | `10d398d8a077068c2184f33958e9b654a2f2947c` | Source reference only, not runtime authority. |
@@ -23,6 +23,23 @@ now v7 with positive v6 checks) and b80bc01 (Kernel pin literal dbc9520, now 2bc
 predecessors refused). No test skipped or weakened. Every affected file passes locally under the
 workflow's `env -i` isolation; the new v6 check fails on the unfixed schema; root 754P0F; one
 fresh-context Claude review APPROVE. No Linux CI rerun, full test:unit or product execution yet.
+Quickstart findings (0ddb645 over 07a0e8a): Astra decided the design (typed
+IntakeContractError; presentation-only coverage wording with a versioned packet marker);
+Claude wrote the code because Sol 6.1 is not available to this Codex account. qa-init
+--answers now names a closed code and literal field path, e.g. INTAKE_BRIEF_PRODUCT_MISMATCH
+at briefText.product, rebuilt from a registry so no description, URL, locator, key or secret
+name is echoed; target codes keep their messages and aliases; outer JSON, IO and unknown
+errors stay generic. New native-v7 exports record reportPresentation coverage_timing.v1 and
+show "Registered coverage targets (model snapshot)" with a note that registration gaps are
+not updated by approval or execution. Marker-absent rendering, view, registration data and
+digests are unchanged; old strict readers may reject the new marker. Author-distinct Astra
+AQA on the same change over 0578e47 (066d555): GO, no findings; its fresh run of the five
+affected unit files gave 278 tests, 277P, 1 existing skip, 0F; typecheck and sources:verify
+exit 0. Cherry-picked onto 07a0e8a without conflicts or shared files; there the same five
+files plus agent-memory-report-ui gave 293 tests, 292P, 1 skip, 0F, typecheck 0, root 754P.
+Accepted intake bytes match literal digests from the old builder; negative controls fail on
+the old code; a literal legacy v7 fixture (two variants) reopens and repeats ownerless. No
+full test:unit, browser build or product execution.
 Test-design references (S1 of the external-ideas adoption plan): documentation only. New
 `test-design.md`, `surface-checklists.md` and `finding-report.md` in qa-product-v0, routed from
 SKILL/product-analysis/tester-handoff; finding severity equals the record enum

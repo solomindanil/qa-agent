@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "07a0e8a074cc5d7c9a1d4c07a0c0cf3d6b20fb8a",
-      "tree": "c1fcb7bfebab372d5ff0b00899d139c6d55c9ac8",
-      "bundle": "sources/candidates/console-ci-drift-07a0e8a.bundle",
-      "sha256": "061c507d879665a02c68ca3e51ebd23b40ff30a2709087011f6ad540e162db20",
+      "commit": "0ddb645589ab483447777c0c596bd520302b832d",
+      "tree": "14051607102712a2c7f38599bf88a15a468788f6",
+      "bundle": "sources/candidates/console-quickstart-findings-0ddb645.bundle",
+      "sha256": "eded9d24e0765faa5d58325e8c28bdd34595d5635ee88c90d92c8e90270d67e0",
       "runtimeAuthority": true,
-      "qualification": "Claude-authored CI-drift repair over 0578e47 (S2). Product fix: MemoryReportReferenceV2Schema (src/lib/agent-memory-report.ts) mirrors the owning Kernel V2 rule after Kernel f797d24 admitted v6 (formats v4/v5/v6; v5|v6 pair with v5_execution), so a valid v6 reference in saved reasoning is no longer refused by the report view. Stale controls left by 4963701 (explicit v6) and b80bc01 (Kernel pin 2bcfa7f): v6 'unsupported' sentinels become v7 with positive v6 assertions; dbc9520 pin literals in four test/fixture files and the kernel-fixture-authority tripwire become 2bcfa7f, which now also refuses f797d24 and dbc9520. No test skipped or weakened. Fixes the 15 isolated-runtime and 2 browser failures seen in CI runs 38691503773 (develop) and 42200442637 (PR #74). Local macOS env -i reproduction, Node 22.23.1, Python 3.13.14: every affected file passes (report-ui 15, grounded-io 9, kernel-fixture-authority 13, sufficiency 17, request-cli 6, bridge-cli-authority 9, adapter-fixture 78, evidence-reader 7, browser composition+gateway 17, schema consumers 45); both tsc configs clean; the new v6 report-ui case fails on the unfixed schema; cold bundle restore and root packaging 754P0F. One fresh-context Claude review APPROVE (3 Low). No Linux CI rerun, full test:unit or product execution yet."
+      "qualification": "Quickstart findings over 07a0e8a (CI-drift repair): qa-init --answers reports a closed intake code and literal field path (IntakeContractError) without echoing input values; new native-v7 exports record reportPresentation coverage_timing.v1 and label registration coverage as a model snapshot not updated by approval or execution; legacy v1/v2/v7 packets reopen unchanged. Design by Astra; code by Claude because Sol 6.1 is unavailable to this account; author-distinct Astra AQA GO with no findings on the same change over 0578e47 (066d555), then cherry-picked cleanly with no file overlap. Affected unit files plus agent-memory-report-ui on 0ddb645: 293 tests, 292P/1 skip/0F; accepted intake bytes unchanged; negative controls fail on the old code. No full test:unit, browser build or product execution."
     },
     {
       "id": "freeland",
