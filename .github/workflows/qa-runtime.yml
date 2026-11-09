@@ -85,7 +85,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [a, b]
+        shard: [a, b, c, d]
     outputs:
       mode: ${{ steps.runtime-result.outputs.mode }}
     steps:
@@ -256,10 +256,12 @@ jobs:
           case "${QA_RUNTIME_SHARD}" in
             a) qa_offset=0 ;;
             b) qa_offset=1 ;;
+            c) qa_offset=2 ;;
+            d) qa_offset=3 ;;
             *) echo "Invalid runtime shard" >&2; exit 1 ;;
           esac
           qa_selected=()
-          for ((qa_index=qa_offset; qa_index<${#qa_files[@]}; qa_index+=2)); do
+          for ((qa_index=qa_offset; qa_index<${#qa_files[@]}; qa_index+=4)); do
             qa_selected+=("${qa_files[qa_index]}")
           done
           printf "Runtime shard %s: %s\n" "${QA_RUNTIME_SHARD}" "${qa_selected[*]}"

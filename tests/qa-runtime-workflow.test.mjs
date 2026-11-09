@@ -126,7 +126,7 @@ const runtimeInventory = [
 
 function validateRuntimeMatrix(workflow) {
   const job = workflowJob(workflow, 'runtime-smoke');
-  assert.match(job, /    strategy:\n      fail-fast: false\n      matrix:\n        shard: \[a, b\]\n/u);
+  assert.match(job, /    strategy:\n      fail-fast: false\n      matrix:\n        shard: \[a, b, c, d\]\n/u);
   for (const key of ['strategy', 'matrix', 'shard', 'fail-fast']) assert.equal(job.match(new RegExp(`^ +${key}:`, 'gm'))?.length, 1, key);
   assert.doesNotMatch(job, /\b(?:include|exclude|max-parallel|continue-on-error):/u);
   assert.match(job, /    timeout-minutes: 35\n/u);
@@ -194,14 +194,14 @@ test('D2 cleaned Python preflight and owners share selected lib only and refuse 
   }
 });
 
-test('two runtime cells execute exact prior inventory once with disjoint private contexts', async () => {
+test('four runtime cells execute exact prior inventory once with disjoint private contexts', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
   validateRuntimeMatrix(workflow);
   const observed = await isolatedConsoleAcquisitionEnv(workflow);
-  assert.deepEqual(observed.cells.map(cell => cell.argv), [runtimeInventory.filter((_, i) => i % 2 === 0), runtimeInventory.filter((_, i) => i % 2 === 1)]);
+  assert.deepEqual(observed.cells.map(cell => cell.argv), [0, 1, 2, 3].map(offset => runtimeInventory.filter((_, i) => i % 4 === offset)));
   assert.equal(new Set(observed.argv).size, 106);
   assert.equal(observed.argv.length, 106);
-  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[53,53]);
+  assert.deepEqual(observed.cells.map(cell=>cell.argv.length),[27,27,26,26]);
   assert.equal(observed.env.QA_STARTER_EXPECTED_SHA, execFileSync('git', ['-C', new URL('../components/kernel', import.meta.url).pathname, 'rev-parse', 'HEAD'], {encoding:'utf8'}).trim());
   for (const path of ['tests/unit/campaign-dependency-readback.test.ts','tests/unit/qa-graph-recommendations-cli.test.ts','tests/unit/journey-check-recommendations-consumer.test.ts','tests/unit/primary-ui-request-islands-refresh.test.ts']) {
     assert.equal(observed.argv.filter(value => value === path).length, 1, path);
@@ -213,7 +213,7 @@ test('two runtime cells execute exact prior inventory once with disjoint private
     'tests/unit/monitor-reader.test.ts','tests/unit/monitor-http.test.ts','tests/unit/portable-entrypoints.test.ts','tests/unit/primary-ui-monitor.test.ts'])assert.equal(observed.argv.filter(path=>path===owner).length,1,owner);
   const browser=workflowJob(workflow,'console-browser');
   assert.equal(browser.match(/tests\/e2e\/qa-monitor-local\.test\.mjs/gu)?.length,1,'existing mounted monitor owner once');
-  assert.notEqual(observed.cells[0].env.QA_REGISTRATION_STORE, observed.cells[1].env.QA_REGISTRATION_STORE);
+  assert.equal(new Set(observed.cells.map(cell => cell.env.QA_REGISTRATION_STORE)).size, observed.cells.length);
   for (const cell of observed.cells) {
     assert.equal(cell.offline, 'true'); assert.equal(cell.yes, 'false');
     assert.equal(cell.env.QA_MONITOR, 'off');
@@ -221,13 +221,15 @@ test('two runtime cells execute exact prior inventory once with disjoint private
     assert.equal(cell.argv.some(arg => arg.startsWith('--test-name-pattern')), false);
     for (const [key, suffix] of [['QA_CONSOLE_STATE','receipts.json'], ['QA_CONSOLE_PRIVATE_ROOT','private'], ['QA_REGISTRATION_STORE','store'], ['QA_REGISTRATION_TARGET_REGISTRY','targets.json']]) {
       assert.equal(cell.env[key], join(cell.env.TMPDIR, suffix));
-      assert.notEqual(observed.cells[0].env[key], observed.cells[1].env[key]);
+      assert.equal(new Set(observed.cells.map(other => other.env[key])).size, observed.cells.length, key);
     }
     assert.equal(cell.env.GITHUB_TOKEN, undefined);
   }
-  for (const mutant of [workflow.replace('shard: [a, b]', 'shard: [a]'), workflow.replace('shard: [a, b]', 'shard: [a, a]'),
-    workflow.replace('fail-fast: false', 'fail-fast: true'), workflow.replace('shard: [a, b]', 'shard: [a, b]\n        exclude: [{shard: b}]')]) assert.throws(() => validateRuntimeMatrix(mutant));
-  for (const shard of ['', 'c']) await assert.rejects(isolatedConsoleAcquisitionEnv(workflow, [shard]));
+  const matrix = 'shard: [a, b, c, d]';
+  assert.ok(workflow.includes(matrix));
+  for (const mutant of [workflow.replace(matrix, 'shard: [a, b]'), workflow.replace(matrix, 'shard: [a, b, c]'), workflow.replace(matrix, 'shard: [a, b, c, c]'),
+    workflow.replace('fail-fast: false', 'fail-fast: true'), workflow.replace(matrix, `${matrix}\n        exclude: [{shard: d}]`)]) assert.throws(() => validateRuntimeMatrix(mutant));
+  for (const shard of ['', 'e']) await assert.rejects(isolatedConsoleAcquisitionEnv(workflow, [shard]));
   for (const mutant of [workflow.replace(runtimeInventory[0], ''), workflow.replace(runtimeInventory[0], runtimeInventory[1]),
     workflow.replace(runtimeInventory[0], 'tests/unit/unreviewed.test.ts')]) {
     const changed = await isolatedConsoleAcquisitionEnv(mutant);
@@ -511,7 +513,7 @@ function consoleSteps(workflow) {
     .filter((step) => /working-directory: components\/console/u.test(step));
 }
 
-async function isolatedConsoleAcquisitionEnv(workflow, shards = ['a', 'b']) {
+async function isolatedConsoleAcquisitionEnv(workflow, shards = ['a', 'b', 'c', 'd']) {
   const isolated = consoleSteps(workflow)
     .find((step) => /- name: Isolated Console runtime controls/u.test(step));
   assert.ok(isolated, 'isolated Console runtime step must exist');
