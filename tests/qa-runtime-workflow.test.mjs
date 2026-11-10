@@ -1250,7 +1250,7 @@ test('workflow job budgets retain the reviewed finite aggregate allowance and in
       assert.equal(caps.length, 1, `${job} must have exactly one literal job-level budget`);
       return [job, caps[0][1]];
     }));
-    assert.deepEqual(budgets, { impact: '5', 'runtime-smoke': '35', 'console-browser': '35', 'console-dependency-intake': '35', 'kernel-regression': '60', 'runtime-qualification': '5' });
+    assert.deepEqual(budgets, { impact: '5', 'runtime-smoke': '35', 'console-browser': '35', 'console-dependency-intake': '35', 'kernel-regression': '90', 'runtime-qualification': '5' });
     const stepBudgets = Object.fromEntries(value.split(/^ {6}- name: /mu).slice(1).flatMap(step => {
       const caps = [...step.matchAll(/^ {8}timeout-minutes: (.+)$/gmu)];
       assert.ok(caps.length <= 1, 'at most one literal step deadline');
@@ -1266,7 +1266,7 @@ test('workflow job budgets retain the reviewed finite aggregate allowance and in
     workflow.replace('    timeout-minutes: 35\n', '    timeout-minutes: ${{ 35 }}\n'),
     workflow.replace('    timeout-minutes: 35\n', '    timeout-minutes: 36\n'),
     workflow.replace('    timeout-minutes: 35\n', '        timeout-minutes: 35\n'),
-    workflow.replace('    timeout-minutes: 60\n', '    timeout-minutes: 61\n'),
+    workflow.replace('    timeout-minutes: 90\n', '    timeout-minutes: 91\n'),
     workflow.replace('    timeout-minutes: 5\n', '    timeout-minutes: 6\n'),
     workflow.replace('  runtime-qualification:\n', '  runtime-qualification:\n    timeout-minutes: 6\n'),
     workflow.replace('        timeout-minutes: 3\n', '        timeout-minutes: 4\n'),

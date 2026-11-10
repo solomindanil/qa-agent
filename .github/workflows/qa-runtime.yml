@@ -668,7 +668,7 @@ jobs:
     if: needs.impact.outputs.kernel-full == 'true'
     name: Full Kernel regression (${{ matrix.group }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -702,7 +702,9 @@ jobs:
           case "${{ matrix.group }}" in
             workspace) set -- tests/workspace/regeneration.test.ts ;;
             service) set -- tests/registration/service.test.ts ;;
-            remaining) set -- --exclude tests/workspace/regeneration.test.ts --exclude tests/registration/service.test.ts --exclude tests/kernel/agent-memory-scale.test.ts ;;
+            # Hosted runners are slower than the 10 s per-test default in Kernel vitest.config;
+            # this group alone raises the per-test/hook deadline (see Kernel tests compatible-authoring, agent-memory-index).
+            remaining) set -- --testTimeout=60000 --hookTimeout=60000 --exclude tests/workspace/regeneration.test.ts --exclude tests/registration/service.test.ts --exclude tests/kernel/agent-memory-scale.test.ts ;;
             *) exit 1 ;;
           esac
           env -i \
