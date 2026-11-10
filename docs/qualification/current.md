@@ -7,6 +7,17 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 Direction, 9 November 2026: the owner accepted the [pivot plan](../superpowers/plans/2026-11-09-pivot-find-bugs.md) after the [direction review](../reviews/2026-11-09-direction-review.md). From here a slice is accepted by its measurement table on the reference products (bugs found/missed, time to first useful check, zero false PASS); memory, continuation, request-intake and UI-monitor expansion are frozen; the process note per slice is one line. PR #77 (`bc749c3`) and #78 (`3718ace`) were merged on that decision while the Kernel scale-protocol test still fails CI; moving that protocol to nightly is pivot slice S0.
 
+S1-min (10 November 2026, PR #81, **delivered, not accepted by the D2 measurement**: 0 reference hits attributable to the lane; Claude author + blind-reader review, Astra fork already decided): the Console gains the loopback stateful lane behind `sideEffectAuthorization` + `run --allow-side-effect reversible_mutation` (one browser mutation check, receipt-embedded ledger, Kernel unchanged, catalog keeps its anonymous read-only declaration while the plan record binds the lane); the recipe is [S1 ToolShop lane](../s1-toolshop-stateful-lane.md); stand runs and the blind actor run are recorded in the table below.
+
+| Поле (D2, S1) | Содержание |
+| --- | --- |
+| Эталон | ToolShop (94, оценщик независимый; чистая копия стенда, Console 43e49dd); второй продукт — не выбран |
+| Найдено / пропущено | до: 3/94 (21.10, другой бриф и актор). После (слепой прогон актора 10.11, полный бриф A-серии, клон 612572a + локальный коммит `38ac4da`, убравший из документов селекторы стенда и находки оператора): **40/94, 40/72 применимых** (31 точное + 9 по смыслу, 7 близких промахов), 39 заявок, 14 вне эталона не перепроверены. **Вклад лейна: 0 попаданий** — единственная лейн-проверка актора (вход + избранное) закончилась `unknown` (гонка чтения), все попадания из агентских Playwright/curl-проверок и read-only раннера; результат в полосе A-серии (38–43/72), прирост к 3/94 срезу S1 не приписывается. Операторская находка лейна: `POST /invoices` 500 из-за предзаполненного postcode (совпадает с эталоном lob-10) |
+| Время до первой полезной проверки | 16–19 с от команды `run` до запечатанного результата лейна; регистрация воркспейса 2–3 мин; первый сквозной прогон потребовал 8 попыток и 5 регистраций (пробелы рецепта, закрыты в `docs/s1-toolshop-stateful-lane.md`) |
+| Доля времени инструмент/продукт | актор: 80 из 150 мин; 22 проверки раннером (из них 1 лейн), 50 агентских; основное трение — baseline-план блокирует свои проверки, CDN и разрешённый 401 настраиваются только по коду (3 регистрации до рабочего раннера) |
+| Ложные PASS | 0: операторский прогон #7 — честный non-PASS (500 в ledger), #8 — PASS 5/5 как позитивный контроль; у актора ложных подтверждений не найдено; значения секретов отсутствуют в артефактах и пакетах |
+| Ограничения | сопоставление одним оценщиком (оператор, видел часть эталона до разметки; A-серия — трое); актор на claude-opus-5-5, прошлые прогоны на другой модели; транскрипты двух помощников актора вне аудита; второй продукт не выбран; baseline-проверки на loopback SPA остаются environment_blocked (вне S1) |
+
 ## Selected source
 
 | Component | Exact manifest source | Current role |

@@ -12,6 +12,7 @@ Use this page to distinguish current operating instructions from dated evidence.
 | Accepted status, limitations and next bounded action | [Current checkpoint](qualification/current.md) |
 | One implementation queue and requirement lineage | [Roadmap](roadmap/README.md) |
 | Release snapshot and verified limits | [26 September release record](releases/2026-09-26.md) |
+| Run the S1 loopback stateful lane on the ToolShop stand | [S1 ToolShop lane recipe](s1-toolshop-stateful-lane.md) |
 
 The [source skills index](../skills/README.md) points to complete specialist instructions. A restored component has its own Git history, dependencies and commands. Read that specialist's current source and required references before product work; the root is not its working directory.
 
