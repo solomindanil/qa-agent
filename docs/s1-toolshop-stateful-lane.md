@@ -63,8 +63,9 @@ read -rs QA_SECRET_TOOLSHOP_PASSWORD && export QA_SECRET_TOOLSHOP_PASSWORD
 
 Also export `QA_SECRET_TOOLSHOP_EMAIL`, `QA_SECRET_TOOLSHOP_PAYMENT_METHOD` (one of the stand's payment method
 labels), `QA_SECRET_TOOLSHOP_ACCOUNT_NAME` and `QA_SECRET_TOOLSHOP_ACCOUNT_NUMBER` (the payment form requires
-both for the bank-transfer style methods) and `QA_SECRET_TOOLSHOP_STATE` (the seeded customer's billing `state`
-is empty and the address step needs it). Non-secret fixtures still travel as environment references: that is
+both for the bank-transfer style methods), `QA_SECRET_TOOLSHOP_STATE` (the seeded customer's billing `state`
+is empty and the address step needs it) and, for the positive control only, `QA_SECRET_TOOLSHOP_POSTCODE` (a short
+postcode replacing the product's prefilled placeholder, see §4). Non-secret fixtures still travel as environment references: that is
 what makes a literal in a lane plan a structural rejection, and the plan text itself (`reproductionSteps`,
 `preconditions`, `expectedBehavior`, locator names) must not contain any of these values either: admission
 refuses a plan that embeds a resolved value, so describe the payment method, not its label.
@@ -98,56 +99,332 @@ Find the Web journey candidate in `$W/model/test-catalog.json` (`candidatePath` 
 
 ```sh
 cat > "$QA_DEMO/toolshop-v3.json" <<'EOF'
-{"schemaVersion":"qa-authored-checks.v3","baseUrl":"http://localhost:24200/",
- "sideEffectAuthorization":{"schemaVersion":"qa-campaign-side-effect-authorization.v0","classes":["reversible_mutation"],
-   "scope":{"environmentId":"<environment id from qa-project.yaml>","targetClass":"loopback_http","baseUrl":"http://localhost:24200/",
-     "origins":["http://localhost:24200","http://localhost:28091"],
-     "mutationRoutes":[{"origin":"http://localhost:28091","method":"POST","path":"/invoices"},{"origin":"http://localhost:28091","method":"POST","path":"/payment/check"},{"origin":"http://localhost:28091","method":"POST","path":"/users/login"}]},
-   "budget":{"maxMutations":20,"maxRunMinutes":10},
-   "secretRefs":["QA_SECRET_TOOLSHOP_ACCOUNT_NAME","QA_SECRET_TOOLSHOP_ACCOUNT_NUMBER","QA_SECRET_TOOLSHOP_EMAIL","QA_SECRET_TOOLSHOP_PASSWORD","QA_SECRET_TOOLSHOP_PAYMENT_METHOD","QA_SECRET_TOOLSHOP_STATE"]},
- "replacements":[{"targetId":"<journey target id>","replaceEntryId":"<web candidate entryId>","coverageReason":"Owner-approved purchase replay on the seeded local stand",
-   "checks":[{"key":"buy-product","name":"Login, add to cart, place order","reason":"Seeded customer completes one purchase",
-     "sourceCitation":{"sourceId":"<brief source id>","authority":"unreviewed_user_input","contentDigest":"<brief contentDigest>","locator":"<brief locator>","statement":"The brief declares the purchase journey","applicability":"Local seeded stand only"},
-     "execution":{"kind":"browser","surface":"web","title":"Login, add to cart, place order","sideEffectClass":"reversible_mutation",
-       "preconditions":["Stand reset with migrate:fresh --seed before the run","Seeded customer account exported as QA_SECRET_TOOLSHOP_* names"],
-       "reproductionSteps":["Open a product page","Add it to the cart","Open the cart and proceed","Sign in with the seeded customer","Confirm the billing address","Choose the payment method and finish"],
-       "expectedBehavior":"After login, adding a product and finishing checkout, the confirmation names an invoice number","severity":"high","severityJustification":"Core purchase flow of the reference product",
-       "viewport":{"width":1280,"height":900},
-       "operations":[
-         {"kind":"navigate","path":"/product/<seeded product id>"},
-         {"kind":"click","locator":{"kind":"css","selector":"[data-test=add-to-cart]"}},
-         {"kind":"click","locator":{"kind":"css","selector":"[data-test=nav-cart]"}},
-         {"kind":"click","locator":{"kind":"css","selector":"[data-test=proceed-1]"}},
-         {"kind":"fill","locator":{"kind":"css","selector":"[data-test=email]"},"value":{"kind":"environment","name":"QA_SECRET_TOOLSHOP_EMAIL"}},
-         {"kind":"fill","locator":{"kind":"css","selector":"[data-test=password]"},"value":{"kind":"environment","name":"QA_SECRET_TOOLSHOP_PASSWORD"}},
-         {"kind":"click","locator":{"kind":"css","selector":"[data-test=login-submit]"}},
-         {"kind":"click","locator":{"kind":"css","selector":"[data-test=proceed-2]"}},
-         {"kind":"fill","locator":{"kind":"css","selector":"[data-test=state]"},"value":{"kind":"environment","name":"QA_SECRET_TOOLSHOP_STATE"}},
-         {"kind":"click","locator":{"kind":"css","selector":"[data-test=proceed-3]"}},
-         {"kind":"select","locator":{"kind":"css","selector":"[data-test=payment-method]"},"value":{"kind":"environment","name":"QA_SECRET_TOOLSHOP_PAYMENT_METHOD"}},
-         {"kind":"fill","locator":{"kind":"css","selector":"[data-test=account-name]"},"value":{"kind":"environment","name":"QA_SECRET_TOOLSHOP_ACCOUNT_NAME"}},
-         {"kind":"fill","locator":{"kind":"css","selector":"[data-test=account-number]"},"value":{"kind":"environment","name":"QA_SECRET_TOOLSHOP_ACCOUNT_NUMBER"}},
-         {"kind":"click","locator":{"kind":"css","selector":"[data-test=finish]"}}],
-       "assertions":[
-         {"kind":"visible","afterOperationIndex":1,"locator":{"kind":"css","selector":"[data-test=nav-cart]"}},
-         {"kind":"visible","afterOperationIndex":6,"locator":{"kind":"css","selector":"[data-test=proceed-2]"},"observation":{"mode":"eventual","timeoutMs":8000}},
-         {"kind":"visible","afterOperationIndex":9,"locator":{"kind":"css","selector":"[data-test=finish]"}},
-         {"kind":"visible","locator":{"kind":"css","selector":"#invoice-number"},"observation":{"mode":"eventual","timeoutMs":8000}}]}}]}]}
+{
+ "schemaVersion": "qa-authored-checks.v3",
+ "baseUrl": "http://localhost:24200/",
+ "sideEffectAuthorization": {
+  "schemaVersion": "qa-campaign-side-effect-authorization.v0",
+  "classes": [
+   "reversible_mutation"
+  ],
+  "scope": {
+   "environmentId": "<environment id from qa-project.yaml>",
+   "targetClass": "loopback_http",
+   "baseUrl": "http://localhost:24200/",
+   "origins": [
+    "http://localhost:24200",
+    "http://localhost:28091"
+   ],
+   "mutationRoutes": [
+    {
+     "origin": "http://localhost:28091",
+     "method": "POST",
+     "path": "/invoices"
+    },
+    {
+     "origin": "http://localhost:28091",
+     "method": "POST",
+     "path": "/payment/check"
+    },
+    {
+     "origin": "http://localhost:28091",
+     "method": "POST",
+     "path": "/users/login"
+    }
+   ]
+  },
+  "budget": {
+   "maxMutations": 20,
+   "maxRunMinutes": 10
+  },
+  "secretRefs": [
+   "QA_SECRET_TOOLSHOP_ACCOUNT_NAME",
+   "QA_SECRET_TOOLSHOP_ACCOUNT_NUMBER",
+   "QA_SECRET_TOOLSHOP_EMAIL",
+   "QA_SECRET_TOOLSHOP_PASSWORD",
+   "QA_SECRET_TOOLSHOP_PAYMENT_METHOD",
+   "QA_SECRET_TOOLSHOP_POSTCODE",
+   "QA_SECRET_TOOLSHOP_STATE"
+  ]
+ },
+ "replacements": [
+  {
+   "targetId": "<journey target id>",
+   "replaceEntryId": "<web candidate entryId>",
+   "coverageReason": "Owner-approved purchase replay on the seeded local stand",
+   "checks": [
+    {
+     "key": "buy-product",
+     "name": "Login, add to cart, place order",
+     "reason": "Seeded customer completes one purchase",
+     "sourceCitation": {
+      "sourceId": "<brief source id>",
+      "authority": "unreviewed_user_input",
+      "contentDigest": "<brief contentDigest>",
+      "locator": "<brief locator>",
+      "statement": "The brief declares the purchase journey",
+      "applicability": "Local seeded stand only"
+     },
+     "execution": {
+      "kind": "browser",
+      "surface": "web",
+      "title": "Login, add to cart, place order",
+      "sideEffectClass": "reversible_mutation",
+      "preconditions": [
+       "Stand reset with migrate:fresh --seed before the run",
+       "Seeded customer account exported as QA_SECRET_TOOLSHOP_* names"
+      ],
+      "reproductionSteps": [
+       "Open product 1 via the hash route /#/product/1",
+       "Add it to the cart",
+       "Open the cart and proceed",
+       "Sign in with the seeded customer",
+       "Wait for the billing address to be prefilled, complete the empty state field and replace the prefilled postcode with a short value",
+       "Choose the payment method, fill account name and number, press Confirm once for the payment check, wait for the success message, press Confirm again to create the invoice"
+      ],
+      "expectedBehavior": "After login, adding a product and finishing checkout, the confirmation names an invoice number",
+      "severity": "high",
+      "severityJustification": "Core purchase flow of the reference product",
+      "viewport": {
+       "width": 1280,
+       "height": 900
+      },
+      "operations": [
+       {
+        "kind": "navigate",
+        "path": "/#/product/1"
+       },
+       {
+        "kind": "click",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=add-to-cart]"
+        }
+       },
+       {
+        "kind": "click",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=nav-cart]"
+        }
+       },
+       {
+        "kind": "click",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=proceed-1]"
+        }
+       },
+       {
+        "kind": "fill",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=email]"
+        },
+        "value": {
+         "kind": "environment",
+         "name": "QA_SECRET_TOOLSHOP_EMAIL"
+        }
+       },
+       {
+        "kind": "fill",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=password]"
+        },
+        "value": {
+         "kind": "environment",
+         "name": "QA_SECRET_TOOLSHOP_PASSWORD"
+        }
+       },
+       {
+        "kind": "click",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=login-submit]"
+        }
+       },
+       {
+        "kind": "click",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=proceed-2]"
+        }
+       },
+       {
+        "kind": "fill",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=state]"
+        },
+        "value": {
+         "kind": "environment",
+         "name": "QA_SECRET_TOOLSHOP_STATE"
+        }
+       },
+       {
+        "kind": "fill",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=postcode]"
+        },
+        "value": {
+         "kind": "environment",
+         "name": "QA_SECRET_TOOLSHOP_POSTCODE"
+        }
+       },
+       {
+        "kind": "click",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=proceed-3]"
+        }
+       },
+       {
+        "kind": "select",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=payment-method]"
+        },
+        "value": {
+         "kind": "environment",
+         "name": "QA_SECRET_TOOLSHOP_PAYMENT_METHOD"
+        }
+       },
+       {
+        "kind": "fill",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=account-name]"
+        },
+        "value": {
+         "kind": "environment",
+         "name": "QA_SECRET_TOOLSHOP_ACCOUNT_NAME"
+        }
+       },
+       {
+        "kind": "fill",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=account-number]"
+        },
+        "value": {
+         "kind": "environment",
+         "name": "QA_SECRET_TOOLSHOP_ACCOUNT_NUMBER"
+        }
+       },
+       {
+        "kind": "click",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=finish]"
+        }
+       },
+       {
+        "kind": "click",
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=finish]"
+        }
+       }
+      ],
+      "assertions": [
+       {
+        "kind": "visible",
+        "afterOperationIndex": 1,
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=nav-cart]"
+        }
+       },
+       {
+        "kind": "visible",
+        "afterOperationIndex": 6,
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=proceed-2]"
+        },
+        "observation": {
+         "mode": "eventual",
+         "timeoutMs": 8000
+        }
+       },
+       {
+        "kind": "visible",
+        "afterOperationIndex": 7,
+        "locator": {
+         "kind": "css",
+         "selector": "[data-test=address].ng-valid"
+        },
+        "observation": {
+         "mode": "eventual",
+         "timeoutMs": 8000
+        }
+       },
+       {
+        "kind": "visible",
+        "afterOperationIndex": 14,
+        "locator": {
+         "kind": "css",
+         "selector": ".alert-success"
+        },
+        "observation": {
+         "mode": "eventual",
+         "timeoutMs": 8000
+        }
+       },
+       {
+        "kind": "visible",
+        "locator": {
+         "kind": "css",
+         "selector": "#invoice-number"
+        },
+        "observation": {
+         "mode": "eventual",
+         "timeoutMs": 8000
+        }
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ]
+}
 EOF
 ```
 
-Angle-bracket placeholders are read from the registered workspace; the product id is one seeded product from
-the stand's catalog page. The selectors are the sprint5 `data-test` attributes and the `#invoice-number` span
-read from the stand's UI source (`auth/login`, `checkout`, `products/detail`, `header`), and the mutation
-routes are the three endpoints that UI posts during checkout (`/users/login`, `/payment/check`, `/invoices`;
-the sprint5 cart itself lives in the browser session). All of it is a proposal until the owner approves it in
-step 5. A wrong selector fails as `action_failure` → `needs_review`; a wrong or missing mutation route fails
-closed as `SIDE_EFFECT_SCOPE` with the denied `METHOD origin/path` in the attempt trace (`side_effect` rows),
-after which the route table is corrected, re-authored and re-approved. Route paths may use one-segment
-`{placeholder}`s (for example `/carts/{cartId}`), never wildcards or queries. `origins`, `mutationRoutes`
-(by origin, method, path) and `secretRefs` must be sorted and duplicate-free; `author-checks` refuses unsorted
-input rather than reordering it. The stand's UI loads one foreign CDN stylesheet; the lane aborts it (see §0)
-and continues.
+Angle-bracket placeholders are read from the registered workspace. This is the input that completed on the stand on
+10 November 2026 (operator runs #7 and #8), ids redacted; facts each of which cost one failed run and a fresh
+registration:
+
+- The sprint5 UI routes by hash: navigate paths are `/#/product/<id>` (the plan grammar admits `/#/...`);
+  `/product/1` lands on the home page.
+- One lane declaration per workspace: `author-checks` refuses a second lane with `AUTHORED_LANE_ALREADY_DECLARED`,
+  so every change to the lane check means a fresh registration under a new slug (2–3 minutes).
+- `origins`, `mutationRoutes` (by origin, method, path) and `secretRefs` must be sorted and duplicate-free;
+  `author-checks` refuses unsorted input rather than reordering it.
+- Plan text (`reproductionSteps`, `preconditions`, `expectedBehavior`, locator names) must not contain any resolved
+  value: admission refuses such a plan before the browser starts. Describe the payment method; do not name its label.
+  Use a label such as the bank-transfer option that appears nowhere in the plan text.
+- Address prefill race: after login the account prefill (GET `/users/me`) can arrive after the `state` fill and
+  overwrite it; the `[data-test=address].ng-valid` eventual assertion after `proceed-2` waits for the prefill first.
+- The Confirm button validates the payment on the first click (`.alert-success`, "Payment was successful") and
+  creates the invoice on the second; hence the eventual assertion after the first `finish` click and the second click.
+- The stand's UI loads one foreign CDN stylesheet; the lane aborts it (§0) and continues.
+- Expected product result on the seeded stand: without the `postcode` fill (operation 9 and `QA_SECRET_TOOLSHOP_POSTCODE`
+  removed) the purchase ends in `POST /invoices` 500 after a successful payment check, because the product prefills
+  the postcode with a literal placeholder text and the invoice insert then fails (`billing_postcode` too long). The
+  lane records this as `oracle_failure` → `needs_review` with the 500 in the ledger: an honest non-PASS and a product
+  finding for the owner, not a lane defect. With the postcode replaced through the env ref the same flow yields
+  `POST /invoices` 201 and PASS; that variant is the positive control of the lane, not the default oracle.
+- The two `generate-baseline` browser checks on a loopback SPA carry no `dependencies` and end `environment_blocked`
+  for the registered API origin (pre-existing, outside S1), so the campaign verdict is `ENV_BLOCKED` even when the
+  lane check passes: read the lane result from its check entry and the ledger, not from the campaign verdict.
+
+A wrong selector fails as `action_failure` → `needs_review`; a wrong or missing mutation route fails closed as
+`SIDE_EFFECT_SCOPE` with the denied `METHOD origin/path` in the attempt trace (`side_effect` rows). Route paths may use
+one-segment `{placeholder}`s (for example `/carts/{cartId}`), never wildcards or queries.
 
 ```sh
 npm run qa-campaign -- author-checks --workspace "$W" --input "$QA_DEMO/toolshop-v3.json" > "$QA_DEMO/toolshop-preview.json"
@@ -188,8 +465,10 @@ Both flags are required; each refusal sends nothing to the stand and creates no 
 npm run qa-campaign -- run --workspace "$W" --plan "$PLAN" --allow-side-effect reversible_mutation --dependency-scope-digest "<scopeDigest from validate>"
 ```
 
-The output reports `verdict` (`NEEDS_HUMAN` while other registered targets stay blocked; `PASS` is never
-granted over blockers), `checkCounts` and `sideEffects: {count, unknownCount}`. Record the wall-clock time from
+The output reports `verdict`, `checkCounts` and `sideEffects: {count, unknownCount}`. On this stand the verdict is
+`ENV_BLOCKED` because the two baseline checks are environment-blocked (§4); the lane result is the lane check's
+status in `receipt.json` plus the ledger entries. Operator timing on 10 November 2026: 16–19 s from the `run`
+command to the sealed lane result; 2–3 minutes per registration. Record the wall-clock time from
 this command to the first PASS/FAIL with evidence for the measurement table.
 
 ## 7. Export, offline read, secret absence
@@ -213,7 +492,8 @@ grep -rF -- "$QA_SECRET_TOOLSHOP_PASSWORD" "$W/tests/campaign-runs" "$QA_DEMO/ou
 
 Hand the sealed run and the export, not the plan author's notes, to the independent evaluator. Fill the table in
 [current.md](qualification/current.md): found/missed against the 94-bug reference before (3/94) and after this
-slice under the same time budget, time to first useful check (from the `run` command to the first PASS/FAIL
+slice under the same time budget (the first lane finding, `POST /invoices` 500 from the prefilled postcode, is a
+candidate until the evaluator matches it against the reference), time to first useful check (from the `run` command to the first PASS/FAIL
 with evidence), share of time spent on the tool versus the product, false PASS (must be 0), and what was not
 measured. A second run after an owner reset is a new explicit action; the slice is not accepted without an
 uplift on the reference.
