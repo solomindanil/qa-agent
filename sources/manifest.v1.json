@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "6ba7aebc566eb676c9c12513c3f81b01a2514b20",
-      "tree": "9ca9dc13984093a6ac5bdb02cb817fdfc3fed21d",
-      "bundle": "sources/candidates/console-s1-stateful-lane-6ba7aeb.bundle",
-      "sha256": "b57a1de0f4a02d3e843f8b9efec1f014141651475db1090551ccc76647a9c4ef",
+      "commit": "43e49ddad1eceb82e577e543a7d28bf39f23193d",
+      "tree": "33e55689beb0687349d4555d0593d3657e0bd2bd",
+      "bundle": "sources/candidates/console-s1-stateful-lane-43e49dd.bundle",
+      "sha256": "c8b845a201ee6bc7dc6f7ce17c8326fe0b9251264facb8317e442ba7f9002566",
       "runtimeAuthority": true,
-      "qualification": "S1-min loopback stateful lane over 0ddb645: plan-bound sideEffectAuthorization, run --allow-side-effect reversible_mutation with the frozen loopback scope, receipt-embedded mutation ledger, qa-authored-checks.v3 and the 'Approve loopback stateful replay' approval question; Kernel pin unchanged and the catalog keeps its anonymous read-only declaration (design \u00a77 deviation, reported in the PR). Claude author with a blind-reader review (no High, Mediums fixed). Focused unit files under the CI-like wrapper: qa-campaign-runner 43P (incl. plan/receipt grammar controls), campaign-dependency-adapter 122P (incl. real-Chromium lane controls on a synthetic two-origin stand), authored-checks 35P (real Kernel fixture), campaign-dependency-cli 6P (end-to-end lane), qa-outcomes-export 46P, skill 43P; typecheck 0. No ToolShop stand run, no evaluator comparison, no Linux CI; measurement table in current.md is empty by design."
+      "qualification": "S1-min loopback stateful lane over 0ddb645: plan-bound sideEffectAuthorization, run --allow-side-effect reversible_mutation with the frozen loopback scope, receipt-embedded mutation ledger, qa-authored-checks.v3 and the 'Approve loopback stateful replay' approval question; foreign safe subresources are aborted and recorded rather than failing the check (first live ToolShop run refused at a CDN stylesheet); Kernel pin unchanged and the catalog keeps its anonymous read-only declaration (design \u00a77 deviation, reported in the PR). Claude author with a blind-reader review (no High, Mediums fixed). Focused unit files under the CI-like wrapper: qa-campaign-runner 43P (incl. plan/receipt grammar controls), campaign-dependency-adapter 123P (incl. real-Chromium lane controls on a synthetic two-origin stand), authored-checks 35P (real Kernel fixture), campaign-dependency-cli 6P (end-to-end lane), qa-outcomes-export 46P, skill 43P; typecheck 0. No ToolShop stand run, no evaluator comparison, no Linux CI; measurement table in current.md is empty by design."
     },
     {
       "id": "freeland",

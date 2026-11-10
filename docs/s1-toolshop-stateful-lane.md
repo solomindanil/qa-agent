@@ -26,6 +26,9 @@ chat message.
 - The ledger lives inside the receipt (`receipt.sideEffects{authorization, entries[], count, unknownCount}`;
   entries record the approved route template, method, origin, status and outcome, never bodies, headers or
   identifiers). `read-outcomes` and the Console reader refuse a receipt whose ledger disagrees with its plan.
+- A foreign safe subresource (a CDN stylesheet, font, image or read-only fetch outside the scope origins) is
+  aborted and recorded in the trace (`foreign_asset=aborted`) and in `failedRequests`; it is never fetched and does
+  not end the check. Mutations, navigations, WebSockets, workers and popups outside the scope still fail closed.
 - GET/HEAD/OPTIONS requests to the authorized origins are reads: they are forwarded with the browser's own
   session and are not budgeted. A product that mutates on a GET is outside the ledger; declare such a route
   as a risk, not as a mutation route.
@@ -58,9 +61,13 @@ export QA_LOOPBACK_ORIGINS='["http://localhost:24200","http://localhost:28091"]'
 read -rs QA_SECRET_TOOLSHOP_PASSWORD && export QA_SECRET_TOOLSHOP_PASSWORD
 ```
 
-Also export `QA_SECRET_TOOLSHOP_EMAIL` and `QA_SECRET_TOOLSHOP_PAYMENT_METHOD` (one of the stand's payment
-method labels, for example the cash-on-delivery option). Non-secret fixtures still travel as environment
-references: that is what makes a literal in a lane plan a structural rejection.
+Also export `QA_SECRET_TOOLSHOP_EMAIL`, `QA_SECRET_TOOLSHOP_PAYMENT_METHOD` (one of the stand's payment method
+labels), `QA_SECRET_TOOLSHOP_ACCOUNT_NAME` and `QA_SECRET_TOOLSHOP_ACCOUNT_NUMBER` (the payment form requires
+both for the bank-transfer style methods) and `QA_SECRET_TOOLSHOP_STATE` (the seeded customer's billing `state`
+is empty and the address step needs it). Non-secret fixtures still travel as environment references: that is
+what makes a literal in a lane plan a structural rejection, and the plan text itself (`reproductionSteps`,
+`preconditions`, `expectedBehavior`, locator names) must not contain any of these values either: admission
+refuses a plan that embeds a resolved value, so describe the payment method, not its label.
 
 Start the Console dev server from `components/console` with the same environment (the grant is read at
 startup), as in quickstart §3.
@@ -97,7 +104,7 @@ cat > "$QA_DEMO/toolshop-v3.json" <<'EOF'
      "origins":["http://localhost:24200","http://localhost:28091"],
      "mutationRoutes":[{"origin":"http://localhost:28091","method":"POST","path":"/invoices"},{"origin":"http://localhost:28091","method":"POST","path":"/payment/check"},{"origin":"http://localhost:28091","method":"POST","path":"/users/login"}]},
    "budget":{"maxMutations":20,"maxRunMinutes":10},
-   "secretRefs":["QA_SECRET_TOOLSHOP_EMAIL","QA_SECRET_TOOLSHOP_PASSWORD","QA_SECRET_TOOLSHOP_PAYMENT_METHOD"]},
+   "secretRefs":["QA_SECRET_TOOLSHOP_ACCOUNT_NAME","QA_SECRET_TOOLSHOP_ACCOUNT_NUMBER","QA_SECRET_TOOLSHOP_EMAIL","QA_SECRET_TOOLSHOP_PASSWORD","QA_SECRET_TOOLSHOP_PAYMENT_METHOD","QA_SECRET_TOOLSHOP_STATE"]},
  "replacements":[{"targetId":"<journey target id>","replaceEntryId":"<web candidate entryId>","coverageReason":"Owner-approved purchase replay on the seeded local stand",
    "checks":[{"key":"buy-product","name":"Login, add to cart, place order","reason":"Seeded customer completes one purchase",
      "sourceCitation":{"sourceId":"<brief source id>","authority":"unreviewed_user_input","contentDigest":"<brief contentDigest>","locator":"<brief locator>","statement":"The brief declares the purchase journey","applicability":"Local seeded stand only"},
@@ -115,12 +122,16 @@ cat > "$QA_DEMO/toolshop-v3.json" <<'EOF'
          {"kind":"fill","locator":{"kind":"css","selector":"[data-test=password]"},"value":{"kind":"environment","name":"QA_SECRET_TOOLSHOP_PASSWORD"}},
          {"kind":"click","locator":{"kind":"css","selector":"[data-test=login-submit]"}},
          {"kind":"click","locator":{"kind":"css","selector":"[data-test=proceed-2]"}},
+         {"kind":"fill","locator":{"kind":"css","selector":"[data-test=state]"},"value":{"kind":"environment","name":"QA_SECRET_TOOLSHOP_STATE"}},
          {"kind":"click","locator":{"kind":"css","selector":"[data-test=proceed-3]"}},
          {"kind":"select","locator":{"kind":"css","selector":"[data-test=payment-method]"},"value":{"kind":"environment","name":"QA_SECRET_TOOLSHOP_PAYMENT_METHOD"}},
+         {"kind":"fill","locator":{"kind":"css","selector":"[data-test=account-name]"},"value":{"kind":"environment","name":"QA_SECRET_TOOLSHOP_ACCOUNT_NAME"}},
+         {"kind":"fill","locator":{"kind":"css","selector":"[data-test=account-number]"},"value":{"kind":"environment","name":"QA_SECRET_TOOLSHOP_ACCOUNT_NUMBER"}},
          {"kind":"click","locator":{"kind":"css","selector":"[data-test=finish]"}}],
        "assertions":[
          {"kind":"visible","afterOperationIndex":1,"locator":{"kind":"css","selector":"[data-test=nav-cart]"}},
          {"kind":"visible","afterOperationIndex":6,"locator":{"kind":"css","selector":"[data-test=proceed-2]"},"observation":{"mode":"eventual","timeoutMs":8000}},
+         {"kind":"visible","afterOperationIndex":9,"locator":{"kind":"css","selector":"[data-test=finish]"}},
          {"kind":"visible","locator":{"kind":"css","selector":"#invoice-number"},"observation":{"mode":"eventual","timeoutMs":8000}}]}}]}]}
 EOF
 ```
@@ -133,7 +144,10 @@ the sprint5 cart itself lives in the browser session). All of it is a proposal u
 step 5. A wrong selector fails as `action_failure` → `needs_review`; a wrong or missing mutation route fails
 closed as `SIDE_EFFECT_SCOPE` with the denied `METHOD origin/path` in the attempt trace (`side_effect` rows),
 after which the route table is corrected, re-authored and re-approved. Route paths may use one-segment
-`{placeholder}`s (for example `/carts/{cartId}`), never wildcards or queries.
+`{placeholder}`s (for example `/carts/{cartId}`), never wildcards or queries. `origins`, `mutationRoutes`
+(by origin, method, path) and `secretRefs` must be sorted and duplicate-free; `author-checks` refuses unsorted
+input rather than reordering it. The stand's UI loads one foreign CDN stylesheet; the lane aborts it (see §0)
+and continues.
 
 ```sh
 npm run qa-campaign -- author-checks --workspace "$W" --input "$QA_DEMO/toolshop-v3.json" > "$QA_DEMO/toolshop-preview.json"
