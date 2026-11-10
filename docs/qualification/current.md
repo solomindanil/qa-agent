@@ -7,6 +7,17 @@ Dated plan observations and historical delivery/CI instructions are not fresh au
 
 Direction, 9 November 2026: the owner accepted the [pivot plan](../superpowers/plans/2026-11-09-pivot-find-bugs.md) after the [direction review](../reviews/2026-11-09-direction-review.md). From here a slice is accepted by its measurement table on the reference products (bugs found/missed, time to first useful check, zero false PASS); memory, continuation, request-intake and UI-monitor expansion are frozen; the process note per slice is one line. PR #77 (`bc749c3`) and #78 (`3718ace`) were merged on that decision while the Kernel scale-protocol test still fails CI; moving that protocol to nightly is pivot slice S0.
 
+S1-min (10 November 2026, PR pending, Claude author + blind-reader review, Astra fork already decided): the Console gains the loopback stateful lane behind `sideEffectAuthorization` + `run --allow-side-effect reversible_mutation` (one browser mutation check, receipt-embedded ledger, Kernel unchanged, catalog keeps its anonymous read-only declaration while the plan record binds the lane); the recipe is [S1 ToolShop lane](../s1-toolshop-stateful-lane.md); no stand run or evaluator run yet.
+
+| Поле (D2, S1) | Содержание |
+| --- | --- |
+| Эталон | ToolShop (94, оценщик независимый); второй продукт — не выбран |
+| Найдено / пропущено | до: 3/94; после: не измерено |
+| Время до первой полезной проверки | не измерено |
+| Доля времени инструмент/продукт | не измерено |
+| Ложные PASS | не измерено (цель 0) |
+| Ограничения | прогон на стенде и сравнение с эталоном не выполнялись; код проверен только синтетическими контролями |
+
 ## Selected source
 
 | Component | Exact manifest source | Current role |

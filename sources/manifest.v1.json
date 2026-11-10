@@ -14,12 +14,12 @@
     {
       "id": "console",
       "path": "components/console",
-      "commit": "0ddb645589ab483447777c0c596bd520302b832d",
-      "tree": "14051607102712a2c7f38599bf88a15a468788f6",
-      "bundle": "sources/candidates/console-quickstart-findings-0ddb645.bundle",
-      "sha256": "eded9d24e0765faa5d58325e8c28bdd34595d5635ee88c90d92c8e90270d67e0",
+      "commit": "6ba7aebc566eb676c9c12513c3f81b01a2514b20",
+      "tree": "9ca9dc13984093a6ac5bdb02cb817fdfc3fed21d",
+      "bundle": "sources/candidates/console-s1-stateful-lane-6ba7aeb.bundle",
+      "sha256": "b57a1de0f4a02d3e843f8b9efec1f014141651475db1090551ccc76647a9c4ef",
       "runtimeAuthority": true,
-      "qualification": "Quickstart findings over 07a0e8a (CI-drift repair): qa-init --answers reports a closed intake code and literal field path (IntakeContractError) without echoing input values; new native-v7 exports record reportPresentation coverage_timing.v1 and label registration coverage as a model snapshot not updated by approval or execution; legacy v1/v2/v7 packets reopen unchanged. Design by Astra; code by Claude because Sol 6.1 is unavailable to this account; author-distinct Astra AQA GO with no findings on the same change over 0578e47 (066d555), then cherry-picked cleanly with no file overlap. Affected unit files plus agent-memory-report-ui on 0ddb645: 293 tests, 292P/1 skip/0F; accepted intake bytes unchanged; negative controls fail on the old code. No full test:unit, browser build or product execution."
+      "qualification": "S1-min loopback stateful lane over 0ddb645: plan-bound sideEffectAuthorization, run --allow-side-effect reversible_mutation with the frozen loopback scope, receipt-embedded mutation ledger, qa-authored-checks.v3 and the 'Approve loopback stateful replay' approval question; Kernel pin unchanged and the catalog keeps its anonymous read-only declaration (design \u00a77 deviation, reported in the PR). Claude author with a blind-reader review (no High, Mediums fixed). Focused unit files under the CI-like wrapper: qa-campaign-runner 43P (incl. plan/receipt grammar controls), campaign-dependency-adapter 122P (incl. real-Chromium lane controls on a synthetic two-origin stand), authored-checks 35P (real Kernel fixture), campaign-dependency-cli 6P (end-to-end lane), qa-outcomes-export 46P, skill 43P; typecheck 0. No ToolShop stand run, no evaluator comparison, no Linux CI; measurement table in current.md is empty by design."
     },
     {
       "id": "freeland",
