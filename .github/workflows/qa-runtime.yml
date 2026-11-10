@@ -697,11 +697,12 @@ jobs:
         run: |
           set -euo pipefail
           qa_tmp="$(mktemp -d "${RUNNER_TEMP}/qa-kernel.XXXXXX")"
-          # These three groups are disjoint and exhaust the normal collection.
+          # These three groups are disjoint and exhaust the normal collection, except the
+          # fixed 10k scale protocol, which runs nightly in qa-kernel-nightly.yml (pivot S0).
           case "${{ matrix.group }}" in
             workspace) set -- tests/workspace/regeneration.test.ts ;;
             service) set -- tests/registration/service.test.ts ;;
-            remaining) set -- --exclude tests/workspace/regeneration.test.ts --exclude tests/registration/service.test.ts ;;
+            remaining) set -- --exclude tests/workspace/regeneration.test.ts --exclude tests/registration/service.test.ts --exclude tests/kernel/agent-memory-scale.test.ts ;;
             *) exit 1 ;;
           esac
           env -i \
